@@ -755,7 +755,7 @@
         <div class="sub-info">
           <div class="sub-tier-name" id="sub-tier-name">Pro</div>
           <div class="sub-price" id="sub-price">£24.99 / month</div>
-          <div class="sub-next">Next billing: <strong style="color:var(--text);">9 May 2025</strong> · PayPal Subscriptions</div>
+          <div class="sub-next" id="sub-next">—</div>
         </div>
         <div class="sub-actions">
           <button class="btn btn-ghost btn-sm" onclick="alert('Redirecting to PayPal subscription management...')">
@@ -779,29 +779,31 @@
         </div>
         <div class="stat-card">
           <div class="stat-label">Member Since</div>
-          <div class="stat-val" style="font-size:18px;">Apr 2025</div>
+          <div class="stat-val" id="stat-member" style="font-size:18px;">—</div>
           <div class="stat-sub">Founding member</div>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-title">Upgrade Plan</div>
+        <div class="card-title">Change Plan</div>
         <div style="display:flex; gap:12px; margin-top:4px;">
-          <div style="flex:1; padding:20px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:10px;">
+          <div class="upgrade-card" data-tier="basic" style="flex:1;padding:20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;position:relative;">
+            <div class="upgrade-current-badge" style="display:none;position:absolute;top:12px;right:12px;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted2);border:1px solid rgba(255,255,255,0.1);padding:2px 8px;border-radius:3px;">Current</div>
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted2);margin-bottom:6px;">Basic</div>
             <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--muted2);">£9.99<span style="font-size:12px;font-weight:400;">/mo</span></div>
-            <button class="btn btn-ghost btn-sm" style="margin-top:14px;width:100%;justify-content:center;" onclick="if(confirm('Downgrade to Basic? Access will change immediately.')) alert('Downgrade processed. Basic access is now active.')">Downgrade</button>
+            <button class="btn btn-ghost btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('basic')">Get Basic</button>
           </div>
-          <div style="flex:1; padding:20px; background:rgba(232,33,122,0.06); border:1px solid rgba(232,33,122,0.2); border-radius:10px; position:relative;">
-            <div style="position:absolute;top:12px;right:12px;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--pink);border:1px solid var(--border);padding:2px 8px;border-radius:3px;">Current</div>
+          <div class="upgrade-card" data-tier="pro" style="flex:1;padding:20px;background:rgba(232,33,122,0.06);border:1px solid rgba(232,33,122,0.2);border-radius:10px;position:relative;">
+            <div class="upgrade-current-badge" style="display:none;position:absolute;top:12px;right:12px;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--pink);border:1px solid var(--border);padding:2px 8px;border-radius:3px;">Current</div>
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--pink);margin-bottom:6px;">Pro</div>
             <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);">£24.99<span style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
-            <button class="btn btn-pink btn-sm" style="margin-top:14px;width:100%;justify-content:center;" disabled style="opacity:.4;cursor:not-allowed;">Active</button>
+            <button class="btn btn-pink btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('pro')">Get Pro</button>
           </div>
-          <div style="flex:1; padding:20px; background:rgba(232,161,33,0.04); border:1px solid rgba(232,161,33,0.18); border-radius:10px;">
+          <div class="upgrade-card" data-tier="elite" style="flex:1;padding:20px;background:rgba(232,161,33,0.04);border:1px solid rgba(232,161,33,0.18);border-radius:10px;position:relative;">
+            <div class="upgrade-current-badge" style="display:none;position:absolute;top:12px;right:12px;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold);border:1px solid rgba(232,161,33,0.2);padding:2px 8px;border-radius:3px;">Current</div>
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--gold);margin-bottom:6px;">Elite</div>
             <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);">£49.99<span style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
-            <button class="btn btn-gold btn-sm" style="margin-top:14px;width:100%;justify-content:center;" onclick="if(confirm('Upgrade to Elite? You will be charged the difference via PayPal.')) alert('Upgrading to Elite — redirecting to PayPal...')">Upgrade</button>
+            <button class="btn btn-gold btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('elite')">Get Elite</button>
           </div>
         </div>
       </div>
@@ -1007,13 +1009,13 @@
         <div class="grid-3" style="margin-bottom:24px;">
           <div class="stat-card">
             <div class="stat-label">Monthly Recurring Revenue</div>
-            <div class="stat-val" style="color:var(--green);">£847</div>
-            <div class="stat-delta delta-up">↑ +£124 this week</div>
+            <div class="stat-val" id="admin-mrr" style="color:var(--green);">—</div>
+            <div class="stat-delta delta-up" id="admin-mrr-delta"></div>
           </div>
           <div class="stat-card">
             <div class="stat-label">Active Subscribers</div>
-            <div class="stat-val">34</div>
-            <div class="stat-sub">Basic: 12 · Pro: 18 · Elite: 4</div>
+            <div class="stat-val" id="admin-subs">—</div>
+            <div class="stat-sub" id="admin-breakdown">Loading...</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">New This Week</div>
@@ -1048,50 +1050,8 @@
                   <th>Actions</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr>
-                  <td class="td-mono">731207920007643167</td>
-                  <td style="color:var(--pink);font-weight:500;">You (Owner)</td>
-                  <td class="td-tier-pro">Pro</td>
-                  <td class="td-active">Active</td>
-                  <td>Apr 9, 2025</td>
-                  <td class="td-actions">
-                    <button class="btn btn-ghost btn-sm" disabled>Owner</button>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="td-mono">384920183740293</td>
-                  <td>flipper_jk</td>
-                  <td class="td-tier-pro">Pro</td>
-                  <td class="td-active">Active</td>
-                  <td>Apr 7, 2025</td>
-                  <td class="td-actions">
-                    <button class="btn btn-ghost btn-sm" onclick="alert('Tier editor: flipper_jk')">Edit Tier</button>
-                    <button class="btn btn-danger btn-sm" onclick="if(confirm('Revoke flipper_jk access?')) alert('Access revoked.')">Revoke</button>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="td-mono">920481029384710</td>
-                  <td>streetwear_sr</td>
-                  <td class="td-tier-elite">Elite</td>
-                  <td class="td-active">Active</td>
-                  <td>Apr 3, 2025</td>
-                  <td class="td-actions">
-                    <button class="btn btn-ghost btn-sm" onclick="alert('Tier editor: streetwear_sr')">Edit Tier</button>
-                    <button class="btn btn-danger btn-sm" onclick="if(confirm('Revoke streetwear_sr access?')) alert('Access revoked.')">Revoke</button>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="td-mono">112938401829374</td>
-                  <td>kicks_mc</td>
-                  <td class="td-tier-basic">Basic</td>
-                  <td class="td-inactive">Expired</td>
-                  <td>Mar 22, 2025</td>
-                  <td class="td-actions">
-                    <button class="btn btn-ghost btn-sm" onclick="alert('Manually assigning Pro to kicks_mc')">Assign Tier</button>
-                    <button class="btn btn-danger btn-sm" onclick="if(confirm('Ban kicks_mc?')) alert('User banned.')">Ban</button>
-                  </td>
-                </tr>
+              <tbody id="admin-users-tbody">
+                <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Loading users...</td></tr>
               </tbody>
             </table>
           </div>
@@ -1268,123 +1228,205 @@
 </div><!-- /main -->
 
 <script>
-  // ── Supabase config ──
-  // Get these from: supabase.com/dashboard → your project → Settings → API
-  const SUPABASE_URL = 'https://fqfanqtybvnurhzkoxwr.supabase.co';
+  const SUPABASE_URL      = 'https://fqfanqtybvnurhzkoxwr.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxZmFucXR5YnZudXJoemtveHdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2OTcxNjMsImV4cCI6MjA5MTI3MzE2M30.aoqhW8hXgRVfX8JI27jfN7QBfyY-ev6PQ52xvUz-X-E';
-
-  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
+  const sb       = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const OWNER_ID = '731207920007643167';
+
+  const TIER = {
+    none:  { label:'No Plan',  price:'—',              limit:'—',       color:'var(--muted)'  },
+    basic: { label:'Starter',  price:'£9.99 / month',  limit:'of 5/day',  color:'var(--muted2)' },
+    pro:   { label:'Pro',      price:'£24.99 / month', limit:'of 50/day', color:'var(--pink)'   },
+    elite: { label:'Elite',    price:'£49.99 / month', limit:'Unlimited', color:'var(--gold)'   },
+  };
+
+  const PLAN_IDS = {
+    basic: 'P-93B20926R3557122WNHLYUWQ',
+    pro:   'P-8VH442677L542670XNHLYVLY',
+    elite: 'P-4MT822095D5508948NHLYWKA',
+  };
 
   async function init() {
     const { data: { session } } = await sb.auth.getSession();
-    if (!session) {
-      window.location.href = 'vendora-login.html';
-      return;
-    }
+    if (!session) { window.location.href = 'vendora-login.html'; return; }
 
-    const u = session.user;
-    // Discord user ID is stored by Supabase in user_metadata.provider_id
+    const u         = session.user;
     const discordId = u.user_metadata?.provider_id
-      || u.identities?.find(i => i.provider === 'discord')?.id
-      || '';
-    const username = u.user_metadata?.full_name || u.user_metadata?.name || u.email || 'Unknown';
-    const initials = username.slice(0, 2).toUpperCase();
-    const avatarUrl = u.user_metadata?.avatar_url || null;
-    const tier = 'Pro'; // Pull from your DB once you have a users table
+      || u.identities?.find(i => i.provider === 'discord')?.id || '';
 
-    const isOwner = discordId === OWNER_ID;
+    const { data: profile } = await sb.from('profiles').select('*').eq('id', u.id).single();
 
-    // Populate UI
-    document.getElementById('sidebar-avi').textContent = initials;
+    const username  = profile?.username   || u.user_metadata?.full_name || u.user_metadata?.name || 'Unknown';
+    const avatarUrl = profile?.avatar_url || u.user_metadata?.avatar_url || null;
+    const tier      = profile?.tier || 'none';
+    const subStatus = profile?.subscription_status || 'inactive';
+    const subId     = profile?.paypal_subscription_id || null;
+    const initials  = username.slice(0, 2).toUpperCase();
+    const isOwner   = discordId === OWNER_ID;
+    const td        = TIER[tier] || TIER.none;
+    const memberSince = new Date(u.created_at || Date.now())
+      .toLocaleDateString('en-GB', { month:'short', year:'numeric' });
+
+    document.getElementById('sidebar-avi').textContent  = initials;
     document.getElementById('sidebar-name').textContent = username;
-    document.getElementById('sidebar-tier').textContent = tier;
-    document.getElementById('topbar-id').textContent = 'ID: ' + discordId;
-    document.getElementById('account-avi').textContent = initials;
+    const sidebarTier = document.getElementById('sidebar-tier');
+    sidebarTier.textContent = td.label; sidebarTier.style.color = td.color;
+    document.getElementById('topbar-id').textContent    = 'ID: ' + discordId;
+    document.getElementById('account-avi').textContent  = initials;
     document.getElementById('account-name').textContent = username;
-    document.getElementById('account-id').textContent = 'ID: ' + discordId;
-    document.getElementById('detail-name').textContent = username;
-    document.getElementById('detail-id').textContent = discordId;
+    document.getElementById('account-id').textContent   = 'ID: ' + discordId;
+    document.getElementById('detail-name').textContent  = username;
+    document.getElementById('detail-id').textContent    = discordId;
 
-    // Replace initials with Discord avatar if available
     if (avatarUrl) {
-      ['sidebar-avi', 'account-avi'].forEach(id => {
+      ['sidebar-avi','account-avi'].forEach(id => {
         const el = document.getElementById(id);
-        el.style.backgroundImage = `url(${avatarUrl})`;
-        el.style.backgroundSize = 'cover';
-        el.style.backgroundPosition = 'center';
+        Object.assign(el.style, { backgroundImage:`url(${avatarUrl})`, backgroundSize:'cover', backgroundPosition:'center' });
         el.textContent = '';
       });
     }
 
-    // If user came from a pricing button, jump to subscription section
+    const subTierEl = document.getElementById('sub-tier-name');
+    if (subTierEl) { subTierEl.textContent = td.label; subTierEl.style.color = td.color; }
+    const subPriceEl = document.getElementById('sub-price');
+    if (subPriceEl) subPriceEl.textContent = td.price;
+    const subNextEl = document.getElementById('sub-next');
+    if (subNextEl) {
+      subNextEl.innerHTML = subStatus === 'active' && subId
+        ? `Status: <strong style="color:var(--green);">Active</strong> &nbsp;&middot;&nbsp; PayPal ID: <span style="font-family:monospace;font-size:11px;">${subId}</span>`
+        : 'Status: <strong style="color:var(--muted);">No active subscription</strong>';
+    }
+    const statTierEl = document.getElementById('stat-tier');
+    if (statTierEl) { statTierEl.textContent = tier === 'none' ? '—' : td.label; statTierEl.style.color = td.color; }
+    const statLimitEl = document.getElementById('stat-limit');
+    if (statLimitEl) statLimitEl.textContent = td.limit;
+    const memberEl = document.getElementById('stat-member');
+    if (memberEl) memberEl.textContent = memberSince;
+
+    updateUpgradeCards(tier);
+
+    if (isOwner) {
+      document.getElementById('admin-label').style.display         = '';
+      document.getElementById('admin-nav-item').style.display      = '';
+      document.getElementById('account-owner-badge').style.display = '';
+      document.getElementById('admin-content').style.display       = '';
+      document.getElementById('admin-denied').style.display        = 'none';
+      loadAdminData();
+    } else {
+      document.getElementById('admin-content').style.display = 'none';
+      document.getElementById('admin-denied').style.display  = '';
+    }
+
     const pendingPlan = localStorage.getItem('pendingPlan');
     if (pendingPlan) {
       localStorage.removeItem('pendingPlan');
       setTimeout(() => {
         const subNav = document.querySelector('.nav-item[onclick*="subscription"]');
         showSection('subscription', subNav);
-        // Highlight the chosen plan
-        highlightPlan(pendingPlan);
-      }, 300);
-    }
-
-    // Gate admin panel on real Discord ID
-    if (isOwner) {
-      document.getElementById('admin-label').style.display = '';
-      document.getElementById('admin-nav-item').style.display = '';
-      document.getElementById('account-owner-badge').style.display = '';
-      document.getElementById('admin-content').style.display = '';
-      document.getElementById('admin-denied').style.display = 'none';
-    } else {
-      document.getElementById('admin-content').style.display = 'none';
-      document.getElementById('admin-denied').style.display = '';
+        selectPlan(pendingPlan);
+      }, 400);
     }
   }
 
-  function highlightPlan(plan) {
-    const planNames = { basic: 'Starter — £9.99/mo', pro: 'Pro — £24.99/mo', elite: 'Elite — £49.99/mo' };
-    const planIds = {
-      basic: 'P-93B20926R3557122WNHLYUWQ',
-      pro:   'P-8VH442677L542670XNHLYVLY',
-      elite: 'P-4MT822095D5508948NHLYWKA'
-    };
+  function updateUpgradeCards(currentTier) {
+    document.querySelectorAll('.upgrade-card').forEach(card => {
+      const t     = card.dataset.tier;
+      const badge = card.querySelector('.upgrade-current-badge');
+      const btn   = card.querySelector('.upgrade-btn');
+      if (t === currentTier) {
+        if (badge) badge.style.display = '';
+        if (btn)  { btn.textContent = 'Active'; btn.disabled = true; btn.style.opacity = '0.5'; btn.style.cursor = 'not-allowed'; }
+      } else {
+        if (badge) badge.style.display = 'none';
+        if (btn)  { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = ''; }
+      }
+    });
+  }
 
-    const banner = document.getElementById('payment-banner');
-    const mount  = document.getElementById('paypal-button-mount');
+  function selectPlan(plan) {
+    const planNames = { basic:'Starter — £9.99/mo', pro:'Pro — £24.99/mo', elite:'Elite — £49.99/mo' };
+    const banner    = document.getElementById('payment-banner');
+    const mount     = document.getElementById('paypal-button-mount');
     if (!banner || !mount) return;
-
     banner.querySelector('.banner-plan').textContent = planNames[plan] || plan;
     banner.style.display = 'flex';
-
-    // Clear any previously rendered PayPal button
+    banner.style.background = 'rgba(232,33,122,0.07)';
+    banner.style.borderColor = 'rgba(232,33,122,0.25)';
     mount.innerHTML = '';
+    banner.scrollIntoView({ behavior:'smooth', block:'nearest' });
 
-    // Render the PayPal subscribe button for the chosen plan
     paypal.Buttons({
-      style: { shape: 'rect', color: 'black', layout: 'vertical', label: 'subscribe' },
-      createSubscription: (data, actions) => actions.subscription.create({ plan_id: planIds[plan] }),
-      onApprove: (data) => {
+      style: { shape:'rect', color:'black', layout:'vertical', label:'subscribe' },
+      createSubscription: (_d, actions) => actions.subscription.create({ plan_id: PLAN_IDS[plan] }),
+      onApprove: async (data) => {
+        const { data: { session } } = await sb.auth.getSession();
+        if (session) {
+          await sb.from('profiles').update({
+            tier: plan,
+            paypal_subscription_id: data.subscriptionID,
+            subscription_status: 'active',
+          }).eq('id', session.user.id);
+        }
         mount.innerHTML = '';
-        banner.innerHTML = `
-          <div style="display:flex;align-items:center;gap:14px;width:100%;">
-            <div style="width:40px;height:40px;border-radius:50%;background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            </div>
-            <div>
-              <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--green);margin-bottom:3px;">Subscription Confirmed</div>
-              <div style="font-size:12px;color:var(--muted);font-weight:300;">Your Discord role will be assigned automatically. Subscription ID: <span style="font-family:monospace;color:var(--text);">${data.subscriptionID}</span></div>
-            </div>
-          </div>`;
-        banner.style.background = 'rgba(74,222,128,0.05)';
+        banner.style.background  = 'rgba(74,222,128,0.05)';
         banner.style.borderColor = 'rgba(74,222,128,0.2)';
+        banner.innerHTML = `<div style="display:flex;align-items:center;gap:14px;width:100%;"><div style="width:40px;height:40px;border-radius:50%;background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div><div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--green);margin-bottom:3px;">Subscription Confirmed</div><div style="font-size:12px;color:var(--muted);font-weight:300;">Discord role assigned automatically. Sub ID: <span style="font-family:monospace;color:var(--text);">${data.subscriptionID}</span></div></div></div>`;
+        setTimeout(() => init(), 1500);
       },
       onError: (err) => {
-        mount.innerHTML = `<div style="font-size:12px;color:var(--red);padding:8px 0;">Payment failed. Please try again.</div>`;
+        mount.innerHTML = '<div style="font-size:12px;color:var(--red);padding:8px 0;">Payment failed — please try again.</div>';
         console.error('PayPal error:', err);
-      }
+      },
     }).render('#paypal-button-mount');
+  }
+
+  async function loadAdminData() {
+    const { data: users, error } = await sb.from('profiles').select('*').order('created_at', { ascending: false });
+    if (error || !users) return;
+    const active     = users.filter(u => u.subscription_status === 'active');
+    const basicCount = active.filter(u => u.tier === 'basic').length;
+    const proCount   = active.filter(u => u.tier === 'pro').length;
+    const eliteCount = active.filter(u => u.tier === 'elite').length;
+    const mrr        = (basicCount * 9.99 + proCount * 24.99 + eliteCount * 49.99).toFixed(0);
+    const mrrEl = document.getElementById('admin-mrr');
+    const subsEl = document.getElementById('admin-subs');
+    const breakdownEl = document.getElementById('admin-breakdown');
+    if (mrrEl)       mrrEl.textContent       = '£' + mrr;
+    if (subsEl)      subsEl.textContent      = active.length;
+    if (breakdownEl) breakdownEl.textContent = `Basic: ${basicCount} · Pro: ${proCount} · Elite: ${eliteCount}`;
+    const tbody = document.getElementById('admin-users-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (!users.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">No users yet.</td></tr>';
+      return;
+    }
+    users.forEach(p => {
+      const isThisOwner = p.discord_id === OWNER_ID;
+      const tierLabel   = p.tier ? p.tier.charAt(0).toUpperCase() + p.tier.slice(1) : 'None';
+      const tierClass   = { basic:'td-tier-basic', pro:'td-tier-pro', elite:'td-tier-elite' }[p.tier] || '';
+      const statusClass = p.subscription_status === 'active' ? 'td-active' : 'td-inactive';
+      const statusLabel = p.subscription_status === 'active' ? 'Active' : (p.subscription_status || 'Inactive');
+      const joined      = p.created_at ? new Date(p.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '—';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class="td-mono">${p.discord_id||'—'}</td><td style="${isThisOwner?'color:var(--pink);font-weight:500;':''}">${p.username||'Unknown'}${isThisOwner?' (You)':''}</td><td class="${tierClass}">${tierLabel}</td><td class="${statusClass}">${statusLabel}</td><td>${joined}</td><td class="td-actions">${isThisOwner?'<button class="btn btn-ghost btn-sm" disabled>Owner</button>':`<button class="btn btn-ghost btn-sm" onclick="adminSetTier('${p.id}','${p.discord_id||''}')">Edit Tier</button><button class="btn btn-danger btn-sm" onclick="adminRevoke('${p.id}')">Revoke</button>`}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function adminSetTier(userId, discordId) {
+    const t = prompt('New tier for ' + discordId + ':\nbasic / pro / elite / none');
+    if (!t || !['basic','pro','elite','none'].includes(t.toLowerCase())) return;
+    const { error } = await sb.from('profiles').update({ tier: t.toLowerCase() }).eq('id', userId);
+    if (error) { alert('Error: ' + error.message); return; }
+    loadAdminData();
+  }
+
+  async function adminRevoke(userId) {
+    if (!confirm('Revoke access? Tier will be set to none.')) return;
+    const { error } = await sb.from('profiles').update({ tier:'none', subscription_status:'inactive' }).eq('id', userId);
+    if (error) { alert('Error: ' + error.message); return; }
+    loadAdminData();
   }
 
   async function signOut() {
@@ -1394,20 +1436,13 @@
 
   init();
 
-  // Section switching
-  const sectionTitles = {
-    account: 'Account',
-    subscription: 'Subscription',
-    notifications: 'Notifications',
-    platforms: 'Platforms',
-    admin: 'Admin Panel',
-  };
+  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', admin:'Admin Panel' };
 
   function showSection(id, el) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('section-' + id).classList.add('active');
-    el.classList.add('active');
+    if (el) el.classList.add('active');
     document.getElementById('topbar-title').textContent = sectionTitles[id] || id;
   }
 
@@ -1415,7 +1450,7 @@
     document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
     document.getElementById('admin-' + id).classList.add('active');
-    el.classList.add('active');
+    if (el) el.classList.add('active');
   }
 </script>
 
