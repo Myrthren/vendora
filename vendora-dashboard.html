@@ -6,6 +6,7 @@
 <title>Vendora — Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://www.paypal.com/sdk/js?client-id=Ad69aCRO915AbyIBrcdwElMCyPEnbzRbByPb5vr2tD6RlOG8JNC8S34-8GCgNHG4PaDm2FVdWbFnx_m8&vault=true&intent=subscription" data-sdk-integration-source="button-factory"></script>
 <style>
   :root {
     --pink: #e8217a;
@@ -744,10 +745,7 @@
           <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--text);" class="banner-plan">Pro — £24.99/mo</div>
           <div style="font-size:12px;color:var(--muted);font-weight:300;margin-top:3px;">You'll be redirected to PayPal to complete payment. Your Discord role is assigned instantly on confirmation.</div>
         </div>
-        <a href="#" onclick="alert('PayPal payment link coming soon — add your PayPal subscription button ID here.'); return false;" class="btn btn-pink" style="white-space:nowrap;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-          Pay with PayPal
-        </a>
+        <div id="paypal-button-mount" style="min-width:200px;"></div>
       </div>
 
       <div class="sub-current">
@@ -1346,21 +1344,47 @@
   }
 
   function highlightPlan(plan) {
-    // Scroll to the upgrade cards and flash the chosen one
-    const planMap = { basic: 0, pro: 1, elite: 2 };
-    const cards = document.querySelectorAll('#section-subscription .p-highlight-card');
-    if (cards.length) {
-      const target = cards[planMap[plan] ?? 1];
-      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      target?.classList.add('plan-selected');
-    }
-    // Show the payment banner
-    const banner = document.getElementById('payment-banner');
     const planNames = { basic: 'Starter — £9.99/mo', pro: 'Pro — £24.99/mo', elite: 'Elite — £49.99/mo' };
-    if (banner) {
-      banner.querySelector('.banner-plan').textContent = planNames[plan] || plan;
-      banner.style.display = 'flex';
-    }
+    const planIds = {
+      basic: 'P-93B20926R3557122WNHLYUWQ',
+      pro:   'P-8VH442677L542670XNHLYVLY',
+      elite: 'P-4MT822095D5508948NHLYWKA'
+    };
+
+    const banner = document.getElementById('payment-banner');
+    const mount  = document.getElementById('paypal-button-mount');
+    if (!banner || !mount) return;
+
+    banner.querySelector('.banner-plan').textContent = planNames[plan] || plan;
+    banner.style.display = 'flex';
+
+    // Clear any previously rendered PayPal button
+    mount.innerHTML = '';
+
+    // Render the PayPal subscribe button for the chosen plan
+    paypal.Buttons({
+      style: { shape: 'rect', color: 'black', layout: 'vertical', label: 'subscribe' },
+      createSubscription: (data, actions) => actions.subscription.create({ plan_id: planIds[plan] }),
+      onApprove: (data) => {
+        mount.innerHTML = '';
+        banner.innerHTML = `
+          <div style="display:flex;align-items:center;gap:14px;width:100%;">
+            <div style="width:40px;height:40px;border-radius:50%;background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div>
+              <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--green);margin-bottom:3px;">Subscription Confirmed</div>
+              <div style="font-size:12px;color:var(--muted);font-weight:300;">Your Discord role will be assigned automatically. Subscription ID: <span style="font-family:monospace;color:var(--text);">${data.subscriptionID}</span></div>
+            </div>
+          </div>`;
+        banner.style.background = 'rgba(74,222,128,0.05)';
+        banner.style.borderColor = 'rgba(74,222,128,0.2)';
+      },
+      onError: (err) => {
+        mount.innerHTML = `<div style="font-size:12px;color:var(--red);padding:8px 0;">Payment failed. Please try again.</div>`;
+        console.error('PayPal error:', err);
+      }
+    }).render('#paypal-button-mount');
   }
 
   async function signOut() {
