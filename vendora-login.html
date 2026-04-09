@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vendora — Sign In</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --pink: #e8217a;
+    --pink-light: #f72e8a;
+    --pink-glow: rgba(232,33,122,0.35);
+    --bg: #090909;
+    --bg2: #0d0d0d;
+    --bg3: #111;
+    --border: rgba(232,33,122,0.14);
+    --border-dim: rgba(255,255,255,0.06);
+    --text: #f0f0f0;
+    --muted: #777;
+    --discord: #5865F2;
+    --discord-hover: #4752C4;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    display: flex; flex-direction: column;
+    min-height: 100vh; overflow-x: hidden;
+  }
+
+  /* Noise */
+  body::after {
+    content: '';
+    position: fixed; inset: 0; pointer-events: none; z-index: 900;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    opacity: 0.65;
+  }
+
+  /* Grid background */
+  .page-grid {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      linear-gradient(rgba(232,33,122,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,33,122,0.035) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 10%, transparent 100%);
+  }
+
+  .orb {
+    position: fixed; pointer-events: none; z-index: 0;
+    width: 600px; height: 600px;
+    background: radial-gradient(ellipse, rgba(232,33,122,0.08) 0%, transparent 65%);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    animation: breathe 7s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: .7; }
+    50% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+  }
+
+  /* Nav bar */
+  nav {
+    position: relative; z-index: 10;
+    padding: 18px 40px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid rgba(255,255,255,0.035);
+    background: rgba(9,9,9,0.7);
+    backdrop-filter: blur(20px);
+  }
+  .nav-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .nav-brand-mark {
+    width: 32px; height: 32px;
+    filter: drop-shadow(0 0 7px rgba(232,33,122,0.4));
+  }
+  .nav-brand-mark img { width: 32px; height: 32px; object-fit: contain; border-radius: 4px; display: block; }
+  .nav-brand-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--text);
+  }
+  .nav-back {
+    font-size: 11px; color: var(--muted);
+    text-decoration: none; letter-spacing: 0.07em;
+    text-transform: uppercase;
+    transition: color .2s;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .nav-back:hover { color: var(--text); }
+  .nav-back svg { display: block; }
+
+  /* Main */
+  main {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    padding: 40px 20px;
+    position: relative; z-index: 1;
+  }
+
+  .login-card {
+    width: 100%; max-width: 440px;
+    background: var(--bg3);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 18px;
+    padding: 48px 40px;
+    position: relative; overflow: hidden;
+    animation: cardIn .5s ease forwards;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .login-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(232,33,122,0.5), transparent);
+  }
+
+  .card-logo {
+    display: flex; align-items: center; gap: 11px;
+    margin-bottom: 36px;
+  }
+  .card-logo-mark {
+    width: 40px; height: 40px;
+    filter: drop-shadow(0 0 10px rgba(232,33,122,0.45));
+  }
+  .card-logo-mark img { width: 40px; height: 40px; object-fit: contain; border-radius: 6px; display: block; }
+  .card-logo-text {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px; font-weight: 800;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--text);
+  }
+
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 26px; font-weight: 800;
+    letter-spacing: -0.015em; text-transform: uppercase;
+    color: var(--text); margin-bottom: 10px;
+  }
+  .card-sub {
+    font-size: 13px; color: var(--muted);
+    line-height: 1.7; font-weight: 300; margin-bottom: 36px;
+  }
+
+  /* What you get */
+  .perks { display: flex; flex-direction: column; gap: 10px; margin-bottom: 36px; }
+  .perk {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; color: rgba(255,255,255,0.55);
+  }
+  .perk svg { display: block; flex-shrink: 0; }
+
+  .divider {
+    height: 1px; background: rgba(255,255,255,0.055);
+    margin-bottom: 28px;
+  }
+
+  /* Discord button */
+  .btn-discord {
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    width: 100%; padding: 15px 24px;
+    background: var(--discord);
+    border: none; border-radius: 9px;
+    color: #fff; text-decoration: none;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px; font-weight: 700;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    cursor: pointer;
+    transition: background .2s, box-shadow .3s, transform .2s;
+    margin-bottom: 14px;
+  }
+  .btn-discord:hover {
+    background: var(--discord-hover);
+    box-shadow: 0 0 28px rgba(88,101,242,0.4), 0 8px 24px rgba(0,0,0,0.35);
+    transform: translateY(-2px);
+  }
+  .btn-discord svg { display: block; flex-shrink: 0; }
+
+  .btn-discord-sub {
+    font-size: 11px; color: rgba(255,255,255,0.25);
+    text-align: center; line-height: 1.6; letter-spacing: 0.03em;
+  }
+
+  .card-note {
+    margin-top: 28px;
+    padding: 14px 16px;
+    background: rgba(232,33,122,0.05);
+    border: 1px solid rgba(232,33,122,0.12);
+    border-radius: 9px;
+  }
+  .card-note-title {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--pink); margin-bottom: 6px;
+  }
+  .card-note-text {
+    font-size: 11px; color: rgba(255,255,255,0.35);
+    line-height: 1.6; font-weight: 300;
+  }
+
+  /* Footer */
+  footer {
+    position: relative; z-index: 1;
+    padding: 20px 40px;
+    display: flex; align-items: center; justify-content: center; gap: 24px;
+    border-top: 1px solid rgba(255,255,255,0.03);
+  }
+  footer a {
+    font-size: 10px; color: rgba(255,255,255,0.2);
+    text-decoration: none; letter-spacing: 0.08em; text-transform: uppercase;
+    transition: color .2s;
+  }
+  footer a:hover { color: var(--pink); }
+  footer span { font-size: 10px; color: rgba(255,255,255,0.1); }
+</style>
+</head>
+<body>
+
+<div class="page-grid"></div>
+<div class="orb"></div>
+
+<nav>
+  <a href="index.html" class="nav-brand">
+    <div class="nav-brand-mark">
+      <img src="3308A32C-1B75-45FE-A803-B1332BE91390.png" alt="Vendora">
+    </div>
+    <span class="nav-brand-name">Vendora</span>
+  </a>
+  <a href="index.html" class="nav-back">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+    Back to site
+  </a>
+</nav>
+
+<main>
+  <div class="login-card">
+    <div class="card-logo">
+      <div class="card-logo-mark">
+        <img src="3308A32C-1B75-45FE-A803-B1332BE91390.png" alt="Vendora">
+      </div>
+      <span class="card-logo-text">Vendora</span>
+    </div>
+
+    <div class="card-title">Sign In</div>
+    <p class="card-sub">Connect your Discord account to access Vendora. No password needed — your Discord ID is your identity.</p>
+
+    <div class="perks">
+      <div class="perk">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        Instant role assignment after payment
+      </div>
+      <div class="perk">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        Manage notifications and platform connections
+      </div>
+      <div class="perk">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        View subscription status and billing
+      </div>
+      <div class="perk">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        One account, every device
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <button onclick="signInWithDiscord()" class="btn-discord">
+      <svg width="20" height="16" viewBox="0 0 127.14 96.36" fill="#fff" xmlns="http://www.w3.org/2000/svg">
+        <path d="M107.7 8.07A105.15 105.15 0 0081.47 0a72.06 72.06 0 00-3.36 6.83 97.68 97.68 0 00-29.11 0A72.37 72.37 0 0045.64 0a105.89 105.89 0 00-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0032.17 16.15 77.7 77.7 0 006.89-11.11 68.42 68.42 0 01-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0064.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 01-10.87 5.19 77 77 0 006.89 11.1 105.25 105.25 0 0032.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15zM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53s-5.05 12.69-11.44 12.69zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53s-5.04 12.69-11.43 12.69z"/>
+      </svg>
+      Continue with Discord
+    </button>
+    <p class="btn-discord-sub">Opens Discord OAuth — we receive your ID, username, and avatar only</p>
+
+    <div class="card-note">
+      <div class="card-note-title">Important</div>
+      <p class="card-note-text">You must remain an active member of the Vendor Village Discord server to use Vendora. Leaving the server will revoke your access immediately.</p>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <a href="#">Terms of Service</a>
+  <span>·</span>
+  <a href="#">Privacy Policy</a>
+  <span>·</span>
+  <a href="#">Join Discord</a>
+</footer>
+
+
+<script>
+  // ── Supabase config ──
+  // Get these from: supabase.com/dashboard → your project → Settings → API
+  const SUPABASE_URL = 'https://fqfanqtybvnurhzkoxwr.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxZmFucXR5YnZudXJoemtveHdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2OTcxNjMsImV4cCI6MjA5MTI3MzE2M30.aoqhW8hXgRVfX8JI27jfN7QBfyY-ev6PQ52xvUz-X-E';
+
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Already logged in? Go straight to dashboard
+  sb.auth.getSession().then(({ data: { session } }) => {
+    if (session) window.location.href = 'vendora-dashboard.html';
+  });
+
+  async function signInWithDiscord() {
+    const redirectTo = window.location.href.replace('vendora-login.html', 'vendora-dashboard.html');
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: 'discord',
+      options: { redirectTo },
+    });
+    if (error) alert('Sign in failed: ' + error.message);
+  }
+</script>
+</body>
+</html>

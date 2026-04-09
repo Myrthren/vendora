@@ -1,0 +1,1590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vendora — The Reseller's Edge</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --pink: #e8217a;
+    --pink-light: #f72e8a;
+    --pink-glow: rgba(232,33,122,0.35);
+    --pink-soft: rgba(232,33,122,0.10);
+    --gold: #e8a121;
+    --green: #4ade80;
+    --bg: #090909;
+    --bg2: #0d0d0d;
+    --bg3: #111111;
+    --bg4: #161616;
+    --border: rgba(232,33,122,0.14);
+    --border-dim: rgba(255,255,255,0.06);
+    --text: #f0f0f0;
+    --muted: #777;
+    --muted2: rgba(255,255,255,0.35);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* ─── CUSTOM CURSOR ─── */
+  .cursor {
+    width: 7px; height: 7px;
+    background: var(--pink);
+    border-radius: 50%;
+    position: fixed; pointer-events: none; z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: width .15s, height .15s, opacity .2s;
+  }
+  .cursor-ring {
+    width: 30px; height: 30px;
+    border: 1px solid rgba(232,33,122,0.45);
+    border-radius: 50%;
+    position: fixed; pointer-events: none; z-index: 9998;
+    transform: translate(-50%, -50%);
+    transition: left .08s, top .08s, width .2s, height .2s, border-color .2s;
+  }
+
+  /* ─── NOISE ─── */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.028'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 900; opacity: 0.7;
+  }
+
+  /* ─── NAV ─── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+    padding: 18px 56px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(9,9,9,0.82);
+    backdrop-filter: blur(24px);
+    border-bottom: 1px solid rgba(255,255,255,0.038);
+  }
+  .nav-logo { display: flex; align-items: center; gap: 11px; text-decoration: none; }
+  .nav-logo-mark {
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    filter: drop-shadow(0 0 8px rgba(232,33,122,0.45));
+    transition: filter .3s;
+  }
+  .nav-logo-mark img { width: 36px; height: 36px; object-fit: contain; display: block; border-radius: 4px; }
+  .nav-logo:hover .nav-logo-mark { filter: drop-shadow(0 0 16px rgba(232,33,122,0.75)); }
+  .nav-logo-text {
+    font-family: 'Syne', sans-serif;
+    font-size: 17px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text);
+  }
+  .nav-links { display: flex; align-items: center; gap: 32px; list-style: none; }
+  .nav-links a {
+    text-decoration: none; color: var(--muted);
+    font-size: 12px; font-weight: 400;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    transition: color .2s;
+  }
+  .nav-links a:hover { color: var(--text); }
+  .nav-cta {
+    background: transparent !important;
+    border: 1px solid var(--border) !important;
+    color: var(--pink) !important;
+    padding: 9px 22px;
+    border-radius: 6px;
+    transition: background .25s, box-shadow .25s, border-color .25s !important;
+  }
+  .nav-cta:hover {
+    background: var(--pink-soft) !important;
+    border-color: rgba(232,33,122,0.4) !important;
+    box-shadow: 0 0 18px rgba(232,33,122,0.18) !important;
+    color: var(--pink) !important;
+  }
+
+  /* ─── HERO ─── */
+  .hero {
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: flex-start; justify-content: center;
+    padding: 140px 56px 100px;
+    position: relative; overflow: hidden;
+    max-width: 1300px; margin: 0 auto;
+  }
+
+  /* Grid lines background */
+  .hero-grid {
+    position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(232,33,122,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,33,122,0.04) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(ellipse 80% 80% at 50% 0%, black 30%, transparent 100%);
+  }
+
+  .hero-glow-orb {
+    position: absolute;
+    width: 700px; height: 500px;
+    background: radial-gradient(ellipse, rgba(232,33,122,0.09) 0%, transparent 65%);
+    top: -80px; right: -100px;
+    pointer-events: none;
+    animation: orbFloat 8s ease-in-out infinite;
+  }
+  @keyframes orbFloat {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-20px, 30px) scale(1.06); }
+  }
+
+  .hero-tag {
+    display: inline-flex; align-items: center; gap: 9px;
+    border: 1px solid var(--border);
+    background: rgba(232,33,122,0.06);
+    padding: 5px 14px 5px 10px;
+    border-radius: 100px;
+    font-size: 10px; font-weight: 500;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--pink); margin-bottom: 28px;
+    opacity: 0; animation: fadeUp .7s ease .05s forwards;
+  }
+  .tag-pulse {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--pink);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(232,33,122,.5); }
+    50% { box-shadow: 0 0 0 5px rgba(232,33,122,0); }
+  }
+
+  .hero-headline {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(58px, 7.5vw, 116px);
+    font-weight: 800;
+    line-height: 0.92;
+    letter-spacing: -0.03em;
+    text-transform: uppercase;
+    color: var(--text);
+    margin-bottom: 28px;
+    opacity: 0; animation: fadeUp .8s ease .12s forwards;
+  }
+  .hero-headline em {
+    display: block; font-style: normal;
+    color: var(--pink);
+    text-shadow: 0 0 80px rgba(232,33,122,0.35);
+    animation: glowCycle 5s ease-in-out infinite;
+  }
+  @keyframes glowCycle {
+    0%, 100% { text-shadow: 0 0 80px rgba(232,33,122,0.35); }
+    50% { text-shadow: 0 0 120px rgba(232,33,122,0.55), 0 0 200px rgba(232,33,122,0.15); }
+  }
+
+  .hero-sub {
+    font-size: 16px; color: var(--muted);
+    font-weight: 300; line-height: 1.75;
+    max-width: 480px; margin-bottom: 44px;
+    opacity: 0; animation: fadeUp .8s ease .22s forwards;
+  }
+
+  .hero-actions {
+    display: flex; align-items: center; gap: 14px;
+    flex-wrap: wrap;
+    opacity: 0; animation: fadeUp .8s ease .32s forwards;
+  }
+
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--pink); color: #fff;
+    text-decoration: none;
+    padding: 15px 34px;
+    border-radius: 7px;
+    font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 600;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    transition: background .2s, box-shadow .3s, transform .2s;
+    position: relative; overflow: hidden;
+  }
+  .btn-primary::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .btn-primary:hover {
+    background: var(--pink-light);
+    box-shadow: 0 0 36px var(--pink-glow), 0 8px 28px rgba(0,0,0,.35);
+    transform: translateY(-2px);
+  }
+  .btn-ghost {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--muted2); text-decoration: none;
+    padding: 15px 28px; border-radius: 7px;
+    font-size: 13px; font-weight: 400;
+    letter-spacing: 0.04em;
+    transition: border-color .25s, color .25s, box-shadow .25s;
+  }
+  .btn-ghost:hover {
+    border-color: var(--border);
+    color: var(--text);
+    box-shadow: 0 0 14px rgba(232,33,122,0.1);
+  }
+
+  .hero-metrics {
+    display: flex; align-items: center; gap: 36px;
+    margin-top: 64px;
+    opacity: 0; animation: fadeUp .8s ease .44s forwards;
+    padding-top: 36px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .metric-val {
+    font-family: 'Syne', sans-serif;
+    font-size: 26px; font-weight: 700; color: var(--text);
+  }
+  .metric-label {
+    font-size: 10px; color: var(--muted);
+    letter-spacing: 0.12em; text-transform: uppercase; margin-top: 3px;
+  }
+  .metric-sep { width: 1px; height: 32px; background: rgba(255,255,255,0.07); }
+
+  .hero-scroll {
+    position: absolute; bottom: 40px; left: 56px;
+    display: flex; align-items: center; gap: 12px;
+    opacity: 0; animation: fadeUp .8s ease .6s forwards;
+  }
+  .hero-scroll-line {
+    width: 48px; height: 1px;
+    background: linear-gradient(to right, var(--pink), transparent);
+  }
+  .hero-scroll-text {
+    font-size: 9px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: rgba(255,255,255,0.2);
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── TICKER ─── */
+  .ticker-wrap {
+    border-top: 1px solid rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    background: var(--bg2); overflow: hidden; padding: 13px 0;
+    position: relative;
+  }
+  .ticker-wrap::before, .ticker-wrap::after {
+    content: ''; position: absolute; top: 0; bottom: 0; width: 100px; z-index: 2;
+  }
+  .ticker-wrap::before { left: 0; background: linear-gradient(to right, var(--bg2), transparent); }
+  .ticker-wrap::after { right: 0; background: linear-gradient(to left, var(--bg2), transparent); }
+  .ticker { display: flex; width: max-content; animation: tickerMove 32s linear infinite; }
+  .ticker-item {
+    display: flex; align-items: center; gap: 20px;
+    padding: 0 36px;
+    font-size: 10px; font-weight: 500;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--muted); white-space: nowrap;
+  }
+  .t-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--pink); }
+  @keyframes tickerMove {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  /* ─── COMMON SECTION ─── */
+  section { padding: 110px 56px; position: relative; }
+  .inner { max-width: 1200px; margin: 0 auto; }
+
+  .section-eyebrow {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-size: 10px; font-weight: 500;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--pink); margin-bottom: 20px;
+  }
+  .section-eyebrow::before {
+    content: ''; display: block;
+    width: 20px; height: 1px; background: var(--pink);
+  }
+
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(34px, 4.5vw, 58px);
+    font-weight: 800; line-height: 1.02;
+    letter-spacing: -0.025em; text-transform: uppercase;
+    color: var(--text);
+  }
+  .dim { color: rgba(255,255,255,0.18); }
+
+  /* ─── FEATURES ─── */
+  .features-intro {
+    display: grid; grid-template-columns: 1.1fr 1fr;
+    gap: 80px; align-items: end; margin-bottom: 72px;
+  }
+  .features-intro-right {
+    font-size: 14px; color: var(--muted);
+    line-height: 1.85; font-weight: 300;
+    padding-bottom: 6px;
+  }
+
+  /* Asymmetric feature layout: 1 wide + 2×4 grid */
+  .features-layout {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 1px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 14px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.04);
+  }
+  .feat-hero {
+    grid-row: 1 / 3;
+    background: var(--bg3);
+    padding: 52px 44px;
+    position: relative; overflow: hidden;
+    transition: background .3s;
+  }
+  .feat-hero::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse at 20% 20%, rgba(232,33,122,0.09) 0%, transparent 65%);
+    pointer-events: none;
+  }
+  .feat-hero:hover { background: #131313; }
+
+  .feat-hero-label {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--pink);
+    border: 1px solid var(--border);
+    background: rgba(232,33,122,0.06);
+    padding: 4px 12px; border-radius: 4px;
+    margin-bottom: 32px;
+  }
+
+  .feat-icon-wrap {
+    width: 52px; height: 52px; border-radius: 12px;
+    background: rgba(232,33,122,0.09);
+    border: 1px solid rgba(232,33,122,0.18);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 28px;
+    transition: box-shadow .3s, border-color .3s;
+  }
+  .feat-hero:hover .feat-icon-wrap {
+    box-shadow: 0 0 22px rgba(232,33,122,0.28);
+    border-color: rgba(232,33,122,0.4);
+  }
+  .feat-icon-wrap svg { display: block; }
+
+  .feat-hero-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 26px; font-weight: 800;
+    letter-spacing: -0.01em; text-transform: uppercase;
+    color: var(--text); margin-bottom: 16px; line-height: 1.15;
+  }
+  .feat-hero-desc {
+    font-size: 14px; color: var(--muted);
+    line-height: 1.8; font-weight: 300; max-width: 340px;
+  }
+
+  .feat-hero-bottom {
+    margin-top: 44px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .feat-point {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; color: rgba(255,255,255,0.5);
+  }
+  .feat-point-dot {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--pink); flex-shrink: 0;
+  }
+
+  .feat-grid-right {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: rgba(255,255,255,0.04);
+  }
+  .feat-card {
+    background: var(--bg3);
+    padding: 32px 28px;
+    transition: background .3s; position: relative; overflow: hidden;
+  }
+  .feat-card::after {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(232,33,122,0.06) 0%, transparent 70%);
+    opacity: 0; transition: opacity .35s;
+  }
+  .feat-card:hover::after { opacity: 1; }
+  .feat-card:hover { background: #131313; }
+  .feat-card-icon {
+    width: 38px; height: 38px; border-radius: 9px;
+    background: rgba(232,33,122,0.08);
+    border: 1px solid rgba(232,33,122,0.15);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 18px;
+    transition: box-shadow .3s, border-color .3s;
+  }
+  .feat-card-icon svg { display: block; }
+  .feat-card:hover .feat-card-icon {
+    box-shadow: 0 0 16px rgba(232,33,122,0.25);
+    border-color: rgba(232,33,122,0.35);
+  }
+  .feat-card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px; font-weight: 700;
+    color: var(--text); margin-bottom: 8px;
+    letter-spacing: 0.01em;
+  }
+  .feat-card-desc {
+    font-size: 12px; color: var(--muted); line-height: 1.7; font-weight: 300;
+  }
+
+  /* ─── HOW IT WORKS ─── */
+  .how-section {
+    background: var(--bg2);
+    border-top: 1px solid rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .how-header { margin-bottom: 64px; }
+  .how-steps {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    position: relative;
+  }
+  .how-steps::before {
+    content: '';
+    position: absolute;
+    top: 28px; left: calc(12.5% + 14px); right: calc(12.5% + 14px);
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(232,33,122,0.25), rgba(232,33,122,0.25), transparent);
+  }
+  .how-step {
+    padding: 0 28px 0 0;
+    position: relative;
+  }
+  .how-step-num {
+    width: 56px; height: 56px;
+    border: 1px solid rgba(232,33,122,0.25);
+    background: rgba(232,33,122,0.06);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-size: 16px; font-weight: 700;
+    color: var(--pink);
+    margin-bottom: 24px;
+    position: relative; z-index: 1;
+  }
+  .how-step-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px; font-weight: 700;
+    color: var(--text); margin-bottom: 10px;
+    text-transform: uppercase; letter-spacing: 0.01em;
+  }
+  .how-step-desc {
+    font-size: 13px; color: var(--muted);
+    line-height: 1.7; font-weight: 300;
+  }
+
+  /* ─── PLATFORMS ─── */
+  .platforms-grid {
+    display: grid; grid-template-columns: 1fr 1.1fr;
+    gap: 80px; align-items: center;
+  }
+  .platform-list { display: flex; flex-direction: column; gap: 8px; margin-top: 36px; }
+  .plat-item {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px 20px;
+    border: 1px solid rgba(255,255,255,0.055);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.015);
+    transition: border-color .25s, background .25s, box-shadow .25s;
+    cursor: default;
+  }
+  .plat-item:hover {
+    border-color: var(--border);
+    background: rgba(232,33,122,0.04);
+    box-shadow: 0 0 18px rgba(232,33,122,0.08);
+  }
+  .plat-status {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  }
+  .plat-status.live { background: var(--pink); box-shadow: 0 0 7px var(--pink); }
+  .plat-status.soon { background: #555; }
+  .plat-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.05em; text-transform: uppercase; flex: 1;
+  }
+  .plat-name.dim-name { color: var(--muted); }
+  .plat-cap {
+    font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 3px 9px; border-radius: 4px;
+  }
+  .plat-cap.live { color: var(--pink); border: 1px solid rgba(232,33,122,0.28); background: rgba(232,33,122,0.06); }
+  .plat-cap.soon { color: var(--muted); border: 1px solid rgba(255,255,255,0.08); }
+
+  /* Dashboard mock */
+  .dash-mock {
+    background: var(--bg4);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px; overflow: hidden;
+    box-shadow: 0 0 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.03);
+  }
+  .dash-topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.055);
+    background: rgba(255,255,255,0.015);
+  }
+  .dash-dots { display: flex; gap: 6px; }
+  .dash-dot { width: 9px; height: 9px; border-radius: 50%; }
+  .dash-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .dash-live {
+    font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--green); display: flex; align-items: center; gap: 5px;
+  }
+  .dash-live-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--green); animation: pulse 2s infinite;
+  }
+  .dash-rows { padding: 8px 0; }
+  .dash-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 13px 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.035);
+    transition: background .2s;
+  }
+  .dash-row:last-child { border-bottom: none; }
+  .dash-row:hover { background: rgba(255,255,255,0.02); }
+  .dash-platform {
+    font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--pink); width: 44px; flex-shrink: 0;
+  }
+  .dash-item { font-size: 13px; color: var(--text); flex: 1; }
+  .dash-range { font-size: 11px; color: var(--muted); }
+  .dash-profit {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 700; color: var(--green); flex-shrink: 0;
+  }
+  .dash-footer {
+    padding: 12px 18px;
+    background: rgba(232,33,122,0.055);
+    border-top: 1px solid rgba(232,33,122,0.1);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .dash-footer-text {
+    font-size: 10px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--pink);
+  }
+  .dash-footer-sub { font-size: 10px; color: var(--muted); }
+
+  /* ─── DISCORD ─── */
+  .discord-wrap {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 72px; align-items: center; margin-top: 60px;
+  }
+  .discord-mock {
+    background: #1a1a1a;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 14px; overflow: hidden;
+    box-shadow: 0 0 60px rgba(0,0,0,0.5);
+  }
+  .disc-sidebar { display: flex; }
+  .disc-servers {
+    width: 64px; background: #111;
+    padding: 10px 8px;
+    display: flex; flex-direction: column; align-items: center; gap: 7px;
+  }
+  .disc-srv {
+    width: 44px; height: 44px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700;
+    transition: border-radius .25s; cursor: pointer;
+  }
+  .disc-srv.active {
+    border-radius: 14px;
+    background: var(--pink);
+    color: #fff;
+    font-family: 'Syne', sans-serif; font-size: 11px;
+    letter-spacing: 0.05em;
+    box-shadow: 0 0 14px rgba(232,33,122,0.4);
+  }
+  .disc-srv.other { background: rgba(255,255,255,0.05); color: #666; font-size: 9px; }
+  .disc-channels { flex: 1; background: #1a1a1a; padding: 14px 0; min-width: 160px; }
+  .disc-cat {
+    padding: 3px 14px 10px;
+    font-size: 9px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase; color: #555;
+  }
+  .disc-ch {
+    display: flex; align-items: center; gap: 7px;
+    padding: 5px 14px;
+    font-size: 12px; color: #555;
+    cursor: pointer; transition: background .15s, color .15s;
+  }
+  .disc-ch:hover { background: rgba(255,255,255,0.035); color: #888; }
+  .disc-ch.active { background: rgba(232,33,122,0.1); color: var(--text); }
+  .disc-ch-hash { font-size: 14px; color: #3a3a3a; }
+  .disc-ch-lock { font-size: 12px; color: #3a3a3a; }
+  .disc-badge {
+    margin-left: auto; background: var(--pink);
+    color: #fff; font-size: 8px; font-weight: 700;
+    padding: 1px 6px; border-radius: 9px;
+  }
+  .disc-chat { background: #1e1e1e; padding: 18px; }
+  .disc-msg { display: flex; gap: 11px; margin-bottom: 14px; }
+  .disc-avatar {
+    width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+    font-family: 'Syne', sans-serif;
+  }
+  .disc-author { font-size: 12px; font-weight: 500; margin-bottom: 3px; }
+  .disc-author-badge {
+    font-size: 9px; margin-left: 5px;
+    background: rgba(232,33,122,0.14);
+    color: var(--pink); padding: 1px 5px; border-radius: 3px; font-weight: 400;
+  }
+  .disc-text { font-size: 12px; color: #bbb; line-height: 1.5; }
+  .disc-bubble {
+    background: rgba(232,33,122,0.07);
+    border: 1px solid rgba(232,33,122,0.18);
+    border-radius: 8px; padding: 11px 13px;
+    font-size: 12px; color: #ddd; line-height: 1.6; margin-top: 3px;
+  }
+  .disc-bubble strong { color: var(--pink); }
+
+  .discord-points { display: flex; flex-direction: column; gap: 26px; }
+  .disc-point { display: flex; gap: 18px; align-items: flex-start; }
+  .disc-point-icon {
+    width: 40px; height: 40px; flex-shrink: 0;
+    border-radius: 9px;
+    background: rgba(232,33,122,0.07);
+    border: 1px solid rgba(232,33,122,0.14);
+    display: flex; align-items: center; justify-content: center;
+    transition: box-shadow .3s;
+  }
+  .disc-point-icon svg { display: block; }
+  .disc-point:hover .disc-point-icon { box-shadow: 0 0 14px rgba(232,33,122,0.25); }
+  .disc-point-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 5px;
+  }
+  .disc-point-desc { font-size: 12px; color: var(--muted); line-height: 1.65; font-weight: 300; }
+
+  /* ─── PRICING ─── */
+  .pricing-wrap { background: var(--bg2); border-top: 1px solid rgba(255,255,255,0.04); }
+  .pricing-head { text-align: center; margin-bottom: 56px; }
+  .pricing-sub { font-size: 13px; color: var(--muted); font-weight: 300; margin-top: 14px; }
+
+  .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; align-items: start; }
+  .p-card {
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px; padding: 34px 30px;
+    background: var(--bg3);
+    position: relative; overflow: hidden;
+    transition: box-shadow .35s, border-color .35s, transform .3s;
+    cursor: default;
+  }
+  .p-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0;
+    height: 2px; background: transparent; transition: background .3s;
+  }
+  .p-card:hover { transform: translateY(-4px); box-shadow: 0 18px 50px rgba(0,0,0,0.4); }
+  .p-card.featured {
+    border-color: rgba(232,33,122,0.38);
+    background: #141414;
+    transform: scale(1.02);
+  }
+  .p-card.featured::before { background: linear-gradient(90deg, var(--pink), var(--pink-light)); }
+  .p-card.featured:hover {
+    border-color: rgba(232,33,122,0.65);
+    box-shadow: 0 0 50px rgba(232,33,122,0.2), 0 18px 50px rgba(0,0,0,0.45);
+    transform: scale(1.02) translateY(-4px);
+  }
+  .p-card:not(.featured):hover::before { background: rgba(255,255,255,0.07); }
+
+  .p-badge {
+    display: inline-block; font-size: 9px; font-weight: 700;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    padding: 4px 11px; border-radius: 4px; margin-bottom: 22px;
+  }
+  .p-badge.basic { background: rgba(255,255,255,0.05); color: var(--muted); }
+  .p-badge.pro { background: rgba(232,33,122,0.13); color: var(--pink); }
+  .p-badge.elite { background: rgba(232,161,33,0.1); color: var(--gold); }
+
+  .p-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px; font-weight: 800;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--text); margin-bottom: 8px;
+  }
+  .p-price { display: flex; align-items: baseline; gap: 2px; margin-bottom: 4px; }
+  .p-sym {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px; font-weight: 600; color: var(--muted); margin-top: 4px;
+  }
+  .p-sym.pink { color: var(--pink); }
+  .p-sym.gold { color: var(--gold); }
+  .p-amount {
+    font-family: 'Syne', sans-serif;
+    font-size: 46px; font-weight: 800; color: var(--text); line-height: 1;
+  }
+  .p-dec {
+    font-family: 'Syne', sans-serif;
+    font-size: 26px; font-weight: 700; color: var(--text);
+  }
+  .p-per { font-size: 12px; color: var(--muted); font-weight: 300; }
+  .p-annual { font-size: 10px; color: var(--pink); margin-bottom: 24px; letter-spacing: 0.05em; }
+  .p-annual.gold-text { color: var(--gold); }
+  .p-div { height: 1px; background: rgba(255,255,255,0.055); margin: 20px 0; }
+  .p-features { list-style: none; display: flex; flex-direction: column; gap: 11px; margin-bottom: 28px; }
+  .p-features li {
+    display: flex; align-items: flex-start; gap: 9px;
+    font-size: 12px; color: var(--muted); line-height: 1.5; font-weight: 300;
+  }
+  .p-check { color: var(--pink); font-size: 11px; margin-top: 1px; flex-shrink: 0; }
+  .p-check.gold { color: var(--gold); }
+  .p-btn {
+    display: block; width: 100%;
+    text-align: center; padding: 13px 22px;
+    border-radius: 8px; text-decoration: none;
+    font-family: 'Syne', sans-serif;
+    font-size: 12px; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    transition: box-shadow .3s, background .2s, transform .2s, color .2s;
+  }
+  .p-btn-primary { background: var(--pink); color: #fff; }
+  .p-btn-primary:hover { background: var(--pink-light); box-shadow: 0 0 22px var(--pink-glow); transform: translateY(-1px); }
+  .p-btn-ghost {
+    background: rgba(255,255,255,0.04);
+    color: var(--muted); border: 1px solid rgba(255,255,255,0.07);
+  }
+  .p-btn-ghost:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+
+  /* ─── SOCIAL PROOF ─── */
+  .proof-section { background: var(--bg); }
+  .proof-row {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 18px; margin-top: 56px;
+  }
+  .proof-card {
+    background: var(--bg3);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px; padding: 28px;
+    transition: border-color .3s, box-shadow .3s;
+  }
+  .proof-card:hover {
+    border-color: var(--border);
+    box-shadow: 0 0 20px rgba(232,33,122,0.07);
+  }
+  .proof-stars { display: flex; gap: 3px; margin-bottom: 14px; }
+  .proof-star {
+    width: 12px; height: 12px; fill: var(--pink);
+    flex-shrink: 0;
+  }
+  .proof-text {
+    font-size: 13px; color: rgba(255,255,255,0.65);
+    line-height: 1.75; font-weight: 300; margin-bottom: 20px;
+    font-style: italic;
+  }
+  .proof-author { display: flex; align-items: center; gap: 10px; }
+  .proof-avi {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--bg4);
+    border: 1px solid rgba(232,33,122,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-size: 11px; font-weight: 700; color: var(--pink);
+  }
+  .proof-name { font-size: 12px; color: var(--text); font-weight: 500; }
+  .proof-handle { font-size: 10px; color: var(--muted); letter-spacing: 0.05em; }
+
+  /* ─── CTA SECTION ─── */
+  .cta-section {
+    text-align: center; position: relative; overflow: hidden;
+  }
+  .cta-bg {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 70% 100% at 50% 100%, rgba(232,33,122,0.1) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .cta-grid-lines {
+    position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(232,33,122,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,33,122,0.03) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(ellipse 60% 80% at 50% 100%, black, transparent);
+  }
+  .cta-inner { position: relative; z-index: 1; max-width: 680px; margin: 0 auto; }
+  .cta-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--pink); margin-bottom: 24px;
+  }
+  .cta-eyebrow-line { width: 24px; height: 1px; background: var(--pink); }
+  .cta-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(40px, 5.5vw, 76px);
+    font-weight: 800; text-transform: uppercase;
+    letter-spacing: -0.025em; line-height: 0.94;
+    color: var(--text); margin-bottom: 20px;
+  }
+  .cta-title span { color: var(--pink); }
+  .cta-sub {
+    font-size: 14px; color: var(--muted);
+    font-weight: 300; line-height: 1.75; margin-bottom: 44px;
+  }
+  .cta-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+  /* ─── FOOTER ─── */
+  footer {
+    border-top: 1px solid rgba(255,255,255,0.045);
+    padding: 36px 56px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--bg);
+  }
+  .footer-brand { display: flex; align-items: center; gap: 10px; }
+  .footer-mark {
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0.55;
+  }
+  .footer-mark img { width: 26px; height: 26px; object-fit: contain; border-radius: 3px; }
+  .footer-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 12px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: rgba(255,255,255,0.25);
+  }
+  .footer-copy { font-size: 10px; color: rgba(255,255,255,0.18); letter-spacing: 0.05em; }
+  .footer-links { display: flex; gap: 24px; }
+  .footer-links a {
+    font-size: 10px; color: rgba(255,255,255,0.22);
+    text-decoration: none; letter-spacing: 0.09em; text-transform: uppercase;
+    transition: color .2s;
+  }
+  .footer-links a:hover { color: var(--pink); }
+
+  /* ─── REVEAL ─── */
+  .reveal { opacity: 0; transform: translateY(24px); transition: opacity .65s ease, transform .65s ease; }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 960px) {
+    nav { padding: 14px 22px; }
+    .nav-links { display: none; }
+    section { padding: 72px 22px; }
+    .hero { padding: 120px 22px 80px; align-items: center; text-align: center; }
+    .hero-headline { font-size: clamp(46px, 12vw, 80px); }
+    .hero-metrics { gap: 20px; flex-wrap: wrap; justify-content: center; }
+    .hero-scroll { left: 50%; transform: translateX(-50%); }
+    .features-intro { grid-template-columns: 1fr; gap: 20px; }
+    .features-layout { grid-template-columns: 1fr; }
+    .feat-hero { grid-row: auto; }
+    .feat-grid-right { grid-template-columns: 1fr; }
+    .how-steps { grid-template-columns: 1fr 1fr; gap: 36px; }
+    .how-steps::before { display: none; }
+    .platforms-grid { grid-template-columns: 1fr; gap: 40px; }
+    .discord-wrap { grid-template-columns: 1fr; gap: 40px; }
+    .pricing-grid { grid-template-columns: 1fr; gap: 14px; }
+    .p-card.featured { transform: none; }
+    .proof-row { grid-template-columns: 1fr; }
+    footer { flex-direction: column; gap: 18px; text-align: center; }
+    .footer-links { flex-wrap: wrap; justify-content: center; }
+  }
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="nav-logo">
+    <div class="nav-logo-mark">
+      <img src="3308A32C-1B75-45FE-A803-B1332BE91390.png" alt="Vendor Village">
+    </div>
+    <span class="nav-logo-text">Vendora</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#platforms">Platforms</a></li>
+    <li><a href="#discord">Discord</a></li>
+    <li><a href="#pricing">Pricing</a></li>
+    <li><a href="#pricing" class="nav-cta">Get Access</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<div style="position:relative; background:var(--bg);">
+  <div style="position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0;">
+    <div class="hero-grid"></div>
+    <div class="hero-glow-orb"></div>
+  </div>
+  <section class="hero" style="position:relative;z-index:1;">
+    <div class="hero-tag">
+      <span class="tag-pulse"></span>
+      Now Live — Built for Resellers
+    </div>
+
+    <h1 class="hero-headline">
+      The Reseller's
+      <em>Edge.</em>
+    </h1>
+
+    <p class="hero-sub">
+      Vendora scans every platform, handles every lowballer, and cross-lists in one click — while you're already moving to the next flip.
+    </p>
+
+    <div class="hero-actions">
+      <a href="#pricing" class="btn-primary">
+        Start Now
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+      <a href="#features" class="btn-ghost">See What It Does</a>
+    </div>
+
+    <div class="hero-metrics">
+      <div>
+        <div class="metric-val">3</div>
+        <div class="metric-label">Platforms Live</div>
+      </div>
+      <div class="metric-sep"></div>
+      <div>
+        <div class="metric-val">9+</div>
+        <div class="metric-label">AI Features</div>
+      </div>
+      <div class="metric-sep"></div>
+      <div>
+        <div class="metric-val">£9.99</div>
+        <div class="metric-label">From / Month</div>
+      </div>
+      <div class="metric-sep"></div>
+      <div>
+        <div class="metric-val">Discord</div>
+        <div class="metric-label">Native Integration</div>
+      </div>
+    </div>
+
+    <div class="hero-scroll">
+      <div class="hero-scroll-line"></div>
+      <span class="hero-scroll-text">Scroll to explore</span>
+    </div>
+  </section>
+</div>
+
+<!-- TICKER -->
+<div class="ticker-wrap">
+  <div class="ticker">
+    <div class="ticker-item"><span class="t-dot"></span>Smart Product Research</div>
+    <div class="ticker-item"><span class="t-dot"></span>Auto Cross-Listing</div>
+    <div class="ticker-item"><span class="t-dot"></span>Lowballer Handler</div>
+    <div class="ticker-item"><span class="t-dot"></span>AI Reply Generator</div>
+    <div class="ticker-item"><span class="t-dot"></span>Profit Tracker</div>
+    <div class="ticker-item"><span class="t-dot"></span>Price Drop Alerts</div>
+    <div class="ticker-item"><span class="t-dot"></span>Discord Bot Included</div>
+    <div class="ticker-item"><span class="t-dot"></span>Competitor Tracking</div>
+    <div class="ticker-item"><span class="t-dot"></span>Inventory Manager</div>
+    <div class="ticker-item"><span class="t-dot"></span>Weekly Trend Reports</div>
+    <div class="ticker-item"><span class="t-dot"></span>Smart Product Research</div>
+    <div class="ticker-item"><span class="t-dot"></span>Auto Cross-Listing</div>
+    <div class="ticker-item"><span class="t-dot"></span>Lowballer Handler</div>
+    <div class="ticker-item"><span class="t-dot"></span>AI Reply Generator</div>
+    <div class="ticker-item"><span class="t-dot"></span>Profit Tracker</div>
+    <div class="ticker-item"><span class="t-dot"></span>Price Drop Alerts</div>
+    <div class="ticker-item"><span class="t-dot"></span>Discord Bot Included</div>
+    <div class="ticker-item"><span class="t-dot"></span>Competitor Tracking</div>
+    <div class="ticker-item"><span class="t-dot"></span>Inventory Manager</div>
+    <div class="ticker-item"><span class="t-dot"></span>Weekly Trend Reports</div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="inner">
+    <div class="features-intro reveal">
+      <div>
+        <span class="section-eyebrow">Core Features</span>
+        <h2 class="section-title">Stop sourcing<br><span class="dim">blind.</span></h2>
+      </div>
+      <p class="features-intro-right">
+        Every feature in Vendora is built around one goal — putting money in your pocket faster than the competition. Research, list, communicate, and track from one place.
+      </p>
+    </div>
+
+    <div class="features-layout reveal">
+      <!-- Hero feature: Research Engine -->
+      <div class="feat-hero">
+        <span class="feat-hero-label">Pro + Elite</span>
+        <div class="feat-icon-wrap">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            <path d="M11 8v6M8 11h6"/>
+          </svg>
+        </div>
+        <div class="feat-hero-title">Smart Research<br>Engine</div>
+        <p class="feat-hero-desc">Scans Depop, Vinted, and eBay in real time for underpriced listings. Surfaces profit margins, sell velocity, and trending items — before the market cottons on.</p>
+        <div class="feat-hero-bottom">
+          <div class="feat-point"><span class="feat-point-dot"></span>Live scan across 3 platforms simultaneously</div>
+          <div class="feat-point"><span class="feat-point-dot"></span>Profit margin + sell velocity score per item</div>
+          <div class="feat-point"><span class="feat-point-dot"></span>Sold listing analysis — what actually moves</div>
+          <div class="feat-point"><span class="feat-point-dot"></span>Weekly brand &amp; category trend reports</div>
+        </div>
+      </div>
+
+      <!-- Right grid: 4 smaller cards -->
+      <div class="feat-grid-right">
+        <div class="feat-card">
+          <div class="feat-card-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+              <path d="M8 10h8M8 14h4"/>
+            </svg>
+          </div>
+          <div class="feat-card-title">AI Reply Generator</div>
+          <div class="feat-card-desc">Context-aware responses to any buyer message. Close enquiries, handle negotiations, follow up — without typing a word.</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-card-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <div class="feat-card-title">Lowballer Handler</div>
+          <div class="feat-card-desc">Firm, professional counters to lowball offers. Protects your margins without burning the buyer.</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-card-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+              <path d="M7 7h10M7 11h6"/>
+            </svg>
+          </div>
+          <div class="feat-card-title">Auto Cross-Listing</div>
+          <div class="feat-card-desc">One click. Every platform. AI-optimised titles, descriptions, and prices for each marketplace's algorithm.</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-card-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+              <polyline points="16 7 22 7 22 13"/>
+            </svg>
+          </div>
+          <div class="feat-card-title">Profit Tracker</div>
+          <div class="feat-card-desc">Unified dashboard across all platforms. Track margins, costs, and earnings — no more spreadsheets.</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-card-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 01-3.46 0"/>
+            </svg>
+          </div>
+          <div class="feat-card-title">Price Drop Alerts</div>
+          <div class="feat-card-desc">Watchlist items across platforms. DM alerts when prices drop, competitors relist, or stock starts moving.</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-card-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </div>
+          <div class="feat-card-title">Competitor Tracking</div>
+          <div class="feat-card-desc">Monitor rival sellers. Get notified when a tracked competitor lists new stock — and move first.</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-card-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+            </svg>
+          </div>
+          <div class="feat-card-title">Inventory Manager</div>
+          <div class="feat-card-desc">Track stock across every platform. Auto-relist stale items. Never oversell, never leave a listing to die.</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-card-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+          </div>
+          <div class="feat-card-title" style="color:var(--gold);">Elite Only</div>
+          <div class="feat-card-desc">Auto flipping pipeline, AI negotiation, photo condition grader, and authenticity checker. The full arsenal.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how-section">
+  <div class="inner">
+    <div class="how-header reveal">
+      <span class="section-eyebrow">How It Works</span>
+      <h2 class="section-title">Subscribe.<br><span class="dim">Unlock.</span> Flip.</h2>
+    </div>
+    <div class="how-steps reveal">
+      <div class="how-step">
+        <div class="how-step-num">01</div>
+        <div class="how-step-title">Log In With Discord</div>
+        <p class="how-step-desc">No passwords. No forms. Click, authorise your Discord account, and your access is live in seconds.</p>
+      </div>
+      <div class="how-step">
+        <div class="how-step-num">02</div>
+        <div class="how-step-title">Pay via PayPal</div>
+        <p class="how-step-desc">Choose your tier. Pay monthly or annually. Your Discord role is assigned automatically the moment payment clears.</p>
+      </div>
+      <div class="how-step">
+        <div class="how-step-num">03</div>
+        <div class="how-step-title">Use Slash Commands</div>
+        <p class="how-step-desc">Drop into #use-vendora, run /scan, /reply, /flip, or any tier command. Results come back ephemeral — only you see them.</p>
+      </div>
+      <div class="how-step">
+        <div class="how-step-num">04</div>
+        <div class="how-step-title">Get Paid Faster</div>
+        <p class="how-step-desc">Act on research that took 2 seconds, not 2 hours. Cross-list in one click. Let AI handle buyers while you source the next deal.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PLATFORMS -->
+<section id="platforms">
+  <div class="inner">
+    <div class="platforms-grid">
+      <div class="reveal">
+        <span class="section-eyebrow">Supported Platforms</span>
+        <h2 class="section-title">Where you<br><span class="dim">already</span> sell</h2>
+        <div class="platform-list">
+          <div class="plat-item">
+            <span class="plat-status live"></span>
+            <span class="plat-name">Depop</span>
+            <span class="plat-cap live">Research + List</span>
+          </div>
+          <div class="plat-item">
+            <span class="plat-status live"></span>
+            <span class="plat-name">Vinted</span>
+            <span class="plat-cap live">Research + List</span>
+          </div>
+          <div class="plat-item">
+            <span class="plat-status live"></span>
+            <span class="plat-name">eBay</span>
+            <span class="plat-cap live">Research + List</span>
+          </div>
+          <div class="plat-item">
+            <span class="plat-status soon"></span>
+            <span class="plat-name dim-name">Facebook Marketplace</span>
+            <span class="plat-cap soon">Coming Soon</span>
+          </div>
+          <div class="plat-item">
+            <span class="plat-status soon"></span>
+            <span class="plat-name dim-name">Vestiaire Collective</span>
+            <span class="plat-cap soon">Coming Soon</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="reveal">
+        <div class="dash-mock">
+          <div class="dash-topbar">
+            <div class="dash-dots">
+              <div class="dash-dot" style="background:var(--pink);"></div>
+              <div class="dash-dot" style="background:var(--gold);margin-left:-1px;"></div>
+              <div class="dash-dot" style="background:var(--green);margin-left:-1px;"></div>
+            </div>
+            <div class="dash-label">Vendora — Live Scan</div>
+            <div class="dash-live"><span class="dash-live-dot"></span> Live</div>
+          </div>
+          <div class="dash-rows">
+            <div class="dash-row">
+              <div class="dash-platform">Depop</div>
+              <div class="dash-item">Nike Air Max 90 UK9</div>
+              <div class="dash-range">£28 → £65</div>
+              <div class="dash-profit">+£37</div>
+            </div>
+            <div class="dash-row">
+              <div class="dash-platform">Vinted</div>
+              <div class="dash-item">Levi's 501 W32 L32</div>
+              <div class="dash-range">£12 → £38</div>
+              <div class="dash-profit">+£26</div>
+            </div>
+            <div class="dash-row">
+              <div class="dash-platform">eBay</div>
+              <div class="dash-item">Stüssy Fleece Jacket M</div>
+              <div class="dash-range">£45 → £110</div>
+              <div class="dash-profit">+£65</div>
+            </div>
+            <div class="dash-row">
+              <div class="dash-platform">Depop</div>
+              <div class="dash-item">New Balance 550 UK8</div>
+              <div class="dash-range">£55 → £95</div>
+              <div class="dash-profit">+£40</div>
+            </div>
+          </div>
+          <div class="dash-footer">
+            <div class="dash-footer-text">4 opportunities found</div>
+            <div class="dash-footer-sub">Updated 30s ago</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DISCORD BOT -->
+<section id="discord" style="background:var(--bg2);border-top:1px solid rgba(255,255,255,0.04);border-bottom:1px solid rgba(255,255,255,0.04);">
+  <div class="inner">
+    <div class="reveal">
+      <span class="section-eyebrow">Discord Integration</span>
+      <h2 class="section-title">Lives inside<br><span class="dim">your</span> server</h2>
+    </div>
+
+    <div class="discord-wrap">
+      <div class="discord-mock reveal">
+        <div class="disc-sidebar">
+          <div class="disc-servers">
+            <div class="disc-srv active">VV</div>
+            <div class="disc-srv other">GS</div>
+            <div class="disc-srv other">RD</div>
+          </div>
+          <div class="disc-channels">
+            <div class="disc-cat">Vendora</div>
+            <div class="disc-ch">
+              <span class="disc-ch-hash">#</span> buy-vendora
+              <span class="disc-badge">NEW</span>
+            </div>
+            <div class="disc-ch active">
+              <span class="disc-ch-hash">#</span> use-vendora
+            </div>
+            <div style="height:1px;background:rgba(255,255,255,0.04);margin:8px 10px;"></div>
+            <div class="disc-cat">Private</div>
+            <div class="disc-ch">
+              <span class="disc-ch-lock">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3a3a3a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              </span> session-12
+            </div>
+            <div class="disc-ch">
+              <span class="disc-ch-lock">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3a3a3a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              </span> elite-lounge
+            </div>
+          </div>
+        </div>
+        <div class="disc-chat">
+          <div class="disc-msg">
+            <div class="disc-avatar" style="background:rgba(232,33,122,0.14);color:var(--pink);">V</div>
+            <div>
+              <div class="disc-author" style="color:var(--pink);">Vendora <span class="disc-author-badge">BOT</span></div>
+              <div class="disc-bubble">
+                <strong>/scan depop Nike Air Force 1</strong><br>
+                Found <strong>6 underpriced listings</strong>. Best: Size 10 listed £32 — avg sell <strong>£78</strong>. Margin: <strong>59%</strong> ↑
+              </div>
+            </div>
+          </div>
+          <div class="disc-msg">
+            <div class="disc-avatar" style="background:rgba(255,255,255,0.05);color:#777;">J</div>
+            <div>
+              <div class="disc-author" style="color:#888;">Josh</div>
+              <div class="disc-text">/lowball "offer £15 for your £45 jacket"</div>
+            </div>
+          </div>
+          <div class="disc-msg">
+            <div class="disc-avatar" style="background:rgba(232,33,122,0.14);color:var(--pink);">V</div>
+            <div>
+              <div class="disc-author" style="color:var(--pink);">Vendora <span class="disc-author-badge">BOT</span></div>
+              <div class="disc-bubble">
+                "Thanks for the interest! Priced at £45 — best I can do is <strong>£40</strong> and I'll post same day. Let me know 🤝"
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="discord-points reveal">
+        <div class="disc-point">
+          <div class="disc-point-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          </div>
+          <div>
+            <div class="disc-point-title">Slash Commands</div>
+            <p class="disc-point-desc">Run /scan, /flip, /reply, /session and more straight in Discord. Every command is tier-locked — you get exactly what you pay for.</p>
+          </div>
+        </div>
+        <div class="disc-point">
+          <div class="disc-point-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          </div>
+          <div>
+            <div class="disc-point-title">Private Sessions</div>
+            <p class="disc-point-desc">Run /session to open a private channel — just you, the bot, and the server owner. Auto-deletes after 24 hours of inactivity.</p>
+          </div>
+        </div>
+        <div class="disc-point">
+          <div class="disc-point-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+          </div>
+          <div>
+            <div class="disc-point-title">Automatic Role Access</div>
+            <p class="disc-point-desc">Discord roles assigned the moment PayPal confirms. Cancel and they're removed instantly. No manual admin, no waiting.</p>
+          </div>
+        </div>
+        <div class="disc-point">
+          <div class="disc-point-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+          </div>
+          <div>
+            <div class="disc-point-title">DM Alerts</div>
+            <p class="disc-point-desc">Configure exactly what you get pinged on — price drops, early deal alerts, cross-listing results — all direct to your Discord DMs.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="pricing-wrap" id="pricing">
+  <div class="inner">
+    <div class="pricing-head reveal">
+      <span class="section-eyebrow">Pricing</span>
+      <h2 class="section-title">Built to pay<br><span class="dim">for itself.</span></h2>
+      <p class="pricing-sub">Price based on ROI. This tool makes you money — the subscription is the smallest cost in the equation.</p>
+    </div>
+
+    <div class="pricing-grid">
+      <div class="p-card reveal">
+        <div class="p-badge basic">Basic</div>
+        <div class="p-name">Starter</div>
+        <div class="p-price">
+          <span class="p-sym">£</span>
+          <span class="p-amount">9</span>
+          <span class="p-dec">.99</span>
+          <span class="p-per">/mo</span>
+        </div>
+        <div class="p-annual">Annual plan available — save ~2 months</div>
+        <div class="p-div"></div>
+        <ul class="p-features">
+          <li><span class="p-check">✦</span>Limited product research</li>
+          <li><span class="p-check">✦</span>Discord bot access</li>
+          <li><span class="p-check">✦</span>AI reply generator</li>
+          <li><span class="p-check">✦</span>Lowballer handler</li>
+          <li><span class="p-check">✦</span>/session command</li>
+          <li><span class="p-check">✦</span>Basic DM alerts</li>
+        </ul>
+        <a href="#" class="p-btn p-btn-ghost">Get Starter</a>
+      </div>
+
+      <div class="p-card featured reveal">
+        <div class="p-badge pro">Most Popular</div>
+        <div class="p-name">Pro</div>
+        <div class="p-price">
+          <span class="p-sym pink">£</span>
+          <span class="p-amount">24</span>
+          <span class="p-dec">.99</span>
+          <span class="p-per">/mo</span>
+        </div>
+        <div class="p-annual">Annual plan available — save ~2 months</div>
+        <div class="p-div"></div>
+        <ul class="p-features">
+          <li><span class="p-check">✦</span>Full product scanner</li>
+          <li><span class="p-check">✦</span>Auto pricing suggestions</li>
+          <li><span class="p-check">✦</span>Cross-listing to all platforms</li>
+          <li><span class="p-check">✦</span>Profit tracker dashboard</li>
+          <li><span class="p-check">✦</span>Discord deal alerts</li>
+          <li><span class="p-check">✦</span>Competitor tracking</li>
+          <li><span class="p-check">✦</span>Inventory manager</li>
+          <li><span class="p-check">✦</span>Weekly trend reports</li>
+        </ul>
+        <a href="#" class="p-btn p-btn-primary">Get Pro</a>
+      </div>
+
+      <div class="p-card reveal">
+        <div class="p-badge elite">Elite</div>
+        <div class="p-name" style="color:var(--gold);">Elite</div>
+        <div class="p-price">
+          <span class="p-sym gold">£</span>
+          <span class="p-amount">49</span>
+          <span class="p-dec">.99</span>
+          <span class="p-per">/mo</span>
+        </div>
+        <div class="p-annual gold-text">Annual plan available — save ~2 months</div>
+        <div class="p-div"></div>
+        <ul class="p-features">
+          <li><span class="p-check gold">✦</span>Everything in Pro</li>
+          <li><span class="p-check gold">✦</span>Auto flipping system</li>
+          <li><span class="p-check gold">✦</span>Advanced analytics</li>
+          <li><span class="p-check gold">✦</span>Early deal alerts (speed edge)</li>
+          <li><span class="p-check gold">✦</span>Private Elite Discord channel</li>
+          <li><span class="p-check gold">✦</span>AI negotiation assistant</li>
+          <li><span class="p-check gold">✦</span>Photo condition grader</li>
+          <li><span class="p-check gold">✦</span>Authenticity checker</li>
+        </ul>
+        <a href="#" class="p-btn p-btn-ghost" style="border-color:rgba(232,161,33,0.2);color:var(--gold);">Get Elite</a>
+      </div>
+    </div>
+
+    <p style="text-align:center;color:rgba(255,255,255,0.14);font-size:10px;margin-top:24px;letter-spacing:0.07em;text-transform:uppercase;">
+      Discord login · PayPal payments · No refunds · Must remain in Vendor Village server
+    </p>
+  </div>
+</section>
+
+<!-- SOCIAL PROOF -->
+<section class="proof-section" id="community">
+  <div class="inner">
+    <div class="reveal">
+      <span class="section-eyebrow">Community</span>
+      <h2 class="section-title">Built inside<br><span class="dim">Vendor Village</span></h2>
+    </div>
+    <div class="proof-row reveal">
+      <div class="proof-card">
+        <div class="proof-stars">
+          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <p class="proof-text">"The scan command alone is worth the Pro sub. Found a Nike Air job lot on Vinted — flipped it on eBay same week. Paid for 3 months in one deal."</p>
+        <div class="proof-author">
+          <div class="proof-avi">JK</div>
+          <div>
+            <div class="proof-name">Jake K.</div>
+            <div class="proof-handle">@flipper_jk · Pro Member</div>
+          </div>
+        </div>
+      </div>
+      <div class="proof-card">
+        <div class="proof-stars">
+          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <p class="proof-text">"I was spending 2 hours a night manually cross-listing. Now I run /crosslist once and I'm done. The lowballer handler is savage — it keeps buyers engaged without dropping price."</p>
+        <div class="proof-author">
+          <div class="proof-avi">SR</div>
+          <div>
+            <div class="proof-name">Steph R.</div>
+            <div class="proof-handle">@streetwear_sr · Pro Member</div>
+          </div>
+        </div>
+      </div>
+      <div class="proof-card">
+        <div class="proof-stars">
+          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <p class="proof-text">"Elite tier is different. The early deal alerts mean I see deals 10–15 minutes before standard Pro members. In sneakers, that's the whole game."</p>
+        <div class="proof-author">
+          <div class="proof-avi">MC</div>
+          <div>
+            <div class="proof-name">Marcus C.</div>
+            <div class="proof-handle">@kicks_mc · Elite Member</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-bg"></div>
+  <div class="cta-grid-lines"></div>
+  <div class="inner">
+    <div class="cta-inner reveal">
+      <div class="cta-eyebrow">
+        <span class="cta-eyebrow-line"></span>
+        Vendor Village
+        <span class="cta-eyebrow-line"></span>
+      </div>
+      <h2 class="cta-title">Ready to flip<br><span>smarter?</span></h2>
+      <p class="cta-sub">Join Vendor Village. Get Vendora. Start finding deals the competition can't see — before they're gone.</p>
+      <div class="cta-actions">
+        <a href="#pricing" class="btn-primary">
+          Get Started
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+        <a href="#" class="btn-ghost">Join Discord</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-brand">
+    <div class="footer-mark">
+      <img src="3308A32C-1B75-45FE-A803-B1332BE91390.png" alt="Vendor Village">
+    </div>
+    <span class="footer-name">Vendora</span>
+  </div>
+  <div class="footer-copy">© 2025 Vendora · Vendor Village</div>
+  <div class="footer-links">
+    <a href="#">Terms</a>
+    <a href="#">Privacy</a>
+    <a href="#">Discord</a>
+  </div>
+</footer>
+
+<script>
+  // Custom cursor
+  const cursor = document.getElementById('cursor');
+  const ring = document.getElementById('cursorRing');
+  let rx = 0, ry = 0;
+
+  document.addEventListener('mousemove', e => {
+    cursor.style.left = e.clientX + 'px';
+    cursor.style.top = e.clientY + 'px';
+    requestAnimationFrame(() => {
+      rx += (e.clientX - rx) * 0.14;
+      ry += (e.clientY - ry) * 0.14;
+      ring.style.left = e.clientX + 'px';
+      ring.style.top = e.clientY + 'px';
+    });
+  });
+
+  document.querySelectorAll('a, button, .feat-card, .feat-hero, .plat-item, .p-card, .proof-card').forEach(el => {
+    el.addEventListener('mouseenter', () => {
+      cursor.style.width = '10px'; cursor.style.height = '10px';
+      ring.style.width = '42px'; ring.style.height = '42px';
+      ring.style.borderColor = 'rgba(232,33,122,0.75)';
+    });
+    el.addEventListener('mouseleave', () => {
+      cursor.style.width = '7px'; cursor.style.height = '7px';
+      ring.style.width = '30px'; ring.style.height = '30px';
+      ring.style.borderColor = 'rgba(232,33,122,0.45)';
+    });
+  });
+
+  // Intersection observer — reveal on scroll
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        io.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.08 });
+
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+</script>
+
+</body>
+</html>
