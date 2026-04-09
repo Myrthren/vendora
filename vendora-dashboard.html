@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vendora — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --pink: #e8217a;
+    --pink-light: #f72e8a;
+    --pink-glow: rgba(232,33,122,0.3);
+    --pink-soft: rgba(232,33,122,0.08);
+    --gold: #e8a121;
+    --green: #4ade80;
+    --red: #f87171;
+    --blue: #60a5fa;
+    --bg: #090909;
+    --bg2: #0d0d0d;
+    --bg3: #111;
+    --bg4: #161616;
+    --border: rgba(232,33,122,0.13);
+    --border-dim: rgba(255,255,255,0.055);
+    --text: #f0f0f0;
+    --muted: #666;
+    --muted2: rgba(255,255,255,0.35);
+    --sidebar-w: 240px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    overflow-x: hidden;
+  }
+
+  /* Noise */
+  body::after {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 900;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    opacity: 0.6;
+  }
+
+  /* ─── SIDEBAR ─── */
+  .sidebar {
+    width: var(--sidebar-w);
+    min-height: 100vh;
+    background: var(--bg2);
+    border-right: 1px solid var(--border-dim);
+    display: flex; flex-direction: column;
+    position: fixed; top: 0; left: 0; bottom: 0;
+    z-index: 100;
+  }
+
+  .sidebar-top {
+    padding: 22px 20px 18px;
+    border-bottom: 1px solid var(--border-dim);
+  }
+  .sidebar-brand { display: flex; align-items: center; gap: 9px; text-decoration: none; margin-bottom: 0; }
+  .sidebar-mark {
+    width: 30px; height: 30px;
+    filter: drop-shadow(0 0 6px rgba(232,33,122,0.38));
+  }
+  .sidebar-mark img { width: 30px; height: 30px; object-fit: contain; border-radius: 4px; display: block; }
+  .sidebar-brand-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--text);
+  }
+
+  .sidebar-nav {
+    flex: 1; padding: 16px 10px;
+    display: flex; flex-direction: column; gap: 2px;
+    overflow-y: auto;
+  }
+
+  .nav-section-label {
+    font-size: 9px; font-weight: 600;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: rgba(255,255,255,0.18);
+    padding: 12px 10px 6px;
+  }
+
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background .18s, color .18s;
+    font-size: 13px; font-weight: 400;
+    color: var(--muted);
+    border: 1px solid transparent;
+    text-decoration: none;
+    position: relative;
+  }
+  .nav-item svg { display: block; flex-shrink: 0; transition: stroke .18s; }
+  .nav-item:hover { background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.6); }
+  .nav-item.active {
+    background: rgba(232,33,122,0.08);
+    border-color: rgba(232,33,122,0.15);
+    color: var(--text);
+  }
+  .nav-item.active svg { stroke: var(--pink); }
+
+  .nav-item-badge {
+    margin-left: auto;
+    font-size: 9px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 4px;
+  }
+  .badge-owner { background: rgba(232,33,122,0.15); color: var(--pink); }
+  .badge-new { background: rgba(74,222,128,0.12); color: var(--green); }
+
+  .sidebar-user {
+    padding: 14px 16px;
+    border-top: 1px solid var(--border-dim);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .user-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(232,33,122,0.12);
+    border: 1px solid rgba(232,33,122,0.25);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 700; color: var(--pink);
+    flex-shrink: 0;
+  }
+  .user-info { flex: 1; min-width: 0; }
+  .user-name {
+    font-size: 13px; font-weight: 500; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .user-tier {
+    font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase;
+  }
+  .tier-pro { color: var(--pink); }
+  .tier-elite { color: var(--gold); }
+  .tier-basic { color: var(--muted2); }
+  .sidebar-logout {
+    width: 28px; height: 28px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 6px; cursor: pointer;
+    color: var(--muted);
+    transition: background .18s, color .18s;
+    text-decoration: none;
+  }
+  .sidebar-logout:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+  .sidebar-logout svg { display: block; }
+
+  /* ─── MAIN ─── */
+  .main {
+    margin-left: var(--sidebar-w);
+    flex: 1; min-height: 100vh;
+    display: flex; flex-direction: column;
+  }
+
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    padding: 14px 36px;
+    background: rgba(9,9,9,0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border-dim);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .topbar-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase; color: var(--text);
+  }
+  .topbar-right { display: flex; align-items: center; gap: 14px; }
+  .topbar-discord-tag {
+    font-size: 11px; color: var(--muted);
+    letter-spacing: 0.04em;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border-dim);
+    padding: 5px 12px; border-radius: 6px;
+    font-family: monospace;
+  }
+  .topbar-status {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--green);
+  }
+  .status-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.5); }
+    50% { box-shadow: 0 0 0 4px rgba(74,222,128,0); }
+  }
+
+  /* ─── CONTENT ─── */
+  .content { padding: 36px; flex: 1; max-width: 1100px; }
+
+  .section { display: none; animation: fadeIn .25s ease; }
+  .section.active { display: block; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Page header */
+  .page-header { margin-bottom: 32px; }
+  .page-eyebrow {
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--pink); margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .page-eyebrow::before { content: ''; display: block; width: 16px; height: 1px; background: var(--pink); }
+  .page-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 26px; font-weight: 800;
+    letter-spacing: -0.01em; text-transform: uppercase; color: var(--text);
+  }
+  .page-sub { font-size: 13px; color: var(--muted); font-weight: 300; margin-top: 6px; line-height: 1.6; }
+
+  /* Cards */
+  .card {
+    background: var(--bg3);
+    border: 1px solid var(--border-dim);
+    border-radius: 12px; padding: 24px;
+    margin-bottom: 18px;
+  }
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 12px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted2); margin-bottom: 18px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  /* Grid layouts */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 18px; }
+
+  /* Stat card */
+  .stat-card {
+    background: var(--bg3);
+    border: 1px solid var(--border-dim);
+    border-radius: 12px; padding: 22px;
+  }
+  .stat-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .stat-val {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px; font-weight: 800; color: var(--text); line-height: 1;
+  }
+  .stat-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .stat-delta { font-size: 11px; margin-top: 4px; }
+  .delta-up { color: var(--green); }
+  .delta-down { color: var(--red); }
+
+  /* Account */
+  .account-hero {
+    display: flex; align-items: center; gap: 24px;
+    padding: 28px;
+    background: var(--bg3);
+    border: 1px solid var(--border-dim);
+    border-radius: 12px; margin-bottom: 18px;
+    position: relative; overflow: hidden;
+  }
+  .account-hero::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(232,33,122,0.4), transparent);
+  }
+  .account-avatar {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: rgba(232,33,122,0.1);
+    border: 2px solid rgba(232,33,122,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-size: 22px; font-weight: 800; color: var(--pink);
+    flex-shrink: 0;
+    box-shadow: 0 0 20px rgba(232,33,122,0.15);
+  }
+  .account-meta { flex: 1; }
+  .account-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px; font-weight: 800;
+    letter-spacing: 0.02em; color: var(--text); margin-bottom: 4px;
+  }
+  .account-id { font-size: 11px; color: var(--muted); font-family: monospace; margin-bottom: 8px; }
+  .account-badges { display: flex; align-items: center; gap: 8px; }
+  .badge {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 3px 9px; border-radius: 4px;
+  }
+  .badge-tier-pro { background: rgba(232,33,122,0.13); color: var(--pink); border: 1px solid rgba(232,33,122,0.2); }
+  .badge-tier-elite { background: rgba(232,161,33,0.1); color: var(--gold); border: 1px solid rgba(232,161,33,0.2); }
+  .badge-owner-tag { background: rgba(232,33,122,0.08); color: var(--pink); border: 1px solid var(--border); }
+  .badge-server { background: rgba(74,222,128,0.08); color: var(--green); border: 1px solid rgba(74,222,128,0.15); }
+
+  .account-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+
+  /* Info rows */
+  .info-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 13px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 13px;
+  }
+  .info-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .info-row-label { color: var(--muted); font-weight: 300; }
+  .info-row-val { color: var(--text); font-weight: 400; }
+  .info-row-val.mono { font-family: monospace; font-size: 12px; }
+  .info-row-val.green { color: var(--green); }
+  .info-row-val.pink { color: var(--pink); }
+
+  /* Subscription */
+  .sub-current {
+    display: flex; align-items: flex-start; gap: 20px;
+    padding: 28px;
+    background: var(--bg3);
+    border: 1px solid rgba(232,33,122,0.25);
+    border-radius: 12px; margin-bottom: 18px;
+    position: relative; overflow: hidden;
+  }
+  .sub-current::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--pink), var(--pink-light));
+  }
+  .sub-tier-icon {
+    width: 52px; height: 52px; border-radius: 12px;
+    background: rgba(232,33,122,0.1);
+    border: 1px solid rgba(232,33,122,0.2);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .sub-tier-icon svg { display: block; }
+  .sub-info { flex: 1; }
+  .sub-tier-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px; font-weight: 800;
+    letter-spacing: 0.04em; text-transform: uppercase; color: var(--text);
+    margin-bottom: 4px;
+  }
+  .sub-price { font-size: 13px; color: var(--pink); font-weight: 400; margin-bottom: 10px; }
+  .sub-next { font-size: 12px; color: var(--muted); font-weight: 300; }
+  .sub-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 18px; border-radius: 7px;
+    font-family: 'Syne', sans-serif;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    cursor: pointer; text-decoration: none; border: none;
+    transition: background .2s, box-shadow .25s, transform .18s, color .2s;
+  }
+  .btn svg { display: block; }
+  .btn-pink { background: var(--pink); color: #fff; }
+  .btn-pink:hover { background: var(--pink-light); box-shadow: 0 0 20px var(--pink-glow); transform: translateY(-1px); }
+  .btn-ghost { background: rgba(255,255,255,0.04); color: var(--muted2); border: 1px solid var(--border-dim); }
+  .btn-ghost:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+  .btn-danger { background: rgba(248,113,113,0.08); color: var(--red); border: 1px solid rgba(248,113,113,0.15); }
+  .btn-danger:hover { background: rgba(248,113,113,0.14); }
+  .btn-sm { padding: 7px 14px; font-size: 10px; }
+  .btn-gold { background: rgba(232,161,33,0.1); color: var(--gold); border: 1px solid rgba(232,161,33,0.2); }
+  .btn-gold:hover { background: rgba(232,161,33,0.18); }
+
+  /* Toggle switch */
+  .toggle-list { display: flex; flex-direction: column; gap: 0; }
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .toggle-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .toggle-info { flex: 1; }
+  .toggle-label { font-size: 13px; color: var(--text); font-weight: 400; margin-bottom: 2px; }
+  .toggle-sub { font-size: 11px; color: var(--muted); font-weight: 300; }
+  .toggle-wrap { flex-shrink: 0; margin-left: 20px; }
+  .toggle {
+    position: relative; width: 40px; height: 22px;
+    display: inline-block;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .toggle-track {
+    position: absolute; inset: 0;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 100px;
+    cursor: pointer;
+    transition: background .2s, border-color .2s;
+  }
+  .toggle-track::after {
+    content: '';
+    position: absolute; top: 2px; left: 2px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--muted);
+    transition: transform .2s, background .2s;
+  }
+  .toggle input:checked + .toggle-track { background: rgba(232,33,122,0.2); border-color: rgba(232,33,122,0.35); }
+  .toggle input:checked + .toggle-track::after { transform: translateX(18px); background: var(--pink); }
+
+  /* Platforms */
+  .platform-connect-list { display: flex; flex-direction: column; gap: 12px; }
+  .platform-connect {
+    display: flex; align-items: center; gap: 16px;
+    padding: 18px 20px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border-dim);
+    border-radius: 10px;
+    transition: border-color .25s, background .25s;
+  }
+  .platform-connect:hover { border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); }
+  .plat-icon {
+    width: 40px; height: 40px; border-radius: 9px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border-dim);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+    color: var(--muted2);
+    flex-shrink: 0;
+  }
+  .plat-details { flex: 1; }
+  .plat-name-row {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.04em; color: var(--text); margin-bottom: 3px;
+  }
+  .plat-status-row { font-size: 11px; color: var(--muted); font-weight: 300; }
+  .plat-status-row.connected { color: var(--green); }
+  .plat-status-row.disconnected { color: var(--muted); }
+
+  /* Admin section */
+  .admin-warning {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 16px 20px;
+    background: rgba(232,33,122,0.06);
+    border: 1px solid rgba(232,33,122,0.2);
+    border-radius: 10px; margin-bottom: 24px;
+  }
+  .admin-warning svg { display: block; flex-shrink: 0; margin-top: 1px; }
+  .admin-warning-text { font-size: 12px; color: rgba(255,255,255,0.55); line-height: 1.6; font-weight: 300; }
+  .admin-warning-text strong { color: var(--pink); font-weight: 500; }
+
+  /* Admin tabs */
+  .admin-tabs {
+    display: flex; gap: 4px; margin-bottom: 24px;
+    border-bottom: 1px solid var(--border-dim);
+    padding-bottom: 0;
+  }
+  .admin-tab {
+    padding: 9px 18px;
+    font-family: 'Syne', sans-serif;
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted); cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color .2s, border-color .2s;
+  }
+  .admin-tab:hover { color: var(--text); }
+  .admin-tab.active { color: var(--pink); border-bottom-color: var(--pink); }
+
+  .admin-panel { display: none; }
+  .admin-panel.active { display: block; animation: fadeIn .2s ease; }
+
+  /* Table */
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table th {
+    text-align: left; padding: 10px 14px;
+    font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600;
+    border-bottom: 1px solid var(--border-dim);
+    background: rgba(255,255,255,0.015);
+  }
+  .data-table td {
+    padding: 12px 14px;
+    font-size: 12px; color: rgba(255,255,255,0.7);
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: rgba(255,255,255,0.015); }
+  .td-mono { font-family: monospace; font-size: 11px; color: var(--muted2); }
+  .td-tier-pro { color: var(--pink); font-weight: 500; }
+  .td-tier-elite { color: var(--gold); font-weight: 500; }
+  .td-tier-basic { color: var(--muted2); }
+  .td-active { color: var(--green); }
+  .td-inactive { color: var(--red); }
+  .td-actions { display: flex; gap: 6px; align-items: center; }
+
+  /* Bot toggle row */
+  .bot-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .bot-row:last-child { border-bottom: none; }
+  .bot-cmd { font-size: 12px; color: var(--text); font-family: monospace; }
+  .bot-cmd-info { font-size: 11px; color: var(--muted); font-weight: 300; margin-top: 2px; }
+  .bot-right { display: flex; align-items: center; gap: 14px; }
+  .rate-limit-input {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border-dim);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 11px; color: var(--text);
+    font-family: monospace; width: 80px; text-align: center;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .rate-limit-input:focus { border-color: rgba(232,33,122,0.35); }
+  .rate-label { font-size: 9px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+
+  /* Announcement */
+  .announce-form { display: flex; flex-direction: column; gap: 14px; }
+  .form-label {
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 6px; display: block;
+  }
+  .form-select, .form-textarea {
+    width: 100%;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border-dim);
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 13px; color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    outline: none; transition: border-color .2s;
+  }
+  .form-select:focus, .form-textarea:focus { border-color: rgba(232,33,122,0.35); }
+  .form-select { height: 40px; }
+  .form-textarea { resize: vertical; min-height: 100px; line-height: 1.6; }
+  option { background: #1a1a1a; }
+
+  /* Revenue chart mock */
+  .rev-bars { display: flex; align-items: flex-end; gap: 6px; height: 80px; margin-top: 16px; }
+  .rev-bar {
+    flex: 1; border-radius: 4px 4px 0 0;
+    background: rgba(232,33,122,0.18);
+    transition: background .2s;
+    cursor: default;
+    position: relative;
+  }
+  .rev-bar:hover { background: rgba(232,33,122,0.35); }
+  .rev-bar-label {
+    position: absolute; bottom: -18px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px; color: var(--muted); letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+
+  /* Pricing editor */
+  .price-edit-row {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .price-edit-row:last-child { border-bottom: none; }
+  .price-tier-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    flex: 1;
+  }
+  .price-input-wrap { display: flex; align-items: center; gap: 8px; }
+  .price-input-label { font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; width: 60px; text-align: right; }
+  .price-input {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border-dim);
+    border-radius: 6px; padding: 7px 12px;
+    font-size: 13px; color: var(--text);
+    font-family: 'Syne', sans-serif; font-weight: 600;
+    width: 100px; outline: none;
+    transition: border-color .2s;
+  }
+  .price-input:focus { border-color: rgba(232,33,122,0.35); }
+
+  /* Access denied for non-owners */
+  .access-denied {
+    text-align: center; padding: 80px 40px;
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+  }
+  .access-denied-icon {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: rgba(248,113,113,0.07);
+    border: 1px solid rgba(248,113,113,0.15);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .access-denied-icon svg { display: block; }
+  .access-denied-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px; font-weight: 700; text-transform: uppercase; color: var(--text);
+  }
+  .access-denied-sub { font-size: 13px; color: var(--muted); font-weight: 300; max-width: 320px; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-top">
+    <a href="index.html" class="sidebar-brand">
+      <div class="sidebar-mark">
+        <img src="3308A32C-1B75-45FE-A803-B1332BE91390.png" alt="Vendora">
+      </div>
+      <span class="sidebar-brand-name">Vendora</span>
+    </a>
+  </div>
+
+  <nav class="sidebar-nav">
+    <span class="nav-section-label">Account</span>
+    <div class="nav-item active" onclick="showSection('account', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Account
+    </div>
+    <div class="nav-item" onclick="showSection('subscription', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      Subscription
+    </div>
+
+    <span class="nav-section-label" style="margin-top:8px;">Settings</span>
+    <div class="nav-item" onclick="showSection('notifications', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      Notifications
+    </div>
+    <div class="nav-item" onclick="showSection('platforms', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      Platforms
+    </div>
+
+    <span class="nav-section-label" id="admin-label" style="margin-top:8px; display:none;">Owner</span>
+    <div class="nav-item" id="admin-nav-item" style="display:none;" onclick="showSection('admin', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Admin Panel
+      <span class="nav-item-badge badge-owner">Owner</span>
+    </div>
+  </nav>
+
+  <div class="sidebar-user">
+    <div class="user-avatar" id="sidebar-avi">VV</div>
+    <div class="user-info">
+      <div class="user-name" id="sidebar-name">Loading...</div>
+      <div class="user-tier tier-pro" id="sidebar-tier">Pro</div>
+    </div>
+    <a href="#" onclick="signOut(); return false;" class="sidebar-logout" title="Sign out">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    </a>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="topbar-title">Account</div>
+    <div class="topbar-right">
+      <div class="topbar-discord-tag" id="topbar-id">ID: —</div>
+      <div class="topbar-status">
+        <span class="status-dot"></span> Active
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ── ACCOUNT ── -->
+    <div class="section active" id="section-account">
+      <div class="page-header">
+        <div class="page-eyebrow">Account</div>
+        <div class="page-title">Your Profile</div>
+        <div class="page-sub">Your Vendora identity is tied to your Discord account. This cannot be changed.</div>
+      </div>
+
+      <div class="account-hero">
+        <div class="account-avatar" id="account-avi">VV</div>
+        <div class="account-meta">
+          <div class="account-name" id="account-name">Loading...</div>
+          <div class="account-id" id="account-id">ID: —</div>
+          <div class="account-badges">
+            <span class="badge badge-tier-pro" id="account-tier-badge">Pro</span>
+            <span class="badge badge-server">In Server</span>
+            <span class="badge badge-owner-tag" id="account-owner-badge" style="display:none;">Owner</span>
+          </div>
+        </div>
+        <div class="account-actions">
+          <button onclick="signOut()" class="btn btn-ghost btn-sm">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sign Out
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Account Details</div>
+        <div class="toggle-list">
+          <div class="info-row">
+            <span class="info-row-label">Discord Username</span>
+            <span class="info-row-val" id="detail-name">—</span>
+          </div>
+          <div class="info-row">
+            <span class="info-row-label">Discord ID</span>
+            <span class="info-row-val mono" id="detail-id">—</span>
+          </div>
+          <div class="info-row">
+            <span class="info-row-label">Server Status</span>
+            <span class="info-row-val green">Active member · Vendor Village</span>
+          </div>
+          <div class="info-row">
+            <span class="info-row-label">Auth Method</span>
+            <span class="info-row-val">Discord OAuth2</span>
+          </div>
+          <div class="info-row">
+            <span class="info-row-label">Account Created</span>
+            <span class="info-row-val">9 April 2025</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Danger Zone</div>
+        <div class="info-row" style="padding-top:0;">
+          <div>
+            <div style="font-size:13px;color:var(--text);margin-bottom:3px;">Request Data Deletion</div>
+            <div style="font-size:11px;color:var(--muted);font-weight:300;">Permanently delete all data associated with your Discord ID. This cancels your subscription.</div>
+          </div>
+          <button class="btn btn-danger btn-sm" onclick="alert('Data deletion request sent. You will receive a DM confirmation within 24 hours.')">Delete Data</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SUBSCRIPTION ── -->
+    <div class="section" id="section-subscription">
+      <div class="page-header">
+        <div class="page-eyebrow">Subscription</div>
+        <div class="page-title">Your Plan</div>
+        <div class="page-sub">Managed via PayPal. Changes take effect immediately. No refunds.</div>
+      </div>
+
+      <div class="sub-current">
+        <div class="sub-tier-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+        </div>
+        <div class="sub-info">
+          <div class="sub-tier-name" id="sub-tier-name">Pro</div>
+          <div class="sub-price" id="sub-price">£24.99 / month</div>
+          <div class="sub-next">Next billing: <strong style="color:var(--text);">9 May 2025</strong> · PayPal Subscriptions</div>
+        </div>
+        <div class="sub-actions">
+          <button class="btn btn-ghost btn-sm" onclick="alert('Redirecting to PayPal subscription management...')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            Manage on PayPal
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="if(confirm('Cancel subscription? Your access will end at the current billing period.')) alert('Cancellation submitted. Access continues until 9 May 2025.')">Cancel Plan</button>
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="stat-card">
+          <div class="stat-label">Current Tier</div>
+          <div class="stat-val" id="stat-tier" style="color:var(--pink);">Pro</div>
+          <div class="stat-sub">Active subscription</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Commands Used Today</div>
+          <div class="stat-val">12</div>
+          <div class="stat-sub" id="stat-limit">of 50/day limit</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Member Since</div>
+          <div class="stat-val" style="font-size:18px;">Apr 2025</div>
+          <div class="stat-sub">Founding member</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Upgrade Plan</div>
+        <div style="display:flex; gap:12px; margin-top:4px;">
+          <div style="flex:1; padding:20px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:10px;">
+            <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted2);margin-bottom:6px;">Basic</div>
+            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--muted2);">£9.99<span style="font-size:12px;font-weight:400;">/mo</span></div>
+            <button class="btn btn-ghost btn-sm" style="margin-top:14px;width:100%;justify-content:center;" onclick="if(confirm('Downgrade to Basic? Access will change immediately.')) alert('Downgrade processed. Basic access is now active.')">Downgrade</button>
+          </div>
+          <div style="flex:1; padding:20px; background:rgba(232,33,122,0.06); border:1px solid rgba(232,33,122,0.2); border-radius:10px; position:relative;">
+            <div style="position:absolute;top:12px;right:12px;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--pink);border:1px solid var(--border);padding:2px 8px;border-radius:3px;">Current</div>
+            <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--pink);margin-bottom:6px;">Pro</div>
+            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);">£24.99<span style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
+            <button class="btn btn-pink btn-sm" style="margin-top:14px;width:100%;justify-content:center;" disabled style="opacity:.4;cursor:not-allowed;">Active</button>
+          </div>
+          <div style="flex:1; padding:20px; background:rgba(232,161,33,0.04); border:1px solid rgba(232,161,33,0.18); border-radius:10px;">
+            <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--gold);margin-bottom:6px;">Elite</div>
+            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);">£49.99<span style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
+            <button class="btn btn-gold btn-sm" style="margin-top:14px;width:100%;justify-content:center;" onclick="if(confirm('Upgrade to Elite? You will be charged the difference via PayPal.')) alert('Upgrading to Elite — redirecting to PayPal...')">Upgrade</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── NOTIFICATIONS ── -->
+    <div class="section" id="section-notifications">
+      <div class="page-header">
+        <div class="page-eyebrow">Notifications</div>
+        <div class="page-title">DM Alerts</div>
+        <div class="page-sub">Configure what Vendora sends to your Discord DMs. Account and security alerts are always on.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Account & Subscription <span style="font-size:9px;color:var(--green);letter-spacing:.08em;">Always On</span></div>
+        <div class="toggle-list">
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Payment Confirmed</div>
+              <div class="toggle-sub">DM when a payment goes through</div>
+            </div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked disabled><span class="toggle-track"></span></label></div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Renewal Reminder</div>
+              <div class="toggle-sub">3 days before your subscription renews</div>
+            </div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked disabled><span class="toggle-track"></span></label></div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Subscription Changes</div>
+              <div class="toggle-sub">Cancellation, expiry, and role removal</div>
+            </div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked disabled><span class="toggle-track"></span></label></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Alerts & Research <span style="font-size:9px;color:var(--muted2);letter-spacing:.08em;">Configurable</span></div>
+        <div class="toggle-list">
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Price Drop Alerts</div>
+              <div class="toggle-sub">When a watchlisted item drops in price</div>
+            </div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Item Selling Fast</div>
+              <div class="toggle-sub">When a watchlisted item starts moving quickly</div>
+            </div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Competitor New Listings</div>
+              <div class="toggle-sub">When a tracked seller lists new stock</div>
+            </div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Weekly Trend Report</div>
+              <div class="toggle-sub">Weekly summary of trending brands and categories</div>
+            </div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox"><span class="toggle-track"></span></label></div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Early Deal Alerts <span style="font-size:9px;color:var(--gold);letter-spacing:.08em;text-transform:uppercase;margin-left:6px;">Elite</span></div>
+              <div class="toggle-sub">Priority deal access before standard Pro members</div>
+            </div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" disabled><span class="toggle-track"></span></label></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Platform Connection <span style="font-size:9px;color:var(--muted2);letter-spacing:.08em;">Configurable</span></div>
+        <div class="toggle-list">
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Platform Connected</div>
+              <div class="toggle-sub">DM when eBay, Depop, or Vinted account links successfully</div>
+            </div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Cross-Listing Updates</div>
+              <div class="toggle-sub">Success and failure notifications for cross-listing jobs</div>
+            </div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Connection Expired</div>
+              <div class="toggle-sub">Alert when a platform connection needs re-linking</div>
+            </div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align:right;">
+        <button class="btn btn-pink" onclick="alert('Notification preferences saved.')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Save Preferences
+        </button>
+      </div>
+    </div>
+
+    <!-- ── PLATFORMS ── -->
+    <div class="section" id="section-platforms">
+      <div class="page-header">
+        <div class="page-eyebrow">Platforms</div>
+        <div class="page-title">Connected Accounts</div>
+        <div class="page-sub">Link your reselling accounts so Vendora can scan, research, and cross-list on your behalf.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Live Platforms</div>
+        <div class="platform-connect-list">
+          <div class="platform-connect">
+            <div class="plat-icon">DP</div>
+            <div class="plat-details">
+              <div class="plat-name-row">Depop</div>
+              <div class="plat-status-row connected">● Connected · @your_depop_handle</div>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="if(confirm('Disconnect Depop? Scanning and listing will stop.')) alert('Depop disconnected.')">Disconnect</button>
+          </div>
+          <div class="platform-connect">
+            <div class="plat-icon">VT</div>
+            <div class="plat-details">
+              <div class="plat-name-row">Vinted</div>
+              <div class="plat-status-row disconnected">○ Not connected</div>
+            </div>
+            <button class="btn btn-pink btn-sm" onclick="alert('Opening Vinted OAuth flow...')">Connect</button>
+          </div>
+          <div class="platform-connect">
+            <div class="plat-icon">EB</div>
+            <div class="plat-details">
+              <div class="plat-name-row">eBay</div>
+              <div class="plat-status-row connected">● Connected · Official API</div>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="if(confirm('Disconnect eBay?')) alert('eBay disconnected.')">Disconnect</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Coming Soon</div>
+        <div class="platform-connect-list">
+          <div class="platform-connect" style="opacity:.5;cursor:not-allowed;">
+            <div class="plat-icon">FB</div>
+            <div class="plat-details">
+              <div class="plat-name-row">Facebook Marketplace</div>
+              <div class="plat-status-row">Requires OAuth integration — launching soon</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" disabled>Soon</button>
+          </div>
+          <div class="platform-connect" style="opacity:.5;cursor:not-allowed;">
+            <div class="plat-icon">VC</div>
+            <div class="plat-details">
+              <div class="plat-name-row">Vestiaire Collective</div>
+              <div class="plat-status-row">Luxury resale platform — in development</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" disabled>Soon</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ADMIN ── -->
+    <div class="section" id="section-admin">
+      <div class="page-header">
+        <div class="page-eyebrow">Owner Panel</div>
+        <div class="page-title">Admin Dashboard</div>
+        <div class="page-sub">Exclusive to Discord ID 731207920007643167. Manage users, bot config, revenue, and announcements.</div>
+      </div>
+
+      <!-- Access denied if not owner — shown via JS -->
+      <div class="access-denied" id="admin-denied" style="display:none;">
+        <div class="access-denied-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        </div>
+        <div class="access-denied-title">Access Denied</div>
+        <div class="access-denied-sub">The Admin Panel is restricted to the server owner Discord ID. Your account does not have permission to view this section.</div>
+      </div>
+
+      <!-- Admin content — shown only to owner -->
+      <div id="admin-content">
+        <div class="admin-warning">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <div class="admin-warning-text">You are in the <strong>Owner Admin Panel</strong>. Changes made here affect all subscribers and the live bot. Proceed with care.</div>
+        </div>
+
+        <!-- Revenue strip -->
+        <div class="grid-3" style="margin-bottom:24px;">
+          <div class="stat-card">
+            <div class="stat-label">Monthly Recurring Revenue</div>
+            <div class="stat-val" style="color:var(--green);">£847</div>
+            <div class="stat-delta delta-up">↑ +£124 this week</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Active Subscribers</div>
+            <div class="stat-val">34</div>
+            <div class="stat-sub">Basic: 12 · Pro: 18 · Elite: 4</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">New This Week</div>
+            <div class="stat-val">+5</div>
+            <div class="stat-delta delta-up">↑ 2 upgrades from Basic → Pro</div>
+          </div>
+        </div>
+
+        <!-- Admin tabs -->
+        <div class="admin-tabs">
+          <div class="admin-tab active" onclick="showAdminTab('users', this)">Users</div>
+          <div class="admin-tab" onclick="showAdminTab('bot', this)">Bot Config</div>
+          <div class="admin-tab" onclick="showAdminTab('announce', this)">Announcements</div>
+          <div class="admin-tab" onclick="showAdminTab('pricing', this)">Pricing</div>
+        </div>
+
+        <!-- Users -->
+        <div class="admin-panel active" id="admin-users">
+          <div class="card" style="padding:0;overflow:hidden;">
+            <div style="padding:18px 20px;border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
+              <div class="card-title" style="margin:0;">All Subscribers</div>
+              <button class="btn btn-ghost btn-sm">Export CSV</button>
+            </div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Discord ID</th>
+                  <th>Username</th>
+                  <th>Tier</th>
+                  <th>Status</th>
+                  <th>Joined</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="td-mono">731207920007643167</td>
+                  <td style="color:var(--pink);font-weight:500;">You (Owner)</td>
+                  <td class="td-tier-pro">Pro</td>
+                  <td class="td-active">Active</td>
+                  <td>Apr 9, 2025</td>
+                  <td class="td-actions">
+                    <button class="btn btn-ghost btn-sm" disabled>Owner</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="td-mono">384920183740293</td>
+                  <td>flipper_jk</td>
+                  <td class="td-tier-pro">Pro</td>
+                  <td class="td-active">Active</td>
+                  <td>Apr 7, 2025</td>
+                  <td class="td-actions">
+                    <button class="btn btn-ghost btn-sm" onclick="alert('Tier editor: flipper_jk')">Edit Tier</button>
+                    <button class="btn btn-danger btn-sm" onclick="if(confirm('Revoke flipper_jk access?')) alert('Access revoked.')">Revoke</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="td-mono">920481029384710</td>
+                  <td>streetwear_sr</td>
+                  <td class="td-tier-elite">Elite</td>
+                  <td class="td-active">Active</td>
+                  <td>Apr 3, 2025</td>
+                  <td class="td-actions">
+                    <button class="btn btn-ghost btn-sm" onclick="alert('Tier editor: streetwear_sr')">Edit Tier</button>
+                    <button class="btn btn-danger btn-sm" onclick="if(confirm('Revoke streetwear_sr access?')) alert('Access revoked.')">Revoke</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="td-mono">112938401829374</td>
+                  <td>kicks_mc</td>
+                  <td class="td-tier-basic">Basic</td>
+                  <td class="td-inactive">Expired</td>
+                  <td>Mar 22, 2025</td>
+                  <td class="td-actions">
+                    <button class="btn btn-ghost btn-sm" onclick="alert('Manually assigning Pro to kicks_mc')">Assign Tier</button>
+                    <button class="btn btn-danger btn-sm" onclick="if(confirm('Ban kicks_mc?')) alert('User banned.')">Ban</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Bot Config -->
+        <div class="admin-panel" id="admin-bot">
+          <div class="card">
+            <div class="card-title">Command Rate Limits <span style="color:var(--muted);font-size:10px;">(per day per tier)</span></div>
+            <div>
+              <div class="bot-row">
+                <div>
+                  <div class="bot-cmd">/scan</div>
+                  <div class="bot-cmd-info">Full product scanner</div>
+                </div>
+                <div class="bot-right">
+                  <div><div class="rate-label">Basic</div><input class="rate-limit-input" value="5"></div>
+                  <div><div class="rate-label">Pro</div><input class="rate-limit-input" value="50"></div>
+                  <div><div class="rate-label">Elite</div><input class="rate-limit-input" value="∞"></div>
+                </div>
+              </div>
+              <div class="bot-row">
+                <div>
+                  <div class="bot-cmd">/reply + /lowball</div>
+                  <div class="bot-cmd-info">AI messaging commands</div>
+                </div>
+                <div class="bot-right">
+                  <div><div class="rate-label">Basic</div><input class="rate-limit-input" value="20"></div>
+                  <div><div class="rate-label">Pro</div><input class="rate-limit-input" value="100"></div>
+                  <div><div class="rate-label">Elite</div><input class="rate-limit-input" value="∞"></div>
+                </div>
+              </div>
+              <div class="bot-row">
+                <div>
+                  <div class="bot-cmd">/research</div>
+                  <div class="bot-cmd-info">Full research report</div>
+                </div>
+                <div class="bot-right">
+                  <div><div class="rate-label">Basic</div><input class="rate-limit-input" value="3"></div>
+                  <div><div class="rate-label">Pro</div><input class="rate-limit-input" value="20"></div>
+                  <div><div class="rate-label">Elite</div><input class="rate-limit-input" value="∞"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Bot Settings</div>
+            <div class="toggle-list">
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">Bot Online</div>
+                  <div class="toggle-sub">Toggle the Vendora bot on/off globally</div>
+                </div>
+                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">Session Auto-Delete</div>
+                  <div class="toggle-sub">Delete inactive session channels after 24 hours</div>
+                </div>
+                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">Server Join DM</div>
+                  <div class="toggle-sub">Auto-DM new server members with Vendora pitch</div>
+                </div>
+                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">Account Share Detection</div>
+                  <div class="toggle-sub">Flag concurrent sessions from the same Discord ID</div>
+                </div>
+                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+              </div>
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <button class="btn btn-pink" onclick="alert('Bot configuration saved and applied.')">Save Config</button>
+          </div>
+        </div>
+
+        <!-- Announcements -->
+        <div class="admin-panel" id="admin-announce">
+          <div class="card">
+            <div class="card-title">Send DM Blast</div>
+            <div class="announce-form">
+              <div>
+                <label class="form-label">Target Audience</label>
+                <select class="form-select">
+                  <option>All Subscribers</option>
+                  <option>Basic Only</option>
+                  <option>Pro Only</option>
+                  <option>Elite Only</option>
+                  <option>Pro + Elite</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Message</label>
+                <textarea class="form-textarea" placeholder="Write your announcement..."></textarea>
+              </div>
+              <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button class="btn btn-ghost" onclick="alert('Preview: message shown here before sending')">Preview</button>
+                <button class="btn btn-pink" onclick="if(confirm('Send DM blast to selected subscribers?')) alert('DM blast sent successfully.')">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  Send Blast
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Post to #use-vendora</div>
+            <div class="announce-form">
+              <div>
+                <label class="form-label">Channel Announcement</label>
+                <textarea class="form-textarea" placeholder="Post a message visible to all subscribers in #use-vendora..."></textarea>
+              </div>
+              <div style="text-align:right;">
+                <button class="btn btn-pink" onclick="if(confirm('Post this to #use-vendora?')) alert('Posted to #use-vendora.')">Post to Channel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pricing -->
+        <div class="admin-panel" id="admin-pricing">
+          <div class="card">
+            <div class="card-title">Tier Pricing</div>
+            <div class="price-edit-row">
+              <div class="price-tier-name" style="color:var(--muted2);">Basic</div>
+              <div class="price-input-wrap">
+                <span class="price-input-label">Monthly</span>
+                <input class="price-input" value="£9.99">
+              </div>
+              <div class="price-input-wrap">
+                <span class="price-input-label">Annual</span>
+                <input class="price-input" value="£99.99">
+              </div>
+            </div>
+            <div class="price-edit-row">
+              <div class="price-tier-name" style="color:var(--pink);">Pro</div>
+              <div class="price-input-wrap">
+                <span class="price-input-label">Monthly</span>
+                <input class="price-input" value="£24.99">
+              </div>
+              <div class="price-input-wrap">
+                <span class="price-input-label">Annual</span>
+                <input class="price-input" value="£249.99">
+              </div>
+            </div>
+            <div class="price-edit-row">
+              <div class="price-tier-name" style="color:var(--gold);">Elite</div>
+              <div class="price-input-wrap">
+                <span class="price-input-label">Monthly</span>
+                <input class="price-input" value="£49.99">
+              </div>
+              <div class="price-input-wrap">
+                <span class="price-input-label">Annual</span>
+                <input class="price-input" value="£499.99">
+              </div>
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <button class="btn btn-pink" onclick="if(confirm('Update pricing? This will affect new subscriptions immediately.')) alert('Pricing updated and synced with PayPal.')">Update Pricing</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<script>
+  // ── Supabase config ──
+  // Get these from: supabase.com/dashboard → your project → Settings → API
+  const SUPABASE_URL = 'https://fqfanqtybvnurhzkoxwr.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxZmFucXR5YnZudXJoemtveHdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2OTcxNjMsImV4cCI6MjA5MTI3MzE2M30.aoqhW8hXgRVfX8JI27jfN7QBfyY-ev6PQ52xvUz-X-E';
+
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const OWNER_ID = '731207920007643167';
+
+  async function init() {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      window.location.href = 'vendora-login.html';
+      return;
+    }
+
+    const u = session.user;
+    // Discord user ID is stored by Supabase in user_metadata.provider_id
+    const discordId = u.user_metadata?.provider_id
+      || u.identities?.find(i => i.provider === 'discord')?.id
+      || '';
+    const username = u.user_metadata?.full_name || u.user_metadata?.name || u.email || 'Unknown';
+    const initials = username.slice(0, 2).toUpperCase();
+    const avatarUrl = u.user_metadata?.avatar_url || null;
+    const tier = 'Pro'; // Pull from your DB once you have a users table
+
+    const isOwner = discordId === OWNER_ID;
+
+    // Populate UI
+    document.getElementById('sidebar-avi').textContent = initials;
+    document.getElementById('sidebar-name').textContent = username;
+    document.getElementById('sidebar-tier').textContent = tier;
+    document.getElementById('topbar-id').textContent = 'ID: ' + discordId;
+    document.getElementById('account-avi').textContent = initials;
+    document.getElementById('account-name').textContent = username;
+    document.getElementById('account-id').textContent = 'ID: ' + discordId;
+    document.getElementById('detail-name').textContent = username;
+    document.getElementById('detail-id').textContent = discordId;
+
+    // Replace initials with Discord avatar if available
+    if (avatarUrl) {
+      ['sidebar-avi', 'account-avi'].forEach(id => {
+        const el = document.getElementById(id);
+        el.style.backgroundImage = `url(${avatarUrl})`;
+        el.style.backgroundSize = 'cover';
+        el.style.backgroundPosition = 'center';
+        el.textContent = '';
+      });
+    }
+
+    // Gate admin panel on real Discord ID
+    if (isOwner) {
+      document.getElementById('admin-label').style.display = '';
+      document.getElementById('admin-nav-item').style.display = '';
+      document.getElementById('account-owner-badge').style.display = '';
+      document.getElementById('admin-content').style.display = '';
+      document.getElementById('admin-denied').style.display = 'none';
+    } else {
+      document.getElementById('admin-content').style.display = 'none';
+      document.getElementById('admin-denied').style.display = '';
+    }
+  }
+
+  async function signOut() {
+    await sb.auth.signOut();
+    window.location.href = 'vendora-login.html';
+  }
+
+  init();
+
+  // Section switching
+  const sectionTitles = {
+    account: 'Account',
+    subscription: 'Subscription',
+    notifications: 'Notifications',
+    platforms: 'Platforms',
+    admin: 'Admin Panel',
+  };
+
+  function showSection(id, el) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('section-' + id).classList.add('active');
+    el.classList.add('active');
+    document.getElementById('topbar-title').textContent = sectionTitles[id] || id;
+  }
+
+  function showAdminTab(id, el) {
+    document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('admin-' + id).classList.add('active');
+    el.classList.add('active');
+  }
+</script>
+
+</body>
+</html>
