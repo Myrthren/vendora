@@ -300,13 +300,18 @@
 
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+  // Store plan choice from URL so it survives the OAuth redirect
+  const urlPlan = new URLSearchParams(window.location.search).get('plan');
+  if (urlPlan) localStorage.setItem('pendingPlan', urlPlan);
+
   // Already logged in? Go straight to dashboard
   sb.auth.getSession().then(({ data: { session } }) => {
     if (session) window.location.href = 'vendora-dashboard.html';
   });
 
   async function signInWithDiscord() {
-    const redirectTo = window.location.href.replace('vendora-login.html', 'vendora-dashboard.html');
+    const base = window.location.href.split('vendora-login.html')[0];
+    const redirectTo = base + 'vendora-dashboard.html';
     const { error } = await sb.auth.signInWithOAuth({
       provider: 'discord',
       options: { redirectTo },

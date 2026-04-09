@@ -736,6 +736,20 @@
         <div class="page-sub">Managed via PayPal. Changes take effect immediately. No refunds.</div>
       </div>
 
+      <!-- Payment banner — shown when arriving from a pricing button -->
+      <div id="payment-banner" style="display:none; align-items:center; justify-content:space-between; gap:16px; padding:18px 24px; background:rgba(232,33,122,0.07); border:1px solid rgba(232,33,122,0.25); border-radius:12px; margin-bottom:24px; position:relative;">
+        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--pink),var(--pink-light));border-radius:12px 12px 0 0;"></div>
+        <div>
+          <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--pink);margin-bottom:4px;">Selected Plan</div>
+          <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--text);" class="banner-plan">Pro — £24.99/mo</div>
+          <div style="font-size:12px;color:var(--muted);font-weight:300;margin-top:3px;">You'll be redirected to PayPal to complete payment. Your Discord role is assigned instantly on confirmation.</div>
+        </div>
+        <a href="#" onclick="alert('PayPal payment link coming soon — add your PayPal subscription button ID here.'); return false;" class="btn btn-pink" style="white-space:nowrap;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          Pay with PayPal
+        </a>
+      </div>
+
       <div class="sub-current">
         <div class="sub-tier-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
@@ -1306,6 +1320,18 @@
       });
     }
 
+    // If user came from a pricing button, jump to subscription section
+    const pendingPlan = localStorage.getItem('pendingPlan');
+    if (pendingPlan) {
+      localStorage.removeItem('pendingPlan');
+      setTimeout(() => {
+        const subNav = document.querySelector('.nav-item[onclick*="subscription"]');
+        showSection('subscription', subNav);
+        // Highlight the chosen plan
+        highlightPlan(pendingPlan);
+      }, 300);
+    }
+
     // Gate admin panel on real Discord ID
     if (isOwner) {
       document.getElementById('admin-label').style.display = '';
@@ -1316,6 +1342,24 @@
     } else {
       document.getElementById('admin-content').style.display = 'none';
       document.getElementById('admin-denied').style.display = '';
+    }
+  }
+
+  function highlightPlan(plan) {
+    // Scroll to the upgrade cards and flash the chosen one
+    const planMap = { basic: 0, pro: 1, elite: 2 };
+    const cards = document.querySelectorAll('#section-subscription .p-highlight-card');
+    if (cards.length) {
+      const target = cards[planMap[plan] ?? 1];
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target?.classList.add('plan-selected');
+    }
+    // Show the payment banner
+    const banner = document.getElementById('payment-banner');
+    const planNames = { basic: 'Starter — £9.99/mo', pro: 'Pro — £24.99/mo', elite: 'Elite — £49.99/mo' };
+    if (banner) {
+      banner.querySelector('.banner-plan').textContent = planNames[plan] || plan;
+      banner.style.display = 'flex';
     }
   }
 
