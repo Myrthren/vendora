@@ -1,0 +1,15 @@
+{
+  "name": "vendora-bot",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node bot/index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.15.3",
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

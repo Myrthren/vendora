@@ -1,6 +1,7 @@
 [build]
   publish = "."
   command = ""
+  ignore = "git diff --quiet HEAD^ HEAD -- index.html vendora-login.html vendora-dashboard.html"
 
 [[headers]]
   for = "/*"
