@@ -206,6 +206,9 @@
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
   }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
 
   /* Page header */
   .page-header { margin-bottom: 32px; }
@@ -630,6 +633,13 @@
       Platforms
     </div>
 
+    <span class="nav-section-label" style="margin-top:8px;">Tools</span>
+    <div class="nav-item" id="crosslist-nav-item" onclick="showSection('crosslist', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="7" y1="10" x2="17" y2="10"/><line x1="7" y1="7" x2="12" y2="7"/></svg>
+      Cross-List
+      <span class="nav-item-badge" style="background:rgba(232,33,122,0.18);color:var(--pink);font-size:9px;padding:2px 6px;border-radius:4px;margin-left:auto;">Pro</span>
+    </div>
+
     <span class="nav-section-label" style="margin-top:8px;">Support</span>
     <div class="nav-item" onclick="showSection('support', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -1012,6 +1022,93 @@
             </div>
             <button class="btn btn-ghost btn-sm" disabled>Soon</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CROSS-LIST ── -->
+    <div class="section" id="section-crosslist">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">Cross-List</div>
+        <div class="page-sub">Generate platform-optimised listings for Depop, Vinted, and eBay in one click.</div>
+      </div>
+
+      <!-- Pro gate -->
+      <div id="crosslist-gate" style="display:none;">
+        <div class="access-denied" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px 24px;gap:16px;">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text);">Pro Required</div>
+          <div style="font-size:13px;color:var(--muted2);max-width:320px;">Cross-listing is available on Vendora Pro and above. Upgrade to generate listings across all platforms instantly.</div>
+          <button class="btn btn-primary btn-sm" onclick="showSection('subscription', document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Pro</button>
+        </div>
+      </div>
+
+      <!-- Tool UI -->
+      <div id="crosslist-tool">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+
+          <!-- Left: Form -->
+          <div class="card" style="display:flex;flex-direction:column;gap:16px;">
+            <div class="card-title">Item Details</div>
+
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted2);">Item Name *</label>
+              <input id="cl-item" type="text" placeholder="e.g. Nike Air Max 90 White UK9" style="background:var(--bg3);border:1px solid var(--border-dim);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;transition:border .15s;" onfocus="this.style.borderColor='rgba(232,33,122,0.4)'" onblur="this.style.borderColor=''" />
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted2);">Description <span style="color:var(--muted);font-weight:400;text-transform:none;">(optional)</span></label>
+              <textarea id="cl-desc" rows="3" placeholder="Any extra details — size, colour, defects, original box etc." style="background:var(--bg3);border:1px solid var(--border-dim);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;resize:vertical;transition:border .15s;" onfocus="this.style.borderColor='rgba(232,33,122,0.4)'" onblur="this.style.borderColor=''"></textarea>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted2);">Condition</label>
+                <select id="cl-condition" style="background:var(--bg3);border:1px solid var(--border-dim);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;">
+                  <option value="">Select...</option>
+                  <option value="New with tags">New with tags</option>
+                  <option value="Like New">Like New</option>
+                  <option value="Very Good">Very Good</option>
+                  <option value="Good">Good</option>
+                  <option value="Acceptable">Acceptable</option>
+                </select>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted2);">Your Price (£)</label>
+                <input id="cl-price" type="number" min="0" step="0.01" placeholder="e.g. 45.00" style="background:var(--bg3);border:1px solid var(--border-dim);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;transition:border .15s;" onfocus="this.style.borderColor='rgba(232,33,122,0.4)'" onblur="this.style.borderColor=''" />
+              </div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted2);">Platforms</label>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text);cursor:pointer;padding:8px 14px;border:1px solid var(--border-dim);border-radius:8px;transition:border .15s;" id="cl-lbl-depop">
+                  <input type="checkbox" id="cl-depop" checked onchange="clTogglePlatform('depop',this.checked)" style="accent-color:var(--pink);width:14px;height:14px;"> Depop
+                </label>
+                <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text);cursor:pointer;padding:8px 14px;border:1px solid var(--border-dim);border-radius:8px;transition:border .15s;" id="cl-lbl-vinted">
+                  <input type="checkbox" id="cl-vinted" checked onchange="clTogglePlatform('vinted',this.checked)" style="accent-color:var(--pink);width:14px;height:14px;"> Vinted
+                </label>
+                <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text);cursor:pointer;padding:8px 14px;border:1px solid var(--border-dim);border-radius:8px;transition:border .15s;" id="cl-lbl-ebay">
+                  <input type="checkbox" id="cl-ebay" checked onchange="clTogglePlatform('ebay',this.checked)" style="accent-color:var(--pink);width:14px;height:14px;"> eBay
+                </label>
+              </div>
+            </div>
+
+            <button class="btn btn-primary" id="cl-generate-btn" onclick="generateCrossListing()" style="margin-top:4px;">
+              Generate Listings
+            </button>
+            <div id="cl-msg" style="display:none;"></div>
+          </div>
+
+          <!-- Right: Results -->
+          <div id="cl-results" style="display:flex;flex-direction:column;gap:14px;">
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;text-align:center;gap:12px;opacity:0.35;">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              <div style="font-size:13px;color:var(--muted2);">Your listings will appear here</div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -1487,6 +1584,7 @@
     if (memberEl) memberEl.textContent = memberSince;
 
     updateUpgradeCards(tier);
+    initCrossListAccess(tier);
 
     if (isOwner) {
       document.getElementById('admin-label').style.display         = '';
@@ -1778,7 +1876,152 @@
     }
   });
 
-  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', support:'Support', admin:'Admin Panel' };
+  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', crosslist:'Cross-List', support:'Support', admin:'Admin Panel' };
+
+  // ── Cross-list tool ──────────────────────────────────────────────────────────
+  const BOT_API = 'https://vendora-bot-production.up.railway.app';
+
+  function clTogglePlatform(platform, checked) {
+    const lbl = document.getElementById('cl-lbl-' + platform);
+    if (lbl) lbl.style.borderColor = checked ? 'rgba(232,33,122,0.4)' : '';
+  }
+
+  async function generateCrossListing() {
+    const item      = document.getElementById('cl-item')?.value?.trim();
+    const desc      = document.getElementById('cl-desc')?.value?.trim();
+    const condition = document.getElementById('cl-condition')?.value;
+    const price     = document.getElementById('cl-price')?.value;
+    const platforms = ['depop','vinted','ebay'].filter(p => document.getElementById('cl-' + p)?.checked);
+
+    if (!item) {
+      showMsg(document.getElementById('cl-msg'), 'error', 'Please enter an item name.');
+      return;
+    }
+    if (platforms.length === 0) {
+      showMsg(document.getElementById('cl-msg'), 'error', 'Select at least one platform.');
+      return;
+    }
+
+    const btn = document.getElementById('cl-generate-btn');
+    btn.disabled = true;
+    btn.textContent = 'Generating...';
+    document.getElementById('cl-msg').style.display = 'none';
+
+    const results = document.getElementById('cl-results');
+    results.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:200px;gap:12px;opacity:0.5;"><div style="width:18px;height:18px;border:2px solid var(--pink);border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;"></div><span style="font-size:13px;color:var(--muted2);">Generating listings...</span></div>`;
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { window.location.href = '/vendora-login'; return; }
+
+      const res = await fetch(`${BOT_API}/api/crosslist`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ item, description: desc, condition, price, platforms }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        btn.disabled = false; btn.textContent = 'Generate Listings';
+        showMsg(document.getElementById('cl-msg'), 'error', json.error || 'Generation failed.');
+        results.innerHTML = '';
+        return;
+      }
+
+      renderCrossListResults(json.listings, platforms);
+    } catch (e) {
+      showMsg(document.getElementById('cl-msg'), 'error', 'Connection error. Please try again.');
+      results.innerHTML = '';
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Generate Listings';
+  }
+
+  function renderCrossListResults(listings, platforms) {
+    const results = document.getElementById('cl-results');
+    const platformMeta = {
+      depop:  { name: 'Depop',  color: '#ff2300', fields: ['title','description','price','hashtags'] },
+      vinted: { name: 'Vinted', color: '#09b1ba', fields: ['title','description','price','brand','size'] },
+      ebay:   { name: 'eBay',   color: '#e53238', fields: ['title','description','price','condition'] },
+    };
+
+    results.innerHTML = platforms.map(p => {
+      const meta = platformMeta[p];
+      const data = listings[p];
+      if (!data) return '';
+
+      const fieldRows = Object.entries(data).map(([key, val]) => {
+        const label = key.charAt(0).toUpperCase() + key.slice(1).replace('_', ' ');
+        const display = Array.isArray(val) ? val.map(h => '#' + h).join(' ') : (key === 'price' ? `£${val}` : val);
+        return `
+          <div style="display:flex;flex-direction:column;gap:4px;padding:10px 0;border-bottom:1px solid var(--border-dim);">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted2);">${label}</span>
+              <button onclick="clCopyField(this,'${p}-${key}')" style="background:none;border:none;color:var(--muted2);font-size:11px;cursor:pointer;padding:2px 6px;border-radius:4px;transition:color .15s;" onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='var(--muted2)'">Copy</button>
+            </div>
+            <div id="cl-field-${p}-${key}" style="font-size:12px;color:var(--text);line-height:1.5;word-break:break-word;">${display}</div>
+          </div>`;
+      }).join('');
+
+      return `
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div style="padding:12px 18px;background:rgba(255,255,255,0.03);border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:8px;height:8px;border-radius:50%;background:${meta.color};"></div>
+              <span style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.05em;">${meta.name}</span>
+            </div>
+            <button onclick="clCopyAll('${p}')" class="btn btn-ghost btn-sm">Copy All</button>
+          </div>
+          <div style="padding:0 18px;">${fieldRows}</div>
+        </div>`;
+    }).join('');
+  }
+
+  function clCopyField(btn, fieldId) {
+    const el = document.getElementById('cl-field-' + fieldId);
+    if (!el) return;
+    navigator.clipboard.writeText(el.textContent).then(() => {
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      btn.style.color = 'var(--green)';
+      setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 1500);
+    });
+  }
+
+  function clCopyAll(platform) {
+    const card = document.querySelector(`#cl-field-${platform}-title`)?.closest('.card');
+    if (!card) return;
+    const text = Array.from(card.querySelectorAll('[id^="cl-field-"]'))
+      .map(el => {
+        const key = el.id.replace(`cl-field-${platform}-`, '');
+        return `${key.toUpperCase()}: ${el.textContent}`;
+      }).join('\n\n');
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = card.querySelector('button[onclick^="clCopyAll"]');
+      if (btn) { const o = btn.textContent; btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = o, 1500); }
+    });
+  }
+
+  // Show/hide cross-list tool based on tier
+  function initCrossListAccess(tier) {
+    const gate = document.getElementById('crosslist-gate');
+    const tool = document.getElementById('crosslist-tool');
+    const nav  = document.getElementById('crosslist-nav-item');
+    const rank = { none: 0, basic: 1, pro: 2, elite: 3 };
+    if (rank[tier] >= rank.pro) {
+      if (gate) gate.style.display = 'none';
+      if (tool) tool.style.display = '';
+    } else {
+      if (gate) gate.style.display = '';
+      if (tool) tool.style.display = 'none';
+      if (nav)  nav.style.opacity  = '0.5';
+    }
+  }
 
   function showSection(id, el) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));

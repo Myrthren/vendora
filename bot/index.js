@@ -292,6 +292,90 @@ async function callAIWithImage(system, userText, imageUrl, model = 'claude-opus-
   }
 }
 
+// ── Platform search ───────────────────────────────────────────────────────────
+async function searchDepop(query) {
+  try {
+    const url = `https://api.depop.com/api/v1/search/products/?q=${encodeURIComponent(query)}&country=gb&currency=GBP&sort=relevance&itemsPerPage=12`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', Accept: 'application/json' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.objects || []).map(o => ({
+      title:    o.description || o.slug || '',
+      price:    o.pricing?.priceAmount ? `£${(o.pricing.priceAmount / 100).toFixed(2)}` : '—',
+      url:      `https://www.depop.com/products/${o.slug}/`,
+      condition: o.sizeInfo?.condition || '',
+    }));
+  } catch (e) {
+    console.log('[depop] Search failed:', e.message);
+    return null;
+  }
+}
+
+async function searchVinted(query) {
+  try {
+    const url = `https://www.vinted.co.uk/api/v2/catalog/items?search_text=${encodeURIComponent(query)}&per_page=12&order=newest_first`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', Accept: 'application/json' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.items || []).map(i => ({
+      title:    i.title || '',
+      price:    i.total_item_price ? `£${i.total_item_price.amount}` : '—',
+      url:      i.url || '',
+      brand:    i.brand_title || '',
+      condition: i.status || '',
+    }));
+  } catch (e) {
+    console.log('[vinted] Search failed:', e.message);
+    return null;
+  }
+}
+
+async function searchEbay(query) {
+  const appId = process.env.EBAY_APP_ID;
+  if (!appId) return null;
+  try {
+    const url = `https://svcs.ebay.com/services/search/FindingService/v1?OPERATION-NAME=findItemsByKeywords&SERVICE-VERSION=1.0.0&SECURITY-APPNAME=${appId}&RESPONSE-DATA-FORMAT=JSON&keywords=${encodeURIComponent(query)}&paginationInput.entriesPerPage=12&outputSelector=SellingStatus,PictureURLSuperSize`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const items = data.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item || [];
+    return items.map(i => ({
+      title:    i.title?.[0] || '',
+      price:    i.sellingStatus?.[0]?.currentPrice?.[0]?.['__value__'] ? `£${parseFloat(i.sellingStatus[0].currentPrice[0]['__value__']).toFixed(2)}` : '—',
+      url:      i.viewItemURL?.[0] || '',
+      condition: i.condition?.[0]?.conditionDisplayName?.[0] || '',
+    }));
+  } catch (e) {
+    console.log('[ebay] Search failed:', e.message);
+    return null;
+  }
+}
+
+function formatPlatformResults(results, platformName) {
+  if (!results || results.length === 0) return null;
+  const lines = results.slice(0, 8).map((r, i) =>
+    `**${i + 1}.** ${r.title.slice(0, 60)} — **${r.price}**${r.condition ? ` · ${r.condition}` : ''}`
+  );
+  return lines.join('\n');
+}
+
+// Supabase JWT verification (for API endpoints called from the dashboard)
+async function verifySupabaseToken(token) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch { return null; }
+}
+
 // ── Slash command definitions ─────────────────────────────────────────────────
 const commands = [
   // ── All tiers ──
@@ -545,18 +629,48 @@ async function executeCommand(interaction, commandName, tier, profile) {
   }
 
   if (commandName === 'scan') {
-    const platform = opts.getString('platform');
-    const item     = opts.getString('item');
+    const platform     = opts.getString('platform');
+    const item         = opts.getString('item');
+    const platformNames = { ebay: 'eBay', depop: 'Depop', vinted: 'Vinted' };
+
+    let results = null;
+    if (platform === 'depop')  results = await searchDepop(item);
+    if (platform === 'vinted') results = await searchVinted(item);
+    if (platform === 'ebay')   results = await searchEbay(item);
+
+    const formatted = results ? formatPlatformResults(results, platformNames[platform]) : null;
+
+    if (formatted) {
+      // Real data — find the cheapest few to surface deals
+      const prices = (results || [])
+        .map(r => parseFloat(r.price.replace('£', '')))
+        .filter(p => !isNaN(p))
+        .sort((a, b) => a - b);
+      const cheapest = prices[0] ? `£${prices[0].toFixed(2)}` : '—';
+      const avg      = prices.length ? `£${(prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2)}` : '—';
+
+      return interaction.editReply({ embeds: [
+        baseEmbed().setTitle(`Scan — ${item} on ${platformNames[platform]}`)
+          .setDescription(formatted)
+          .addFields(
+            { name: 'Lowest Listed', value: cheapest, inline: true },
+            { name: 'Average Price', value: avg, inline: true },
+            { name: 'Results',       value: `${results.length} listings found`, inline: true }
+          )
+      ]});
+    }
+
+    // Fallback: AI analysis if platform API unavailable
     const text = await callAI(
-      `You are Vendora's product research engine. Based on your market knowledge, analyse ${platform} for the given item. Include: typical listing price range, what "underpriced" looks like for this item (specific £ threshold), best search terms to find deals, current demand level, and 3-5 specific types of listings to target. Add a note that live scanning integration is coming soon.`,
-      `Platform: ${platform}\nItem: ${item}`,
+      `You are Vendora's product research engine. Analyse ${platformNames[platform]} for the given item. Include: typical listing price range, what "underpriced" looks like (specific £ threshold), best search terms to find deals, current demand level, and 3-5 types of listings to target.${platform === 'ebay' && !process.env.EBAY_APP_ID ? ' Note: live eBay data coming soon.' : ''}`,
+      `Platform: ${platformNames[platform]}\nItem: ${item}`,
       'claude-haiku-4-5-20251001', 900
     );
     if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
-    const platformNames = { ebay: 'eBay', depop: 'Depop', vinted: 'Vinted' };
     return interaction.editReply({ embeds: [
       baseEmbed().setTitle(`Scan — ${item} on ${platformNames[platform]}`)
         .setDescription(text.slice(0, 4000))
+        .setFooter({ text: platform === 'ebay' && !process.env.EBAY_APP_ID ? 'Vendora AI estimate — eBay live data activating soon' : 'Vendora AI estimate — live data temporarily unavailable' })
     ]});
   }
 
@@ -587,14 +701,14 @@ async function executeCommand(interaction, commandName, tier, profile) {
 
   if (commandName === 'crosslist') {
     const item = opts.getString('item');
-    const text = await callAI(
-      'You are Vendora\'s cross-listing generator. Create an optimised listing for UK resale platforms. Include:\n**Title** — SEO-optimised, under 80 chars\n**Description** — compelling 3-5 sentence listing description\n**Suggested Price** — with reasoning\n**Keywords/Hashtags** — 8-10 relevant tags\n**Platform Notes** — any platform-specific tips',
-      `Item: ${item}`,
-      'claude-haiku-4-5-20251001', 900
-    );
-    if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
     return interaction.editReply({ embeds: [
-      baseEmbed().setTitle(`Cross-Listing — ${item}`).setDescription(text.slice(0, 4000))
+      baseEmbed().setTitle('Cross-List Tool')
+        .setDescription(
+          `Generate copy-ready listings for **Depop, Vinted, and eBay** in one click using the Vendora Cross-List tool on your dashboard.\n\n` +
+          `→ [Open Cross-List Tool](${DASHBOARD_URL})\n\n` +
+          `Enter your item details and get platform-optimised titles, descriptions, prices, and hashtags instantly.`
+        )
+        .addFields({ name: 'Item', value: item })
     ]});
   }
 
@@ -781,7 +895,96 @@ client.on('interactionCreate', async (interaction) => {
 const app = express();
 app.use(express.json());
 
+// CORS — allow dashboard to call bot API endpoints
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', 'https://vendora-vv.netlify.app');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
+});
+
 app.get('/', (_req, res) => res.json({ status: 'ok', bot: client.user?.tag || 'connecting...' }));
+
+// Cross-listing API — called from the dashboard
+app.post('/api/crosslist', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'No token' });
+
+  const authUser = await verifySupabaseToken(token);
+  if (!authUser) return res.status(401).json({ error: 'Invalid token' });
+
+  const discordId = authUser.user_metadata?.provider_id
+    || authUser.identities?.find(i => i.provider === 'discord')?.id;
+
+  const profile = discordId ? await getProfileByDiscordId(discordId) : null;
+  if (!profile || profile.subscription_status !== 'active') {
+    return res.status(403).json({ error: 'Active subscription required' });
+  }
+  if (TIER_RANK[profile.tier] < TIER_RANK.pro) {
+    return res.status(403).json({ error: 'Pro subscription required' });
+  }
+
+  const { item, description, condition, price, platforms = ['depop', 'vinted', 'ebay'] } = req.body;
+  if (!item) return res.status(400).json({ error: 'Item name required' });
+
+  if (!ai) return res.status(503).json({ error: 'AI unavailable' });
+
+  const platformSection = platforms.map(p => {
+    if (p === 'depop')  return '"depop": { "title": "...", "description": "...", "price": 0, "hashtags": ["..."] }';
+    if (p === 'vinted') return '"vinted": { "title": "...", "description": "...", "price": 0, "brand": "...", "size": "..." }';
+    if (p === 'ebay')   return '"ebay": { "title": "...", "description": "...", "price": 0, "condition": "..." }';
+  }).join(',\n  ');
+
+  const prompt = `Generate optimised cross-platform resale listings. Return ONLY valid JSON, no markdown.
+
+Item: ${item}${description ? `\nDescription: ${description}` : ''}${condition ? `\nCondition: ${condition}` : ''}${price ? `\nAsking price: £${price}` : ''}
+Platforms: ${platforms.join(', ')}
+
+Rules:
+- depop: casual UK tone, title 60-80 chars, 8-10 hashtags (no #), suggest realistic GBP price
+- vinted: clean descriptive title, requires brand and size (estimate if unknown), suggest price
+- ebay: keyword-rich formal title under 80 chars, condition must be one of: New, Like New, Very Good, Good, Acceptable
+
+Return JSON with only the requested platforms as keys:
+{
+  ${platformSection}
+}`;
+
+  try {
+    const msg = await ai.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1400,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const text       = msg.content[0].text;
+    const jsonMatch  = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return res.status(500).json({ error: 'Generation failed — could not parse response' });
+    const listings = JSON.parse(jsonMatch[0]);
+    return res.json({ ok: true, listings });
+  } catch (e) {
+    console.error('[/api/crosslist] Error:', e.message);
+    return res.status(500).json({ error: 'Generation failed' });
+  }
+});
+
+// Research API — called from the dashboard
+app.post('/api/research', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'No token' });
+  const authUser = await verifySupabaseToken(token);
+  if (!authUser) return res.status(401).json({ error: 'Invalid token' });
+
+  const { item, platform } = req.body;
+  if (!item) return res.status(400).json({ error: 'Item required' });
+
+  let results = null;
+  if (platform === 'depop')  results = await searchDepop(item);
+  if (platform === 'vinted') results = await searchVinted(item);
+  if (platform === 'ebay')   results = await searchEbay(item);
+
+  return res.json({ ok: true, results: results || [] });
+});
 
 // Supabase DB webhook — profile INSERT/UPDATE
 app.post('/webhook', async (req, res) => {
