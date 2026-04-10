@@ -630,6 +630,12 @@
       Platforms
     </div>
 
+    <span class="nav-section-label" style="margin-top:8px;">Support</span>
+    <div class="nav-item" onclick="showSection('support', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Support
+    </div>
+
     <span class="nav-section-label" id="admin-label" style="margin-top:8px; display:none;">Owner</span>
     <div class="nav-item" id="admin-nav-item" style="display:none;" onclick="showSection('admin', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -735,6 +741,14 @@
         <div class="page-eyebrow">Subscription</div>
         <div class="page-title">Your Plan</div>
         <div class="page-sub">Managed via PayPal. Changes take effect immediately. No refunds.</div>
+      </div>
+
+      <!-- Discord server notice -->
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:rgba(88,101,242,0.08);border:1px solid rgba(88,101,242,0.22);border-radius:10px;margin-bottom:20px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5865f2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        <div style="font-size:12px;color:rgba(255,255,255,0.55);line-height:1.5;">
+          <strong style="color:rgba(255,255,255,0.8);">Already in the Vendora Discord?</strong> Your role is assigned automatically after payment. If it doesn't appear within a few minutes, visit the <span style="color:var(--pink);cursor:pointer;" onclick="showSection('support', document.querySelector('.nav-item[onclick*=support]'))">Support</span> page.
+        </div>
       </div>
 
       <!-- Payment banner — shown when arriving from a pricing button -->
@@ -997,6 +1011,56 @@
               <div class="plat-status-row">Luxury resale platform — in development</div>
             </div>
             <button class="btn btn-ghost btn-sm" disabled>Soon</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SUPPORT ── -->
+    <div class="section" id="section-support">
+      <div class="page-header">
+        <div class="page-eyebrow">Help</div>
+        <div class="page-title">Support</div>
+        <div class="page-sub">Get help with your subscription, access, or anything else.</div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">Contact Us</div>
+        <p style="color:var(--muted2);font-size:13px;line-height:1.6;margin-bottom:20px;">
+          If you're experiencing issues with your subscription, missing Discord roles, billing questions, or anything else — reach out through either channel below and we'll get back to you.
+        </p>
+        <div class="toggle-list">
+          <div class="info-row">
+            <span class="info-row-label">Discord</span>
+            <span class="info-row-val" style="display:flex;align-items:center;gap:10px;">
+              <span style="font-family:monospace;font-size:13px;color:var(--text);">pluniez</span>
+              <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('pluniez').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})">Copy</button>
+            </span>
+          </div>
+          <div class="info-row">
+            <span class="info-row-label">Email</span>
+            <span class="info-row-val" style="display:flex;align-items:center;gap:10px;">
+              <a href="mailto:keneamaechina@gmail.com" style="color:var(--pink);font-size:13px;text-decoration:none;">keneamaechina@gmail.com</a>
+              <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('keneamaechina@gmail.com').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})">Copy</button>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Common Issues</div>
+        <div class="toggle-list">
+          <div class="info-row" style="flex-direction:column;align-items:flex-start;gap:4px;padding:14px 0;">
+            <span style="font-size:13px;font-weight:500;color:var(--text);">I paid but didn't get my Discord role</span>
+            <span style="font-size:12px;color:var(--muted2);line-height:1.5;">Make sure you're in the Vendora Discord server. The bot assigns roles automatically — if it doesn't happen within a few minutes, contact us with your Discord ID.</span>
+          </div>
+          <div class="info-row" style="flex-direction:column;align-items:flex-start;gap:4px;padding:14px 0;">
+            <span style="font-size:13px;font-weight:500;color:var(--text);">I can't log in</span>
+            <span style="font-size:12px;color:var(--muted2);line-height:1.5;">Make sure you're authorising with the correct Discord account. Clear your browser cache and try again. If the problem persists, contact us.</span>
+          </div>
+          <div class="info-row" style="flex-direction:column;align-items:flex-start;gap:4px;padding:14px 0;">
+            <span style="font-size:13px;font-weight:500;color:var(--text);">I want to cancel my subscription</span>
+            <span style="font-size:12px;color:var(--muted2);line-height:1.5;">Go to the Subscription tab and click Cancel Plan. Your access remains until the end of the billing period.</span>
           </div>
         </div>
       </div>
@@ -1708,7 +1772,13 @@
 
   init();
 
-  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', admin:'Admin Panel' };
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT' || (!session && event !== 'INITIAL_SESSION')) {
+      window.location.href = '/vendora-login';
+    }
+  });
+
+  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', support:'Support', admin:'Admin Panel' };
 
   function showSection(id, el) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
