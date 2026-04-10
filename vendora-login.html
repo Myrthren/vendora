@@ -306,12 +306,11 @@
 
   // Already logged in? Go straight to dashboard
   sb.auth.getSession().then(({ data: { session } }) => {
-    if (session) window.location.href = 'vendora-dashboard.html';
+    if (session) window.location.href = '/vendora-dashboard';
   });
 
   async function signInWithDiscord() {
-    const base = window.location.href.split('vendora-login.html')[0];
-    const redirectTo = base + 'vendora-dashboard.html';
+    const redirectTo = window.location.origin + '/vendora-dashboard';
     const { error } = await sb.auth.signInWithOAuth({
       provider: 'discord',
       options: { redirectTo },
