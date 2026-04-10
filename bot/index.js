@@ -14,9 +14,11 @@ const client = new Client({
 });
 
 // ── Config ──────────────────────────────────────────────────────────────────
-const GUILD_ID       = process.env.DISCORD_GUILD_ID;
-const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
-const PORT           = process.env.PORT || 3000;
+const GUILD_ID          = process.env.DISCORD_GUILD_ID;
+const WEBHOOK_SECRET    = process.env.WEBHOOK_SECRET;
+const SUPABASE_URL      = process.env.SUPABASE_URL      || 'https://fqfanqtybvnurhzkoxwr.supabase.co';
+const SUPABASE_SVC_KEY  = process.env.SUPABASE_SERVICE_KEY;
+const PORT              = process.env.PORT || 3000;
 
 const ROLE_IDS = {
   basic: '1491388683327242290',
@@ -35,14 +37,9 @@ client.once('ready', () => {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 async function assignRole(member, tier) {
-  // Remove all existing tier roles
   const toRemove = Object.values(ROLE_IDS).filter(id => member.roles.cache.has(id));
   if (toRemove.length) await member.roles.remove(toRemove);
-
-  // Add new tier role
-  if (tier && ROLE_IDS[tier]) {
-    await member.roles.add(ROLE_IDS[tier]);
-  }
+  if (tier && ROLE_IDS[tier]) await member.roles.add(ROLE_IDS[tier]);
 }
 
 async function sendDM(member, message) {
@@ -53,19 +50,36 @@ async function sendDM(member, message) {
   }
 }
 
-// ── Webhook endpoint (called by Supabase Database Webhook) ───────────────────
+// Update a profile in Supabase (used by PayPal webhook handler)
+async function updateProfile(filter, data) {
+  if (!SUPABASE_SVC_KEY) {
+    console.warn('SUPABASE_SERVICE_KEY not set — cannot update profiles from PayPal webhook');
+    return { error: 'No service key' };
+  }
+  const params = Object.entries(filter).map(([k, v]) => `${k}=eq.${encodeURIComponent(v)}`).join('&');
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?${params}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_SVC_KEY,
+      'Authorization': `Bearer ${SUPABASE_SVC_KEY}`,
+      'Prefer': 'return=representation',
+    },
+    body: JSON.stringify(data),
+  });
+  const text = await res.text();
+  if (!res.ok) return { error: text };
+  return { data: JSON.parse(text || '[]') };
+}
+
+// ── Supabase webhook (profile INSERT / UPDATE) ───────────────────────────────
 app.post('/webhook', async (req, res) => {
-  // Verify secret header
   if (req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   const { type, record } = req.body;
-
-  // Only handle INSERT and UPDATE events on profiles
-  if (!['INSERT', 'UPDATE'].includes(type)) {
-    return res.json({ ok: true });
-  }
+  if (!['INSERT', 'UPDATE'].includes(type)) return res.json({ ok: true });
 
   const { discord_id, tier, subscription_status } = record;
   if (!discord_id) return res.json({ ok: true });
@@ -75,8 +89,9 @@ app.post('/webhook', async (req, res) => {
     const member = await guild.members.fetch(discord_id).catch(() => null);
 
     if (!member) {
-      console.log(`Member ${discord_id} not in server — skipping role assignment`);
-      return res.json({ ok: true });
+      console.log(`Member ${discord_id} not in server — role skipped. They should join: https://discord.gg/ZVrDuxjQFM`);
+      // Still acknowledge — the Supabase row is correct, they just need to join the server
+      return res.json({ ok: true, note: 'member_not_in_server' });
     }
 
     if (subscription_status === 'active' && tier && ROLE_IDS[tier]) {
@@ -90,7 +105,7 @@ app.post('/webhook', async (req, res) => {
       console.log(`✓ Assigned ${tier} role to ${discord_id}`);
 
     } else if (subscription_status === 'inactive') {
-      await assignRole(member, null); // removes all tier roles
+      await assignRole(member, null);
       await sendDM(member,
         `**Your Vendora subscription has ended.**\n\n` +
         `Your tier role has been removed.\n` +
@@ -104,6 +119,43 @@ app.post('/webhook', async (req, res) => {
     console.error('Webhook error:', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── PayPal webhook (subscription cancelled / suspended / expired) ────────────
+// Register this URL in PayPal Developer → Webhooks:
+//   https://vendora-production-8a47.up.railway.app/paypal-webhook
+// Events to subscribe: BILLING.SUBSCRIPTION.CANCELLED, BILLING.SUBSCRIPTION.SUSPENDED,
+//                      BILLING.SUBSCRIPTION.EXPIRED, BILLING.SUBSCRIPTION.PAYMENT.FAILED
+app.post('/paypal-webhook', async (req, res) => {
+  const eventType = req.body?.event_type;
+  const subId     = req.body?.resource?.id;
+
+  console.log(`PayPal event: ${eventType} — sub ${subId}`);
+
+  const cancelEvents = [
+    'BILLING.SUBSCRIPTION.CANCELLED',
+    'BILLING.SUBSCRIPTION.SUSPENDED',
+    'BILLING.SUBSCRIPTION.EXPIRED',
+  ];
+
+  if (!cancelEvents.includes(eventType) || !subId) {
+    return res.json({ ok: true });
+  }
+
+  // Find the user by PayPal subscription ID and mark inactive
+  // This will trigger the Supabase database webhook which calls /webhook above
+  const { data, error } = await updateProfile(
+    { paypal_subscription_id: subId },
+    { subscription_status: 'inactive', tier: 'none', paypal_subscription_id: null }
+  );
+
+  if (error) {
+    console.error('Failed to update profile for cancelled sub:', subId, error);
+    return res.status(500).json({ error });
+  }
+
+  console.log(`✓ Marked ${subId} inactive (${eventType}), affected rows: ${data?.length || 0}`);
+  res.json({ ok: true });
 });
 
 // ── Health check ─────────────────────────────────────────────────────────────
