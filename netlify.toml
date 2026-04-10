@@ -1,0 +1,10 @@
+[build]
+  publish = "."
+  command = ""
+  ignore = "exit 0"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
