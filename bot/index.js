@@ -79,6 +79,14 @@ const CMD_TIER_REQUIRED = {
   negotiate: 'elite', authenticate: 'elite', grade: 'elite',
 };
 
+// ── Bot feature toggles (defaults — overwritten by Supabase on boot) ──────────
+const BOT_TOGGLES = {
+  bot_online:         true,
+  session_auto_delete: true,
+  join_dm:            true,
+  share_detection:    true,
+};
+
 // In-memory rate limit store: Map<discordId, Map<group, { count, resetAt }>>
 const usageStore = new Map();
 
@@ -409,8 +417,10 @@ const commands = [
     .addStringOption(o => o.setName('category').setDescription('Category or brand name').setRequired(true)),
   new SlashCommandBuilder().setName('tracker').setDescription('Manage your inventory tracker [Pro+]')
     .addSubcommand(s => s.setName('add').setDescription('Add an item to your tracker')
-      .addStringOption(o => o.setName('item').setDescription('Item to add').setRequired(true)))
-    .addSubcommand(s => s.setName('view').setDescription('View your inventory tracker')),
+      .addStringOption(o => o.setName('item').setDescription('Item name').setRequired(true)))
+    .addSubcommand(s => s.setName('view').setDescription('View your inventory tracker'))
+    .addSubcommand(s => s.setName('remove').setDescription('Remove an item by number (shown in /tracker view)')
+      .addStringOption(o => o.setName('item').setDescription('Item number from /tracker view').setRequired(true))),
   new SlashCommandBuilder().setName('sold').setDescription('Analyse what actually sells vs what just gets listed [Pro+]')
     .addStringOption(o => o.setName('item').setDescription('Item or category to analyse').setRequired(true)),
   new SlashCommandBuilder().setName('competitor').setDescription('Track a competitor seller [Pro+]')
@@ -429,13 +439,100 @@ const commands = [
     .addAttachmentOption(o => o.setName('photo').setDescription('Photo of the item').setRequired(true)),
 ].map(c => c.toJSON());
 
-// ── Inventory tracker (in-memory, resets on restart) ──────────────────────────
-// Map<discordId, string[]>
-const inventoryStore = new Map();
+// ── Inventory (persistent via Supabase) ──────────────────────────────────────
+async function dbAddInventory(discordId, item) {
+  if (!SUPABASE_KEY) return { error: 'no key' };
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/inventory`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: 'return=representation' },
+      body: JSON.stringify({ discord_id: discordId, item }),
+    });
+    return await r.json();
+  } catch (e) { return { error: e.message }; }
+}
 
-// ── Price drop watchlist (in-memory) ─────────────────────────────────────────
-// Map<discordId, string[]>
-const watchlistStore = new Map();
+async function dbGetInventory(discordId) {
+  if (!SUPABASE_KEY) return [];
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/inventory?discord_id=eq.${discordId}&order=added_at.asc`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+    });
+    return await r.json();
+  } catch { return []; }
+}
+
+async function dbRemoveInventory(id) {
+  if (!SUPABASE_KEY) return;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/inventory?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+    });
+  } catch {}
+}
+
+// ── Watchlist (persistent via Supabase) ───────────────────────────────────────
+async function dbAddWatchlist(discordId, item) {
+  if (!SUPABASE_KEY) return { error: 'no key' };
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/watchlist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: 'return=representation' },
+      body: JSON.stringify({ discord_id: discordId, item }),
+    });
+    return await r.json();
+  } catch (e) { return { error: e.message }; }
+}
+
+async function dbGetWatchlist(discordId) {
+  if (!SUPABASE_KEY) return [];
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/watchlist?discord_id=eq.${discordId}&order=added_at.asc`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+    });
+    return await r.json();
+  } catch { return []; }
+}
+
+// ── Settings (persistent config in Supabase) ──────────────────────────────────
+async function getSetting(key) {
+  if (!SUPABASE_KEY) return null;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/settings?key=eq.${key}&select=value`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+    });
+    const rows = await r.json();
+    return rows[0]?.value ?? null;
+  } catch { return null; }
+}
+
+async function saveSetting(key, value) {
+  if (!SUPABASE_KEY) return;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({ key, value, updated_at: new Date().toISOString() }),
+    });
+  } catch {}
+}
+
+// Load persisted rate limits on startup
+(async () => {
+  const saved = await getSetting('rate_limits');
+  if (saved) {
+    for (const [group, limits] of Object.entries(saved)) {
+      if (RATE_LIMITS[group]) Object.assign(RATE_LIMITS[group], limits);
+    }
+    console.log('[config] Loaded persisted rate limits from Supabase');
+  }
+  const savedToggles = await getSetting('bot_toggles');
+  if (savedToggles) {
+    Object.assign(BOT_TOGGLES, savedToggles);
+    console.log('[config] Loaded persisted bot toggles from Supabase');
+  }
+})();
 
 // ── Command executor ──────────────────────────────────────────────────────────
 async function executeCommand(interaction, commandName, tier, profile) {
@@ -526,36 +623,47 @@ async function executeCommand(interaction, commandName, tier, profile) {
   // /tracker
   if (commandName === 'tracker') {
     const sub = opts.getSubcommand();
-    if (!inventoryStore.has(interaction.user.id)) inventoryStore.set(interaction.user.id, []);
-    const inv = inventoryStore.get(interaction.user.id);
 
     if (sub === 'add') {
       const item = opts.getString('item');
-      inv.push({ item, addedAt: new Date().toLocaleDateString('en-GB') });
+      await dbAddInventory(interaction.user.id, item);
+      const inv = await dbGetInventory(interaction.user.id);
       return interaction.editReply({ embeds: [
         baseEmbed().setTitle('Item Added to Tracker')
           .setDescription(`**${item}** has been added to your inventory tracker.\n\nTotal items tracked: **${inv.length}**`)
       ]});
     }
     if (sub === 'view') {
+      const inv = await dbGetInventory(interaction.user.id);
       if (inv.length === 0) return interaction.editReply({ embeds: [baseEmbed().setDescription('Your inventory tracker is empty.\n\nUse `/tracker add [item]` to start tracking.')] });
-      const list = inv.map((e, i) => `**${i + 1}.** ${e.item} — added ${e.addedAt}`).join('\n');
+      const list = inv.map((e, i) => `**${i + 1}.** ${e.item} — added ${new Date(e.added_at).toLocaleDateString('en-GB')}`).join('\n');
       return interaction.editReply({ embeds: [
         baseEmbed().setTitle('Your Inventory Tracker')
           .setDescription(list.slice(0, 4000))
           .addFields({ name: 'Total', value: `${inv.length} item${inv.length !== 1 ? 's' : ''}` })
       ]});
     }
+    if (sub === 'remove') {
+      const inv = await dbGetInventory(interaction.user.id);
+      const idxStr = opts.getString('item');
+      const idx = parseInt(idxStr) - 1;
+      if (isNaN(idx) || idx < 0 || idx >= inv.length) {
+        return interaction.editReply({ embeds: [baseEmbed().setDescription(`Invalid number. You have ${inv.length} item(s). Use the number shown in \`/tracker view\`.`)] });
+      }
+      const removed = inv[idx];
+      await dbRemoveInventory(removed.id);
+      return interaction.editReply({ embeds: [baseEmbed().setTitle('Item Removed').setDescription(`**${removed.item}** removed from your tracker.`)] });
+    }
   }
 
   // /pricedrop
   if (commandName === 'pricedrop') {
     const item = opts.getString('item');
-    if (!watchlistStore.has(interaction.user.id)) watchlistStore.set(interaction.user.id, []);
-    watchlistStore.get(interaction.user.id).push(item);
+    await dbAddWatchlist(interaction.user.id, item);
+    const wl = await dbGetWatchlist(interaction.user.id);
     return interaction.editReply({ embeds: [
       baseEmbed().setTitle('Price Drop Alert Set')
-        .setDescription(`You'll be alerted when **${item}** drops in price.\n\n*Live price monitoring via platform API integration — coming soon. Your watchlist item has been saved.*`)
+        .setDescription(`You'll be alerted when **${item}** drops in price.\n\nWatchlist total: **${wl.length}** item${wl.length !== 1 ? 's' : ''}\n\n*Live price monitoring coming soon. Your item is saved and will alert you once platform scanning is live.*`)
     ]});
   }
 
@@ -1572,6 +1680,123 @@ app.patch('/api/listing/:id/schedule', async (req, res) => {
     next_relist_at: nextRelistAt,
   });
   res.json({ ok: true });
+});
+
+// ── Owner-only middleware ─────────────────────────────────────────────────────
+async function requireOwner(req, res) {
+  const user = await requireAuth(req, res);
+  if (!user) return null;
+  const discordId = user.user_metadata?.provider_id
+    || user.identities?.find(i => i.provider === 'discord')?.id;
+  if (discordId !== OWNER_ID) { res.status(403).json({ error: 'Owner only' }); return null; }
+  return user;
+}
+
+// ── Admin: get bot config ─────────────────────────────────────────────────────
+app.get('/api/admin/config', async (req, res) => {
+  if (!await requireOwner(req, res)) return;
+  const rateLimits = await getSetting('rate_limits') || {};
+  const toggles    = await getSetting('bot_toggles')  || BOT_TOGGLES;
+  res.json({ rate_limits: rateLimits, toggles });
+});
+
+// ── Admin: save bot config ────────────────────────────────────────────────────
+app.post('/api/admin/config', async (req, res) => {
+  if (!await requireOwner(req, res)) return;
+  const { rate_limits, toggles } = req.body || {};
+
+  if (rate_limits && typeof rate_limits === 'object') {
+    // Merge into live RATE_LIMITS
+    for (const [group, limits] of Object.entries(rate_limits)) {
+      if (RATE_LIMITS[group]) Object.assign(RATE_LIMITS[group], limits);
+    }
+    await saveSetting('rate_limits', rate_limits);
+  }
+
+  if (toggles && typeof toggles === 'object') {
+    Object.assign(BOT_TOGGLES, toggles);
+    await saveSetting('bot_toggles', toggles);
+  }
+
+  console.log('[admin] Config updated');
+  res.json({ ok: true });
+});
+
+// ── Admin: DM blast ───────────────────────────────────────────────────────────
+app.post('/api/admin/announce/dm', async (req, res) => {
+  if (!await requireOwner(req, res)) return;
+  const { message, target } = req.body || {};
+  if (!message?.trim()) return res.status(400).json({ error: 'Message required' });
+
+  // Fetch discord IDs from Supabase profiles
+  let query = `${SUPABASE_URL}/rest/v1/profiles?select=discord_id,tier&subscription_status=eq.active`;
+  if (target && target !== 'all') {
+    if (target === 'pro_elite') {
+      query += `&or=(tier.eq.pro,tier.eq.elite)`;
+    } else {
+      query += `&tier=eq.${target}`;
+    }
+  }
+
+  let profiles = [];
+  try {
+    const r = await fetch(query, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
+    profiles = await r.json();
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to fetch profiles' });
+  }
+
+  let sent = 0, failed = 0;
+  for (const p of profiles) {
+    if (!p.discord_id) continue;
+    try {
+      const member = await client.users.fetch(p.discord_id);
+      await member.send(message);
+      sent++;
+    } catch { failed++; }
+  }
+
+  console.log(`[admin] DM blast — sent: ${sent}, failed: ${failed}`);
+  res.json({ ok: true, sent, failed, total: profiles.length });
+});
+
+// ── Admin: post to channel ────────────────────────────────────────────────────
+app.post('/api/admin/announce/channel', async (req, res) => {
+  if (!await requireOwner(req, res)) return;
+  const { message, channel_name } = req.body || {};
+  if (!message?.trim()) return res.status(400).json({ error: 'Message required' });
+
+  const targetName = (channel_name || 'use-vendora').replace(/^#/, '');
+
+  try {
+    const guild   = await client.guilds.fetch(GUILD_ID);
+    const channel = guild.channels.cache.find(c => c.name === targetName && c.type === ChannelType.GuildText);
+    if (!channel) return res.status(404).json({ error: `Channel #${targetName} not found` });
+    await channel.send(message);
+    res.json({ ok: true, channel: targetName });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Admin: update pricing (stored in Supabase; PayPal plans are separate) ─────
+app.post('/api/admin/pricing', async (req, res) => {
+  if (!await requireOwner(req, res)) return;
+  const { pricing } = req.body || {};
+  if (!pricing) return res.status(400).json({ error: 'pricing object required' });
+  await saveSetting('pricing', pricing);
+  console.log('[admin] Pricing updated:', pricing);
+  res.json({ ok: true });
+});
+
+app.get('/api/admin/pricing', async (req, res) => {
+  if (!await requireOwner(req, res)) return;
+  const pricing = await getSetting('pricing') || {
+    basic:  { monthly: 9.99,  annual: 99.99  },
+    pro:    { monthly: 24.99, annual: 249.99 },
+    elite:  { monthly: 49.99, annual: 499.99 },
+  };
+  res.json({ pricing });
 });
 
 // ── Auto-relist cron job — runs every hour ────────────────────────────────────

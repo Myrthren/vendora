@@ -659,6 +659,10 @@
     </div>
   </nav>
 
+  <div style="padding: 8px 14px; display:flex; gap:14px; border-top: 1px solid var(--border-dim);">
+    <a href="vendora-tos.html" target="_blank" style="font-size:10px;color:rgba(255,255,255,0.22);text-decoration:none;letter-spacing:0.06em;" onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='rgba(255,255,255,0.22)'">Terms</a>
+    <a href="vendora-privacy.html" target="_blank" style="font-size:10px;color:rgba(255,255,255,0.22);text-decoration:none;letter-spacing:0.06em;" onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='rgba(255,255,255,0.22)'">Privacy</a>
+  </div>
   <div class="sidebar-user">
     <div class="user-avatar" id="sidebar-avi">VV</div>
     <div class="user-info">
@@ -1426,9 +1430,9 @@
                   <div class="bot-cmd-info">Full product scanner</div>
                 </div>
                 <div class="bot-right">
-                  <div><div class="rate-label">Basic</div><input class="rate-limit-input" value="5"></div>
-                  <div><div class="rate-label">Pro</div><input class="rate-limit-input" value="50"></div>
-                  <div><div class="rate-label">Elite</div><input class="rate-limit-input" value="∞"></div>
+                  <div><div class="rate-label">Basic</div><input id="rl-scan-basic" class="rate-limit-input" value="5"></div>
+                  <div><div class="rate-label">Pro</div><input id="rl-scan-pro" class="rate-limit-input" value="50"></div>
+                  <div><div class="rate-label">Elite</div><input id="rl-scan-elite" class="rate-limit-input" value="∞"></div>
                 </div>
               </div>
               <div class="bot-row">
@@ -1437,9 +1441,9 @@
                   <div class="bot-cmd-info">AI messaging commands</div>
                 </div>
                 <div class="bot-right">
-                  <div><div class="rate-label">Basic</div><input class="rate-limit-input" value="20"></div>
-                  <div><div class="rate-label">Pro</div><input class="rate-limit-input" value="100"></div>
-                  <div><div class="rate-label">Elite</div><input class="rate-limit-input" value="∞"></div>
+                  <div><div class="rate-label">Basic</div><input id="rl-reply-basic" class="rate-limit-input" value="20"></div>
+                  <div><div class="rate-label">Pro</div><input id="rl-reply-pro" class="rate-limit-input" value="100"></div>
+                  <div><div class="rate-label">Elite</div><input id="rl-reply-elite" class="rate-limit-input" value="∞"></div>
                 </div>
               </div>
               <div class="bot-row">
@@ -1448,9 +1452,20 @@
                   <div class="bot-cmd-info">Full research report</div>
                 </div>
                 <div class="bot-right">
-                  <div><div class="rate-label">Basic</div><input class="rate-limit-input" value="3"></div>
-                  <div><div class="rate-label">Pro</div><input class="rate-limit-input" value="20"></div>
-                  <div><div class="rate-label">Elite</div><input class="rate-limit-input" value="∞"></div>
+                  <div><div class="rate-label">Basic</div><input id="rl-research-basic" class="rate-limit-input" value="3"></div>
+                  <div><div class="rate-label">Pro</div><input id="rl-research-pro" class="rate-limit-input" value="20"></div>
+                  <div><div class="rate-label">Elite</div><input id="rl-research-elite" class="rate-limit-input" value="∞"></div>
+                </div>
+              </div>
+              <div class="bot-row">
+                <div>
+                  <div class="bot-cmd">/crosslist</div>
+                  <div class="bot-cmd-info">Cross-listing tool</div>
+                </div>
+                <div class="bot-right">
+                  <div><div class="rate-label">Basic</div><input id="rl-crosslist-basic" class="rate-limit-input" value="5"></div>
+                  <div><div class="rate-label">Pro</div><input id="rl-crosslist-pro" class="rate-limit-input" value="30"></div>
+                  <div><div class="rate-label">Elite</div><input id="rl-crosslist-elite" class="rate-limit-input" value="∞"></div>
                 </div>
               </div>
             </div>
@@ -1464,33 +1479,34 @@
                   <div class="toggle-label">Bot Online</div>
                   <div class="toggle-sub">Toggle the Vendora bot on/off globally</div>
                 </div>
-                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="toggle-bot-online" checked><span class="toggle-track"></span></label></div>
               </div>
               <div class="toggle-row">
                 <div class="toggle-info">
                   <div class="toggle-label">Session Auto-Delete</div>
                   <div class="toggle-sub">Delete inactive session channels after 24 hours</div>
                 </div>
-                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="toggle-session-auto-delete" checked><span class="toggle-track"></span></label></div>
               </div>
               <div class="toggle-row">
                 <div class="toggle-info">
                   <div class="toggle-label">Server Join DM</div>
                   <div class="toggle-sub">Auto-DM new server members with Vendora pitch</div>
                 </div>
-                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="toggle-join-dm" checked><span class="toggle-track"></span></label></div>
               </div>
               <div class="toggle-row">
                 <div class="toggle-info">
                   <div class="toggle-label">Account Share Detection</div>
                   <div class="toggle-sub">Flag concurrent sessions from the same Discord ID</div>
                 </div>
-                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="toggle-share-detection" checked><span class="toggle-track"></span></label></div>
               </div>
             </div>
           </div>
-          <div style="text-align:right;">
-            <button class="btn btn-pink" onclick="alert('Bot configuration saved and applied.')">Save Config</button>
+          <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;">
+            <div id="bot-config-msg" style="display:none;font-size:12px;"></div>
+            <button id="bot-config-save-btn" class="btn btn-pink" onclick="adminSaveConfig()">Save Config</button>
           </div>
         </div>
 
@@ -1501,21 +1517,23 @@
             <div class="announce-form">
               <div>
                 <label class="form-label">Target Audience</label>
-                <select class="form-select">
-                  <option>All Subscribers</option>
-                  <option>Basic Only</option>
-                  <option>Pro Only</option>
-                  <option>Elite Only</option>
-                  <option>Pro + Elite</option>
+                <select id="blast-target" class="form-select">
+                  <option value="all">All Subscribers</option>
+                  <option value="basic">Basic Only</option>
+                  <option value="pro">Pro Only</option>
+                  <option value="elite">Elite Only</option>
+                  <option value="pro_elite">Pro + Elite</option>
                 </select>
               </div>
               <div>
                 <label class="form-label">Message</label>
-                <textarea class="form-textarea" placeholder="Write your announcement..."></textarea>
+                <textarea id="blast-message" class="form-textarea" placeholder="Write your announcement..."></textarea>
               </div>
-              <div style="display:flex;gap:10px;justify-content:flex-end;">
-                <button class="btn btn-ghost" onclick="alert('Preview: message shown here before sending')">Preview</button>
-                <button class="btn btn-pink" onclick="if(confirm('Send DM blast to selected subscribers?')) alert('DM blast sent successfully.')">
+              <div id="blast-preview-box" style="display:none;background:rgba(255,255,255,0.02);border:1px solid var(--border-dim);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--muted2);white-space:pre-wrap;line-height:1.6;"></div>
+              <div style="display:flex;gap:10px;justify-content:flex-end;align-items:center;">
+                <div id="blast-msg" style="display:none;font-size:12px;"></div>
+                <button class="btn btn-ghost" onclick="adminPreviewBlast()">Preview</button>
+                <button id="blast-send-btn" class="btn btn-pink" onclick="adminSendBlast()">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                   Send Blast
                 </button>
@@ -1524,14 +1542,21 @@
           </div>
 
           <div class="card">
-            <div class="card-title">Post to #use-vendora</div>
+            <div class="card-title">Post to Channel</div>
             <div class="announce-form">
-              <div>
-                <label class="form-label">Channel Announcement</label>
-                <textarea class="form-textarea" placeholder="Post a message visible to all subscribers in #use-vendora..."></textarea>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div>
+                  <label class="form-label">Channel Name</label>
+                  <input id="channel-name" class="form-select" style="height:auto;padding:9px 14px;" placeholder="use-vendora" value="use-vendora">
+                </div>
               </div>
-              <div style="text-align:right;">
-                <button class="btn btn-pink" onclick="if(confirm('Post this to #use-vendora?')) alert('Posted to #use-vendora.')">Post to Channel</button>
+              <div>
+                <label class="form-label">Message</label>
+                <textarea id="channel-message" class="form-textarea" placeholder="Post a message visible to all members in the channel..."></textarea>
+              </div>
+              <div style="display:flex;gap:10px;justify-content:flex-end;align-items:center;">
+                <div id="channel-msg" style="display:none;font-size:12px;"></div>
+                <button id="channel-post-btn" class="btn btn-pink" onclick="adminPostToChannel()">Post to Channel</button>
               </div>
             </div>
           </div>
@@ -1541,42 +1566,46 @@
         <div class="admin-panel" id="admin-pricing">
           <div class="card">
             <div class="card-title">Tier Pricing</div>
+            <div style="background:rgba(232,33,122,0.06);border:1px solid rgba(232,33,122,0.15);border-radius:8px;padding:10px 14px;margin-bottom:18px;font-size:12px;color:var(--muted2);line-height:1.5;">
+              <strong style="color:var(--text);">Note:</strong> Prices saved here update Vendora's display and bot messages. PayPal plan prices are set at plan creation — changing them requires creating new PayPal plans and updating the Plan IDs in code.
+            </div>
             <div class="price-edit-row">
               <div class="price-tier-name" style="color:var(--muted2);">Basic</div>
               <div class="price-input-wrap">
-                <span class="price-input-label">Monthly</span>
-                <input class="price-input" value="£9.99">
+                <span class="price-input-label">Monthly (£)</span>
+                <input id="price-basic-monthly" class="price-input" value="9.99" type="number" step="0.01" min="0">
               </div>
               <div class="price-input-wrap">
-                <span class="price-input-label">Annual</span>
-                <input class="price-input" value="£99.99">
+                <span class="price-input-label">Annual (£)</span>
+                <input id="price-basic-annual" class="price-input" value="99.99" type="number" step="0.01" min="0">
               </div>
             </div>
             <div class="price-edit-row">
               <div class="price-tier-name" style="color:var(--pink);">Pro</div>
               <div class="price-input-wrap">
-                <span class="price-input-label">Monthly</span>
-                <input class="price-input" value="£24.99">
+                <span class="price-input-label">Monthly (£)</span>
+                <input id="price-pro-monthly" class="price-input" value="24.99" type="number" step="0.01" min="0">
               </div>
               <div class="price-input-wrap">
-                <span class="price-input-label">Annual</span>
-                <input class="price-input" value="£249.99">
+                <span class="price-input-label">Annual (£)</span>
+                <input id="price-pro-annual" class="price-input" value="249.99" type="number" step="0.01" min="0">
               </div>
             </div>
             <div class="price-edit-row">
               <div class="price-tier-name" style="color:var(--gold);">Elite</div>
               <div class="price-input-wrap">
-                <span class="price-input-label">Monthly</span>
-                <input class="price-input" value="£49.99">
+                <span class="price-input-label">Monthly (£)</span>
+                <input id="price-elite-monthly" class="price-input" value="49.99" type="number" step="0.01" min="0">
               </div>
               <div class="price-input-wrap">
-                <span class="price-input-label">Annual</span>
-                <input class="price-input" value="£499.99">
+                <span class="price-input-label">Annual (£)</span>
+                <input id="price-elite-annual" class="price-input" value="499.99" type="number" step="0.01" min="0">
               </div>
             </div>
           </div>
-          <div style="text-align:right;">
-            <button class="btn btn-pink" onclick="if(confirm('Update pricing? This will affect new subscriptions immediately.')) alert('Pricing updated and synced with PayPal.')">Update Pricing</button>
+          <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;">
+            <div id="pricing-msg" style="display:none;font-size:12px;"></div>
+            <button id="pricing-save-btn" class="btn btn-pink" onclick="adminUpdatePricing()">Update Pricing</button>
           </div>
         </div>
 
@@ -2212,6 +2241,191 @@
     document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
     document.getElementById('admin-' + id).classList.add('active');
     if (el) el.classList.add('active');
+    if (id === 'bot')     adminLoadConfig();
+    if (id === 'pricing') adminLoadPricing();
+  }
+
+  // ── Admin: Bot Config ────────────────────────────────────────────────────────
+  async function adminLoadConfig() {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`${BOT_API}/api/admin/config`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) return;
+      const { rate_limits, toggles } = await res.json();
+
+      // Apply to rate limit inputs
+      const map = { scan: 'scan', reply: 'reply', research: 'research', crosslist: 'crosslist' };
+      for (const [group, key] of Object.entries(map)) {
+        const limits = rate_limits[group] || {};
+        ['basic','pro','elite'].forEach(tier => {
+          const el = document.getElementById(`rl-${key}-${tier}`);
+          if (el && limits[tier] !== undefined) el.value = limits[tier] === null ? '∞' : limits[tier];
+        });
+      }
+
+      // Apply to toggles
+      const tMap = { bot_online: 'bot-online', session_auto_delete: 'session-auto-delete', join_dm: 'join-dm', share_detection: 'share-detection' };
+      for (const [key, id] of Object.entries(tMap)) {
+        const el = document.getElementById(`toggle-${id}`);
+        if (el && toggles[key] !== undefined) el.checked = toggles[key];
+      }
+    } catch (e) { console.warn('adminLoadConfig:', e); }
+  }
+
+  async function adminSaveConfig() {
+    const btn   = document.getElementById('bot-config-save-btn');
+    const msgEl = document.getElementById('bot-config-msg');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    const parseLimit = v => (v === '∞' || v === '' ? null : parseInt(v));
+
+    const rate_limits = {
+      scan:      { basic: parseLimit(document.getElementById('rl-scan-basic')?.value),     pro: parseLimit(document.getElementById('rl-scan-pro')?.value),     elite: parseLimit(document.getElementById('rl-scan-elite')?.value) },
+      reply:     { basic: parseLimit(document.getElementById('rl-reply-basic')?.value),    pro: parseLimit(document.getElementById('rl-reply-pro')?.value),    elite: parseLimit(document.getElementById('rl-reply-elite')?.value) },
+      research:  { basic: parseLimit(document.getElementById('rl-research-basic')?.value), pro: parseLimit(document.getElementById('rl-research-pro')?.value), elite: parseLimit(document.getElementById('rl-research-elite')?.value) },
+      crosslist: { basic: parseLimit(document.getElementById('rl-crosslist-basic')?.value),pro: parseLimit(document.getElementById('rl-crosslist-pro')?.value), elite: parseLimit(document.getElementById('rl-crosslist-elite')?.value) },
+    };
+    const toggles = {
+      bot_online:          document.getElementById('toggle-bot-online')?.checked          ?? true,
+      session_auto_delete: document.getElementById('toggle-session-auto-delete')?.checked ?? true,
+      join_dm:             document.getElementById('toggle-join-dm')?.checked             ?? true,
+      share_detection:     document.getElementById('toggle-share-detection')?.checked     ?? true,
+    };
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/admin/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ rate_limits, toggles }),
+      });
+      const json = await res.json();
+      if (res.ok) showMsg(msgEl, 'success', 'Config saved and applied to bot.');
+      else        showMsg(msgEl, 'error', json.error || 'Save failed.');
+    } catch (e) { showMsg(msgEl, 'error', 'Network error.'); }
+
+    btn.disabled = false; btn.textContent = 'Save Config';
+  }
+
+  // ── Admin: Announcements ─────────────────────────────────────────────────────
+  function adminPreviewBlast() {
+    const msg  = document.getElementById('blast-message')?.value?.trim();
+    const box  = document.getElementById('blast-preview-box');
+    if (!msg) return;
+    box.style.display = '';
+    box.textContent = msg;
+  }
+
+  async function adminSendBlast() {
+    const message = document.getElementById('blast-message')?.value?.trim();
+    const target  = document.getElementById('blast-target')?.value;
+    const msgEl   = document.getElementById('blast-msg');
+    const btn     = document.getElementById('blast-send-btn');
+
+    if (!message) { showMsg(msgEl, 'error', 'Write a message first.'); return; }
+    if (!confirm(`Send DM to "${document.getElementById('blast-target').options[document.getElementById('blast-target').selectedIndex].text}"?`)) return;
+
+    btn.disabled = true; btn.innerHTML = `<div style="width:12px;height:12px;border:2px solid rgba(255,255,255,0.4);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;"></div> Sending…`;
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/admin/announce/dm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ message, target }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        showMsg(msgEl, 'success', `Sent to ${json.sent} user${json.sent !== 1 ? 's' : ''} (${json.failed} failed).`);
+        document.getElementById('blast-message').value = '';
+        document.getElementById('blast-preview-box').style.display = 'none';
+      } else {
+        showMsg(msgEl, 'error', json.error || 'Blast failed.');
+      }
+    } catch (e) { showMsg(msgEl, 'error', 'Network error.'); }
+
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Blast`;
+  }
+
+  async function adminPostToChannel() {
+    const message      = document.getElementById('channel-message')?.value?.trim();
+    const channel_name = document.getElementById('channel-name')?.value?.trim() || 'use-vendora';
+    const msgEl        = document.getElementById('channel-msg');
+    const btn          = document.getElementById('channel-post-btn');
+
+    if (!message) { showMsg(msgEl, 'error', 'Write a message first.'); return; }
+    if (!confirm(`Post to #${channel_name}?`)) return;
+
+    btn.disabled = true; btn.textContent = 'Posting…';
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/admin/announce/channel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ message, channel_name }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        showMsg(msgEl, 'success', `Posted to #${json.channel}.`);
+        document.getElementById('channel-message').value = '';
+      } else {
+        showMsg(msgEl, 'error', json.error || 'Post failed.');
+      }
+    } catch (e) { showMsg(msgEl, 'error', 'Network error.'); }
+
+    btn.disabled = false; btn.textContent = 'Post to Channel';
+  }
+
+  // ── Admin: Pricing ───────────────────────────────────────────────────────────
+  async function adminLoadPricing() {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`${BOT_API}/api/admin/pricing`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) return;
+      const { pricing } = await res.json();
+      ['basic','pro','elite'].forEach(tier => {
+        const mEl = document.getElementById(`price-${tier}-monthly`);
+        const aEl = document.getElementById(`price-${tier}-annual`);
+        if (mEl && pricing[tier]?.monthly !== undefined) mEl.value = pricing[tier].monthly;
+        if (aEl && pricing[tier]?.annual  !== undefined) aEl.value = pricing[tier].annual;
+      });
+    } catch (e) { console.warn('adminLoadPricing:', e); }
+  }
+
+  async function adminUpdatePricing() {
+    const btn   = document.getElementById('pricing-save-btn');
+    const msgEl = document.getElementById('pricing-msg');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    const pricing = {};
+    ['basic','pro','elite'].forEach(tier => {
+      pricing[tier] = {
+        monthly: parseFloat(document.getElementById(`price-${tier}-monthly`)?.value) || 0,
+        annual:  parseFloat(document.getElementById(`price-${tier}-annual`)?.value)  || 0,
+      };
+    });
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/admin/pricing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ pricing }),
+      });
+      const json = await res.json();
+      if (res.ok) showMsg(msgEl, 'success', 'Pricing saved. New subscriptions will reflect these prices.');
+      else        showMsg(msgEl, 'error', json.error || 'Save failed.');
+    } catch (e) { showMsg(msgEl, 'error', 'Network error.'); }
+
+    btn.disabled = false; btn.textContent = 'Update Pricing';
   }
 
   // ── Listings access gate ─────────────────────────────────────────────────────

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Vendora</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { height: 100%; }
+  body {
+    background: #090909;
+    color: #f0f0f0;
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    line-height: 1.7;
+  }
+
+  body::after {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 900;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    opacity: 0.6;
+  }
+
+  .topbar {
+    border-bottom: 1px solid rgba(255,255,255,0.055);
+    padding: 0 40px;
+    height: 58px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky; top: 0;
+    background: rgba(9,9,9,0.95);
+    backdrop-filter: blur(12px);
+    z-index: 100;
+  }
+
+  .brand {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: #f0f0f0; text-decoration: none;
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  .brand-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #e8217a;
+    box-shadow: 0 0 8px rgba(232,33,122,0.6);
+  }
+
+  .topbar-links { display: flex; gap: 24px; }
+  .topbar-links a {
+    color: rgba(255,255,255,0.4);
+    text-decoration: none; font-size: 13px;
+    transition: color .15s;
+  }
+  .topbar-links a:hover { color: #f0f0f0; }
+  .topbar-links a.active { color: #e8217a; }
+
+  .container {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 64px 24px 100px;
+  }
+
+  .page-eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #e8217a;
+    margin-bottom: 10px;
+  }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(28px, 4vw, 40px);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+    margin-bottom: 8px;
+  }
+
+  .updated {
+    font-size: 12px;
+    color: rgba(255,255,255,0.3);
+    margin-bottom: 48px;
+  }
+
+  h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px; font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #f0f0f0;
+    margin: 36px 0 10px;
+  }
+
+  h2:first-of-type { margin-top: 0; }
+
+  p { font-size: 14px; color: rgba(255,255,255,0.6); margin-bottom: 12px; }
+
+  ul { margin: 8px 0 12px 0; padding-left: 20px; }
+  ul li { font-size: 14px; color: rgba(255,255,255,0.6); margin-bottom: 6px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px;
+    font-size: 13px;
+  }
+  th {
+    text-align: left;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.35);
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.055);
+    font-weight: 600;
+  }
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: rgba(255,255,255,0.6);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+
+  .divider {
+    height: 1px;
+    background: rgba(255,255,255,0.055);
+    margin: 40px 0;
+  }
+
+  a { color: #e8217a; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .highlight-box {
+    background: rgba(232,33,122,0.06);
+    border: 1px solid rgba(232,33,122,0.15);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin: 16px 0 24px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.65);
+    line-height: 1.6;
+  }
+
+  .footer {
+    border-top: 1px solid rgba(255,255,255,0.055);
+    padding: 32px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .footer-left { font-size: 12px; color: rgba(255,255,255,0.25); }
+  .footer-links { display: flex; gap: 20px; }
+  .footer-links a { font-size: 12px; color: rgba(255,255,255,0.3); text-decoration: none; }
+  .footer-links a:hover { color: #e8217a; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a href="index.html" class="brand">
+    <span class="brand-dot"></span>
+    Vendora
+  </a>
+  <nav class="topbar-links">
+    <a href="vendora-tos.html">Terms</a>
+    <a href="vendora-privacy.html" class="active">Privacy</a>
+    <a href="index.html">Home</a>
+  </nav>
+</header>
+
+<main class="container">
+  <div class="page-eyebrow">Legal</div>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: 11 April 2026</p>
+
+  <div class="highlight-box">
+    <strong style="color:#f0f0f0;">Summary:</strong> We collect only what we need to run the service. We don't sell your data. Platform credentials are encrypted. You can request deletion of your data at any time.
+  </div>
+
+  <h2>1. Who We Are</h2>
+  <p>Vendora ("we", "us", "our") operates the reselling tools platform at <a href="https://vendora-vv.netlify.app">vendora-vv.netlify.app</a> and the associated Vendora Discord bot. For data enquiries, contact us at <a href="mailto:support@vendora.gg">support@vendora.gg</a>.</p>
+
+  <div class="divider"></div>
+
+  <h2>2. What Data We Collect</h2>
+
+  <table>
+    <thead>
+      <tr><th>Data</th><th>Source</th><th>Why</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Discord user ID, username, avatar</td><td>Discord OAuth2 on login</td><td>Account identification and display</td></tr>
+      <tr><td>Subscription tier and status</td><td>PayPal webhook + our records</td><td>Gating features and Discord role assignment</td></tr>
+      <tr><td>PayPal subscription ID</td><td>PayPal webhook</td><td>Linking your subscription to your account</td></tr>
+      <tr><td>Platform credentials (Depop, Vinted)</td><td>You enter them in the dashboard</td><td>Authenticating to platforms on your behalf for cross-listing</td></tr>
+      <tr><td>Listings data (title, price, condition)</td><td>You create listings</td><td>Storing and managing your active cross-listings</td></tr>
+      <tr><td>Inventory items and watchlist</td><td>Discord bot commands</td><td>Persisting your /tracker and /pricedrop data across sessions</td></tr>
+      <tr><td>Bot command usage counts</td><td>Bot command execution</td><td>Enforcing per-tier rate limits</td></tr>
+      <tr><td>Session data</td><td>Supabase Auth</td><td>Keeping you logged in; auto-deleted after 24 hours of inactivity</td></tr>
+    </tbody>
+  </table>
+
+  <p>We do not collect payment card details — all billing is handled by PayPal.</p>
+
+  <div class="divider"></div>
+
+  <h2>3. How We Store Your Data</h2>
+  <p>All data is stored in a PostgreSQL database hosted on <a href="https://supabase.com" target="_blank">Supabase</a> (EU region). Platform credentials (usernames and passwords for Depop/Vinted) are encrypted at rest using AES-256-GCM before storage. The encryption key is derived from a server-side secret and never exposed to clients.</p>
+  <p>The Discord bot is hosted on <a href="https://railway.app" target="_blank">Railway</a>. The dashboard and website are hosted on <a href="https://netlify.com" target="_blank">Netlify</a>.</p>
+
+  <div class="divider"></div>
+
+  <h2>4. How We Use Your Data</h2>
+  <ul>
+    <li>To authenticate you and maintain your session</li>
+    <li>To provide features appropriate to your subscription tier</li>
+    <li>To assign and revoke your Discord server roles following subscription changes</li>
+    <li>To post listings to third-party platforms on your behalf (only when you request it)</li>
+    <li>To enforce rate limits and prevent abuse</li>
+    <li>To send you service-related Discord DMs (subscription confirmations, announcements)</li>
+  </ul>
+  <p>We do not use your data for advertising or sell it to third parties.</p>
+
+  <div class="divider"></div>
+
+  <h2>5. Third-Party Services</h2>
+  <p>We use the following third-party services that may process your data:</p>
+  <ul>
+    <li><strong>Supabase</strong> — database and authentication. <a href="https://supabase.com/privacy" target="_blank">Privacy Policy</a></li>
+    <li><strong>Discord</strong> — authentication and bot interaction. <a href="https://discord.com/privacy" target="_blank">Privacy Policy</a></li>
+    <li><strong>PayPal</strong> — subscription billing. <a href="https://www.paypal.com/uk/legalhub/privacy-full" target="_blank">Privacy Policy</a></li>
+    <li><strong>Anthropic (Claude AI)</strong> — generating AI tool responses. Inputs are processed but not used for model training per Anthropic's API terms. <a href="https://www.anthropic.com/legal/privacy" target="_blank">Privacy Policy</a></li>
+    <li><strong>Netlify</strong> — website hosting. <a href="https://www.netlify.com/privacy/" target="_blank">Privacy Policy</a></li>
+    <li><strong>Railway</strong> — bot server hosting. <a href="https://railway.app/legal/privacy" target="_blank">Privacy Policy</a></li>
+  </ul>
+
+  <div class="divider"></div>
+
+  <h2>6. Platform Credentials</h2>
+  <p>When you link your Depop or Vinted account, you provide your login credentials. These are:</p>
+  <ul>
+    <li>Transmitted over HTTPS</li>
+    <li>Immediately encrypted using AES-256-GCM before being stored in the database</li>
+    <li>Never logged in plaintext</li>
+    <li>Used only to authenticate to those platforms on your behalf</li>
+    <li>Deleted from our database when you disconnect your account</li>
+  </ul>
+  <p>By linking a platform account, you confirm you have the right to share those credentials and you accept responsibility for compliance with that platform's terms of service.</p>
+
+  <div class="divider"></div>
+
+  <h2>7. Data Retention</h2>
+  <ul>
+    <li><strong>Active account data:</strong> Retained while your account exists</li>
+    <li><strong>Subscription data:</strong> Retained for 7 years for legal/financial compliance</li>
+    <li><strong>Platform credentials:</strong> Deleted when you disconnect or close your account</li>
+    <li><strong>Session data:</strong> Auto-deleted after 24 hours of inactivity</li>
+    <li><strong>Listings data:</strong> Retained until you delete a listing or close your account</li>
+  </ul>
+
+  <div class="divider"></div>
+
+  <h2>8. Your Rights (UK GDPR)</h2>
+  <p>Under UK GDPR, you have the right to:</p>
+  <ul>
+    <li><strong>Access:</strong> Request a copy of all data we hold about you</li>
+    <li><strong>Rectification:</strong> Request correction of inaccurate data</li>
+    <li><strong>Erasure:</strong> Request deletion of your account and associated data</li>
+    <li><strong>Portability:</strong> Request your data in a machine-readable format</li>
+    <li><strong>Restriction:</strong> Request we limit how we process your data</li>
+    <li><strong>Object:</strong> Object to processing based on legitimate interests</li>
+  </ul>
+  <p>To exercise any of these rights, contact us at <a href="mailto:support@vendora.gg">support@vendora.gg</a>. We will respond within 30 days.</p>
+  <p>You may also lodge a complaint with the UK Information Commissioner's Office (ICO) at <a href="https://ico.org.uk" target="_blank">ico.org.uk</a>.</p>
+
+  <div class="divider"></div>
+
+  <h2>9. Cookies</h2>
+  <p>We use only functional cookies and local storage necessary to maintain your login session (provided by Supabase Auth). We do not use advertising or analytics cookies. No third-party tracking scripts are loaded on the dashboard.</p>
+
+  <div class="divider"></div>
+
+  <h2>10. Changes to This Policy</h2>
+  <p>We may update this Privacy Policy from time to time. Material changes will be announced via Discord DM or the #announcements channel in the Vendor Village server. Continued use of the Service after changes constitutes acceptance of the updated policy.</p>
+
+  <div class="divider"></div>
+
+  <h2>11. Contact</h2>
+  <p>For privacy questions or data requests: <a href="mailto:support@vendora.gg">support@vendora.gg</a> or via the #support channel in Vendor Village.</p>
+</main>
+
+<footer class="footer">
+  <div class="footer-left">&copy; 2026 Vendora. All rights reserved.</div>
+  <nav class="footer-links">
+    <a href="vendora-tos.html">Terms</a>
+    <a href="vendora-privacy.html">Privacy</a>
+    <a href="index.html">Home</a>
+  </nav>
+</footer>
+
+</body>
+</html>
