@@ -992,20 +992,20 @@
             </div>
             <button class="btn btn-pink btn-sm" onclick="alert('Opening Vinted OAuth flow...')">Connect</button>
           </div>
-          <div class="platform-connect">
-            <div class="plat-icon">EB</div>
-            <div class="plat-details">
-              <div class="plat-name-row">eBay</div>
-              <div class="plat-status-row connected">● Connected · Official API</div>
-            </div>
-            <button class="btn btn-danger btn-sm" onclick="if(confirm('Disconnect eBay?')) alert('eBay disconnected.')">Disconnect</button>
-          </div>
         </div>
       </div>
 
       <div class="card">
         <div class="card-title">Coming Soon</div>
         <div class="platform-connect-list">
+          <div class="platform-connect" style="opacity:.5;cursor:not-allowed;">
+            <div class="plat-icon">EB</div>
+            <div class="plat-details">
+              <div class="plat-name-row">eBay</div>
+              <div class="plat-status-row">Official API integration — auto-listing coming soon</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" disabled>Soon</button>
+          </div>
           <div class="platform-connect" style="opacity:.5;cursor:not-allowed;">
             <div class="plat-icon">FB</div>
             <div class="plat-details">
@@ -1879,7 +1879,7 @@
   const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', crosslist:'Cross-List', support:'Support', admin:'Admin Panel' };
 
   // ── Cross-list tool ──────────────────────────────────────────────────────────
-  const BOT_API = 'https://vendora-bot-production.up.railway.app';
+  const BOT_API = 'https://vendora-production-8a47.up.railway.app';
 
   function clTogglePlatform(platform, checked) {
     const lbl = document.getElementById('cl-lbl-' + platform);
