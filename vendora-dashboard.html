@@ -639,6 +639,11 @@
       Cross-List
       <span class="nav-item-badge" style="background:rgba(232,33,122,0.18);color:var(--pink);font-size:9px;padding:2px 6px;border-radius:4px;margin-left:auto;">Pro</span>
     </div>
+    <div class="nav-item" id="listings-nav-item" onclick="showSection('listings', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      Listings
+      <span class="nav-item-badge" style="background:rgba(232,33,122,0.18);color:var(--pink);font-size:9px;padding:2px 6px;border-radius:4px;margin-left:auto;">Pro</span>
+    </div>
 
     <span class="nav-section-label" style="margin-top:8px;">Support</span>
     <div class="nav-item" onclick="showSection('support', this)">
@@ -970,39 +975,74 @@
       <div class="page-header">
         <div class="page-eyebrow">Platforms</div>
         <div class="page-title">Connected Accounts</div>
-        <div class="page-sub">Link your reselling accounts so Vendora can scan, research, and cross-list on your behalf.</div>
+        <div class="page-sub">Link your reselling accounts so Vendora can list, cross-list, and auto-relist on your behalf.</div>
       </div>
 
-      <div class="card">
-        <div class="card-title">Live Platforms</div>
-        <div class="platform-connect-list">
-          <div class="platform-connect">
-            <div class="plat-icon">DP</div>
-            <div class="plat-details">
-              <div class="plat-name-row">Depop</div>
-              <div class="plat-status-row connected">● Connected · @your_depop_handle</div>
+      <!-- Depop -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div class="plat-icon" style="background:rgba(255,35,0,0.1);color:#ff2300;">DP</div>
+            <div>
+              <div style="font-weight:600;font-size:14px;color:var(--text);">Depop</div>
+              <div id="plat-status-depop" class="plat-status-row disconnected">○ Not connected</div>
             </div>
-            <button class="btn btn-danger btn-sm" onclick="if(confirm('Disconnect Depop? Scanning and listing will stop.')) alert('Depop disconnected.')">Disconnect</button>
           </div>
-          <div class="platform-connect">
-            <div class="plat-icon">VT</div>
-            <div class="plat-details">
-              <div class="plat-name-row">Vinted</div>
-              <div class="plat-status-row disconnected">○ Not connected</div>
+          <button id="plat-disconnect-btn-depop" class="btn btn-danger btn-sm" style="display:none;" onclick="disconnectPlatform('depop')">Disconnect</button>
+        </div>
+        <div id="plat-form-depop">
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;">
+            <div>
+              <label class="form-label">Depop Email</label>
+              <input id="depop-email" type="email" class="form-select" style="height:auto;padding:9px 14px;" placeholder="you@email.com">
             </div>
-            <button class="btn btn-pink btn-sm" onclick="alert('Opening Vinted OAuth flow...')">Connect</button>
+            <div>
+              <label class="form-label">Password</label>
+              <input id="depop-password" type="password" class="form-select" style="height:auto;padding:9px 14px;" placeholder="••••••••">
+            </div>
+            <button id="plat-connect-btn-depop" class="btn btn-pink btn-sm" onclick="connectPlatform('depop')">Connect</button>
           </div>
+          <div id="depop-connect-msg" style="display:none;margin-top:10px;"></div>
         </div>
       </div>
 
+      <!-- Vinted -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div class="plat-icon" style="background:rgba(9,177,186,0.1);color:#09b1ba;">VT</div>
+            <div>
+              <div style="font-weight:600;font-size:14px;color:var(--text);">Vinted</div>
+              <div id="plat-status-vinted" class="plat-status-row disconnected">○ Not connected</div>
+            </div>
+          </div>
+          <button id="plat-disconnect-btn-vinted" class="btn btn-danger btn-sm" style="display:none;" onclick="disconnectPlatform('vinted')">Disconnect</button>
+        </div>
+        <div id="plat-form-vinted">
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;">
+            <div>
+              <label class="form-label">Vinted Username or Email</label>
+              <input id="vinted-email" type="text" class="form-select" style="height:auto;padding:9px 14px;" placeholder="username or email">
+            </div>
+            <div>
+              <label class="form-label">Password</label>
+              <input id="vinted-password" type="password" class="form-select" style="height:auto;padding:9px 14px;" placeholder="••••••••">
+            </div>
+            <button id="plat-connect-btn-vinted" class="btn btn-pink btn-sm" onclick="connectPlatform('vinted')">Connect</button>
+          </div>
+          <div id="vinted-connect-msg" style="display:none;margin-top:10px;"></div>
+        </div>
+      </div>
+
+      <!-- Coming Soon -->
       <div class="card">
         <div class="card-title">Coming Soon</div>
         <div class="platform-connect-list">
           <div class="platform-connect" style="opacity:.5;cursor:not-allowed;">
-            <div class="plat-icon">EB</div>
+            <div class="plat-icon" style="background:rgba(229,50,56,0.1);color:#e53238;">EB</div>
             <div class="plat-details">
               <div class="plat-name-row">eBay</div>
-              <div class="plat-status-row">Official API integration — auto-listing coming soon</div>
+              <div class="plat-status-row">Official API — auto-listing in development</div>
             </div>
             <button class="btn btn-ghost btn-sm" disabled>Soon</button>
           </div>
@@ -1010,7 +1050,7 @@
             <div class="plat-icon">FB</div>
             <div class="plat-details">
               <div class="plat-name-row">Facebook Marketplace</div>
-              <div class="plat-status-row">Requires OAuth integration — launching soon</div>
+              <div class="plat-status-row">OAuth integration — launching soon</div>
             </div>
             <button class="btn btn-ghost btn-sm" disabled>Soon</button>
           </div>
@@ -1022,6 +1062,140 @@
             </div>
             <button class="btn btn-ghost btn-sm" disabled>Soon</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── LISTINGS ── -->
+    <div class="section" id="section-listings">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">Listings</div>
+        <div class="page-sub">Create, cross-list, and automate your listings across Depop and Vinted.</div>
+      </div>
+
+      <!-- Pro gate -->
+      <div id="listings-gate" style="display:none;">
+        <div class="access-denied" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px 24px;gap:16px;">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text);">Pro Required</div>
+          <div style="font-size:13px;color:var(--muted2);max-width:320px;">Listings is available on Vendora Pro and above. Upgrade to list and automate across all platforms.</div>
+          <button class="btn btn-primary btn-sm" onclick="showSection('subscription', document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Pro</button>
+        </div>
+      </div>
+
+      <div id="listings-tool">
+        <!-- Create listing -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title" style="margin-bottom:18px;">New Listing</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              <div>
+                <label class="form-label">Item Title *</label>
+                <input id="list-title" type="text" class="form-select" style="height:auto;padding:10px 14px;" placeholder="e.g. Nike Air Max 90 White UK9">
+              </div>
+              <div>
+                <label class="form-label">Description <span style="color:var(--muted);font-weight:300;text-transform:none;">(optional)</span></label>
+                <textarea id="list-desc" rows="3" class="form-select" style="height:auto;padding:10px 14px;resize:vertical;" placeholder="Extra details — size, colour, defects, original box etc."></textarea>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div>
+                  <label class="form-label">Price (£) *</label>
+                  <input id="list-price" type="number" min="0" step="0.01" class="form-select" style="height:auto;padding:10px 14px;" placeholder="45.00">
+                </div>
+                <div>
+                  <label class="form-label">Condition</label>
+                  <select id="list-condition" class="form-select">
+                    <option value="">Select...</option>
+                    <option value="New with tags">New with tags</option>
+                    <option value="Like New">Like New</option>
+                    <option value="Very Good">Very Good</option>
+                    <option value="Good">Good</option>
+                    <option value="Acceptable">Acceptable</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              <div>
+                <label class="form-label">Platforms *</label>
+                <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+                  <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-dim);border-radius:8px;cursor:pointer;transition:border .15s;" id="list-lbl-depop" onmouseover="this.style.borderColor='rgba(255,35,0,0.3)'" onmouseout="updateListPlatformBorder('depop')">
+                    <input type="checkbox" id="list-depop" style="accent-color:#ff2300;width:14px;height:14px;" onchange="updateListPlatformBorder('depop')">
+                    <span style="font-size:13px;color:var(--text);">Depop</span>
+                    <span id="list-depop-status" style="margin-left:auto;font-size:10px;color:var(--muted);">Not connected</span>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-dim);border-radius:8px;cursor:pointer;transition:border .15s;" id="list-lbl-vinted" onmouseover="this.style.borderColor='rgba(9,177,186,0.3)'" onmouseout="updateListPlatformBorder('vinted')">
+                    <input type="checkbox" id="list-vinted" style="accent-color:#09b1ba;width:14px;height:14px;" onchange="updateListPlatformBorder('vinted')">
+                    <span style="font-size:13px;color:var(--text);">Vinted</span>
+                    <span id="list-vinted-status" style="margin-left:auto;font-size:10px;color:var(--muted);">Not connected</span>
+                  </label>
+                </div>
+              </div>
+
+              <div style="padding:14px;background:rgba(255,255,255,0.02);border:1px solid var(--border-dim);border-radius:10px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                  <div>
+                    <div style="font-size:13px;font-weight:500;color:var(--text);">Auto-Relist</div>
+                    <div style="font-size:11px;color:var(--muted);margin-top:2px;">Delete and repost automatically to stay at the top</div>
+                  </div>
+                  <label class="toggle"><input type="checkbox" id="list-auto-relist" onchange="toggleRelistOptions()"><span class="toggle-track"></span></label>
+                </div>
+                <div id="relist-options" style="display:none;padding-top:10px;border-top:1px solid var(--border-dim);">
+                  <label class="form-label">Relist every</label>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2);cursor:pointer;">
+                      <input type="radio" name="relist-interval" value="1" style="accent-color:var(--pink);"> 1 day
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2);cursor:pointer;">
+                      <input type="radio" name="relist-interval" value="3" style="accent-color:var(--pink);"> 3 days
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2);cursor:pointer;">
+                      <input type="radio" name="relist-interval" value="7" checked style="accent-color:var(--pink);"> 7 days
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2);cursor:pointer;">
+                      <input type="radio" name="relist-interval" value="14" style="accent-color:var(--pink);"> 14 days
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2);cursor:pointer;">
+                      <input type="radio" name="relist-interval" value="30" style="accent-color:var(--pink);"> 30 days
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <button id="list-submit-btn" class="btn btn-primary" onclick="createListing()" style="margin-top:auto;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                List Now
+              </button>
+              <div id="list-msg" style="display:none;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active listings table -->
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div style="padding:16px 20px;border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
+            <div class="card-title" style="margin:0;">Active Listings</div>
+            <button class="btn btn-ghost btn-sm" onclick="loadListings()">Refresh</button>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Platforms</th>
+                <th>Price</th>
+                <th>Condition</th>
+                <th>Auto-Relist</th>
+                <th>Listed</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="listings-tbody">
+              <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Your listings will appear here.</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -1585,6 +1759,8 @@
 
     updateUpgradeCards(tier);
     initCrossListAccess(tier);
+    initListingsAccess(tier);
+    loadPlatformStatus();
 
     if (isOwner) {
       document.getElementById('admin-label').style.display         = '';
@@ -1876,7 +2052,7 @@
     }
   });
 
-  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', crosslist:'Cross-List', support:'Support', admin:'Admin Panel' };
+  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', crosslist:'Cross-List', listings:'Listings', support:'Support', admin:'Admin Panel' };
 
   // ── Cross-list tool ──────────────────────────────────────────────────────────
   const BOT_API = 'https://vendora-production-8a47.up.railway.app';
@@ -2037,6 +2213,318 @@
     document.getElementById('admin-' + id).classList.add('active');
     if (el) el.classList.add('active');
   }
+
+  // ── Listings access gate ─────────────────────────────────────────────────────
+  function initListingsAccess(tier) {
+    const gate = document.getElementById('listings-gate');
+    const tool = document.getElementById('listings-tool');
+    const nav  = document.getElementById('listings-nav-item');
+    const rank = { none: 0, basic: 1, pro: 2, elite: 3 };
+    if (rank[tier] >= rank.pro) {
+      if (gate) gate.style.display = 'none';
+      if (tool) tool.style.display = '';
+    } else {
+      if (gate) gate.style.display = '';
+      if (tool) tool.style.display = 'none';
+      if (nav)  nav.style.opacity  = '0.5';
+    }
+  }
+
+  // ── Platform status ──────────────────────────────────────────────────────────
+  async function loadPlatformStatus() {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`${BOT_API}/api/platform/status`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) return;
+      const json = await res.json(); // { depop: { connected, username }, vinted: { connected, username } }
+
+      ['depop', 'vinted'].forEach(p => {
+        const info = json[p];
+        const connected = info && info.connected;
+
+        // Platforms section
+        const statusDiv = document.getElementById(`plat-status-${p}`);
+        const formDiv   = document.getElementById(`plat-form-${p}`);
+        const discBtn   = document.getElementById(`plat-disconnect-btn-${p}`);
+        if (statusDiv) statusDiv.style.display = connected ? '' : 'none';
+        if (formDiv)   formDiv.style.display   = connected ? 'none' : '';
+        if (discBtn)   discBtn.style.display   = connected ? '' : 'none';
+        if (connected && statusDiv) {
+          statusDiv.querySelector('.plat-username') && (statusDiv.querySelector('.plat-username').textContent = info.username || p);
+        }
+
+        // Listings form badges
+        const badge = document.getElementById(`list-${p}-status`);
+        if (badge) {
+          badge.textContent = connected ? `✓ ${info.username || 'Connected'}` : 'Not connected';
+          badge.style.color = connected ? 'var(--green)' : 'var(--muted)';
+        }
+      });
+    } catch (e) {
+      console.warn('loadPlatformStatus error:', e);
+    }
+  }
+
+  // ── Connect / Disconnect platform ────────────────────────────────────────────
+  async function connectPlatform(platform) {
+    const emailOrUser = document.getElementById(`${platform}-email`)?.value?.trim()
+                     || document.getElementById(`${platform}-username`)?.value?.trim();
+    const password    = document.getElementById(`${platform}-password`)?.value;
+    const msgEl       = document.getElementById(`${platform}-connect-msg`);
+    const btn         = document.getElementById(`plat-connect-btn-${platform}`);
+
+    if (!emailOrUser || !password) {
+      showMsg(msgEl, 'error', 'Please fill in all fields.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Connecting...';
+    showMsg(msgEl, 'info', 'Connecting — this may take a moment…');
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { window.location.href = 'vendora-login.html'; return; }
+
+      const body = platform === 'depop'
+        ? { platform, email: emailOrUser, password }
+        : { platform, username: emailOrUser, password };
+
+      const res = await fetch(`${BOT_API}/api/platform/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify(body),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        showMsg(msgEl, 'error', json.error || 'Connection failed. Check your credentials.');
+      } else {
+        showMsg(msgEl, 'success', `Connected as ${json.username || emailOrUser}!`);
+        document.getElementById(`${platform}-email`)  && (document.getElementById(`${platform}-email`).value  = '');
+        document.getElementById(`${platform}-username`) && (document.getElementById(`${platform}-username`).value = '');
+        document.getElementById(`${platform}-password`).value = '';
+        loadPlatformStatus();
+      }
+    } catch (e) {
+      showMsg(msgEl, 'error', 'Network error. Please try again.');
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Connect';
+  }
+
+  async function disconnectPlatform(platform) {
+    if (!confirm(`Disconnect your ${platform.charAt(0).toUpperCase() + platform.slice(1)} account? Active listings will no longer auto-relist.`)) return;
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch(`${BOT_API}/api/platform/${platform}/disconnect`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      });
+
+      if (res.ok) {
+        loadPlatformStatus();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        alert(json.error || 'Disconnect failed. Please try again.');
+      }
+    } catch (e) {
+      alert('Network error. Please try again.');
+    }
+  }
+
+  // ── Create listing ───────────────────────────────────────────────────────────
+  async function createListing() {
+    const title       = document.getElementById('list-title')?.value?.trim();
+    const desc        = document.getElementById('list-desc')?.value?.trim();
+    const price       = parseFloat(document.getElementById('list-price')?.value);
+    const condition   = document.getElementById('list-condition')?.value;
+    const autoRelist  = document.getElementById('list-auto-relist')?.checked;
+    const intervalEl  = document.querySelector('input[name="relist-interval"]:checked');
+    const interval    = intervalEl ? parseInt(intervalEl.value) : 7;
+    const platforms   = ['depop', 'vinted'].filter(p => document.getElementById(`list-${p}`)?.checked);
+    const msgEl       = document.getElementById('list-msg');
+    const btn         = document.getElementById('list-submit-btn');
+
+    if (!title) { showMsg(msgEl, 'error', 'Please enter an item title.'); return; }
+    if (!price || isNaN(price) || price <= 0) { showMsg(msgEl, 'error', 'Please enter a valid price.'); return; }
+    if (platforms.length === 0) { showMsg(msgEl, 'error', 'Select at least one platform.'); return; }
+
+    btn.disabled = true;
+    btn.innerHTML = `<div style="width:14px;height:14px;border:2px solid rgba(255,255,255,0.4);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;"></div> Listing…`;
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { window.location.href = 'vendora-login.html'; return; }
+
+      const res = await fetch(`${BOT_API}/api/listing/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ title, description: desc, price, condition, platforms, auto_relist: autoRelist, relist_interval_days: interval }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        showMsg(msgEl, 'error', json.error || 'Listing failed. Make sure your platform accounts are connected.');
+      } else {
+        showMsg(msgEl, 'success', `Listed on ${platforms.join(' & ')} successfully!`);
+        // Reset form
+        document.getElementById('list-title').value = '';
+        document.getElementById('list-desc').value = '';
+        document.getElementById('list-price').value = '';
+        document.getElementById('list-condition').value = '';
+        document.getElementById('list-auto-relist').checked = false;
+        document.getElementById('relist-options').style.display = 'none';
+        loadListings();
+      }
+    } catch (e) {
+      showMsg(msgEl, 'error', 'Network error. Please try again.');
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> List Now`;
+  }
+
+  // ── Load / render active listings ────────────────────────────────────────────
+  async function loadListings() {
+    const tbody = document.getElementById('listings-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;"><div style="display:inline-flex;align-items:center;gap:10px;opacity:0.5;"><div style="width:14px;height:14px;border:2px solid var(--pink);border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;"></div> Loading…</div></td></tr>`;
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch(`${BOT_API}/api/listings`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+
+      if (!res.ok) { tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Failed to load listings.</td></tr>`; return; }
+
+      const json = await res.json();
+      const listings = json.listings || [];
+
+      if (listings.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">No active listings yet. Create one above.</td></tr>`;
+        return;
+      }
+
+      const platformColors = { depop: '#ff2300', vinted: '#09b1ba' };
+
+      tbody.innerHTML = listings.map(l => {
+        const plats = (l.platforms || []).map(p =>
+          `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
+            <span style="width:6px;height:6px;border-radius:50%;background:${platformColors[p] || '#888'};display:inline-block;"></span>${p}
+          </span>`
+        ).join(' ');
+
+        const listed = new Date(l.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+        const autoRelistBadge = l.auto_relist
+          ? `<span style="color:var(--green);font-size:11px;">Every ${l.relist_interval_days}d</span>`
+          : `<span style="color:var(--muted);font-size:11px;">Off</span>`;
+
+        return `<tr>
+          <td style="font-size:13px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${l.title}">${l.title}</td>
+          <td style="white-space:nowrap;">${plats}</td>
+          <td style="font-size:13px;">£${parseFloat(l.price).toFixed(2)}</td>
+          <td style="font-size:12px;color:var(--muted2);">${l.condition || '—'}</td>
+          <td>${autoRelistBadge}</td>
+          <td style="font-size:12px;color:var(--muted2);white-space:nowrap;">${listed}</td>
+          <td style="white-space:nowrap;">
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-ghost btn-sm" onclick="relistNow('${l.id}')" title="Relist now">Relist</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteListing('${l.id}', '${l.title.replace(/'/g,"\\'")}')">Delete</button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Error loading listings.</td></tr>`;
+    }
+  }
+
+  // ── Delete listing ───────────────────────────────────────────────────────────
+  async function deleteListing(id, title) {
+    if (!confirm(`Delete "${title}" from all platforms? This cannot be undone.`)) return;
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch(`${BOT_API}/api/listing/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      });
+
+      if (res.ok) {
+        loadListings();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        alert(json.error || 'Delete failed. Please try again.');
+      }
+    } catch (e) {
+      alert('Network error. Please try again.');
+    }
+  }
+
+  // ── Relist now ───────────────────────────────────────────────────────────────
+  async function relistNow(id) {
+    const row = document.querySelector(`button[onclick="relistNow('${id}')"]`)?.closest('tr');
+    if (row) row.style.opacity = '0.5';
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch(`${BOT_API}/api/listing/${id}/relist`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      });
+
+      if (res.ok) {
+        if (row) row.style.opacity = '';
+        // Show quick success flash
+        if (row) {
+          row.style.background = 'rgba(74,222,128,0.06)';
+          setTimeout(() => { row.style.background = ''; }, 1800);
+        }
+      } else {
+        if (row) row.style.opacity = '';
+        const json = await res.json().catch(() => ({}));
+        alert(json.error || 'Relist failed. Please try again.');
+      }
+    } catch (e) {
+      if (row) row.style.opacity = '';
+      alert('Network error. Please try again.');
+    }
+  }
+
+  // ── Toggle auto-relist options visibility ────────────────────────────────────
+  function toggleRelistOptions() {
+    const on = document.getElementById('list-auto-relist')?.checked;
+    const opts = document.getElementById('relist-options');
+    if (opts) opts.style.display = on ? '' : 'none';
+  }
+
+  // ── Update listing platform checkbox border ──────────────────────────────────
+  function updateListPlatformBorder(platform) {
+    const cb  = document.getElementById(`list-${platform}`);
+    const lbl = document.getElementById(`list-lbl-${platform}`);
+    if (!lbl) return;
+    const colors = { depop: 'rgba(255,35,0,0.4)', vinted: 'rgba(9,177,186,0.4)' };
+    lbl.style.borderColor = cb?.checked ? (colors[platform] || 'rgba(232,33,122,0.4)') : '';
+  }
+
 </script>
 
 </body>

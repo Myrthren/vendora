@@ -10,6 +10,8 @@ const {
 } = require('discord.js');
 const express  = require('express');
 const Anthropic = require('@anthropic-ai/sdk');
+const cron     = require('node-cron');
+const crypto   = require('crypto');
 
 console.log('[boot] Modules loaded');
 
@@ -1092,6 +1094,512 @@ app.post('/paypal-webhook', async (req, res) => {
   if (error) { console.error('[paypal] Profile update failed:', error); return res.status(500).json({ error }); }
   console.log(`[paypal] Marked ${subId} inactive — rows: ${data?.length || 0}`);
   res.json({ ok: true });
+});
+
+// ── Token encryption ──────────────────────────────────────────────────────────
+// Derive a stable 32-byte key from the Supabase service key so no extra env var needed
+const ENCRYPT_KEY = SUPABASE_KEY
+  ? crypto.createHash('sha256').update(SUPABASE_KEY).digest()
+  : crypto.randomBytes(32);
+
+function encryptToken(text) {
+  try {
+    const iv      = crypto.randomBytes(16);
+    const cipher  = crypto.createCipheriv('aes-256-gcm', ENCRYPT_KEY, iv);
+    const enc     = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
+    const tag     = cipher.getAuthTag();
+    return iv.toString('hex') + ':' + tag.toString('hex') + ':' + enc.toString('hex');
+  } catch { return text; }
+}
+
+function decryptToken(enc) {
+  try {
+    const [ivHex, tagHex, dataHex] = enc.split(':');
+    const iv      = Buffer.from(ivHex, 'hex');
+    const tag     = Buffer.from(tagHex, 'hex');
+    const data    = Buffer.from(dataHex, 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPT_KEY, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
+  } catch { return enc; }
+}
+
+// ── Platform connection DB helpers ────────────────────────────────────────────
+async function getPlatformConn(userId, platform) {
+  if (!SUPABASE_KEY) return null;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/platform_connections?user_id=eq.${userId}&platform=eq.${platform}&select=*`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    const rows = await res.json();
+    return rows[0] || null;
+  } catch { return null; }
+}
+
+async function upsertPlatformConn(userId, platform, data) {
+  if (!SUPABASE_KEY) return { error: 'no key' };
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/platform_connections`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        Prefer: 'resolution=merge-duplicates,return=representation',
+      },
+      body: JSON.stringify({ user_id: userId, platform, ...data }),
+    });
+    return { ok: res.ok };
+  } catch (e) { return { error: e.message }; }
+}
+
+async function deletePlatformConn(userId, platform) {
+  if (!SUPABASE_KEY) return;
+  await fetch(
+    `${SUPABASE_URL}/rest/v1/platform_connections?user_id=eq.${userId}&platform=eq.${platform}`,
+    { method: 'DELETE', headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+  );
+}
+
+// ── Listings DB helpers ───────────────────────────────────────────────────────
+async function createListingRecord(userId, data) {
+  if (!SUPABASE_KEY) return null;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/listings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify({ user_id: userId, ...data }),
+    });
+    const rows = await res.json();
+    return rows[0] || null;
+  } catch { return null; }
+}
+
+async function getListingsByUser(userId) {
+  if (!SUPABASE_KEY) return [];
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/listings?user_id=eq.${userId}&status=neq.deleted&order=created_at.desc&select=*`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    return await res.json();
+  } catch { return []; }
+}
+
+async function getListingById(listingId) {
+  if (!SUPABASE_KEY) return null;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/listings?id=eq.${listingId}&select=*`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    const rows = await res.json();
+    return rows[0] || null;
+  } catch { return null; }
+}
+
+async function updateListingRecord(listingId, data) {
+  if (!SUPABASE_KEY) return;
+  await fetch(`${SUPABASE_URL}/rest/v1/listings?id=eq.${listingId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+    },
+    body: JSON.stringify({ ...data, updated_at: new Date().toISOString() }),
+  });
+}
+
+async function getDueRelists() {
+  if (!SUPABASE_KEY) return [];
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/listings?auto_relist=eq.true&status=eq.active&next_relist_at=lte.${new Date().toISOString()}&select=*`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    return await res.json();
+  } catch { return []; }
+}
+
+// ── Depop API ─────────────────────────────────────────────────────────────────
+const DEPOP_HEADERS = (token) => ({
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${token}`,
+  'User-Agent': 'Depop/3.8.0 (iPhone; iOS 16.6; Scale/3.00)',
+  'Accept': 'application/json',
+});
+
+async function depopLogin(email, password) {
+  try {
+    const res = await fetch('https://api.depop.com/api/v1/auth/email/login/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'Depop/3.8.0 (iPhone; iOS 16.6; Scale/3.00)' },
+      body: JSON.stringify({ login: email, password }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return { error: err.message || 'Invalid credentials — check your email and password.' };
+    }
+    const data = await res.json();
+    // Get username from /me
+    const meRes = await fetch('https://api.depop.com/api/v1/me/', {
+      headers: DEPOP_HEADERS(data.access_token),
+      signal: AbortSignal.timeout(8000),
+    });
+    const me = meRes.ok ? await meRes.json() : {};
+    return { access_token: data.access_token, refresh_token: data.refresh_token || '', platform_user_id: String(me.id || data.user_id || ''), platform_username: me.username || email.split('@')[0] };
+  } catch (e) { return { error: e.message }; }
+}
+
+async function depopCreateListing(accessToken, listingData) {
+  const { title, description = '', price, condition } = listingData;
+  const condMap = { 'New with tags': 1, 'Like New': 2, 'Very Good': 3, 'Good': 4, 'Acceptable': 5 };
+  try {
+    const res = await fetch('https://api.depop.com/api/v1/products/', {
+      method: 'POST',
+      headers: DEPOP_HEADERS(accessToken),
+      body: JSON.stringify({
+        description: `${title}\n\n${description}`.trim(),
+        price: Math.round(parseFloat(price) * 100),
+        currency_name: 'GBP',
+        category_id: 1,
+        status: 'active',
+        source_country: 'gb',
+        condition: condMap[condition] || 3,
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      return { error: `Depop: ${err.slice(0, 120)}` };
+    }
+    const data = await res.json();
+    return { ok: true, listing_id: String(data.id || ''), url: `https://www.depop.com/products/${data.id}/` };
+  } catch (e) { return { error: e.message }; }
+}
+
+async function depopDeleteListing(accessToken, listingId) {
+  try {
+    const res = await fetch(`https://api.depop.com/api/v1/products/${listingId}/`, {
+      method: 'DELETE',
+      headers: DEPOP_HEADERS(accessToken),
+      signal: AbortSignal.timeout(10000),
+    });
+    return { ok: res.ok || res.status === 204 };
+  } catch (e) { return { error: e.message }; }
+}
+
+// ── Vinted API ────────────────────────────────────────────────────────────────
+const VINTED_HEADERS = (token) => ({
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${token}`,
+  'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15',
+  'Accept': 'application/json',
+});
+
+async function vintedLogin(username, password) {
+  try {
+    const res = await fetch('https://www.vinted.co.uk/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'Mozilla/5.0' },
+      body: new URLSearchParams({ grant_type: 'password', username, password, client_id: 'web', scope: 'user' }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return { error: err.error_description || 'Invalid credentials.' };
+    }
+    const data = await res.json();
+    // Get user info
+    const meRes = await fetch('https://www.vinted.co.uk/api/v2/users/me', {
+      headers: VINTED_HEADERS(data.access_token),
+      signal: AbortSignal.timeout(8000),
+    });
+    const me = meRes.ok ? (await meRes.json()).user || {} : {};
+    return { access_token: data.access_token, refresh_token: data.refresh_token || '', platform_user_id: String(me.id || ''), platform_username: me.login || username };
+  } catch (e) { return { error: e.message }; }
+}
+
+async function vintedCreateListing(accessToken, listingData) {
+  const { title, description = '', price, condition } = listingData;
+  const condMap = { 'New with tags': 6, 'Like New': 2, 'Very Good': 3, 'Good': 4, 'Acceptable': 5 };
+  try {
+    const res = await fetch('https://www.vinted.co.uk/api/v2/items', {
+      method: 'POST',
+      headers: VINTED_HEADERS(accessToken),
+      body: JSON.stringify({
+        title,
+        description,
+        price: String(parseFloat(price).toFixed(2)),
+        currency: 'GBP',
+        catalog_id: 1,
+        status_id: condMap[condition] || 3,
+        package_size_id: 1,
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      return { error: `Vinted: ${err.slice(0, 120)}` };
+    }
+    const data = await res.json();
+    const item = data.item || data;
+    return { ok: true, listing_id: String(item.id || ''), url: item.url || `https://www.vinted.co.uk/items/${item.id}` };
+  } catch (e) { return { error: e.message }; }
+}
+
+async function vintedDeleteListing(accessToken, listingId) {
+  try {
+    const res = await fetch(`https://www.vinted.co.uk/api/v2/items/${listingId}`, {
+      method: 'DELETE',
+      headers: VINTED_HEADERS(accessToken),
+      signal: AbortSignal.timeout(10000),
+    });
+    return { ok: res.ok || res.status === 204 };
+  } catch (e) { return { error: e.message }; }
+}
+
+// ── Shared: post listing to one platform ─────────────────────────────────────
+async function postToPlatform(userId, platform, listingData) {
+  const conn = await getPlatformConn(userId, platform);
+  if (!conn?.access_token) return { error: 'Not connected' };
+  const token = decryptToken(conn.access_token);
+  if (platform === 'depop')  return depopCreateListing(token, listingData);
+  if (platform === 'vinted') return vintedCreateListing(token, listingData);
+  return { error: 'Platform not supported yet' };
+}
+
+async function deleteFromPlatform(userId, platform, listingId) {
+  const conn = await getPlatformConn(userId, platform);
+  if (!conn?.access_token) return { error: 'Not connected' };
+  const token = decryptToken(conn.access_token);
+  if (platform === 'depop')  return depopDeleteListing(token, listingId);
+  if (platform === 'vinted') return vintedDeleteListing(token, listingId);
+  return { error: 'Platform not supported yet' };
+}
+
+// ── Auth middleware helper ─────────────────────────────────────────────────────
+async function requireAuth(req, res) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) { res.status(401).json({ error: 'No token' }); return null; }
+  const user = await verifySupabaseToken(token);
+  if (!user) { res.status(401).json({ error: 'Invalid token' }); return null; }
+  return user;
+}
+
+// ── Platform connection endpoints ─────────────────────────────────────────────
+
+// Connect a platform account
+app.post('/api/platform/connect', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const { platform, credentials } = req.body;
+  if (!platform || !credentials) return res.status(400).json({ error: 'platform and credentials required' });
+
+  let result;
+  if (platform === 'depop') {
+    result = await depopLogin(credentials.email, credentials.password);
+  } else if (platform === 'vinted') {
+    result = await vintedLogin(credentials.username || credentials.email, credentials.password);
+  } else {
+    return res.status(400).json({ error: 'Unsupported platform' });
+  }
+
+  if (result.error) return res.status(400).json({ error: result.error });
+
+  await upsertPlatformConn(user.id, platform, {
+    access_token:      encryptToken(result.access_token),
+    refresh_token:     result.refresh_token ? encryptToken(result.refresh_token) : null,
+    platform_user_id:  result.platform_user_id,
+    platform_username: result.platform_username,
+    connected_at:      new Date().toISOString(),
+  });
+
+  console.log(`[platform] ${platform} connected for user ${user.id} (@${result.platform_username})`);
+  res.json({ ok: true, platform, username: result.platform_username });
+});
+
+// Disconnect a platform account
+app.delete('/api/platform/:platform/disconnect', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  await deletePlatformConn(user.id, req.params.platform);
+  res.json({ ok: true });
+});
+
+// Get connection status for all platforms
+app.get('/api/platform/status', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const platforms = ['depop', 'vinted', 'ebay'];
+  const connections = {};
+  for (const p of platforms) {
+    const conn = await getPlatformConn(user.id, p);
+    connections[p] = conn
+      ? { connected: true, username: conn.platform_username, connected_at: conn.connected_at }
+      : { connected: false };
+  }
+  res.json({ ok: true, connections });
+});
+
+// ── Listing endpoints ─────────────────────────────────────────────────────────
+
+// Create a listing across one or more platforms
+app.post('/api/listing/create', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+
+  const profile = await getProfileByDiscordId(
+    user.user_metadata?.provider_id || user.identities?.find(i => i.provider === 'discord')?.id
+  );
+  if (!profile || profile.subscription_status !== 'active') return res.status(403).json({ error: 'Active subscription required' });
+  if (TIER_RANK[profile.tier] < TIER_RANK.pro) return res.status(403).json({ error: 'Pro subscription required for listings' });
+
+  const { title, description, price, condition, platforms = [], autoRelist = false, relistIntervalDays = 7 } = req.body;
+  if (!title || !price) return res.status(400).json({ error: 'title and price required' });
+  if (!platforms.length) return res.status(400).json({ error: 'Select at least one platform' });
+
+  const listingData = { title, description, price, condition };
+  const results = {};
+  const platformListingIds = {};
+
+  for (const p of platforms) {
+    const r = await postToPlatform(user.id, p, listingData);
+    results[p] = r;
+    if (r.ok && r.listing_id) platformListingIds[p] = r.listing_id;
+    console.log(`[listing] ${p} → ${r.ok ? `listed ${r.listing_id}` : `failed: ${r.error}`}`);
+  }
+
+  const successPlatforms = platforms.filter(p => results[p]?.ok);
+  if (!successPlatforms.length) return res.status(500).json({ error: 'Failed to list on all platforms', results });
+
+  const nextRelistAt = autoRelist
+    ? new Date(Date.now() + relistIntervalDays * 86400000).toISOString()
+    : null;
+
+  const record = await createListingRecord(user.id, {
+    title, description, price, condition,
+    platforms: successPlatforms,
+    platform_listing_ids: platformListingIds,
+    auto_relist: autoRelist,
+    relist_interval_days: relistIntervalDays,
+    next_relist_at: nextRelistAt,
+    status: 'active',
+  });
+
+  res.json({ ok: true, listing_id: record?.id, results });
+});
+
+// Get all listings for the authenticated user
+app.get('/api/listings', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const listings = await getListingsByUser(user.id);
+  res.json({ ok: true, listings });
+});
+
+// Delete a listing from all platforms
+app.delete('/api/listing/:id', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const listing = await getListingById(req.params.id);
+  if (!listing || listing.user_id !== user.id) return res.status(404).json({ error: 'Listing not found' });
+
+  const ids = listing.platform_listing_ids || {};
+  const deleteResults = {};
+  for (const p of listing.platforms || []) {
+    if (ids[p]) {
+      deleteResults[p] = await deleteFromPlatform(user.id, p, ids[p]);
+    }
+  }
+  await updateListingRecord(listing.id, { status: 'deleted', auto_relist: false });
+  console.log(`[listing] Deleted listing ${listing.id}`);
+  res.json({ ok: true, results: deleteResults });
+});
+
+// Manually relist — delete old listings, create fresh ones
+app.post('/api/listing/:id/relist', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const listing = await getListingById(req.params.id);
+  if (!listing || listing.user_id !== user.id) return res.status(404).json({ error: 'Listing not found' });
+
+  const ids = listing.platform_listing_ids || {};
+  const newIds = {};
+  const results = {};
+
+  for (const p of listing.platforms || []) {
+    // Delete old
+    if (ids[p]) await deleteFromPlatform(user.id, p, ids[p]);
+    // Create fresh
+    const r = await postToPlatform(user.id, p, {
+      title: listing.title, description: listing.description,
+      price: listing.price, condition: listing.condition,
+    });
+    results[p] = r;
+    if (r.ok && r.listing_id) newIds[p] = r.listing_id;
+  }
+
+  const nextRelistAt = listing.auto_relist
+    ? new Date(Date.now() + (listing.relist_interval_days || 7) * 86400000).toISOString()
+    : null;
+
+  await updateListingRecord(listing.id, {
+    platform_listing_ids: newIds,
+    next_relist_at: nextRelistAt,
+  });
+
+  console.log(`[listing] Manual relist ${listing.id}`);
+  res.json({ ok: true, results });
+});
+
+// Update relist schedule for a listing
+app.patch('/api/listing/:id/schedule', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const listing = await getListingById(req.params.id);
+  if (!listing || listing.user_id !== user.id) return res.status(404).json({ error: 'Listing not found' });
+
+  const { autoRelist, relistIntervalDays } = req.body;
+  const days = parseInt(relistIntervalDays) || listing.relist_interval_days || 7;
+  const nextRelistAt = autoRelist
+    ? new Date(Date.now() + days * 86400000).toISOString()
+    : null;
+
+  await updateListingRecord(listing.id, {
+    auto_relist: !!autoRelist,
+    relist_interval_days: days,
+    next_relist_at: nextRelistAt,
+  });
+  res.json({ ok: true });
+});
+
+// ── Auto-relist cron job — runs every hour ────────────────────────────────────
+cron.schedule('0 * * * *', async () => {
+  console.log('[cron] Checking for due relists...');
+  const due = await getDueRelists();
+  if (!due.length) { console.log('[cron] No relists due.'); return; }
+
+  for (const listing of due) {
+    console.log(`[cron] Relisting ${listing.id} — ${listing.title}`);
+    const ids = listing.platform_listing_ids || {};
+    const newIds = {};
+
+    for (const p of listing.platforms || []) {
+      if (ids[p]) await deleteFromPlatform(listing.user_id, p, ids[p]);
+      const r = await postToPlatform(listing.user_id, p, {
+        title: listing.title, description: listing.description,
+        price: listing.price, condition: listing.condition,
+      });
+      if (r.ok && r.listing_id) newIds[p] = r.listing_id;
+      console.log(`[cron] ${p} relist → ${r.ok ? r.listing_id : r.error}`);
+    }
+
+    const nextRelistAt = new Date(Date.now() + (listing.relist_interval_days || 7) * 86400000).toISOString();
+    await updateListingRecord(listing.id, { platform_listing_ids: newIds, next_relist_at: nextRelistAt });
+  }
+
+  console.log(`[cron] Processed ${due.length} relist(s).`);
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
