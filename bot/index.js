@@ -1682,6 +1682,137 @@ app.patch('/api/listing/:id/schedule', async (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Usage stats ───────────────────────────────────────────────────────────────
+app.get('/api/usage', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = user.user_metadata?.provider_id
+    || user.identities?.find(i => i.provider === 'discord')?.id || '';
+
+  // Read from in-memory store
+  const userStore = usageStore.get(discordId);
+  const usage = {};
+  if (userStore) {
+    const now = Date.now();
+    for (const [group, entry] of userStore.entries()) {
+      if (now < entry.resetAt) {
+        usage[group] = { used: entry.count, resetAt: entry.resetAt };
+      }
+    }
+  }
+  res.json({ usage });
+});
+
+// ── Inventory endpoints ────────────────────────────────────────────────────────
+app.get('/api/inventory', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = user.user_metadata?.provider_id
+    || user.identities?.find(i => i.provider === 'discord')?.id || '';
+  const items = await dbGetInventory(discordId);
+  res.json({ items });
+});
+
+app.post('/api/inventory', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = user.user_metadata?.provider_id
+    || user.identities?.find(i => i.provider === 'discord')?.id || '';
+  const { item } = req.body || {};
+  if (!item?.trim()) return res.status(400).json({ error: 'item required' });
+  await dbAddInventory(discordId, item.trim());
+  const items = await dbGetInventory(discordId);
+  res.json({ ok: true, items });
+});
+
+app.delete('/api/inventory/:id', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  await dbRemoveInventory(req.params.id);
+  res.json({ ok: true });
+});
+
+// ── Watchlist endpoints ────────────────────────────────────────────────────────
+app.get('/api/watchlist', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = user.user_metadata?.provider_id
+    || user.identities?.find(i => i.provider === 'discord')?.id || '';
+  const items = await dbGetWatchlist(discordId);
+  res.json({ items });
+});
+
+app.post('/api/watchlist', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = user.user_metadata?.provider_id
+    || user.identities?.find(i => i.provider === 'discord')?.id || '';
+  const { item } = req.body || {};
+  if (!item?.trim()) return res.status(400).json({ error: 'item required' });
+  await dbAddWatchlist(discordId, item.trim());
+  const items = await dbGetWatchlist(discordId);
+  res.json({ ok: true, items });
+});
+
+app.delete('/api/watchlist/:id', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  if (!SUPABASE_KEY) return res.status(500).json({ error: 'no key' });
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/watchlist?id=eq.${req.params.id}`, {
+      method: 'DELETE',
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+    });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Support ticket ─────────────────────────────────────────────────────────────
+app.post('/api/support/ticket', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const { message, subject } = req.body || {};
+  if (!message?.trim()) return res.status(400).json({ error: 'message required' });
+
+  const discordId = user.user_metadata?.provider_id
+    || user.identities?.find(i => i.provider === 'discord')?.id || 'unknown';
+  const username = user.user_metadata?.full_name || user.user_metadata?.name || 'Unknown';
+
+  try {
+    const owner = await client.users.fetch(OWNER_ID);
+    await owner.send(
+      `📩 **Support Ticket**\n` +
+      `**From:** ${username} (\`${discordId}\`)\n` +
+      `**Subject:** ${subject || 'General enquiry'}\n` +
+      `**Message:**\n${message}`
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[support] Failed to DM owner:', e.message);
+    res.status(500).json({ error: 'Could not send ticket. Please DM pluniez directly on Discord.' });
+  }
+});
+
+// ── Notification preferences ───────────────────────────────────────────────────
+app.get('/api/notifications', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  if (!SUPABASE_KEY) return res.json({ prefs: {} });
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=notification_prefs`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+    });
+    const rows = await r.json();
+    res.json({ prefs: rows[0]?.notification_prefs || {} });
+  } catch { res.json({ prefs: {} }); }
+});
+
+app.post('/api/notifications', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const { prefs } = req.body || {};
+  if (!prefs) return res.status(400).json({ error: 'prefs required' });
+  if (!SUPABASE_KEY) return res.status(500).json({ error: 'no key' });
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+      body: JSON.stringify({ notification_prefs: prefs }),
+    });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Owner-only middleware ─────────────────────────────────────────────────────
 async function requireOwner(req, res) {
   const user = await requireAuth(req, res);
@@ -1825,6 +1956,50 @@ cron.schedule('0 * * * *', async () => {
   }
 
   console.log(`[cron] Processed ${due.length} relist(s).`);
+});
+
+// ── Price drop watchlist cron — runs every 6 hours ───────────────────────────
+// Checks all watchlist items; when real platform APIs are wired this will query
+// actual prices. For now it notifies users their item is being monitored + any
+// manual price-drop signals triggered via the admin panel.
+cron.schedule('0 */6 * * *', async () => {
+  console.log('[cron:watchlist] Checking watchlist alerts...');
+  if (!SUPABASE_KEY) return;
+
+  try {
+    // Get all watchlist items
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/watchlist?select=*&order=added_at.asc`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+    });
+    const items = await r.json();
+    if (!items.length) return;
+
+    // Check for any items with a price_drop_signal flag (set manually via admin or future platform API)
+    const triggered = items.filter(i => i.price_drop_signal === true);
+
+    for (const item of triggered) {
+      try {
+        const member = await client.users.fetch(item.discord_id);
+        await member.send(
+          `📉 **Price Drop Alert — ${item.item}**\n` +
+          `An item on your watchlist has dropped in price.\n\n` +
+          `**Item:** ${item.item}\n` +
+          `Check the platform now to grab it before it's gone.`
+        );
+        // Clear the signal
+        await fetch(`${SUPABASE_URL}/rest/v1/watchlist?id=eq.${item.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+          body: JSON.stringify({ price_drop_signal: false }),
+        });
+        console.log(`[cron:watchlist] Alerted ${item.discord_id} — ${item.item}`);
+      } catch (e) {
+        console.warn(`[cron:watchlist] Failed to DM ${item.discord_id}:`, e.message);
+      }
+    }
+  } catch (e) {
+    console.error('[cron:watchlist] Error:', e.message);
+  }
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────

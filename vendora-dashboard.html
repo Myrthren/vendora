@@ -645,6 +645,15 @@
       <span class="nav-item-badge" style="background:rgba(232,33,122,0.18);color:var(--pink);font-size:9px;padding:2px 6px;border-radius:4px;margin-left:auto;">Pro</span>
     </div>
 
+    <div class="nav-item" id="inventory-nav-item" onclick="showSection('inventory', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+      Inventory
+    </div>
+    <div class="nav-item" id="watchlist-nav-item" onclick="showSection('watchlist', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+      Watchlist
+    </div>
+
     <span class="nav-section-label" style="margin-top:8px;">Support</span>
     <div class="nav-item" onclick="showSection('support', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -807,7 +816,7 @@
         </div>
         <div class="stat-card">
           <div class="stat-label">Commands Used Today</div>
-          <div class="stat-val">12</div>
+          <div class="stat-val" id="stat-used">—</div>
           <div class="stat-sub" id="stat-limit">of 50/day limit</div>
         </div>
         <div class="stat-card">
@@ -906,35 +915,35 @@
               <div class="toggle-label">Price Drop Alerts</div>
               <div class="toggle-sub">When a watchlisted item drops in price</div>
             </div>
-            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-price-drop" checked><span class="toggle-track"></span></label></div>
           </div>
           <div class="toggle-row">
             <div class="toggle-info">
               <div class="toggle-label">Item Selling Fast</div>
               <div class="toggle-sub">When a watchlisted item starts moving quickly</div>
             </div>
-            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-selling-fast" checked><span class="toggle-track"></span></label></div>
           </div>
           <div class="toggle-row">
             <div class="toggle-info">
               <div class="toggle-label">Competitor New Listings</div>
               <div class="toggle-sub">When a tracked seller lists new stock</div>
             </div>
-            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-competitor-new" checked><span class="toggle-track"></span></label></div>
           </div>
           <div class="toggle-row">
             <div class="toggle-info">
               <div class="toggle-label">Weekly Trend Report</div>
               <div class="toggle-sub">Weekly summary of trending brands and categories</div>
             </div>
-            <div class="toggle-wrap"><label class="toggle"><input type="checkbox"><span class="toggle-track"></span></label></div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-weekly-trend"><span class="toggle-track"></span></label></div>
           </div>
           <div class="toggle-row">
             <div class="toggle-info">
               <div class="toggle-label">Early Deal Alerts <span style="font-size:9px;color:var(--gold);letter-spacing:.08em;text-transform:uppercase;margin-left:6px;">Elite</span></div>
               <div class="toggle-sub">Priority deal access before standard Pro members</div>
             </div>
-            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" disabled><span class="toggle-track"></span></label></div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-early-deals" disabled><span class="toggle-track"></span></label></div>
           </div>
         </div>
       </div>
@@ -945,29 +954,37 @@
           <div class="toggle-row">
             <div class="toggle-info">
               <div class="toggle-label">Platform Connected</div>
-              <div class="toggle-sub">DM when eBay, Depop, or Vinted account links successfully</div>
+              <div class="toggle-sub">DM when Depop or Vinted account links successfully</div>
             </div>
-            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-platform-connected" checked><span class="toggle-track"></span></label></div>
           </div>
           <div class="toggle-row">
             <div class="toggle-info">
               <div class="toggle-label">Cross-Listing Updates</div>
               <div class="toggle-sub">Success and failure notifications for cross-listing jobs</div>
             </div>
-            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-crosslist-updates" checked><span class="toggle-track"></span></label></div>
           </div>
           <div class="toggle-row">
             <div class="toggle-info">
               <div class="toggle-label">Connection Expired</div>
               <div class="toggle-sub">Alert when a platform connection needs re-linking</div>
             </div>
-            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-connection-expired" checked><span class="toggle-track"></span></label></div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Auto-Relist Completed</div>
+              <div class="toggle-sub">DM when a listing is automatically relisted</div>
+            </div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-relist-done" checked><span class="toggle-track"></span></label></div>
           </div>
         </div>
       </div>
 
-      <div style="text-align:right;">
-        <button class="btn btn-pink" onclick="alert('Notification preferences saved.')">
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;">
+        <div id="notif-save-msg" style="display:none;font-size:12px;"></div>
+        <button id="notif-save-btn" class="btn btn-pink" onclick="saveNotificationPrefs()">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
           Save Preferences
         </button>
@@ -1204,6 +1221,88 @@
       </div>
     </div>
 
+    <!-- ── INVENTORY ── -->
+    <div class="section" id="section-inventory">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">Inventory Tracker</div>
+        <div class="page-sub">Track every item you're selling. Add via the dashboard or with <code style="font-family:monospace;font-size:11px;color:var(--pink);background:rgba(232,33,122,0.1);padding:1px 6px;border-radius:4px;">/tracker add</code> in Discord.</div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-title" style="margin-bottom:14px;">Add Item</div>
+        <div style="display:flex;gap:10px;">
+          <input id="inv-new-item" type="text" class="form-select" style="height:auto;padding:10px 14px;flex:1;" placeholder="e.g. Nike Air Max 90 White UK9">
+          <button id="inv-add-btn" class="btn btn-pink" onclick="addInventoryItem()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add
+          </button>
+        </div>
+        <div id="inv-add-msg" style="display:none;margin-top:10px;font-size:12px;"></div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
+          <div class="card-title" style="margin:0;">Your Items</div>
+          <button class="btn btn-ghost btn-sm" onclick="loadInventory()">Refresh</button>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Item</th>
+              <th>Added</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="inventory-tbody">
+            <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── WATCHLIST ── -->
+    <div class="section" id="section-watchlist">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">Price Watchlist</div>
+        <div class="page-sub">Watch items for price drops. Add via the dashboard or with <code style="font-family:monospace;font-size:11px;color:var(--pink);background:rgba(232,33,122,0.1);padding:1px 6px;border-radius:4px;">/pricedrop</code> in Discord.</div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-title" style="margin-bottom:14px;">Watch an Item</div>
+        <div style="display:flex;gap:10px;">
+          <input id="wl-new-item" type="text" class="form-select" style="height:auto;padding:10px 14px;flex:1;" placeholder="e.g. Stone Island Shadow Project Jacket">
+          <button id="wl-add-btn" class="btn btn-pink" onclick="addWatchlistItem()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Watch
+          </button>
+        </div>
+        <div id="wl-add-msg" style="display:none;margin-top:10px;font-size:12px;"></div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
+          <div class="card-title" style="margin:0;">Watching</div>
+          <button class="btn btn-ghost btn-sm" onclick="loadWatchlist()">Refresh</button>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Item</th>
+              <th>Added</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="watchlist-tbody">
+            <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- ── CROSS-LIST ── -->
     <div class="section" id="section-crosslist">
       <div class="page-header">
@@ -1300,10 +1399,37 @@
       </div>
 
       <div class="card" style="margin-bottom:16px;">
-        <div class="card-title">Contact Us</div>
-        <p style="color:var(--muted2);font-size:13px;line-height:1.6;margin-bottom:20px;">
-          If you're experiencing issues with your subscription, missing Discord roles, billing questions, or anything else — reach out through either channel below and we'll get back to you.
-        </p>
+        <div class="card-title">Send a Message</div>
+        <p style="color:var(--muted2);font-size:13px;line-height:1.6;margin-bottom:18px;">Fill in the form below and your message will be delivered directly to us via Discord. We typically respond within a few hours.</p>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div>
+            <label class="form-label">Subject</label>
+            <select id="support-subject" class="form-select">
+              <option value="Subscription / Billing">Subscription / Billing</option>
+              <option value="Missing Discord Role">Missing Discord Role</option>
+              <option value="Platform Connection Issue">Platform Connection Issue</option>
+              <option value="Bot Command Not Working">Bot Command Not Working</option>
+              <option value="Account Issue">Account Issue</option>
+              <option value="Feature Request">Feature Request</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Message</label>
+            <textarea id="support-message" class="form-textarea" rows="4" placeholder="Describe your issue in as much detail as possible. Include your Discord ID if relevant."></textarea>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;">
+            <div id="support-msg" style="display:none;font-size:12px;"></div>
+            <button id="support-submit-btn" class="btn btn-pink" onclick="submitSupportTicket()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              Send Message
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">Direct Contact</div>
         <div class="toggle-list">
           <div class="info-row">
             <span class="info-row-label">Discord</span>
@@ -1315,8 +1441,8 @@
           <div class="info-row">
             <span class="info-row-label">Email</span>
             <span class="info-row-val" style="display:flex;align-items:center;gap:10px;">
-              <a href="mailto:keneamaechina@gmail.com" style="color:var(--pink);font-size:13px;text-decoration:none;">keneamaechina@gmail.com</a>
-              <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('keneamaechina@gmail.com').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})">Copy</button>
+              <a href="mailto:support@vendora.gg" style="color:var(--pink);font-size:13px;text-decoration:none;">support@vendora.gg</a>
+              <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('support@vendora.gg').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})">Copy</button>
             </span>
           </div>
         </div>
@@ -1331,11 +1457,15 @@
           </div>
           <div class="info-row" style="flex-direction:column;align-items:flex-start;gap:4px;padding:14px 0;">
             <span style="font-size:13px;font-weight:500;color:var(--text);">I can't log in</span>
-            <span style="font-size:12px;color:var(--muted2);line-height:1.5;">Make sure you're authorising with the correct Discord account. Clear your browser cache and try again. If the problem persists, contact us.</span>
+            <span style="font-size:12px;color:var(--muted2);line-height:1.5;">Make sure you're authorising with the correct Discord account. Clear your browser cache and try again. If the problem persists, send us a message above.</span>
+          </div>
+          <div class="info-row" style="flex-direction:column;align-items:flex-start;gap:4px;padding:14px 0;">
+            <span style="font-size:13px;font-weight:500;color:var(--text);">A bot command returned an error</span>
+            <span style="font-size:12px;color:var(--muted2);line-height:1.5;">Include the exact command you used and the error message when contacting us. Most errors are resolved within minutes.</span>
           </div>
           <div class="info-row" style="flex-direction:column;align-items:flex-start;gap:4px;padding:14px 0;">
             <span style="font-size:13px;font-weight:500;color:var(--text);">I want to cancel my subscription</span>
-            <span style="font-size:12px;color:var(--muted2);line-height:1.5;">Go to the Subscription tab and click Cancel Plan. Your access remains until the end of the billing period.</span>
+            <span style="font-size:12px;color:var(--muted2);line-height:1.5;">Go to the Subscription tab and click Cancel Plan. Your access remains active until the end of your current billing period.</span>
           </div>
         </div>
       </div>
@@ -1790,6 +1920,10 @@
     initCrossListAccess(tier);
     initListingsAccess(tier);
     loadPlatformStatus();
+    loadNotificationPrefs();
+    loadUsageStats();
+    loadInventory();
+    loadWatchlist();
 
     if (isOwner) {
       document.getElementById('admin-label').style.display         = '';
@@ -2081,7 +2215,7 @@
     }
   });
 
-  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', crosslist:'Cross-List', listings:'Listings', support:'Support', admin:'Admin Panel' };
+  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', inventory:'Inventory', watchlist:'Watchlist', crosslist:'Cross-List', listings:'Listings', support:'Support', admin:'Admin Panel' };
 
   // ── Cross-list tool ──────────────────────────────────────────────────────────
   const BOT_API = 'https://vendora-production-8a47.up.railway.app';
@@ -2428,6 +2562,256 @@
     btn.disabled = false; btn.textContent = 'Update Pricing';
   }
 
+  // ── Usage stats ──────────────────────────────────────────────────────────────
+  async function loadUsageStats() {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`${BOT_API}/api/usage`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) return;
+      const { usage } = await res.json();
+      // Sum all command groups for today's total
+      const total = Object.values(usage).reduce((sum, g) => sum + (g.used || 0), 0);
+      const usedEl = document.getElementById('stat-used');
+      if (usedEl) usedEl.textContent = total > 0 ? total : '0';
+    } catch (e) {
+      const usedEl = document.getElementById('stat-used');
+      if (usedEl) usedEl.textContent = '0';
+    }
+  }
+
+  // ── Notification preferences ──────────────────────────────────────────────────
+  async function loadNotificationPrefs() {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`${BOT_API}/api/notifications`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) return;
+      const { prefs } = await res.json();
+      const map = {
+        'notif-price-drop':          'price_drop',
+        'notif-selling-fast':        'selling_fast',
+        'notif-competitor-new':      'competitor_new',
+        'notif-weekly-trend':        'weekly_trend',
+        'notif-early-deals':         'early_deals',
+        'notif-platform-connected':  'platform_connected',
+        'notif-crosslist-updates':   'crosslist_updates',
+        'notif-connection-expired':  'connection_expired',
+        'notif-relist-done':         'relist_done',
+      };
+      for (const [id, key] of Object.entries(map)) {
+        const el = document.getElementById(id);
+        if (el && prefs[key] !== undefined) el.checked = prefs[key];
+      }
+    } catch (e) { console.warn('loadNotificationPrefs:', e); }
+  }
+
+  async function saveNotificationPrefs() {
+    const btn   = document.getElementById('notif-save-btn');
+    const msgEl = document.getElementById('notif-save-msg');
+    btn.disabled = true; btn.querySelector('svg') && (btn.innerHTML = btn.innerHTML);
+
+    const map = {
+      price_drop:         'notif-price-drop',
+      selling_fast:       'notif-selling-fast',
+      competitor_new:     'notif-competitor-new',
+      weekly_trend:       'notif-weekly-trend',
+      early_deals:        'notif-early-deals',
+      platform_connected: 'notif-platform-connected',
+      crosslist_updates:  'notif-crosslist-updates',
+      connection_expired: 'notif-connection-expired',
+      relist_done:        'notif-relist-done',
+    };
+    const prefs = {};
+    for (const [key, id] of Object.entries(map)) {
+      const el = document.getElementById(id);
+      if (el) prefs[key] = el.checked;
+    }
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/notifications`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ prefs }),
+      });
+      const json = await res.json();
+      if (res.ok) showMsg(msgEl, 'success', 'Preferences saved.');
+      else        showMsg(msgEl, 'error', json.error || 'Save failed.');
+    } catch (e) { showMsg(msgEl, 'error', 'Network error.'); }
+
+    btn.disabled = false;
+  }
+
+  // ── Support ticket ────────────────────────────────────────────────────────────
+  async function submitSupportTicket() {
+    const subject = document.getElementById('support-subject')?.value;
+    const message = document.getElementById('support-message')?.value?.trim();
+    const msgEl   = document.getElementById('support-msg');
+    const btn     = document.getElementById('support-submit-btn');
+
+    if (!message) { showMsg(msgEl, 'error', 'Please write a message first.'); return; }
+
+    btn.disabled = true; btn.textContent = 'Sending…';
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { window.location.href = 'vendora-login.html'; return; }
+
+      const res = await fetch(`${BOT_API}/api/support/ticket`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ subject, message }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        showMsg(msgEl, 'success', 'Message sent! We\'ll get back to you via Discord DM.');
+        document.getElementById('support-message').value = '';
+      } else {
+        showMsg(msgEl, 'error', json.error || 'Failed to send. Please DM pluniez directly on Discord.');
+      }
+    } catch (e) { showMsg(msgEl, 'error', 'Network error. Please DM pluniez on Discord.'); }
+
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Message`;
+  }
+
+  // ── Inventory ─────────────────────────────────────────────────────────────────
+  async function loadInventory() {
+    const tbody = document.getElementById('inventory-tbody');
+    if (!tbody) return;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`${BOT_API}/api/inventory`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Failed to load.</td></tr>`; return; }
+      const { items } = await res.json();
+      renderInventoryTable(items);
+    } catch { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Error loading inventory.</td></tr>`; }
+  }
+
+  function renderInventoryTable(items) {
+    const tbody = document.getElementById('inventory-tbody');
+    if (!tbody) return;
+    if (!items || items.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">No items yet. Add one above or use <code style="font-family:monospace;color:var(--pink);">/tracker add</code> in Discord.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = items.map((item, i) => `
+      <tr>
+        <td style="color:var(--muted);font-size:12px;">${i + 1}</td>
+        <td style="font-size:13px;">${item.item}</td>
+        <td style="font-size:12px;color:var(--muted2);white-space:nowrap;">${new Date(item.added_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="removeInventoryItem('${item.id}')">Remove</button></td>
+      </tr>`).join('');
+  }
+
+  async function addInventoryItem() {
+    const input = document.getElementById('inv-new-item');
+    const item  = input?.value?.trim();
+    const msgEl = document.getElementById('inv-add-msg');
+    const btn   = document.getElementById('inv-add-btn');
+    if (!item) { showMsg(msgEl, 'error', 'Enter an item name.'); return; }
+
+    btn.disabled = true;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/inventory`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ item }),
+      });
+      const json = await res.json();
+      if (res.ok) { input.value = ''; renderInventoryTable(json.items); msgEl.style.display = 'none'; }
+      else showMsg(msgEl, 'error', json.error || 'Failed to add.');
+    } catch { showMsg(msgEl, 'error', 'Network error.'); }
+    btn.disabled = false;
+  }
+
+  async function removeInventoryItem(id) {
+    if (!confirm('Remove this item from your inventory?')) return;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      await fetch(`${BOT_API}/api/inventory/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      loadInventory();
+    } catch { alert('Network error.'); }
+  }
+
+  // ── Watchlist ─────────────────────────────────────────────────────────────────
+  async function loadWatchlist() {
+    const tbody = document.getElementById('watchlist-tbody');
+    if (!tbody) return;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`${BOT_API}/api/watchlist`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Failed to load.</td></tr>`; return; }
+      const { items } = await res.json();
+      renderWatchlistTable(items);
+    } catch { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Error loading watchlist.</td></tr>`; }
+  }
+
+  function renderWatchlistTable(items) {
+    const tbody = document.getElementById('watchlist-tbody');
+    if (!tbody) return;
+    if (!items || items.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Nothing being watched. Add an item above or use <code style="font-family:monospace;color:var(--pink);">/pricedrop</code> in Discord.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = items.map((item, i) => `
+      <tr>
+        <td style="color:var(--muted);font-size:12px;">${i + 1}</td>
+        <td style="font-size:13px;">${item.item}</td>
+        <td style="font-size:12px;color:var(--muted2);white-space:nowrap;">${new Date(item.added_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="removeWatchlistItem('${item.id}')">Remove</button></td>
+      </tr>`).join('');
+  }
+
+  async function addWatchlistItem() {
+    const input = document.getElementById('wl-new-item');
+    const item  = input?.value?.trim();
+    const msgEl = document.getElementById('wl-add-msg');
+    const btn   = document.getElementById('wl-add-btn');
+    if (!item) { showMsg(msgEl, 'error', 'Enter an item to watch.'); return; }
+
+    btn.disabled = true;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/watchlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ item }),
+      });
+      const json = await res.json();
+      if (res.ok) { input.value = ''; renderWatchlistTable(json.items); msgEl.style.display = 'none'; }
+      else showMsg(msgEl, 'error', json.error || 'Failed to add.');
+    } catch { showMsg(msgEl, 'error', 'Network error.'); }
+    btn.disabled = false;
+  }
+
+  async function removeWatchlistItem(id) {
+    if (!confirm('Remove this item from your watchlist?')) return;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      await fetch(`${BOT_API}/api/watchlist/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      loadWatchlist();
+    } catch { alert('Network error.'); }
+  }
+
   // ── Listings access gate ─────────────────────────────────────────────────────
   function initListingsAccess(tier) {
     const gate = document.getElementById('listings-gate');
@@ -2504,8 +2888,8 @@
       if (!session) { window.location.href = 'vendora-login.html'; return; }
 
       const body = platform === 'depop'
-        ? { platform, email: emailOrUser, password }
-        : { platform, username: emailOrUser, password };
+        ? { platform, credentials: { email: emailOrUser, password } }
+        : { platform, credentials: { username: emailOrUser, password } };
 
       const res = await fetch(`${BOT_API}/api/platform/connect`, {
         method: 'POST',
