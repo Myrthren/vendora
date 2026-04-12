@@ -367,6 +367,63 @@ async function searchEbay(query) {
   }
 }
 
+async function searchDepopSeller(username) {
+  try {
+    const BASE_HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', Accept: 'application/json' };
+    const userRes = await fetch(`https://api.depop.com/api/v1/users/${encodeURIComponent(username)}/`, {
+      headers: BASE_HEADERS, signal: AbortSignal.timeout(8000),
+    });
+    if (!userRes.ok) return null;
+    const user = await userRes.json();
+    const uid  = user.id;
+    if (!uid) return null;
+    const prodRes = await fetch(`https://api.depop.com/api/v1/users/${uid}/products/?offset=0&limit=12`, {
+      headers: BASE_HEADERS, signal: AbortSignal.timeout(8000),
+    });
+    if (!prodRes.ok) return null;
+    const data = await prodRes.json();
+    return {
+      username: user.username || username,
+      followers: user.followersTotal || 0,
+      totalListings: user.itemsSoldTotal || 0,
+      products: (data.objects || []).map(o => ({
+        title:    o.description || o.slug || '',
+        price:    o.pricing?.priceAmount ? `£${(o.pricing.priceAmount / 100).toFixed(2)}` : '—',
+        url:      `https://www.depop.com/products/${o.slug}/`,
+        condition: o.sizeInfo?.condition || '',
+      })),
+    };
+  } catch (e) { console.log('[depop] Seller lookup failed:', e.message); return null; }
+}
+
+async function searchVintedSeller(username) {
+  try {
+    const BASE_HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', Accept: 'application/json' };
+    const userRes = await fetch(`https://www.vinted.co.uk/api/v2/users?login=${encodeURIComponent(username)}&per_page=1`, {
+      headers: BASE_HEADERS, signal: AbortSignal.timeout(8000),
+    });
+    if (!userRes.ok) return null;
+    const userData = await userRes.json();
+    const user = userData.users?.[0];
+    if (!user) return null;
+    const itemsRes = await fetch(`https://www.vinted.co.uk/api/v2/users/${user.id}/items?per_page=12`, {
+      headers: BASE_HEADERS, signal: AbortSignal.timeout(8000),
+    });
+    if (!itemsRes.ok) return null;
+    const items = await itemsRes.json();
+    return {
+      username: user.login || username,
+      followers: user.followers_count || 0,
+      totalListings: user.items_count || 0,
+      products: (items.items || []).map(i => ({
+        title: i.title || '',
+        price: i.total_item_price ? `£${i.total_item_price.amount}` : '—',
+        url:   i.url || '',
+      })),
+    };
+  } catch (e) { console.log('[vinted] Seller lookup failed:', e.message); return null; }
+}
+
 function formatPlatformResults(results, platformName) {
   if (!results || results.length === 0) return null;
   const lines = results.slice(0, 8).map((r, i) =>
@@ -409,8 +466,18 @@ const commands = [
     .addStringOption(o => o.setName('item').setDescription('Item to research').setRequired(true)),
   new SlashCommandBuilder().setName('margins').setDescription('Detailed profit margin breakdown [Pro+]')
     .addStringOption(o => o.setName('item').setDescription('Item to analyse').setRequired(true)),
-  new SlashCommandBuilder().setName('crosslist').setDescription('Generate an AI-optimised cross-platform listing [Pro+]')
-    .addStringOption(o => o.setName('item').setDescription('Item to list').setRequired(true)),
+  new SlashCommandBuilder().setName('crosslist').setDescription('Generate optimised copy-ready listings for Depop, Vinted & eBay [Pro+]')
+    .addStringOption(o => o.setName('item').setDescription('Item name (e.g. Nike Air Max 90 White UK9)').setRequired(true))
+    .addStringOption(o => o.setName('description').setDescription('Extra details — size, colour, defects etc.').setRequired(false))
+    .addNumberOption(o => o.setName('price').setDescription('Your asking price in £').setRequired(false))
+    .addStringOption(o => o.setName('condition').setDescription('Item condition').setRequired(false)
+      .addChoices(
+        { name: 'New with tags', value: 'New with tags' },
+        { name: 'Like New', value: 'Like New' },
+        { name: 'Very Good', value: 'Very Good' },
+        { name: 'Good', value: 'Good' },
+        { name: 'Acceptable', value: 'Acceptable' }
+      )),
   new SlashCommandBuilder().setName('pricedrop').setDescription('Set a price drop watchlist alert [Pro+]')
     .addStringOption(o => o.setName('item').setDescription('Item to watch').setRequired(true)),
   new SlashCommandBuilder().setName('trends').setDescription('Current brand/category trend report [Pro+]')
@@ -669,30 +736,118 @@ async function executeCommand(interaction, commandName, tier, profile) {
 
   // /earlydeals
   if (commandName === 'earlydeals') {
-    const guild = interaction.guild;
-    const eliteLounge = guild.channels.cache.find(c => c.name === 'elite-lounge');
+    // Search popular resale categories on Depop + Vinted, surface significantly underpriced items
+    const DEAL_QUERIES = ['nike trainers', 'stone island', 'north face', 'adidas yeezy', 'ralph lauren hoodie'];
+    // Pick 3 random searches to keep response time reasonable
+    const shuffled = DEAL_QUERIES.sort(() => Math.random() - 0.5).slice(0, 3);
+
+    const allDeals = [];
+    for (const q of shuffled) {
+      const [dR, vR] = await Promise.all([searchDepop(q), searchVinted(q)]);
+      const combined = [...(dR || []), ...(vR || [])];
+      const prices   = combined.map(x => parseFloat((x.price || '').replace('£', ''))).filter(p => !isNaN(p) && p > 0);
+      if (prices.length < 3) continue;
+      const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+      const threshold = avg * 0.65; // 35% below average = a deal
+      const deals = combined
+        .filter(x => {
+          const p = parseFloat((x.price || '').replace('£', ''));
+          return !isNaN(p) && p > 0 && p <= threshold;
+        })
+        .map(x => ({ ...x, category: q, avg: avg.toFixed(2) }));
+      allDeals.push(...deals);
+    }
+
+    // Sort by value gap (lowest price relative to avg)
+    allDeals.sort((a, b) => {
+      const pa = parseFloat((a.price || '').replace('£', '')) || 999;
+      const pb = parseFloat((b.price || '').replace('£', '')) || 999;
+      const ra = pa / parseFloat(a.avg), rb = pb / parseFloat(b.avg);
+      return ra - rb;
+    });
+
+    const top = allDeals.slice(0, 8);
+
+    if (top.length === 0) {
+      return interaction.editReply({ embeds: [
+        baseEmbed('#e8a121').setTitle('Early Deal Alerts — Elite')
+          .setDescription('No significant deals found in the current scan. Markets are fairly priced right now — run again in a few hours for fresh data.')
+          .setFooter({ text: 'Refreshes each time you run the command' })
+      ]});
+    }
+
+    const lines = top.map((d, i) => {
+      const p    = parseFloat((d.price || '').replace('£', ''));
+      const save = (parseFloat(d.avg) - p).toFixed(2);
+      return `**${i + 1}.** ${d.title.slice(0, 55)} — **${d.price}** (avg £${d.avg}, save ~£${save})\n[View listing](${d.url})`;
+    });
+
     return interaction.editReply({ embeds: [
-      baseEmbed('#e8a121').setTitle('Early Deal Alerts — Elite Access')
-        .setDescription(
-          eliteLounge
-            ? `Your exclusive early deal alerts are posted in <#${eliteLounge.id}> before standard Pro members receive them.`
-            : `Your exclusive early deal alerts are posted in the **#elite-lounge** channel. Check there for the latest drops.`
-        )
+      baseEmbed('#e8a121').setTitle('Early Deal Alerts — Live Scan 🔍')
+        .setDescription(lines.join('\n\n').slice(0, 4000))
+        .addFields({ name: 'Categories Scanned', value: shuffled.join(', ') })
+        .setFooter({ text: `${top.length} deals found — 35%+ below market average | Run again for fresh results` })
     ]});
   }
 
   // /analytics
   if (commandName === 'analytics') {
     if (!ai) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
+
+    // Fetch real account data
+    const discordId = user.id;
+    let realCtx = '';
+
+    // Get listing data from Supabase
+    try {
+      const [listingsRes, profileRes] = await Promise.all([
+        fetch(`${SUPABASE_URL}/rest/v1/listings?user_id=eq.${profile?.id || 'none'}&status=eq.active&select=*`, {
+          headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+        }).catch(() => null),
+        fetch(`${SUPABASE_URL}/rest/v1/profiles?discord_id=eq.${discordId}&select=*`, {
+          headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+        }).catch(() => null),
+      ]);
+
+      const listings = listingsRes?.ok ? (await listingsRes.json()) : [];
+      const profData  = profileRes?.ok  ? (await profileRes.json())?.[0] : null;
+
+      const activeCount = listings.length;
+      const platforms   = [...new Set((listings.flatMap(l => l.platforms || [])))];
+      const cmdToday    = profData?.commands_used_today || {};
+      const totalCmds   = Object.values(cmdToday).reduce((a, b) => a + (b?.count || 0), 0);
+      const tier        = profile?.tier || 'unknown';
+      const since       = profData?.created_at ? new Date(profData.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : 'unknown';
+
+      // Watchlist + inventory counts
+      const [wlRes, invRes] = await Promise.all([
+        fetch(`${SUPABASE_URL}/rest/v1/watchlist?discord_id=eq.${discordId}&select=id`, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }).catch(() => null),
+        fetch(`${SUPABASE_URL}/rest/v1/inventory?discord_id=eq.${discordId}&select=id`, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }).catch(() => null),
+      ]);
+      const wlCount  = wlRes?.ok  ? (await wlRes.json()).length  : 0;
+      const invCount = invRes?.ok ? (await invRes.json()).length : 0;
+
+      realCtx = `REAL ACCOUNT DATA for Discord user ${discordId}:\n` +
+        `- Subscription: ${tier} (since ${since})\n` +
+        `- Active listings on Vendora: ${activeCount}${platforms.length ? ` (on ${platforms.join(', ')})` : ''}\n` +
+        `- Watchlist items: ${wlCount}\n` +
+        `- Inventory tracker items: ${invCount}\n` +
+        `- Bot commands used today: ${totalCmds}\n\n` +
+        `Note: full cross-platform sales data requires platform API integration. Provide insights from the available data.`;
+    } catch (e) {
+      realCtx = 'Could not retrieve full account data. Provide general analytics advice.';
+    }
+
     const text = await callAI(
-      'You are Vendora\'s analytics system. Generate a realistic-looking sales analytics summary for a UK reseller. Include: total estimated sales this month, top performing categories, avg margin, best platform, and 3 actionable insights. Note clearly this is an AI-generated summary; full platform integration is coming soon.',
-      'Generate my sales analytics summary.',
-      'claude-haiku-4-5-20251001', 600
+      `You are Vendora's analytics system for a UK reseller on the ${profile?.tier || 'Pro'} plan.\n\n${realCtx}\n\nProvide a concise analytics summary with: their current reselling footprint from the data, what these numbers suggest about their activity level, 3 specific actionable insights to improve their results, and what features they should be using more given their tier.`,
+      'Generate my analytics summary.',
+      'claude-haiku-4-5-20251001', 700
     );
     if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
     return interaction.editReply({ embeds: [
       baseEmbed('#e8a121').setTitle('Analytics Summary — Elite')
         .setDescription(text.slice(0, 4000))
+        .setFooter({ text: 'Based on your Vendora account data' })
     ]});
   }
 
@@ -822,76 +977,249 @@ async function executeCommand(interaction, commandName, tier, profile) {
 
   if (commandName === 'research') {
     const item = opts.getString('item');
+    const [depopR, vintedR, ebayR] = await Promise.all([searchDepop(item), searchVinted(item), searchEbay(item)]);
+
+    const extractP = (r) => (r || []).map(x => parseFloat((x.price || '').replace('£', ''))).filter(p => !isNaN(p) && p > 0);
+    const depopPrices = extractP(depopR), vintedPrices = extractP(vintedR), ebayPrices = extractP(ebayR);
+    const allPrices   = [...depopPrices, ...vintedPrices, ...ebayPrices].sort((a, b) => a - b);
+
+    let liveCtx = 'No live data retrieved — using market knowledge.';
+    if (allPrices.length >= 3) {
+      const avg = (allPrices.reduce((a, b) => a + b, 0) / allPrices.length).toFixed(2);
+      const low = allPrices[0].toFixed(2), high = allPrices[allPrices.length - 1].toFixed(2);
+      const dAvg = depopPrices.length  ? `£${(depopPrices.reduce((a,b)=>a+b,0)/depopPrices.length).toFixed(2)}`  : 'n/a';
+      const vAvg = vintedPrices.length ? `£${(vintedPrices.reduce((a,b)=>a+b,0)/vintedPrices.length).toFixed(2)}` : 'n/a';
+      const eAvg = ebayPrices.length   ? `£${(ebayPrices.reduce((a,b)=>a+b,0)/ebayPrices.length).toFixed(2)}`    : 'n/a';
+      liveCtx = `LIVE DATA (${allPrices.length} listings scraped now):\n` +
+        `- Depop: ${depopPrices.length} listings, avg ${dAvg}\n` +
+        `- Vinted: ${vintedPrices.length} listings, avg ${vAvg}\n` +
+        `- eBay: ${ebayPrices.length} listings, avg ${eAvg}\n` +
+        `- Overall range: £${low}–£${high}, avg £${avg}\n\n` +
+        `Use this as your primary data source. Reference specific £ figures in your report.`;
+    }
+
     const text = await callAI(
-      'You are Vendora\'s research engine. Provide a comprehensive UK resale research report. Structure it clearly with these sections:\n**Market Overview** — buy/sell price range\n**Best Platforms** — where this sells best\n**Key Search Terms** — what to search for deals\n**Demand Level** — with reasoning\n**Margin Estimate** — rough profit potential\n**Sourcing Tips** — 3 specific tips',
+      `You are Vendora's research engine. Provide a comprehensive UK resale research report grounded in the live data provided.\n\n${liveCtx}\n\nStructure:\n**Market Overview** — buy/sell price range with specific £ figures\n**Best Platforms** — where this sells best and why\n**Key Search Terms** — what to search for deals\n**Demand Level** — High/Medium/Low with reasoning\n**Margin Estimate** — specific buy price target, sell price, net profit after fees\n**Sourcing Tips** — 3 actionable tips`,
       `Item: ${item}`,
       'claude-sonnet-4-6', 1200
     );
     if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
+    const footer = allPrices.length >= 3 ? `Based on ${allPrices.length} live listings from Depop, Vinted & eBay` : 'AI market knowledge — live data unavailable';
     return interaction.editReply({ embeds: [
-      baseEmbed().setTitle(`Research Report — ${item}`).setDescription(text.slice(0, 4000))
+      baseEmbed().setTitle(`Research Report — ${item}`).setDescription(text.slice(0, 4000)).setFooter({ text: footer })
     ]});
   }
 
   if (commandName === 'margins') {
     const item = opts.getString('item');
+    const [depopR, vintedR] = await Promise.all([searchDepop(item), searchVinted(item)]);
+
+    const extractP = (r) => (r || []).map(x => parseFloat((x.price || '').replace('£', ''))).filter(p => !isNaN(p) && p > 0);
+    const depopP = extractP(depopR), vintedP = extractP(vintedR);
+    const all    = [...depopP, ...vintedP].sort((a, b) => a - b);
+
+    let liveCtx = '';
+    let preCalc = '';
+    if (all.length >= 3) {
+      const avg  = all.reduce((a, b) => a + b, 0) / all.length;
+      const low  = all[0], high = all[all.length - 1];
+      const targetBuy    = (avg * 0.55).toFixed(2);
+      const depopSell    = (depopP.length ? depopP.reduce((a,b)=>a+b,0)/depopP.length : avg).toFixed(2);
+      const vintedSell   = (vintedP.length ? vintedP.reduce((a,b)=>a+b,0)/vintedP.length : avg).toFixed(2);
+      const depopFee     = (parseFloat(depopSell) * 0.10).toFixed(2);
+      const vintedFee    = (parseFloat(vintedSell) * 0.05).toFixed(2);
+      const shipping     = 3.50;
+      const depopProfit  = (parseFloat(depopSell) - parseFloat(targetBuy) - parseFloat(depopFee) - shipping).toFixed(2);
+      const vintedProfit = (parseFloat(vintedSell) - parseFloat(targetBuy) - parseFloat(vintedFee) - shipping).toFixed(2);
+      const depopROI     = ((parseFloat(depopProfit) / parseFloat(targetBuy)) * 100).toFixed(0);
+      const vintedROI    = ((parseFloat(vintedProfit) / parseFloat(targetBuy)) * 100).toFixed(0);
+
+      liveCtx = `LIVE DATA (${all.length} listings):\n- Price range: £${low.toFixed(2)}–£${high.toFixed(2)}, avg £${avg.toFixed(2)}\n- Depop avg: £${depopSell}, Vinted avg: £${vintedSell}\n\n`;
+      preCalc = `PRE-CALCULATED FIGURES (use these exactly):\n` +
+        `- Suggested buy price: £${targetBuy} (55% of avg sell)\n` +
+        `- Depop sell: £${depopSell} → fee £${depopFee} → profit £${depopProfit} (${depopROI}% ROI)\n` +
+        `- Vinted sell: £${vintedSell} → fee £${vintedFee} → profit £${vintedProfit} (${vintedROI}% ROI)\n` +
+        `- Shipping estimate: £${shipping}`;
+    }
+
     const text = await callAI(
-      'You are Vendora\'s margin calculator. Provide a detailed profit margin breakdown for reselling this item in the UK market. Include specific £ figures for: typical purchase price range, typical resale price range, platform fees (Depop ~10%, eBay ~12%, Vinted ~5%), estimated shipping, net profit estimate, and ROI percentage. Format clearly.',
+      `You are Vendora's margin calculator. ${liveCtx}${preCalc}\n\nUsing the data above, provide a clear profit breakdown covering: buy price target, sell price per platform, all fees (Depop 10%, Vinted 5%), shipping, net profit, ROI. Use the pre-calculated figures if provided. End with a one-line verdict on whether this flip is worth it.`,
       `Item: ${item}`
     );
     if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
+    const footer = all.length >= 3 ? `Based on ${all.length} live listings` : 'AI estimate — live data unavailable';
     return interaction.editReply({ embeds: [
-      baseEmbed().setTitle(`Margin Breakdown — ${item}`).setDescription(text.slice(0, 4000))
+      baseEmbed().setTitle(`Margin Breakdown — ${item}`).setDescription(text.slice(0, 4000)).setFooter({ text: footer })
     ]});
   }
 
   if (commandName === 'crosslist') {
-    const item = opts.getString('item');
+    if (!ai) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
+    const item      = opts.getString('item');
+    const desc      = opts.getString('description') || '';
+    const price     = opts.getNumber('price') || null;
+    const condition = opts.getString('condition') || '';
+
+    const prompt = `Generate optimised cross-platform resale listings for all three platforms. Return ONLY valid JSON, no markdown, no explanation.
+
+Item: ${item}${desc ? `\nDescription: ${desc}` : ''}${condition ? `\nCondition: ${condition}` : ''}${price ? `\nAsking price: £${price}` : ''}
+
+Rules:
+- depop: casual UK tone, title max 70 chars, 8-10 hashtags (words only, no #), suggest realistic GBP price if none given
+- vinted: clean descriptive title, requires brand and size fields (estimate if unknown), suggest realistic price
+- ebay: keyword-rich formal title max 80 chars, condition must be one of: New, Like New, Very Good, Good, Acceptable
+
+Return this exact JSON structure:
+{
+  "depop":  { "title": "...", "description": "...", "price": 0, "hashtags": ["..."] },
+  "vinted": { "title": "...", "description": "...", "price": 0, "brand": "...", "size": "..." },
+  "ebay":   { "title": "...", "description": "...", "price": 0, "condition": "..." }
+}`;
+
+    let listings;
+    try {
+      const msg  = await ai.messages.create({ model: 'claude-haiku-4-5-20251001', max_tokens: 1400, messages: [{ role: 'user', content: prompt }] });
+      const text = msg.content[0].text;
+      const match = text.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error('no json');
+      listings = JSON.parse(match[0]);
+    } catch {
+      return interaction.editReply({ embeds: [
+        baseEmbed('#f87171').setTitle('Cross-List Failed').setDescription('Could not generate listings. Please try again.')
+      ]});
+    }
+
+    const d = listings.depop  || {};
+    const v = listings.vinted || {};
+    const e = listings.ebay   || {};
+
     return interaction.editReply({ embeds: [
-      baseEmbed().setTitle('Cross-List Tool')
-        .setDescription(
-          `Generate copy-ready listings for **Depop, Vinted, and eBay** in one click using the Vendora Cross-List tool on your dashboard.\n\n` +
-          `→ [Open Cross-List Tool](${DASHBOARD_URL})\n\n` +
-          `Enter your item details and get platform-optimised titles, descriptions, prices, and hashtags instantly.`
+      baseEmbed('#ff2300').setTitle(`Cross-List — ${item}`)
+        .setDescription('Copy-ready listings for all three platforms 👇')
+        .addFields(
+          { name: '🔴 DEPOP', value: `**${d.title || '—'}**\n${d.description?.slice(0, 200) || ''}`, inline: false },
+          { name: 'Depop Price', value: d.price ? `£${d.price}` : '—', inline: true },
+          { name: 'Hashtags', value: d.hashtags ? d.hashtags.slice(0, 6).join(', ') : '—', inline: true },
+          { name: '\u200B', value: '\u200B', inline: false },
+          { name: '🟦 VINTED', value: `**${v.title || '—'}**\n${v.description?.slice(0, 200) || ''}`, inline: false },
+          { name: 'Vinted Price', value: v.price ? `£${v.price}` : '—', inline: true },
+          { name: 'Brand / Size', value: `${v.brand || '—'} / ${v.size || '—'}`, inline: true },
+          { name: '\u200B', value: '\u200B', inline: false },
+          { name: '🟡 EBAY', value: `**${e.title || '—'}**\n${e.description?.slice(0, 200) || ''}`, inline: false },
+          { name: 'eBay Price', value: e.price ? `£${e.price}` : '—', inline: true },
+          { name: 'Condition', value: e.condition || '—', inline: true }
         )
-        .addFields({ name: 'Item', value: item })
+        .setFooter({ text: 'Vendora — Copy each section to the respective platform' })
     ]});
   }
 
   if (commandName === 'trends') {
     const category = opts.getString('category');
+    const [depopR, vintedR] = await Promise.all([searchDepop(category), searchVinted(category)]);
+
+    const extractP = (r) => (r || []).map(x => parseFloat((x.price || '').replace('£', ''))).filter(p => !isNaN(p) && p > 0);
+    const depopP = extractP(depopR), vintedP = extractP(vintedR);
+    const allP   = [...depopP, ...vintedP];
+
+    let liveCtx = 'No live listing data available — use market knowledge.';
+    if (allP.length >= 3) {
+      const avg     = (allP.reduce((a, b) => a + b, 0) / allP.length).toFixed(2);
+      const low     = Math.min(...allP).toFixed(2), high = Math.max(...allP).toFixed(2);
+      const topItems = [...(depopR || []), ...(vintedR || [])]
+        .sort((a, b) => {
+          const pA = parseFloat((a.price || '').replace('£', '')) || 0;
+          const pB = parseFloat((b.price || '').replace('£', '')) || 0;
+          return pB - pA;
+        })
+        .slice(0, 5)
+        .map(x => `${x.title.slice(0, 50)} — ${x.price}`);
+      liveCtx = `LIVE DATA (${allP.length} listings scraped now for "${category}"):\n` +
+        `- Depop: ${depopR?.length || 0} listings, Vinted: ${vintedR?.length || 0} listings\n` +
+        `- Price range: £${low}–£${high}, avg £${avg}\n` +
+        `- Sample high-value items:\n${topItems.map(x => `  · ${x}`).join('\n')}\n\n` +
+        `Use this data to judge current demand and price trends.`;
+    }
+
     const text = await callAI(
-      'You are Vendora\'s trend analyst for the UK resale market. Provide a current trend report. Include:\n**Demand Level** — High/Medium/Low with reasoning\n**Price Trend** — rising/stable/falling\n**Top Items** — 5 best-selling items in this category right now\n**Best Platforms** — where it performs best\n**Buying Opportunity** — rating out of 10\n**Source Now** — 3 specific items to look for immediately',
+      `You are Vendora's trend analyst for the UK resale market. You have current live listing data.\n\n${liveCtx}\n\nBased on this data, provide:\n**Demand Level** — High/Medium/Low with reasoning from the data\n**Price Trend** — rising/stable/falling (use the price distribution as evidence)\n**Top Items** — 5 most sought-after items in this category right now\n**Best Platforms** — where it performs best and why\n**Buying Opportunity** — rating out of 10 with justification\n**Source Now** — 3 specific items/variations to look for immediately`,
       `Category/Brand: ${category}`,
       'claude-haiku-4-5-20251001', 900
     );
     if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
+    const footer = allP.length >= 3 ? `Based on ${allP.length} live listings from Depop + Vinted` : 'AI market knowledge — live data unavailable';
     return interaction.editReply({ embeds: [
-      baseEmbed().setTitle(`Trend Report — ${category}`).setDescription(text.slice(0, 4000))
+      baseEmbed().setTitle(`Trend Report — ${category}`).setDescription(text.slice(0, 4000)).setFooter({ text: footer })
     ]});
   }
 
   if (commandName === 'sold') {
     const item = opts.getString('item');
+    const [depopR, vintedR] = await Promise.all([searchDepop(item), searchVinted(item)]);
+
+    const extractP = (r) => (r || []).map(x => parseFloat((x.price || '').replace('£', ''))).filter(p => !isNaN(p) && p > 0);
+    const depopP = extractP(depopR), vintedP = extractP(vintedR);
+    const allP = [...depopP, ...vintedP];
+
+    let liveCtx = 'No live data available — using market knowledge.';
+    if (allP.length >= 3) {
+      const avg  = (allP.reduce((a, b) => a + b, 0) / allP.length).toFixed(2);
+      const low  = Math.min(...allP).toFixed(2), high = Math.max(...allP).toFixed(2);
+      // Vinted shows active listings with condition; items priced near avg tend to sell fastest
+      const priceDistrib = {
+        under30: allP.filter(p => p < 30).length,
+        '30to60': allP.filter(p => p >= 30 && p < 60).length,
+        '60to100': allP.filter(p => p >= 60 && p < 100).length,
+        over100: allP.filter(p => p >= 100).length,
+      };
+      liveCtx = `LIVE ACTIVE LISTINGS (proxy for demand — ${allP.length} listings):\n` +
+        `- Range: £${low}–£${high}, avg £${avg}\n` +
+        `- Price distribution: Under £30: ${priceDistrib.under30}, £30-60: ${priceDistrib['30to60']}, £60-100: ${priceDistrib['60to100']}, £100+: ${priceDistrib.over100}\n` +
+        `- Depop: ${depopR?.length || 0} active, Vinted: ${vintedR?.length || 0} active\n\n` +
+        `Note: We're looking at active listings as a demand proxy. Higher listing volume at a price point suggests that price range moves well.`;
+    }
+
     const text = await callAI(
-      'You are Vendora\'s sold listing analyst for the UK resale market. Analyse what actually sells fast vs what sits unsold. Include:\n**Fast Sellers** — specific versions/conditions that move quickly\n**Slow Movers** — what typically doesn\'t sell\n**Key Factors** — what makes listings sell faster\n**Sweet Spot Pricing** — price points that move quickly\n**Condition Requirements** — what buyers expect',
+      `You are Vendora's sold listing analyst for the UK resale market.\n\n${liveCtx}\n\nUsing the live listing distribution as a demand signal, provide:\n**Fast Sellers** — specific versions/conditions that move quickly (price them near £${allP.length >= 3 ? (allP.reduce((a,b)=>a+b,0)/allP.length).toFixed(0) : '?'})\n**Slow Movers** — what sits unsold and why\n**Key Factors** — what makes listings sell faster on each platform\n**Sweet Spot Pricing** — optimal price points based on the data\n**Condition Requirements** — what buyers expect`,
       `Item/Category: ${item}`
     );
     if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
+    const footer = allP.length >= 3 ? `Based on ${allP.length} live listings as demand proxy` : 'AI market knowledge — live data unavailable';
     return interaction.editReply({ embeds: [
-      baseEmbed().setTitle(`Sold Listing Analysis — ${item}`).setDescription(text.slice(0, 4000))
+      baseEmbed().setTitle(`Sold Listing Analysis — ${item}`).setDescription(text.slice(0, 4000)).setFooter({ text: footer })
     ]});
   }
 
   if (commandName === 'competitor') {
     const seller = opts.getString('seller');
+    // Try Depop first, then Vinted
+    const [depopData, vintedData] = await Promise.all([searchDepopSeller(seller), searchVintedSeller(seller)]);
+
+    let liveCtx = `No listings found for seller "${seller}" on Depop or Vinted. Providing strategic advice only.`;
+    let foundOn = [];
+
+    if (depopData?.products?.length) {
+      foundOn.push('Depop');
+      const prices = depopData.products.map(p => parseFloat(p.price.replace('£', ''))).filter(p => !isNaN(p));
+      const avg = prices.length ? (prices.reduce((a,b)=>a+b,0)/prices.length).toFixed(2) : '?';
+      const top5 = depopData.products.slice(0, 5).map(p => `${p.title.slice(0, 50)} — ${p.price}`).join('\n');
+      liveCtx = `DEPOP — @${depopData.username}:\n- Followers: ${depopData.followers}, Total sold: ${depopData.totalListings}\n- Active listings shown: ${depopData.products.length}, avg price £${avg}\n- Current listings:\n${top5}\n`;
+    }
+    if (vintedData?.products?.length) {
+      foundOn.push('Vinted');
+      const prices = vintedData.products.map(p => parseFloat(p.price.replace('£', ''))).filter(p => !isNaN(p));
+      const avg = prices.length ? (prices.reduce((a,b)=>a+b,0)/prices.length).toFixed(2) : '?';
+      const top5 = vintedData.products.slice(0, 5).map(p => `${p.title.slice(0, 50)} — ${p.price}`).join('\n');
+      liveCtx += `\nVINTED — @${vintedData.username}:\n- Followers: ${vintedData.followers}, Active items: ${vintedData.totalListings}\n- Listings shown: ${vintedData.products.length}, avg price £${avg}\n- Current listings:\n${top5}`;
+    }
+
     const text = await callAI(
-      'You are Vendora\'s competitor intelligence system. Generate a strategic tracking profile for a competitor reseller. Include:\n**Tracking Strategy** — how to monitor them effectively\n**What to Monitor** — listing patterns, pricing, timing, stock\n**Market Signals** — what their activity might indicate\n**Counter Strategy** — how to position against this seller type\n**Response Scripts** — how to react to their moves',
-      `Seller to track: ${seller}`
+      `You are Vendora's competitor intelligence system. You have real seller data.\n\n${liveCtx}\n\nBased on their real listings and activity, provide:\n**Seller Profile** — what type of reseller this is (niche, budget, premium etc.) based on the data\n**Pricing Strategy** — how they price vs market average\n**What They Specialise In** — based on their actual listings\n**Counter Strategy** — how to position yourself against them\n**Watch For** — specific signals to monitor\n**Opportunity** — gaps in their inventory you could exploit`,
+      `Seller to analyse: ${seller}`
     );
     if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
+    const footer = foundOn.length ? `Live data from ${foundOn.join(' + ')}` : 'Seller not found — strategic advice only';
     return interaction.editReply({ embeds: [
-      baseEmbed().setTitle(`Competitor Profile — ${seller}`).setDescription(text.slice(0, 4000))
+      baseEmbed().setTitle(`Competitor Profile — ${seller}`).setDescription(text.slice(0, 4000)).setFooter({ text: footer })
     ]});
   }
 
@@ -1044,7 +1372,7 @@ app.use(express.json());
 // CORS — allow dashboard to call bot API endpoints
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', 'https://vendora-vv.netlify.app');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, PATCH, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
@@ -2154,46 +2482,111 @@ cron.schedule('0 * * * *', async () => {
 });
 
 // ── Price drop watchlist cron — runs every 6 hours ───────────────────────────
-// Checks all watchlist items; when real platform APIs are wired this will query
-// actual prices. For now it notifies users their item is being monitored + any
-// manual price-drop signals triggered via the admin panel.
+// Checks live Depop + Vinted prices for all watched items, DMs users when a
+// significant drop is detected (≥10% below their stored baseline).
 cron.schedule('0 */6 * * *', async () => {
-  console.log('[cron:watchlist] Checking watchlist alerts...');
+  console.log('[cron:watchlist] Starting live price-drop check...');
   if (!SUPABASE_KEY) return;
 
   try {
-    // Get all watchlist items
     const r = await fetch(`${SUPABASE_URL}/rest/v1/watchlist?select=*&order=added_at.asc`, {
       headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
     });
     const items = await r.json();
-    if (!items.length) return;
+    if (!items?.length) { console.log('[cron:watchlist] No watchlist items.'); return; }
 
-    // Check for any items with a price_drop_signal flag (set manually via admin or future platform API)
-    const triggered = items.filter(i => i.price_drop_signal === true);
+    // Load price baselines from settings table (keyed by watchlist item id)
+    const baselineKey = 'watchlist_price_baselines';
+    let baselines = (await getSetting(baselineKey)) || {};
 
-    for (const item of triggered) {
+    let alertCount = 0, checkedCount = 0;
+
+    for (const wl of items) {
       try {
-        const member = await client.users.fetch(item.discord_id);
-        await member.send(
-          `📉 **Price Drop Alert — ${item.item}**\n` +
-          `An item on your watchlist has dropped in price.\n\n` +
-          `**Item:** ${item.item}\n` +
-          `Check the platform now to grab it before it's gone.`
-        );
-        // Clear the signal
-        await fetch(`${SUPABASE_URL}/rest/v1/watchlist?id=eq.${item.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
-          body: JSON.stringify({ price_drop_signal: false }),
-        });
-        console.log(`[cron:watchlist] Alerted ${item.discord_id} — ${item.item}`);
+        const [depopR, vintedR] = await Promise.all([searchDepop(wl.item), searchVinted(wl.item)]);
+        const allPrices = [...(depopR || []), ...(vintedR || [])]
+          .map(x => parseFloat((x.price || '').replace('£', '')))
+          .filter(p => !isNaN(p) && p > 0);
+
+        if (!allPrices.length) continue;
+        checkedCount++;
+
+        const currentLow = Math.min(...allPrices);
+        const currentAvg = allPrices.reduce((a, b) => a + b, 0) / allPrices.length;
+        const stored     = baselines[wl.id];
+
+        // Find the cheapest matching listing for the link
+        const allListings = [...(depopR || []), ...(vintedR || [])];
+        const cheapestListing = allListings
+          .filter(x => {
+            const p = parseFloat((x.price || '').replace('£', ''));
+            return !isNaN(p) && Math.abs(p - currentLow) < 0.01;
+          })[0];
+
+        if (!stored) {
+          // First time seeing this item — store baseline and move on
+          baselines[wl.id] = { baseline: currentAvg, low: currentLow, item: wl.item, checkedAt: new Date().toISOString() };
+          console.log(`[cron:watchlist] Baselined "${wl.item}" at avg £${currentAvg.toFixed(2)}`);
+          continue;
+        }
+
+        const dropPct = ((stored.baseline - currentLow) / stored.baseline) * 100;
+
+        if (dropPct >= 10) {
+          // Significant price drop detected
+          try {
+            const discordUser = await client.users.fetch(wl.discord_id).catch(() => null);
+            if (discordUser) {
+              await discordUser.send({
+                embeds: [
+                  new EmbedBuilder().setColor('#e8a121')
+                    .setTitle(`📉 Price Drop Alert — ${wl.item}`)
+                    .setDescription(
+                      `An item on your watchlist has dropped **${dropPct.toFixed(0)}%** since you added it.\n\n` +
+                      `**Item:** ${wl.item}\n` +
+                      `**Current low:** £${currentLow.toFixed(2)}\n` +
+                      `**Previous avg:** £${stored.baseline.toFixed(2)}\n` +
+                      (cheapestListing?.url ? `\n[View cheapest listing](${cheapestListing.url})` : '') +
+                      `\n\nAct fast — deals disappear quickly.`
+                    )
+                    .setFooter({ text: 'Vendora Watchlist — /pricedrop' })
+                ]
+              });
+              alertCount++;
+              console.log(`[cron:watchlist] Alerted ${wl.discord_id} — "${wl.item}" dropped ${dropPct.toFixed(0)}%`);
+            }
+          } catch (e) {
+            console.warn(`[cron:watchlist] DM failed for ${wl.discord_id}:`, e.message);
+          }
+        }
+
+        // Also honour manual price_drop_signal flags
+        if (wl.price_drop_signal === true) {
+          try {
+            const discordUser = await client.users.fetch(wl.discord_id).catch(() => null);
+            if (discordUser) {
+              await discordUser.send(`📉 **Price Drop Alert — ${wl.item}**\nA price drop has been detected for an item on your watchlist. Check the platform now.`);
+              await fetch(`${SUPABASE_URL}/rest/v1/watchlist?id=eq.${wl.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+                body: JSON.stringify({ price_drop_signal: false }),
+              });
+            }
+          } catch {}
+        }
+
+        // Update stored baseline with current data
+        baselines[wl.id] = { baseline: currentAvg, low: currentLow, item: wl.item, checkedAt: new Date().toISOString() };
       } catch (e) {
-        console.warn(`[cron:watchlist] Failed to DM ${item.discord_id}:`, e.message);
+        console.warn(`[cron:watchlist] Error checking "${wl.item}":`, e.message);
       }
     }
+
+    // Persist updated baselines
+    await saveSetting(baselineKey, baselines);
+    console.log(`[cron:watchlist] Done. Checked ${checkedCount}/${items.length} items, sent ${alertCount} alerts.`);
   } catch (e) {
-    console.error('[cron:watchlist] Error:', e.message);
+    console.error('[cron:watchlist] Fatal error:', e.message);
   }
 });
 

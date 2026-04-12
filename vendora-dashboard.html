@@ -653,6 +653,10 @@
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
       Watchlist
     </div>
+    <div class="nav-item" id="profit-nav-item" onclick="showSection('profit', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      Profit Tracker
+    </div>
 
     <span class="nav-section-label" style="margin-top:8px;">Support</span>
     <div class="nav-item" onclick="showSection('support', this)">
@@ -848,24 +852,34 @@
       </div>
 
       <div class="card">
-        <div class="card-title">Change Plan</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div class="card-title" style="margin:0;">Change Plan</div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span id="billing-label-mo" style="font-size:12px;color:var(--text);">Monthly</span>
+            <label class="toggle"><input type="checkbox" id="billing-annual-toggle" onchange="toggleBillingCycle()"><span class="toggle-track"></span></label>
+            <span id="billing-label-yr" style="font-size:12px;color:var(--muted2);">Annual <span style="color:var(--green);font-size:11px;">~2 months free</span></span>
+          </div>
+        </div>
         <div style="display:flex; gap:12px; margin-top:4px;">
           <div class="upgrade-card" data-tier="basic" style="flex:1;padding:20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;position:relative;">
             <div class="upgrade-current-badge" style="display:none;position:absolute;top:12px;right:12px;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted2);border:1px solid rgba(255,255,255,0.1);padding:2px 8px;border-radius:3px;">Current</div>
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted2);margin-bottom:6px;">Basic</div>
-            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--muted2);">£9.99<span style="font-size:12px;font-weight:400;">/mo</span></div>
+            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--muted2);" id="plan-price-basic">£9.99<span id="plan-period-basic" style="font-size:12px;font-weight:400;">/mo</span></div>
+            <div id="plan-saving-basic" style="font-size:11px;color:var(--green);margin-top:2px;display:none;">Save £19.89/yr</div>
             <button class="btn btn-ghost btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('basic')">Get Basic</button>
           </div>
           <div class="upgrade-card" data-tier="pro" style="flex:1;padding:20px;background:rgba(232,33,122,0.06);border:1px solid rgba(232,33,122,0.2);border-radius:10px;position:relative;">
             <div class="upgrade-current-badge" style="display:none;position:absolute;top:12px;right:12px;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--pink);border:1px solid var(--border);padding:2px 8px;border-radius:3px;">Current</div>
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--pink);margin-bottom:6px;">Pro</div>
-            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);">£24.99<span style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
+            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);" id="plan-price-pro">£24.99<span id="plan-period-pro" style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
+            <div id="plan-saving-pro" style="font-size:11px;color:var(--green);margin-top:2px;display:none;">Save £49.89/yr</div>
             <button class="btn btn-pink btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('pro')">Get Pro</button>
           </div>
           <div class="upgrade-card" data-tier="elite" style="flex:1;padding:20px;background:rgba(232,161,33,0.04);border:1px solid rgba(232,161,33,0.18);border-radius:10px;position:relative;">
             <div class="upgrade-current-badge" style="display:none;position:absolute;top:12px;right:12px;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold);border:1px solid rgba(232,161,33,0.2);padding:2px 8px;border-radius:3px;">Current</div>
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--gold);margin-bottom:6px;">Elite</div>
-            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);">£49.99<span style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
+            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);" id="plan-price-elite">£49.99<span id="plan-period-elite" style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
+            <div id="plan-saving-elite" style="font-size:11px;color:var(--green);margin-top:2px;display:none;">Save £99.89/yr</div>
             <button class="btn btn-gold btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('elite')">Get Elite</button>
           </div>
         </div>
@@ -1401,6 +1415,102 @@
       </div>
     </div>
 
+    <!-- ── PROFIT TRACKER ── -->
+    <div class="section" id="section-profit">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">Profit Tracker</div>
+        <div class="page-sub">Log your sales and costs. Track your margins, revenue, and ROI over time.</div>
+      </div>
+
+      <!-- Summary stats -->
+      <div class="grid-3" style="margin-bottom:20px;">
+        <div class="stat-card">
+          <div class="stat-label">Total Revenue</div>
+          <div class="stat-val" id="pt-revenue" style="color:var(--green);">£0.00</div>
+          <div class="stat-sub">from logged sales</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Costs</div>
+          <div class="stat-val" id="pt-costs" style="color:var(--red);">£0.00</div>
+          <div class="stat-sub">buy price + fees</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Net Profit</div>
+          <div class="stat-val" id="pt-profit">£0.00</div>
+          <div class="stat-sub" id="pt-roi">0% ROI</div>
+        </div>
+      </div>
+
+      <!-- Log a sale -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-title" style="margin-bottom:16px;">Log a Sale</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px;">
+          <div>
+            <label class="form-label">Item *</label>
+            <input id="pt-item" type="text" class="form-select" style="height:auto;padding:10px 14px;" placeholder="e.g. Nike Air Max 90">
+          </div>
+          <div>
+            <label class="form-label">Sold For (£) *</label>
+            <input id="pt-sell" type="number" min="0" step="0.01" class="form-select" style="height:auto;padding:10px 14px;" placeholder="45.00">
+          </div>
+          <div>
+            <label class="form-label">Bought For (£) *</label>
+            <input id="pt-buy" type="number" min="0" step="0.01" class="form-select" style="height:auto;padding:10px 14px;" placeholder="20.00">
+          </div>
+          <div>
+            <label class="form-label">Platform</label>
+            <select id="pt-platform" class="form-select">
+              <option value="Depop">Depop</option>
+              <option value="Vinted">Vinted</option>
+              <option value="eBay">eBay</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Fees (£)</label>
+            <input id="pt-fees" type="number" min="0" step="0.01" class="form-select" style="height:auto;padding:10px 14px;" placeholder="4.50">
+          </div>
+          <div>
+            <label class="form-label">Shipping (£)</label>
+            <input id="pt-shipping" type="number" min="0" step="0.01" class="form-select" style="height:auto;padding:10px 14px;" placeholder="3.50">
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <button class="btn btn-primary btn-sm" onclick="logSale()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Log Sale
+          </button>
+          <div id="pt-msg" style="font-size:12px;"></div>
+        </div>
+      </div>
+
+      <!-- Sales log table -->
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
+          <div class="card-title" style="margin:0;">Sales Log</div>
+          <button class="btn btn-ghost btn-sm" onclick="clearAllSales()" style="color:var(--red);">Clear All</button>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Platform</th>
+              <th>Sold</th>
+              <th>Bought</th>
+              <th>Fees+Ship</th>
+              <th>Profit</th>
+              <th>Margin</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="pt-tbody">
+            <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">No sales logged yet. Add your first sale above.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- ── SUPPORT ── -->
     <div class="section" id="section-support">
       <div class="page-header">
@@ -1854,9 +1964,12 @@
   };
 
   const PLAN_IDS = {
-    basic: 'P-93B20926R3557122WNHLYUWQ',
-    pro:   'P-8VH442677L542670XNHLYVLY',
-    elite: 'P-4MT822095D5508948NHLYWKA',
+    basic:        'P-93B20926R3557122WNHLYUWQ',
+    pro:          'P-8VH442677L542670XNHLYVLY',
+    elite:        'P-4MT822095D5508948NHLYWKA',
+    basic_annual: 'P-93B20926R3557122WNHLYUWQ', // update with real annual PayPal plan IDs when created
+    pro_annual:   'P-8VH442677L542670XNHLYVLY',
+    elite_annual: 'P-4MT822095D5508948NHLYWKA',
   };
 
   // Current user — populated by init(), used by coupon + cancel functions
@@ -1929,6 +2042,7 @@
     loadUsageStats();
     loadInventory();
     loadWatchlist();
+    ptRefresh();
 
     if (isOwner) {
       document.getElementById('admin-label').style.display         = '';
@@ -1969,8 +2083,46 @@
     });
   }
 
+  const PLAN_PRICING = {
+    basic:  { monthly: 9.99,  annual: 99.99  },
+    pro:    { monthly: 24.99, annual: 249.99 },
+    elite:  { monthly: 49.99, annual: 499.99 },
+  };
+
+  function toggleBillingCycle() {
+    const isAnnual = document.getElementById('billing-annual-toggle')?.checked;
+    const moLabel  = document.getElementById('billing-label-mo');
+    const yrLabel  = document.getElementById('billing-label-yr');
+
+    if (moLabel) moLabel.style.color = isAnnual ? 'var(--muted2)' : 'var(--text)';
+    if (yrLabel) yrLabel.style.color = isAnnual ? 'var(--text)' : 'var(--muted2)';
+
+    ['basic', 'pro', 'elite'].forEach(tier => {
+      const p       = PLAN_PRICING[tier];
+      const priceEl = document.getElementById(`plan-price-${tier}`);
+      const periodEl = document.getElementById(`plan-period-${tier}`);
+      const savingEl = document.getElementById(`plan-saving-${tier}`);
+      if (!priceEl || !periodEl) return;
+
+      if (isAnnual) {
+        const monthly = (p.annual / 12).toFixed(2);
+        const saving  = (p.monthly * 12 - p.annual).toFixed(2);
+        priceEl.childNodes[0].textContent = `£${monthly}`;
+        periodEl.textContent = '/mo (billed annually)';
+        if (savingEl) { savingEl.textContent = `Save £${saving}/yr vs monthly`; savingEl.style.display = ''; }
+      } else {
+        priceEl.childNodes[0].textContent = `£${p.monthly.toFixed(2)}`;
+        periodEl.textContent = tier === 'basic' ? '/mo' : '/mo';
+        if (savingEl) savingEl.style.display = 'none';
+      }
+    });
+  }
+
   function selectPlan(plan) {
-    const planNames = { basic:'Starter — £9.99/mo', pro:'Pro — £24.99/mo', elite:'Elite — £49.99/mo' };
+    const isAnnual  = document.getElementById('billing-annual-toggle')?.checked;
+    const p         = PLAN_PRICING[plan] || {};
+    const price     = isAnnual ? `£${p.annual}/yr` : `£${p.monthly}/mo`;
+    const planNames = { basic: `Basic — ${price}`, pro: `Pro — ${price}`, elite: `Elite — ${price}` };
     const banner    = document.getElementById('payment-banner');
     const mount     = document.getElementById('paypal-button-mount');
     if (!banner || !mount) return;
@@ -1983,7 +2135,7 @@
 
     paypal.Buttons({
       style: { shape:'rect', color:'black', layout:'vertical', label:'subscribe' },
-      createSubscription: (_d, actions) => actions.subscription.create({ plan_id: PLAN_IDS[plan] }),
+      createSubscription: (_d, actions) => actions.subscription.create({ plan_id: isAnnual ? (PLAN_IDS[plan + '_annual'] || PLAN_IDS[plan]) : PLAN_IDS[plan] }),
       onApprove: async (data) => {
         const { data: { session } } = await sb.auth.getSession();
         if (session) {
@@ -2220,7 +2372,7 @@
     }
   });
 
-  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', inventory:'Inventory', watchlist:'Watchlist', crosslist:'Cross-List', listings:'Listings', support:'Support', admin:'Admin Panel' };
+  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', inventory:'Inventory', watchlist:'Watchlist', profit:'Profit Tracker', crosslist:'Cross-List', listings:'Listings', support:'Support', admin:'Admin Panel' };
 
   // ── Cross-list tool ──────────────────────────────────────────────────────────
   const BOT_API = 'https://vendora-production-8a47.up.railway.app';
@@ -2815,6 +2967,94 @@
       });
       loadWatchlist();
     } catch { alert('Network error.'); }
+  }
+
+  // ── Profit Tracker (localStorage) ────────────────────────────────────────────
+  const PT_KEY = 'vendora_profit_entries';
+
+  function ptLoad() { try { return JSON.parse(localStorage.getItem(PT_KEY) || '[]'); } catch { return []; } }
+  function ptSave(entries) { localStorage.setItem(PT_KEY, JSON.stringify(entries)); }
+
+  function ptRefresh() {
+    const entries  = ptLoad();
+    const tbody    = document.getElementById('pt-tbody');
+    const revEl    = document.getElementById('pt-revenue');
+    const costEl   = document.getElementById('pt-costs');
+    const profEl   = document.getElementById('pt-profit');
+    const roiEl    = document.getElementById('pt-roi');
+    if (!tbody) return;
+
+    let totalRev = 0, totalCost = 0;
+
+    if (!entries.length) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">No sales logged yet. Add your first sale above.</td></tr>`;
+    } else {
+      tbody.innerHTML = entries.map((e, i) => {
+        const fees    = (parseFloat(e.fees) || 0) + (parseFloat(e.shipping) || 0);
+        const profit  = e.sell - e.buy - fees;
+        const margin  = e.sell > 0 ? ((profit / e.sell) * 100).toFixed(0) : 0;
+        const pColor  = profit >= 0 ? 'var(--green)' : 'var(--red)';
+        totalRev  += e.sell;
+        totalCost += e.buy + fees;
+        return `<tr>
+          <td style="font-weight:500;">${e.item}</td>
+          <td><span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);">${e.platform}</span></td>
+          <td style="color:var(--green);">£${e.sell.toFixed(2)}</td>
+          <td style="color:var(--red);">£${e.buy.toFixed(2)}</td>
+          <td style="color:var(--muted2);">£${fees.toFixed(2)}</td>
+          <td style="color:${pColor};font-weight:600;">£${profit.toFixed(2)}</td>
+          <td style="color:${pColor};">${margin}%</td>
+          <td><button class="btn btn-ghost btn-sm" onclick="ptDelete(${i})" style="color:var(--red);font-size:11px;">✕</button></td>
+        </tr>`;
+      }).join('');
+    }
+
+    const netProfit = totalRev - totalCost;
+    const roi       = totalCost > 0 ? ((netProfit / totalCost) * 100).toFixed(0) : 0;
+    if (revEl)  revEl.textContent  = `£${totalRev.toFixed(2)}`;
+    if (costEl) costEl.textContent = `£${totalCost.toFixed(2)}`;
+    if (profEl) { profEl.textContent = `£${netProfit.toFixed(2)}`; profEl.style.color = netProfit >= 0 ? 'var(--green)' : 'var(--red)'; }
+    if (roiEl)  roiEl.textContent  = `${roi}% ROI`;
+  }
+
+  function logSale() {
+    const item     = document.getElementById('pt-item')?.value?.trim();
+    const sell     = parseFloat(document.getElementById('pt-sell')?.value);
+    const buy      = parseFloat(document.getElementById('pt-buy')?.value);
+    const platform = document.getElementById('pt-platform')?.value || 'Other';
+    const fees     = parseFloat(document.getElementById('pt-fees')?.value) || 0;
+    const shipping = parseFloat(document.getElementById('pt-shipping')?.value) || 0;
+    const msgEl    = document.getElementById('pt-msg');
+
+    if (!item) { if (msgEl) showMsg(msgEl, 'error', 'Enter an item name.'); return; }
+    if (isNaN(sell) || sell <= 0) { if (msgEl) showMsg(msgEl, 'error', 'Enter a valid sell price.'); return; }
+    if (isNaN(buy)  || buy < 0)  { if (msgEl) showMsg(msgEl, 'error', 'Enter a valid buy price.');  return; }
+
+    const entries = ptLoad();
+    entries.unshift({ item, sell, buy, platform, fees, shipping, date: new Date().toISOString() });
+    ptSave(entries);
+    ptRefresh();
+
+    // Clear form
+    document.getElementById('pt-item').value = '';
+    document.getElementById('pt-sell').value = '';
+    document.getElementById('pt-buy').value  = '';
+    document.getElementById('pt-fees').value = '';
+    document.getElementById('pt-shipping').value = '';
+    if (msgEl) showMsg(msgEl, 'success', 'Sale logged!');
+  }
+
+  function ptDelete(idx) {
+    const entries = ptLoad();
+    entries.splice(idx, 1);
+    ptSave(entries);
+    ptRefresh();
+  }
+
+  function clearAllSales() {
+    if (!confirm('Clear all logged sales? This cannot be undone.')) return;
+    ptSave([]);
+    ptRefresh();
   }
 
   // ── Listings access gate ─────────────────────────────────────────────────────
