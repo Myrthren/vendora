@@ -727,14 +727,50 @@ async function executeCommand(interaction, commandName, tier, profile) {
 
   if (commandName === 'price') {
     const item = opts.getString('item');
+
+    // Fetch live prices from Depop + Vinted in parallel
+    const [depopResults, vintedResults] = await Promise.all([
+      searchDepop(item),
+      searchVinted(item),
+    ]);
+
+    // Extract real prices
+    const extractPrices = (results) =>
+      (results || [])
+        .map(r => parseFloat((r.price || '').replace('£', '')))
+        .filter(p => !isNaN(p) && p > 0);
+
+    const depopPrices  = extractPrices(depopResults);
+    const vintedPrices = extractPrices(vintedResults);
+    const allPrices    = [...depopPrices, ...vintedPrices].sort((a, b) => a - b);
+
+    let liveContext = '';
+    if (allPrices.length >= 3) {
+      const low  = allPrices[0].toFixed(2);
+      const high = allPrices[allPrices.length - 1].toFixed(2);
+      const avg  = (allPrices.reduce((a, b) => a + b, 0) / allPrices.length).toFixed(2);
+      const depopAvg  = depopPrices.length  ? `£${(depopPrices.reduce((a,b)=>a+b,0)/depopPrices.length).toFixed(2)}`   : 'n/a';
+      const vintedAvg = vintedPrices.length ? `£${(vintedPrices.reduce((a,b)=>a+b,0)/vintedPrices.length).toFixed(2)}` : 'n/a';
+      liveContext = `LIVE PLATFORM DATA (${allPrices.length} listings scraped right now):\n` +
+        `- Depop: ${depopPrices.length} listings, avg ${depopAvg}\n` +
+        `- Vinted: ${vintedPrices.length} listings, avg ${vintedAvg}\n` +
+        `- Overall range: £${low}–£${high}, avg £${avg}\n\n` +
+        `Use this real data as your primary source. Be very specific with your estimates based on it.`;
+    } else {
+      liveContext = `Live platform data unavailable or too few results (${allPrices.length} found). Use your UK resale market knowledge to estimate.`;
+    }
+
     const text = await callAI(
-      'You are Vendora, an AI assistant for UK resellers. Provide a quick price estimate for an item in the UK resale market (Depop, Vinted, eBay). Include: estimated resale price range, typical buy price to flip at, rough margin estimate. Be specific with £ figures. Keep it brief — 3-5 lines.',
+      `You are Vendora, a UK resale market analyst. Your job is to give an accurate, actionable price check.\n\n${liveContext}\n\nProvide: 1) Current resale price range on Depop and Vinted, 2) A good buy price to flip profitably, 3) Rough margin after platform fees (~10% Depop, ~5% Vinted), 4) One sentence on current demand. Keep it to 5 lines max. Use £ figures throughout.`,
       `Item: ${item}`
     );
     if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
+    const footerText = allPrices.length >= 3
+      ? `Based on ${allPrices.length} live listings from Depop + Vinted`
+      : 'Vendora AI estimate — live data temporarily unavailable';
     return interaction.editReply({ embeds: [
       baseEmbed().setTitle(`Price Check — ${item}`).setDescription(text.slice(0, 4000))
-        .setFooter({ text: 'Vendora AI estimate — verify with live platform data' })
+        .setFooter({ text: footerText })
     ]});
   }
 
@@ -1337,52 +1373,109 @@ async function getDueRelists() {
 }
 
 // ── Depop API ─────────────────────────────────────────────────────────────────
+const DEPOP_UA   = 'Depop/3.15.0 (iPhone14,2; iOS 16.3.1; Scale/3.0)';
 const DEPOP_HEADERS = (token) => ({
   'Content-Type': 'application/json',
   'Authorization': `Bearer ${token}`,
-  'User-Agent': 'Depop/3.8.0 (iPhone; iOS 16.6; Scale/3.00)',
+  'User-Agent': DEPOP_UA,
   'Accept': 'application/json',
+  'Accept-Language': 'en-GB,en;q=0.9',
+  'X-Depop-Client-Version': '3.15.0',
 });
 
 async function depopLogin(email, password) {
   try {
+    const deviceId = crypto.randomUUID();
     const res = await fetch('https://api.depop.com/api/v1/auth/email/login/', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'User-Agent': 'Depop/3.8.0 (iPhone; iOS 16.6; Scale/3.00)' },
-      body: JSON.stringify({ login: email, password }),
-      signal: AbortSignal.timeout(10000),
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': DEPOP_UA,
+        'Accept': 'application/json',
+        'Accept-Language': 'en-GB,en;q=0.9',
+        'X-Depop-Client-Version': '3.15.0',
+        'X-Depop-Device-Id': deviceId,
+      },
+      body: JSON.stringify({ login: email, password, device_id: deviceId }),
+      signal: AbortSignal.timeout(15000),
     });
+    const rawText = await res.text();
+    let data;
+    try { data = JSON.parse(rawText); } catch { return { error: `Depop returned unexpected response. Please try again.` }; }
+
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return { error: err.message || 'Invalid credentials — check your email and password.' };
+      const msg = data?.message || data?.error_description || data?.error || '';
+      if (res.status === 401 || res.status === 403) return { error: 'Depop credentials invalid — check your email and password.' };
+      if (res.status === 429) return { error: 'Depop rate limited — wait a few minutes and try again.' };
+      return { error: msg || `Depop login failed (${res.status}). Try again.` };
     }
-    const data = await res.json();
-    // Get username from /me
+
+    const token = data.access_token;
+    if (!token) return { error: 'Depop login response missing token. Try again.' };
+
+    // Fetch username
     const meRes = await fetch('https://api.depop.com/api/v1/me/', {
-      headers: DEPOP_HEADERS(data.access_token),
+      headers: DEPOP_HEADERS(token),
       signal: AbortSignal.timeout(8000),
     });
-    const me = meRes.ok ? await meRes.json() : {};
-    return { access_token: data.access_token, refresh_token: data.refresh_token || '', platform_user_id: String(me.id || data.user_id || ''), platform_username: me.username || email.split('@')[0] };
+    const me = meRes.ok ? await meRes.json().catch(() => ({})) : {};
+    return {
+      access_token: token,
+      refresh_token: data.refresh_token || '',
+      platform_user_id: String(me.id || data.user_id || ''),
+      platform_username: me.username || email.split('@')[0],
+    };
+  } catch (e) {
+    if (e.name === 'TimeoutError') return { error: 'Depop request timed out — check your connection and try again.' };
+    return { error: e.message };
+  }
+}
+
+// Upload an image to Depop — returns { image_id } or { error }
+async function depopUploadImage(accessToken, base64Data, mimeType = 'image/jpeg') {
+  try {
+    const boundary = `----FormBoundary${Date.now()}`;
+    const body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="photo.jpg"\r\nContent-Type: ${mimeType}\r\n\r\n`),
+      Buffer.from(base64Data, 'base64'),
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    const res = await fetch('https://api.depop.com/api/v1/products/images/', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'User-Agent': DEPOP_UA,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Accept': 'application/json',
+      },
+      body,
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) { const e = await res.text(); return { error: `Depop image upload failed: ${e.slice(0, 80)}` }; }
+    const data = await res.json();
+    return { image_id: data.id || data.image_id };
   } catch (e) { return { error: e.message }; }
 }
 
 async function depopCreateListing(accessToken, listingData) {
-  const { title, description = '', price, condition } = listingData;
+  const { title, description = '', price, condition, image_ids = [] } = listingData;
   const condMap = { 'New with tags': 1, 'Like New': 2, 'Very Good': 3, 'Good': 4, 'Acceptable': 5 };
   try {
+    const body = {
+      description: `${title}\n\n${description}`.trim(),
+      price: Math.round(parseFloat(price) * 100),
+      currency_name: 'GBP',
+      category_id: 1,
+      status: 'active',
+      source_country: 'gb',
+      condition: condMap[condition] || 3,
+    };
+    if (image_ids.length) body.picture_ids = image_ids;
+
     const res = await fetch('https://api.depop.com/api/v1/products/', {
       method: 'POST',
       headers: DEPOP_HEADERS(accessToken),
-      body: JSON.stringify({
-        description: `${title}\n\n${description}`.trim(),
-        price: Math.round(parseFloat(price) * 100),
-        currency_name: 'GBP',
-        category_id: 1,
-        status: 'active',
-        source_country: 'gb',
-        condition: condMap[condition] || 3,
-      }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {
@@ -1406,52 +1499,112 @@ async function depopDeleteListing(accessToken, listingId) {
 }
 
 // ── Vinted API ────────────────────────────────────────────────────────────────
+const VINTED_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148';
 const VINTED_HEADERS = (token) => ({
   'Content-Type': 'application/json',
   'Authorization': `Bearer ${token}`,
-  'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15',
-  'Accept': 'application/json',
+  'User-Agent': VINTED_UA,
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-GB,en;q=0.9',
+  'Origin': 'https://www.vinted.co.uk',
+  'Referer': 'https://www.vinted.co.uk/',
 });
 
-async function vintedLogin(username, password) {
+async function vintedLogin(usernameOrEmail, password) {
   try {
-    const res = await fetch('https://www.vinted.co.uk/oauth/token', {
+    // Vinted uses session-based auth — POST to /api/v2/sessions
+    const res = await fetch('https://www.vinted.co.uk/api/v2/sessions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'Mozilla/5.0' },
-      body: new URLSearchParams({ grant_type: 'password', username, password, client_id: 'web', scope: 'user' }),
-      signal: AbortSignal.timeout(10000),
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': VINTED_UA,
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-GB,en;q=0.9',
+        'Origin': 'https://www.vinted.co.uk',
+        'Referer': 'https://www.vinted.co.uk/',
+        'X-Csrf-Token': 'undefined',
+      },
+      body: JSON.stringify({ login: usernameOrEmail, password, remember: true }),
+      signal: AbortSignal.timeout(15000),
     });
+
+    const rawText = await res.text();
+    let data;
+    try { data = JSON.parse(rawText); } catch { return { error: 'Vinted returned unexpected response. Please try again.' }; }
+
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return { error: err.error_description || 'Invalid credentials.' };
+      const msg = data?.error_description || data?.message || data?.error || '';
+      if (res.status === 401 || res.status === 403) return { error: 'Vinted credentials invalid — check your username/email and password.' };
+      if (res.status === 429) return { error: 'Vinted rate limited — wait a few minutes and try again.' };
+      if (res.status === 422) return { error: msg || 'Vinted rejected the login — check your credentials and try again.' };
+      return { error: msg || `Vinted login failed (${res.status}). Try again.` };
     }
-    const data = await res.json();
-    // Get user info
-    const meRes = await fetch('https://www.vinted.co.uk/api/v2/users/me', {
-      headers: VINTED_HEADERS(data.access_token),
-      signal: AbortSignal.timeout(8000),
+
+    // Session token lives in data.user.auth_token or data.access_token
+    const user   = data.user || data;
+    const token  = user.auth_token || data.access_token;
+    if (!token) return { error: 'Vinted login succeeded but no token returned. Try again.' };
+
+    return {
+      access_token: token,
+      refresh_token: '',
+      platform_user_id: String(user.id || ''),
+      platform_username: user.login || user.username || usernameOrEmail,
+    };
+  } catch (e) {
+    if (e.name === 'TimeoutError') return { error: 'Vinted request timed out — check your connection and try again.' };
+    return { error: e.message };
+  }
+}
+
+// Upload image to Vinted — returns { photo_id } or { error }
+async function vintedUploadImage(accessToken, base64Data, mimeType = 'image/jpeg') {
+  try {
+    const boundary = `----FormBoundary${Date.now()}`;
+    const body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="photo[image_type]"\r\n\r\nuser_items\r\n`),
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="photo[orientation]"\r\n\r\n0\r\n`),
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="photo[image]"; filename="photo.jpg"\r\nContent-Type: ${mimeType}\r\n\r\n`),
+      Buffer.from(base64Data, 'base64'),
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    const res = await fetch('https://www.vinted.co.uk/api/v2/photos', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'User-Agent': VINTED_UA,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Accept': 'application/json',
+        'Origin': 'https://www.vinted.co.uk',
+      },
+      body,
+      signal: AbortSignal.timeout(20000),
     });
-    const me = meRes.ok ? (await meRes.json()).user || {} : {};
-    return { access_token: data.access_token, refresh_token: data.refresh_token || '', platform_user_id: String(me.id || ''), platform_username: me.login || username };
+    if (!res.ok) { const e = await res.text(); return { error: `Vinted image upload failed: ${e.slice(0, 80)}` }; }
+    const data = await res.json();
+    return { photo_id: data.id || data.photo?.id };
   } catch (e) { return { error: e.message }; }
 }
 
 async function vintedCreateListing(accessToken, listingData) {
-  const { title, description = '', price, condition } = listingData;
+  const { title, description = '', price, condition, photo_ids = [] } = listingData;
   const condMap = { 'New with tags': 6, 'Like New': 2, 'Very Good': 3, 'Good': 4, 'Acceptable': 5 };
   try {
+    const body = {
+      title,
+      description,
+      price: String(parseFloat(price).toFixed(2)),
+      currency: 'GBP',
+      catalog_id: 1,
+      status_id: condMap[condition] || 3,
+      package_size_id: 1,
+    };
+    if (photo_ids.length) body.photos = photo_ids.map(id => ({ id }));
+
     const res = await fetch('https://www.vinted.co.uk/api/v2/items', {
       method: 'POST',
       headers: VINTED_HEADERS(accessToken),
-      body: JSON.stringify({
-        title,
-        description,
-        price: String(parseFloat(price).toFixed(2)),
-        currency: 'GBP',
-        catalog_id: 1,
-        status_id: condMap[condition] || 3,
-        package_size_id: 1,
-      }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {
@@ -1475,13 +1628,34 @@ async function vintedDeleteListing(accessToken, listingId) {
   } catch (e) { return { error: e.message }; }
 }
 
+// ── Shared: upload images to one platform — returns platform-specific IDs ─────
+async function uploadImagesToPlatform(token, platform, images = []) {
+  // images: [{ base64, mimeType }]
+  const ids = [];
+  for (const img of images) {
+    let r;
+    if (platform === 'depop')  r = await depopUploadImage(token, img.base64, img.mimeType);
+    if (platform === 'vinted') r = await vintedUploadImage(token, img.base64, img.mimeType);
+    if (!r || r.error) { console.warn(`[image] ${platform} upload failed:`, r?.error); continue; }
+    ids.push(platform === 'depop' ? r.image_id : r.photo_id);
+  }
+  return ids;
+}
+
 // ── Shared: post listing to one platform ─────────────────────────────────────
 async function postToPlatform(userId, platform, listingData) {
   const conn = await getPlatformConn(userId, platform);
   if (!conn?.access_token) return { error: 'Not connected' };
   const token = decryptToken(conn.access_token);
-  if (platform === 'depop')  return depopCreateListing(token, listingData);
-  if (platform === 'vinted') return vintedCreateListing(token, listingData);
+
+  // Upload any images first
+  const imageIds = await uploadImagesToPlatform(token, platform, listingData.images || []);
+  const data = { ...listingData };
+  if (platform === 'depop')  data.image_ids = imageIds;
+  if (platform === 'vinted') data.photo_ids  = imageIds;
+
+  if (platform === 'depop')  return depopCreateListing(token, data);
+  if (platform === 'vinted') return vintedCreateListing(token, data);
   return { error: 'Platform not supported yet' };
 }
 
@@ -1567,11 +1741,12 @@ app.post('/api/listing/create', async (req, res) => {
   if (!profile || profile.subscription_status !== 'active') return res.status(403).json({ error: 'Active subscription required' });
   if (TIER_RANK[profile.tier] < TIER_RANK.pro) return res.status(403).json({ error: 'Pro subscription required for listings' });
 
-  const { title, description, price, condition, platforms = [], autoRelist = false, relistIntervalDays = 7 } = req.body;
+  const { title, description, price, condition, platforms = [], autoRelist = false, relistIntervalDays = 7, images = [] } = req.body;
   if (!title || !price) return res.status(400).json({ error: 'title and price required' });
   if (!platforms.length) return res.status(400).json({ error: 'Select at least one platform' });
 
-  const listingData = { title, description, price, condition };
+  // images = [{ base64: '...', mimeType: 'image/jpeg' }, ...]
+  const listingData = { title, description, price, condition, images };
   const results = {};
   const platformListingIds = {};
 
@@ -1680,6 +1855,26 @@ app.patch('/api/listing/:id/schedule', async (req, res) => {
     next_relist_at: nextRelistAt,
   });
   res.json({ ok: true });
+});
+
+// ── Image upload endpoint (upload images before creating a listing) ───────────
+// Accepts base64 images and uploads to the user's connected platforms.
+// Returns { depop_ids: [], vinted_ids: [] }
+app.post('/api/listing/upload-images', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const { images = [], platforms = [] } = req.body || {};
+  // images: [{ base64: string, mimeType: string }]
+  if (!images.length) return res.status(400).json({ error: 'No images provided' });
+
+  const result = {};
+  for (const platform of platforms) {
+    const conn = await getPlatformConn(user.id, platform);
+    if (!conn?.access_token) { result[platform] = { error: 'Not connected' }; continue; }
+    const token = decryptToken(conn.access_token);
+    const ids = await uploadImagesToPlatform(token, platform, images);
+    result[platform] = { ids };
+  }
+  res.json({ ok: true, result });
 });
 
 // ── Usage stats ───────────────────────────────────────────────────────────────
