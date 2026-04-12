@@ -7,6 +7,7 @@ const {
   Client, GatewayIntentBits, REST, Routes,
   SlashCommandBuilder, EmbedBuilder, ChannelType,
   PermissionFlagsBits, PermissionsBitField,
+  ButtonBuilder, ButtonStyle, ActionRowBuilder,
 } = require('discord.js');
 const express  = require('express');
 const Anthropic = require('@anthropic-ai/sdk');
@@ -21,8 +22,10 @@ const GUILD_ID       = process.env.DISCORD_GUILD_ID;
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 const SUPABASE_URL   = process.env.SUPABASE_URL || 'https://fqfanqtybvnurhzkoxwr.supabase.co';
 const SUPABASE_KEY   = process.env.SUPABASE_SERVICE_KEY;
-const ANTHROPIC_KEY  = process.env.ANTHROPIC_API_KEY;
-const PORT           = process.env.PORT || 3000;
+const ANTHROPIC_KEY   = process.env.ANTHROPIC_API_KEY;
+const BRAVE_KEY       = process.env.BRAVE_SEARCH_API_KEY;
+const REMOVE_BG_KEY   = process.env.REMOVE_BG_API_KEY;
+const PORT            = process.env.PORT || 3000;
 const OWNER_ID       = '731207920007643167';
 const DASHBOARD_URL  = 'https://vendora-vv.netlify.app/vendora-dashboard';
 const SITE_URL       = 'https://vendora-vv.netlify.app';
@@ -367,6 +370,37 @@ async function searchEbay(query) {
   }
 }
 
+// ── Web search (Brave) ────────────────────────────────────────────────────────
+async function webSearch(query, count = 5) {
+  if (!BRAVE_KEY) return null;
+  try {
+    const res = await fetch(
+      `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=${count}&country=gb&search_lang=en&safesearch=off`,
+      {
+        headers: { 'Accept': 'application/json', 'X-Subscription-Token': BRAVE_KEY },
+        signal: AbortSignal.timeout(8000),
+      }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.web?.results || []).map(r => ({
+      title:       r.title || '',
+      description: r.description || '',
+      url:         r.url || '',
+    }));
+  } catch (e) {
+    console.warn('[search] Brave web search failed:', e.message);
+    return null;
+  }
+}
+
+function formatWebResults(results) {
+  if (!results?.length) return '';
+  return results.slice(0, 5).map(r =>
+    `• ${r.title}: ${r.description.slice(0, 120)}`
+  ).join('\n');
+}
+
 async function searchDepopSeller(username) {
   try {
     const BASE_HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', Accept: 'application/json' };
@@ -628,50 +662,91 @@ async function executeCommand(interaction, commandName, tier, profile) {
   if (commandName === 'session' && opts.getSubcommand() === 'open') {
     const existing = activeSessions.get(interaction.user.id);
     if (existing) {
+      // Verify the channel still exists
+      const guild = interaction.guild;
+      const stillExists = guild?.channels.cache.has(existing.channelId);
+      if (stillExists) {
+        return interaction.editReply({ embeds: [
+          baseEmbed().setTitle('Session Already Open')
+            .setDescription(`You already have an active session: <#${existing.channelId}>\n\nUse \`/session close\` to close it.`)
+        ]});
+      }
+      // Channel was deleted externally — clean up
+      activeSessions.delete(interaction.user.id);
+    }
+
+    const guild = interaction.guild;
+    if (!guild) {
       return interaction.editReply({ embeds: [
-        baseEmbed().setTitle('Session Already Open')
-          .setDescription(`You already have an active session: <#${existing.channelId}>\n\nUse \`/session close\` to close it.`)
+        baseEmbed('#f87171').setTitle('Server Only').setDescription('`/session open` can only be used inside the Vendor Village server.')
       ]});
     }
-    const guild = interaction.guild;
-    // Find or create VENDORA category
-    let category = guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && c.name.toUpperCase().includes('VENDORA'));
-    const sessionNum = (activeSessions.size + 1).toString().padStart(0, '');
-    const channelName = `session-${Date.now().toString(36).slice(-4)}`;
-    const ownerMember = await guild.members.fetch(OWNER_ID).catch(() => null);
-    const permOverwrites = [
-      { id: guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
-      { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
-      { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] },
-    ];
-    if (ownerMember) permOverwrites.push({ id: OWNER_ID, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
 
-    const channel = await guild.channels.create({
-      name: channelName,
-      type: ChannelType.GuildText,
-      parent: category?.id,
-      permissionOverwrites: permOverwrites,
-      topic: `Private Vendora session for ${interaction.user.tag}`,
-    });
-
-    scheduleSessionDelete(interaction.user.id, channel.id);
-
-    await channel.send({ embeds: [
-      baseEmbed().setTitle(`Session Open — ${interaction.user.username}`)
-        .setDescription(`Welcome to your private Vendora workspace, <@${interaction.user.id}>.\n\nYou can run any of your tier commands here. This channel auto-deletes after **24 hours of inactivity**.\n\nUse \`/session close\` to close it manually.`)
-    ]});
+    // Check bot has ManageChannels permission
+    const botMember = guild.members.me;
+    if (!botMember?.permissions.has(PermissionFlagsBits.ManageChannels)) {
+      return interaction.editReply({ embeds: [
+        baseEmbed('#f87171').setTitle('Missing Permission')
+          .setDescription('The bot needs the **Manage Channels** permission in this server to create session channels. Please contact the server owner.')
+      ]});
+    }
 
     try {
-      await interaction.user.send({ embeds: [
-        baseEmbed().setTitle('Session Channel Created')
-          .setDescription(`Your private session is ready: https://discord.com/channels/${guild.id}/${channel.id}`)
-      ]});
-    } catch { /* DMs closed */ }
+      // Re-fetch channels to ensure cache is current
+      await guild.channels.fetch();
+      const category = guild.channels.cache.find(
+        c => c.type === ChannelType.GuildCategory && c.name.toUpperCase().includes('VENDORA')
+      );
 
-    return interaction.editReply({ embeds: [
-      baseEmbed().setTitle('Session Opened')
-        .setDescription(`Your private channel is ready: <#${channel.id}>\n\nI've also sent you a DM with the link. It auto-deletes after 24 hours of inactivity.`)
-    ]});
+      const channelName = `session-${interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12)}-${Date.now().toString(36).slice(-4)}`;
+      const ownerMember = await guild.members.fetch(OWNER_ID).catch(() => null);
+      const permOverwrites = [
+        { id: guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
+        { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles] },
+        { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ReadMessageHistory] },
+      ];
+      if (ownerMember) {
+        permOverwrites.push({ id: OWNER_ID, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
+      }
+
+      const channel = await guild.channels.create({
+        name: channelName,
+        type: ChannelType.GuildText,
+        parent: category?.id || null,
+        permissionOverwrites: permOverwrites,
+        topic: `Private Vendora session for ${interaction.user.tag} — auto-deletes after 24h inactivity`,
+      });
+
+      scheduleSessionDelete(interaction.user.id, channel.id);
+
+      await channel.send({ embeds: [
+        baseEmbed().setTitle(`Session Open — ${interaction.user.username}`)
+          .setDescription(
+            `Welcome to your private Vendora workspace, <@${interaction.user.id}>.\n\n` +
+            `Run any of your tier commands here. This channel **auto-deletes after 24 hours of inactivity**.\n\n` +
+            `Use \`/session close\` to close it manually.`
+          )
+      ]});
+
+      try {
+        await interaction.user.send({ embeds: [
+          baseEmbed().setTitle('Session Channel Created')
+            .setDescription(`Your private session is ready: https://discord.com/channels/${guild.id}/${channel.id}`)
+        ]});
+      } catch { /* DMs closed */ }
+
+      return interaction.editReply({ embeds: [
+        baseEmbed().setTitle('Session Opened ✓')
+          .setDescription(`Your private channel is ready: <#${channel.id}>\n\nIt auto-deletes after 24 hours of inactivity.`)
+      ]});
+
+    } catch (err) {
+      console.error('[session] Failed to create channel:', err.message);
+      return interaction.editReply({ embeds: [
+        baseEmbed('#f87171').setTitle('Session Failed')
+          .setDescription(`Could not create your session channel.\n\n**Reason:** ${err.message}\n\nMake sure the bot has the **Manage Channels** permission and try again.`)
+      ]});
+    }
   }
 
   // /session close
@@ -977,7 +1052,10 @@ async function executeCommand(interaction, commandName, tier, profile) {
 
   if (commandName === 'research') {
     const item = opts.getString('item');
-    const [depopR, vintedR, ebayR] = await Promise.all([searchDepop(item), searchVinted(item), searchEbay(item)]);
+    const [depopR, vintedR, ebayR, webR] = await Promise.all([
+      searchDepop(item), searchVinted(item), searchEbay(item),
+      webSearch(`${item} resale price UK site:depop.com OR site:vinted.co.uk OR site:ebay.co.uk`, 5),
+    ]);
 
     const extractP = (r) => (r || []).map(x => parseFloat((x.price || '').replace('£', ''))).filter(p => !isNaN(p) && p > 0);
     const depopPrices = extractP(depopR), vintedPrices = extractP(vintedR), ebayPrices = extractP(ebayR);
@@ -998,13 +1076,16 @@ async function executeCommand(interaction, commandName, tier, profile) {
         `Use this as your primary data source. Reference specific £ figures in your report.`;
     }
 
+    const webCtx = webR?.length ? `\nWEB SEARCH RESULTS (latest context from the web):\n${formatWebResults(webR)}\n` : '';
+
     const text = await callAI(
-      `You are Vendora's research engine. Provide a comprehensive UK resale research report grounded in the live data provided.\n\n${liveCtx}\n\nStructure:\n**Market Overview** — buy/sell price range with specific £ figures\n**Best Platforms** — where this sells best and why\n**Key Search Terms** — what to search for deals\n**Demand Level** — High/Medium/Low with reasoning\n**Margin Estimate** — specific buy price target, sell price, net profit after fees\n**Sourcing Tips** — 3 actionable tips`,
+      `You are Vendora's research engine. Provide a comprehensive UK resale research report grounded in the live data provided.\n\n${liveCtx}${webCtx}\n\nStructure:\n**Market Overview** — buy/sell price range with specific £ figures\n**Best Platforms** — where this sells best and why\n**Key Search Terms** — what to search for deals\n**Demand Level** — High/Medium/Low with reasoning\n**Margin Estimate** — specific buy price target, sell price, net profit after fees\n**Sourcing Tips** — 3 actionable tips`,
       `Item: ${item}`,
       'claude-sonnet-4-6', 1200
     );
     if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
-    const footer = allPrices.length >= 3 ? `Based on ${allPrices.length} live listings from Depop, Vinted & eBay` : 'AI market knowledge — live data unavailable';
+    const sources = [allPrices.length >= 3 ? `${allPrices.length} live listings` : null, webR?.length ? 'web search' : null].filter(Boolean);
+    const footer = sources.length ? `Sources: ${sources.join(' + ')}` : 'AI market knowledge — live data unavailable';
     return interaction.editReply({ embeds: [
       baseEmbed().setTitle(`Research Report — ${item}`).setDescription(text.slice(0, 4000)).setFooter({ text: footer })
     ]});
@@ -1115,7 +1196,10 @@ Return this exact JSON structure:
 
   if (commandName === 'trends') {
     const category = opts.getString('category');
-    const [depopR, vintedR] = await Promise.all([searchDepop(category), searchVinted(category)]);
+    const [depopR, vintedR, webR] = await Promise.all([
+      searchDepop(category), searchVinted(category),
+      webSearch(`${category} resale trend UK 2025 popular selling fast`, 5),
+    ]);
 
     const extractP = (r) => (r || []).map(x => parseFloat((x.price || '').replace('£', ''))).filter(p => !isNaN(p) && p > 0);
     const depopP = extractP(depopR), vintedP = extractP(vintedR);
@@ -1140,13 +1224,15 @@ Return this exact JSON structure:
         `Use this data to judge current demand and price trends.`;
     }
 
+    const webCtx = webR?.length ? `\nWEB SEARCH (latest trend signals):\n${formatWebResults(webR)}\n` : '';
     const text = await callAI(
-      `You are Vendora's trend analyst for the UK resale market. You have current live listing data.\n\n${liveCtx}\n\nBased on this data, provide:\n**Demand Level** — High/Medium/Low with reasoning from the data\n**Price Trend** — rising/stable/falling (use the price distribution as evidence)\n**Top Items** — 5 most sought-after items in this category right now\n**Best Platforms** — where it performs best and why\n**Buying Opportunity** — rating out of 10 with justification\n**Source Now** — 3 specific items/variations to look for immediately`,
+      `You are Vendora's trend analyst for the UK resale market. You have current live listing and web data.\n\n${liveCtx}${webCtx}\n\nBased on all data, provide:\n**Demand Level** — High/Medium/Low with reasoning from the data\n**Price Trend** — rising/stable/falling (use the price distribution and web signals as evidence)\n**Top Items** — 5 most sought-after items in this category right now\n**Best Platforms** — where it performs best and why\n**Buying Opportunity** — rating out of 10 with justification\n**Source Now** — 3 specific items/variations to look for immediately`,
       `Category/Brand: ${category}`,
       'claude-haiku-4-5-20251001', 900
     );
     if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
-    const footer = allP.length >= 3 ? `Based on ${allP.length} live listings from Depop + Vinted` : 'AI market knowledge — live data unavailable';
+    const sources = [allP.length >= 3 ? `${allP.length} listings` : null, webR?.length ? 'web search' : null].filter(Boolean);
+    const footer = sources.length ? `Sources: ${sources.join(' + ')}` : 'AI market knowledge — live data unavailable';
     return interaction.editReply({ embeds: [
       baseEmbed().setTitle(`Trend Report — ${category}`).setDescription(text.slice(0, 4000)).setFooter({ text: footer })
     ]});
@@ -1154,7 +1240,10 @@ Return this exact JSON structure:
 
   if (commandName === 'sold') {
     const item = opts.getString('item');
-    const [depopR, vintedR] = await Promise.all([searchDepop(item), searchVinted(item)]);
+    const [depopR, vintedR, webR] = await Promise.all([
+      searchDepop(item), searchVinted(item),
+      webSearch(`${item} sold recently UK resale how fast does it sell`, 4),
+    ]);
 
     const extractP = (r) => (r || []).map(x => parseFloat((x.price || '').replace('£', ''))).filter(p => !isNaN(p) && p > 0);
     const depopP = extractP(depopR), vintedP = extractP(vintedR);
@@ -1178,12 +1267,14 @@ Return this exact JSON structure:
         `Note: We're looking at active listings as a demand proxy. Higher listing volume at a price point suggests that price range moves well.`;
     }
 
+    const webCtx = webR?.length ? `\nWEB SEARCH (real buyer/seller feedback):\n${formatWebResults(webR)}\n` : '';
     const text = await callAI(
-      `You are Vendora's sold listing analyst for the UK resale market.\n\n${liveCtx}\n\nUsing the live listing distribution as a demand signal, provide:\n**Fast Sellers** — specific versions/conditions that move quickly (price them near £${allP.length >= 3 ? (allP.reduce((a,b)=>a+b,0)/allP.length).toFixed(0) : '?'})\n**Slow Movers** — what sits unsold and why\n**Key Factors** — what makes listings sell faster on each platform\n**Sweet Spot Pricing** — optimal price points based on the data\n**Condition Requirements** — what buyers expect`,
+      `You are Vendora's sold listing analyst for the UK resale market.\n\n${liveCtx}${webCtx}\n\nUsing all data signals, provide:\n**Fast Sellers** — specific versions/conditions that move quickly (price them near £${allP.length >= 3 ? (allP.reduce((a,b)=>a+b,0)/allP.length).toFixed(0) : '?'})\n**Slow Movers** — what sits unsold and why\n**Key Factors** — what makes listings sell faster on each platform\n**Sweet Spot Pricing** — optimal price points based on the data\n**Condition Requirements** — what buyers expect`,
       `Item/Category: ${item}`
     );
     if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
-    const footer = allP.length >= 3 ? `Based on ${allP.length} live listings as demand proxy` : 'AI market knowledge — live data unavailable';
+    const sources = [allP.length >= 3 ? `${allP.length} listings` : null, webR?.length ? 'web' : null].filter(Boolean);
+    const footer = sources.length ? `Sources: ${sources.join(' + ')}` : 'AI market knowledge — live data unavailable';
     return interaction.editReply({ embeds: [
       baseEmbed().setTitle(`Sold Listing Analysis — ${item}`).setDescription(text.slice(0, 4000)).setFooter({ text: footer })
     ]});
@@ -1191,8 +1282,10 @@ Return this exact JSON structure:
 
   if (commandName === 'competitor') {
     const seller = opts.getString('seller');
-    // Try Depop first, then Vinted
-    const [depopData, vintedData] = await Promise.all([searchDepopSeller(seller), searchVintedSeller(seller)]);
+    const [depopData, vintedData, webR] = await Promise.all([
+      searchDepopSeller(seller), searchVintedSeller(seller),
+      webSearch(`${seller} depop vinted reseller UK seller review`, 4),
+    ]);
 
     let liveCtx = `No listings found for seller "${seller}" on Depop or Vinted. Providing strategic advice only.`;
     let foundOn = [];
@@ -1212,8 +1305,9 @@ Return this exact JSON structure:
       liveCtx += `\nVINTED — @${vintedData.username}:\n- Followers: ${vintedData.followers}, Active items: ${vintedData.totalListings}\n- Listings shown: ${vintedData.products.length}, avg price £${avg}\n- Current listings:\n${top5}`;
     }
 
+    const webCtx = webR?.length ? `\nWEB SEARCH (external mentions):\n${formatWebResults(webR)}\n` : '';
     const text = await callAI(
-      `You are Vendora's competitor intelligence system. You have real seller data.\n\n${liveCtx}\n\nBased on their real listings and activity, provide:\n**Seller Profile** — what type of reseller this is (niche, budget, premium etc.) based on the data\n**Pricing Strategy** — how they price vs market average\n**What They Specialise In** — based on their actual listings\n**Counter Strategy** — how to position yourself against them\n**Watch For** — specific signals to monitor\n**Opportunity** — gaps in their inventory you could exploit`,
+      `You are Vendora's competitor intelligence system. You have real seller and web data.\n\n${liveCtx}${webCtx}\n\nBased on all available data, provide:\n**Seller Profile** — what type of reseller this is (niche, budget, premium etc.)\n**Pricing Strategy** — how they price vs market average\n**What They Specialise In** — based on their actual listings\n**Counter Strategy** — how to position yourself against them\n**Watch For** — specific signals to monitor\n**Opportunity** — gaps in their inventory you could exploit`,
       `Seller to analyse: ${seller}`
     );
     if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
@@ -1225,8 +1319,21 @@ Return this exact JSON structure:
 
   if (commandName === 'flip') {
     const item = opts.getString('item');
+    const [depopR, vintedR, webR] = await Promise.all([
+      searchDepop(item), searchVinted(item),
+      webSearch(`buy ${item} cheap UK where to source resale profit`, 5),
+    ]);
+    const extractP = (r) => (r || []).map(x => parseFloat((x.price || '').replace('£', ''))).filter(p => !isNaN(p) && p > 0);
+    const allPrices = [...extractP(depopR), ...extractP(vintedR)];
+    let flipCtx = '';
+    if (allPrices.length >= 3) {
+      const avg = (allPrices.reduce((a, b) => a + b, 0) / allPrices.length).toFixed(2);
+      const low = Math.min(...allPrices).toFixed(2), high = Math.max(...allPrices).toFixed(2);
+      flipCtx = `LIVE MARKET DATA:\n- ${allPrices.length} active listings, range £${low}–£${high}, avg £${avg}\n- Suggested buy target: £${(parseFloat(avg) * 0.5).toFixed(2)} (50% of avg)\n`;
+    }
+    const webCtx = webR?.length ? `WEB SEARCH (sourcing signals):\n${formatWebResults(webR)}\n` : '';
     const text = await callAI(
-      'You are Vendora\'s Elite Auto-Flip System. Provide a complete flip opportunity analysis. Structure:\n**Sourcing Strategy** — where and how to buy cheaply\n**Target Buy Price** — maximum to pay (with reasoning)\n**Suggested Sell Price** — with reasoning\n**Projected Profit** — after platform fees and shipping\n**Best Platform** — where to sell for highest return\n**Time to Sell** — realistic estimate\n**Risk Level** — Low/Medium/High with reason\n**Action Plan** — numbered step-by-step',
+      `You are Vendora's Elite Auto-Flip System. Use the live data provided.\n\n${flipCtx}${webCtx}\nProvide a complete flip opportunity analysis:\n**Sourcing Strategy** — where and how to buy cheaply (use web results for specific sources)\n**Target Buy Price** — maximum to pay (anchor to live data if available)\n**Suggested Sell Price** — with reasoning from live market prices\n**Projected Profit** — after platform fees (Depop 10%, Vinted 5%) and shipping ~£3.50\n**Best Platform** — where to sell for highest return\n**Time to Sell** — realistic estimate based on current listing volume\n**Risk Level** — Low/Medium/High with reason\n**Action Plan** — numbered step-by-step`,
       `Item: ${item}`,
       'claude-sonnet-4-6', 1200
     );
@@ -1317,6 +1424,14 @@ client.on('guildMemberAdd', async (member) => {
 });
 
 client.on('interactionCreate', async (interaction) => {
+  // Button interactions (spam marking etc.)
+  if (interaction.isButton()) {
+    if (interaction.customId.startsWith('spam_')) {
+      await handleSpamButton(interaction).catch(e => console.error('[button] spam handler error:', e.message));
+    }
+    return;
+  }
+
   if (!interaction.isChatInputCommand()) return;
 
   const { commandName, user } = interaction;
@@ -1327,6 +1442,14 @@ client.on('interactionCreate', async (interaction) => {
 
   // Get subscriber profile
   const profile = await getProfileByDiscordId(user.id);
+
+  // Banned check (owner bypasses)
+  if (user.id !== OWNER_ID && profile?.is_banned) {
+    return interaction.editReply({ embeds: [
+      baseEmbed('#f87171').setTitle('Account Suspended')
+        .setDescription('Your Vendora account has been suspended. Please contact the server admins if you believe this is a mistake.')
+    ]});
+  }
 
   // Unsubscribed check (owner bypasses)
   if (user.id !== OWNER_ID) {
@@ -2205,6 +2328,55 @@ app.post('/api/listing/upload-images', async (req, res) => {
   res.json({ ok: true, result });
 });
 
+// ── Photo enhancer — remove.bg background removal ────────────────────────────
+app.post('/api/photo/enhance', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const { image, mimeType = 'image/jpeg' } = req.body || {};
+  if (!image) return res.status(400).json({ error: 'image (base64) required' });
+
+  if (!REMOVE_BG_KEY) {
+    return res.status(503).json({ error: 'Background removal unavailable — REMOVE_BG_API_KEY not configured.' });
+  }
+
+  try {
+    const imgBuffer = Buffer.from(image, 'base64');
+    const boundary  = `----FormBoundary${Date.now()}`;
+    const body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="image_file"; filename="photo.jpg"\r\nContent-Type: ${mimeType}\r\n\r\n`),
+      imgBuffer,
+      Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="size"\r\n\r\nauto\r\n`),
+      Buffer.from(`--${boundary}--\r\n`),
+    ]);
+
+    const rbRes = await fetch('https://api.remove.bg/v1.0/removebg', {
+      method: 'POST',
+      headers: {
+        'X-Api-Key': REMOVE_BG_KEY,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Accept': 'application/json',
+      },
+      body,
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!rbRes.ok) {
+      const err = await rbRes.text();
+      console.error('[photo] remove.bg error:', err.slice(0, 200));
+      return res.status(502).json({ error: 'Background removal failed. Please try again.' });
+    }
+
+    const data = await rbRes.json();
+    // remove.bg returns base64 PNG in data.result_b64
+    const resultB64 = data.result_b64 || data.data?.result_b64;
+    if (!resultB64) return res.status(502).json({ error: 'Unexpected response from remove.bg' });
+
+    res.json({ ok: true, image: resultB64, mimeType: 'image/png' });
+  } catch (e) {
+    console.error('[photo] enhance error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Usage stats ───────────────────────────────────────────────────────────────
 app.get('/api/usage', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
@@ -2293,20 +2465,113 @@ app.post('/api/support/ticket', async (req, res) => {
     || user.identities?.find(i => i.provider === 'discord')?.id || 'unknown';
   const username = user.user_metadata?.full_name || user.user_metadata?.name || 'Unknown';
 
+  // Check if user is banned
+  const profile = await getProfileByDiscordId(discordId);
+  if (profile?.is_banned) {
+    return res.status(403).json({ error: 'Your account has been suspended from submitting support tickets.' });
+  }
+
+  // Check strike count
+  const strikes = profile?.spam_strikes || 0;
+
   try {
     const owner = await client.users.fetch(OWNER_ID);
-    await owner.send(
-      `📩 **Support Ticket**\n` +
-      `**From:** ${username} (\`${discordId}\`)\n` +
-      `**Subject:** ${subject || 'General enquiry'}\n` +
-      `**Message:**\n${message}`
-    );
+    const ticketId = Date.now().toString(36);
+
+    const spamBtn = new ButtonBuilder()
+      .setCustomId(`spam_${discordId}_${ticketId}`)
+      .setLabel(`⚑ Mark as Spam (${strikes}/3 strikes)`)
+      .setStyle(ButtonStyle.Danger);
+
+    const row = new ActionRowBuilder().addComponents(spamBtn);
+
+    await owner.send({
+      content:
+        `📩 **Support Ticket** | ID: \`${ticketId}\`\n` +
+        `**From:** ${username} (\`${discordId}\`)\n` +
+        `**Subject:** ${subject || 'General enquiry'}\n` +
+        `**Current strikes:** ${strikes}/3\n\n` +
+        `**Message:**\n${message.slice(0, 1800)}`,
+      components: [row],
+    });
     res.json({ ok: true });
   } catch (e) {
     console.error('[support] Failed to DM owner:', e.message);
     res.status(500).json({ error: 'Could not send ticket. Please DM pluniez directly on Discord.' });
   }
 });
+
+// ── Spam strike handler (button interactions) ─────────────────────────────────
+async function handleSpamButton(interaction) {
+  if (!interaction.isButton()) return;
+  if (!interaction.customId.startsWith('spam_')) return;
+  if (interaction.user.id !== OWNER_ID) {
+    return interaction.reply({ content: 'Only the owner can mark tickets as spam.', ephemeral: true });
+  }
+
+  await interaction.deferUpdate();
+
+  const parts = interaction.customId.split('_'); // spam_<discordId>_<ticketId>
+  const targetDiscordId = parts[1];
+
+  if (!targetDiscordId || targetDiscordId === 'undefined') {
+    return interaction.editReply({ content: '⚠️ Could not identify the user for this ticket.' });
+  }
+
+  // Increment strikes in Supabase
+  const profile = await getProfileByDiscordId(targetDiscordId);
+  const currentStrikes = (profile?.spam_strikes || 0) + 1;
+  const isBanned = currentStrikes >= 3;
+
+  await updateProfile('discord_id', targetDiscordId, {
+    spam_strikes: currentStrikes,
+    is_banned: isBanned,
+  });
+
+  // Update the message
+  const label = isBanned
+    ? `🚫 User Banned (3/3 strikes reached)`
+    : `✓ Spam Marked — ${currentStrikes}/3 strikes`;
+
+  const disabledBtn = new ButtonBuilder()
+    .setCustomId(`spam_done_${targetDiscordId}`)
+    .setLabel(label)
+    .setStyle(isBanned ? ButtonStyle.Danger : ButtonStyle.Secondary)
+    .setDisabled(true);
+
+  await interaction.editReply({ components: [new ActionRowBuilder().addComponents(disabledBtn)] });
+
+  // DM the user to warn/ban them
+  try {
+    const targetUser = await client.users.fetch(targetDiscordId);
+    if (isBanned) {
+      await targetUser.send({
+        embeds: [new EmbedBuilder().setColor('#f87171')
+          .setTitle('⛔ Account Suspended — Vendora Support')
+          .setDescription(
+            'Your Vendora support access has been **permanently suspended** after 3 spam violations.\n\n' +
+            'Your account remains active for the Vendora tools, but you can no longer submit support tickets.\n\n' +
+            'If you believe this is a mistake, contact the server admins directly.'
+          )
+          .setFooter({ text: 'Vendora — The Reseller\'s Edge' })
+        ]
+      });
+      console.log(`[support] User ${targetDiscordId} banned after 3 spam strikes`);
+    } else {
+      await targetUser.send({
+        embeds: [new EmbedBuilder().setColor('#e8a121')
+          .setTitle('⚠️ Support Warning — Vendora')
+          .setDescription(
+            `A message you sent to Vendora support has been marked as spam.\n\n` +
+            `**Strike ${currentStrikes} of 3.** After 3 strikes your support access will be permanently suspended.\n\n` +
+            `Please only use the support form for genuine issues.`
+          )
+          .setFooter({ text: 'Vendora — The Reseller\'s Edge' })
+        ]
+      });
+    }
+  } catch { /* DMs closed */ }
+}
 
 // ── Notification preferences ───────────────────────────────────────────────────
 app.get('/api/notifications', async (req, res) => {

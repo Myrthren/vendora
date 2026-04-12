@@ -657,6 +657,11 @@
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
       Profit Tracker
     </div>
+    <div class="nav-item" id="enhancer-nav-item" onclick="showSection('enhancer', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Photo Enhancer
+      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(232,161,33,0.15);color:var(--gold);letter-spacing:.05em;">ELITE</span>
+    </div>
 
     <span class="nav-section-label" style="margin-top:8px;">Support</span>
     <div class="nav-item" onclick="showSection('support', this)">
@@ -1511,6 +1516,177 @@
       </div>
     </div>
 
+    <!-- ── PHOTO ENHANCER ── -->
+    <div class="section" id="section-enhancer">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">AI Photo Enhancer <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(232,161,33,0.14);color:var(--gold);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;letter-spacing:.04em;">ELITE</span></div>
+        <div class="page-sub">Remove backgrounds, apply clean studio backdrops, and enhance your listing photos for maximum buyer appeal.</div>
+      </div>
+
+      <!-- Elite gate -->
+      <div id="enhancer-gate" style="display:none;">
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px;text-align:center;">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(232,161,33,0.6)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text);">Elite Required</div>
+          <div style="font-size:13px;color:var(--muted2);max-width:320px;">AI Photo Enhancer is available on Vendora Elite. Upgrade to remove backgrounds and create pro-quality listing photos instantly.</div>
+          <button class="btn btn-primary btn-sm" onclick="showSection('subscription', document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Elite</button>
+        </div>
+      </div>
+
+      <!-- Enhancer tool -->
+      <div id="enhancer-tool">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+
+          <!-- Left: Upload + Controls -->
+          <div style="display:flex;flex-direction:column;gap:16px;">
+
+            <!-- Upload -->
+            <div class="card" style="padding:20px;">
+              <div class="card-title" style="margin-bottom:14px;">Upload Photo</div>
+              <div id="enhancer-drop-zone"
+                onclick="document.getElementById('enhancer-file-input').click()"
+                ondragover="event.preventDefault();this.style.borderColor='rgba(232,33,122,0.5)'"
+                ondragleave="this.style.borderColor='rgba(255,255,255,0.1)'"
+                ondrop="enhancerHandleDrop(event)"
+                style="border:2px dashed rgba(255,255,255,0.1);border-radius:10px;padding:32px 20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:border-color .18s,background .18s;min-height:140px;"
+                onmouseover="this.style.background='rgba(232,33,122,0.03)';this.style.borderColor='rgba(232,33,122,0.3)'"
+                onmouseout="this.style.background='';this.style.borderColor='rgba(255,255,255,0.1)'">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <span style="font-size:12px;color:var(--muted);">Drop image here or click to browse</span>
+                <span style="font-size:11px;color:rgba(255,255,255,0.2);">JPG, PNG, WEBP — max 10MB</span>
+              </div>
+              <input type="file" id="enhancer-file-input" accept="image/*" style="display:none;" onchange="enhancerLoadFile(event)">
+            </div>
+
+            <!-- Background -->
+            <div class="card" style="padding:20px;">
+              <div class="card-title" style="margin-bottom:14px;">Background</div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;" id="bg-presets">
+                <div class="bg-preset active" data-bg="white" onclick="enhancerSetBg(this,'#ffffff')" style="aspect-ratio:1;border-radius:8px;border:2px solid var(--pink);background:#ffffff;cursor:pointer;transition:border-color .15s;" title="White"></div>
+                <div class="bg-preset" data-bg="light" onclick="enhancerSetBg(this,'#f5f5f5')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:#f5f5f5;cursor:pointer;transition:border-color .15s;" title="Light Grey"></div>
+                <div class="bg-preset" data-bg="studio" onclick="enhancerSetBg(this,'#2a2a2a')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:#2a2a2a;cursor:pointer;transition:border-color .15s;" title="Studio Dark"></div>
+                <div class="bg-preset" data-bg="black" onclick="enhancerSetBg(this,'#000000')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:#000000;cursor:pointer;transition:border-color .15s;outline:1px solid rgba(255,255,255,0.08);" title="Black"></div>
+                <div class="bg-preset" data-bg="marble" onclick="enhancerSetBg(this,'marble')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:linear-gradient(135deg,#e8e8e8 0%,#f9f9f9 40%,#d8d8d8 60%,#f0f0f0 100%);cursor:pointer;transition:border-color .15s;" title="Marble"></div>
+                <div class="bg-preset" data-bg="gradient-pink" onclick="enhancerSetBg(this,'gradient-pink')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:linear-gradient(135deg,#1a0010,#3d0020,#6b0033);cursor:pointer;transition:border-color .15s;" title="Dark Pink Gradient"></div>
+                <div class="bg-preset" data-bg="gradient-blue" onclick="enhancerSetBg(this,'gradient-blue')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:linear-gradient(135deg,#0a0e1a,#0d1b3e,#0a2a5c);cursor:pointer;transition:border-color .15s;" title="Dark Blue Gradient"></div>
+                <div class="bg-preset" data-bg="transparent" onclick="enhancerSetBg(this,'transparent')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:repeating-conic-gradient(#555 0% 25%, #333 0% 50%) 0 0/12px 12px;cursor:pointer;transition:border-color .15s;" title="Transparent (PNG)"></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <label style="font-size:12px;color:var(--muted2);">Custom colour</label>
+                <input type="color" id="enhancer-custom-color" value="#ffffff" onchange="enhancerSetBg(null, this.value, true)" style="width:36px;height:28px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;background:transparent;cursor:pointer;padding:2px;">
+              </div>
+            </div>
+
+            <!-- Adjustments -->
+            <div class="card" style="padding:20px;">
+              <div class="card-title" style="margin-bottom:14px;">Adjustments</div>
+              <div style="display:flex;flex-direction:column;gap:14px;">
+                <div>
+                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Brightness</label><span style="font-size:12px;color:var(--text);" id="adj-brightness-val">100%</span></div>
+                  <input type="range" id="adj-brightness" min="0" max="200" value="100" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-brightness-val').textContent=this.value+'%';enhancerComposite()">
+                </div>
+                <div>
+                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Contrast</label><span style="font-size:12px;color:var(--text);" id="adj-contrast-val">100%</span></div>
+                  <input type="range" id="adj-contrast" min="0" max="200" value="100" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-contrast-val').textContent=this.value+'%';enhancerComposite()">
+                </div>
+                <div>
+                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Saturation</label><span style="font-size:12px;color:var(--text);" id="adj-saturation-val">100%</span></div>
+                  <input type="range" id="adj-saturation" min="0" max="200" value="100" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-saturation-val').textContent=this.value+'%';enhancerComposite()">
+                </div>
+                <div>
+                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Sharpness</label><span style="font-size:12px;color:var(--text);" id="adj-sharpness-val">0</span></div>
+                  <input type="range" id="adj-sharpness" min="0" max="5" value="0" step="0.5" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-sharpness-val').textContent=this.value;enhancerComposite()">
+                </div>
+                <div>
+                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Shadow Depth</label><span style="font-size:12px;color:var(--text);" id="adj-shadow-val">0%</span></div>
+                  <input type="range" id="adj-shadow" min="0" max="60" value="0" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-shadow-val').textContent=this.value+'%';enhancerComposite()">
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="enhancerResetSliders()" style="align-self:flex-start;margin-top:2px;">Reset Adjustments</button>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right: Preview + Actions -->
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div class="card" style="padding:20px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+                <div class="card-title" style="margin:0;">Preview</div>
+                <div style="display:flex;gap:8px;">
+                  <button class="btn btn-ghost btn-sm" id="enhancer-reset-btn" onclick="enhancerReset()" style="display:none;">Reset</button>
+                  <button class="btn btn-primary btn-sm" id="enhancer-remove-bg-btn" onclick="enhancerRemoveBg()" style="display:none;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    Remove Background
+                  </button>
+                </div>
+              </div>
+
+              <!-- Preview canvas area -->
+              <div id="enhancer-placeholder" style="aspect-ratio:1;border-radius:10px;border:1px dashed rgba(255,255,255,0.08);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted);">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <span style="font-size:12px;color:rgba(255,255,255,0.18);">Upload a photo to get started</span>
+              </div>
+              <canvas id="enhancer-canvas" style="display:none;width:100%;border-radius:10px;"></canvas>
+
+              <!-- Status bar -->
+              <div id="enhancer-status" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;font-size:12px;background:rgba(74,222,128,0.07);border:1px solid rgba(74,222,128,0.15);color:var(--green);"></div>
+
+              <!-- Remove bg loading -->
+              <div id="enhancer-loading" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;font-size:12px;background:rgba(232,33,122,0.06);border:1px solid rgba(232,33,122,0.15);color:var(--pink);align-items:center;gap:8px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="animation:spin 1s linear infinite;flex-shrink:0;"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+                Removing background with AI…
+              </div>
+            </div>
+
+            <!-- Download -->
+            <div class="card" style="padding:20px;">
+              <div class="card-title" style="margin-bottom:14px;">Export</div>
+              <div style="display:flex;flex-direction:column;gap:10px;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <label style="font-size:12px;color:var(--muted2);white-space:nowrap;">Format</label>
+                  <select id="enhancer-format" style="flex:1;background:var(--bg3);border:1px solid var(--border-dim);color:var(--text);border-radius:8px;padding:8px 12px;font-size:13px;font-family:'DM Sans',sans-serif;">
+                    <option value="image/png">PNG (lossless, transparent)</option>
+                    <option value="image/jpeg">JPEG (smaller file)</option>
+                    <option value="image/webp">WEBP (best compression)</option>
+                  </select>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <label style="font-size:12px;color:var(--muted2);white-space:nowrap;">Size</label>
+                  <select id="enhancer-size" style="flex:1;background:var(--bg3);border:1px solid var(--border-dim);color:var(--text);border-radius:8px;padding:8px 12px;font-size:13px;font-family:'DM Sans',sans-serif;">
+                    <option value="1">Original</option>
+                    <option value="0.75">75% (Smaller)</option>
+                    <option value="0.5">50% (Thumbnail)</option>
+                    <option value="2">2x (High-res)</option>
+                  </select>
+                </div>
+                <button class="btn btn-primary" id="enhancer-download-btn" onclick="enhancerDownload()" style="display:none;margin-top:4px;justify-content:center;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Download Enhanced Photo
+                </button>
+                <div id="enhancer-download-placeholder" style="padding:12px;border-radius:8px;border:1px dashed rgba(255,255,255,0.06);text-align:center;font-size:12px;color:rgba(255,255,255,0.2);">Upload a photo first</div>
+              </div>
+            </div>
+
+            <!-- Tips -->
+            <div class="card" style="padding:18px;background:rgba(232,161,33,0.04);border-color:rgba(232,161,33,0.12);">
+              <div style="font-size:12px;color:var(--gold);font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:7px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                Pro Tips
+              </div>
+              <ul style="font-size:12px;color:var(--muted2);line-height:1.7;padding-left:14px;margin:0;">
+                <li>Use <strong style="color:var(--text);">White</strong> or <strong style="color:var(--text);">Light Grey</strong> backgrounds for Depop & Vinted — they convert best</li>
+                <li>Add a subtle <strong style="color:var(--text);">Shadow Depth</strong> for a professional studio look</li>
+                <li>Slight <strong style="color:var(--text);">+110% Contrast</strong> makes items pop on dark feeds</li>
+                <li>Export as <strong style="color:var(--text);">WEBP</strong> for faster page loads on cross-listed items</li>
+              </ul>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
     <!-- ── SUPPORT ── -->
     <div class="section" id="section-support">
       <div class="page-header">
@@ -1522,7 +1698,11 @@
       <div class="card" style="margin-bottom:16px;">
         <div class="card-title">Send a Message</div>
         <p style="color:var(--muted2);font-size:13px;line-height:1.6;margin-bottom:6px;">Fill in the form below and your message will be delivered directly via Discord. We typically respond within a few hours.</p>
-        <p style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:18px;">Messages go directly to <span style="font-family:monospace;color:var(--text);background:rgba(255,255,255,0.05);padding:1px 6px;border-radius:4px;font-size:12px;">pluniez</span> on Discord.</p>
+        <p style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px;">Messages go directly to <span style="font-family:monospace;color:var(--text);background:rgba(255,255,255,0.05);padding:1px 6px;border-radius:4px;font-size:12px;">pluniez</span> on Discord.</p>
+        <div style="background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.18);border-radius:8px;padding:10px 14px;margin-bottom:18px;display:flex;gap:10px;align-items:flex-start;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span style="font-size:12px;color:rgba(255,255,255,0.5);line-height:1.55;">Only use this form for genuine support requests. Spam or abuse results in a <strong style="color:var(--red);">strike</strong> on your account — <strong style="color:var(--red);">3 strikes = permanent support ban.</strong></span>
+        </div>
         <div style="display:flex;flex-direction:column;gap:14px;">
           <div>
             <label class="form-label">Subject</label>
@@ -2037,6 +2217,7 @@
     updateUpgradeCards(tier);
     initCrossListAccess(tier);
     initListingsAccess(tier);
+    initEnhancerAccess(tier);
     loadPlatformStatus();
     loadNotificationPrefs();
     loadUsageStats();
@@ -2372,7 +2553,7 @@
     }
   });
 
-  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', inventory:'Inventory', watchlist:'Watchlist', profit:'Profit Tracker', crosslist:'Cross-List', listings:'Listings', support:'Support', admin:'Admin Panel' };
+  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', inventory:'Inventory', watchlist:'Watchlist', profit:'Profit Tracker', crosslist:'Cross-List', listings:'Listings', enhancer:'Photo Enhancer', support:'Support', admin:'Admin Panel' };
 
   // ── Cross-list tool ──────────────────────────────────────────────────────────
   const BOT_API = 'https://vendora-production-8a47.up.railway.app';
@@ -3396,6 +3577,281 @@
       if (row) row.style.opacity = '';
       alert('Network error. Please try again.');
     }
+  }
+
+  // ── Photo Enhancer ───────────────────────────────────────────────────────────
+  let enhancerOriginalImg    = null;  // Original HTMLImageElement
+  let enhancerRemovedBgB64   = null;  // Base64 of bg-removed PNG (from remove.bg)
+  let enhancerCurrentBg      = '#ffffff';
+  let enhancerUseBgRemoved   = false;
+
+  function initEnhancerAccess(tier) {
+    const gate = document.getElementById('enhancer-gate');
+    const tool = document.getElementById('enhancer-tool');
+    const nav  = document.getElementById('enhancer-nav-item');
+    if (tier === 'elite') {
+      if (gate) gate.style.display = 'none';
+      if (tool) tool.style.display = '';
+    } else {
+      if (gate) gate.style.display = '';
+      if (tool) tool.style.display = 'none';
+      if (nav)  nav.style.opacity  = '0.5';
+    }
+  }
+
+  function enhancerHandleDrop(event) {
+    event.preventDefault();
+    document.getElementById('enhancer-drop-zone').style.borderColor = 'rgba(255,255,255,0.1)';
+    const file = event.dataTransfer?.files?.[0];
+    if (file && file.type.startsWith('image/')) enhancerLoadImageFile(file);
+  }
+
+  function enhancerLoadFile(event) {
+    const file = event.target.files?.[0];
+    if (file) enhancerLoadImageFile(file);
+  }
+
+  function enhancerLoadImageFile(file) {
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Image is too large. Max 10 MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        enhancerOriginalImg  = img;
+        enhancerRemovedBgB64 = null;
+        enhancerUseBgRemoved = false;
+        enhancerShowControls(true);
+        enhancerComposite();
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function enhancerShowControls(show) {
+    document.getElementById('enhancer-placeholder').style.display      = show ? 'none' : '';
+    document.getElementById('enhancer-canvas').style.display           = show ? '' : 'none';
+    document.getElementById('enhancer-remove-bg-btn').style.display    = show ? '' : 'none';
+    document.getElementById('enhancer-reset-btn').style.display        = show ? '' : 'none';
+    document.getElementById('enhancer-download-btn').style.display     = show ? '' : 'none';
+    document.getElementById('enhancer-download-placeholder').style.display = show ? 'none' : '';
+  }
+
+  function enhancerSetBg(el, value, isCustom = false) {
+    // Deselect all presets
+    document.querySelectorAll('.bg-preset').forEach(p => p.style.borderColor = 'transparent');
+    if (el) el.style.borderColor = 'var(--pink)';
+    enhancerCurrentBg = value;
+    enhancerComposite();
+  }
+
+  function enhancerGetFilters() {
+    const brightness  = document.getElementById('adj-brightness')?.value  || 100;
+    const contrast    = document.getElementById('adj-contrast')?.value    || 100;
+    const saturation  = document.getElementById('adj-saturation')?.value  || 100;
+    const sharpness   = parseFloat(document.getElementById('adj-sharpness')?.value || 0);
+    return { brightness: brightness/100, contrast: contrast/100, saturation: saturation/100, sharpness };
+  }
+
+  function enhancerComposite() {
+    const canvas  = document.getElementById('enhancer-canvas');
+    if (!canvas || !enhancerOriginalImg) return;
+    const ctx     = canvas.getContext('2d');
+    const img     = enhancerUseBgRemoved && enhancerRemovedBgB64 ? null : enhancerOriginalImg;
+
+    // Determine source image
+    const drawFn = () => {
+      const { brightness, contrast, saturation, sharpness } = enhancerGetFilters();
+      const shadow = parseFloat(document.getElementById('adj-shadow')?.value || 0);
+
+      const W = enhancerOriginalImg.naturalWidth;
+      const H = enhancerOriginalImg.naturalHeight;
+      canvas.width  = W;
+      canvas.height = H;
+
+      // 1. Draw background
+      const bg = enhancerCurrentBg;
+      if (bg === 'transparent') {
+        ctx.clearRect(0, 0, W, H);
+      } else if (bg === 'marble') {
+        const grad = ctx.createLinearGradient(0, 0, W, H);
+        grad.addColorStop(0,   '#e8e8e8');
+        grad.addColorStop(0.4, '#f9f9f9');
+        grad.addColorStop(0.6, '#d8d8d8');
+        grad.addColorStop(1,   '#f0f0f0');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+        // Subtle marble veins
+        ctx.save();
+        ctx.globalAlpha = 0.08;
+        for (let i = 0; i < 6; i++) {
+          ctx.beginPath();
+          ctx.moveTo(Math.random() * W, 0);
+          ctx.bezierCurveTo(Math.random() * W, H * 0.3, Math.random() * W, H * 0.7, Math.random() * W, H);
+          ctx.strokeStyle = '#bbb';
+          ctx.lineWidth   = Math.random() * 2 + 0.5;
+          ctx.stroke();
+        }
+        ctx.restore();
+      } else if (bg === 'gradient-pink') {
+        const grad = ctx.createLinearGradient(0, 0, W, H);
+        grad.addColorStop(0, '#1a0010');
+        grad.addColorStop(0.5, '#3d0020');
+        grad.addColorStop(1, '#6b0033');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+      } else if (bg === 'gradient-blue') {
+        const grad = ctx.createLinearGradient(0, 0, W, H);
+        grad.addColorStop(0, '#0a0e1a');
+        grad.addColorStop(0.5, '#0d1b3e');
+        grad.addColorStop(1, '#0a2a5c');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+      } else {
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, W, H);
+      }
+
+      // 2. Drop shadow under subject
+      if (shadow > 0 && bg !== 'transparent') {
+        ctx.save();
+        ctx.shadowColor   = 'rgba(0,0,0,' + (shadow / 100 * 0.85) + ')';
+        ctx.shadowBlur    = shadow * 3;
+        ctx.shadowOffsetY = shadow * 0.8;
+        ctx.globalAlpha   = 0;
+        ctx.fillRect(W * 0.1, H * 0.8, W * 0.8, 2);
+        ctx.restore();
+      }
+
+      // 3. CSS filter string
+      const filterStr = `brightness(${brightness}) contrast(${contrast}) saturate(${saturation})${sharpness > 0 ? ` url(#enhancer-sharpen-${Math.round(sharpness*2)})` : ''}`;
+
+      // 4. Draw subject image
+      if (enhancerUseBgRemoved && enhancerRemovedBgB64) {
+        const fgImg = new Image();
+        fgImg.onload = () => {
+          if (shadow > 0 && bg !== 'transparent') {
+            ctx.save();
+            ctx.shadowColor   = 'rgba(0,0,0,' + (shadow / 100 * 0.7) + ')';
+            ctx.shadowBlur    = shadow * 4;
+            ctx.shadowOffsetY = shadow * 1.2;
+            ctx.drawImage(fgImg, 0, 0, W, H);
+            ctx.restore();
+          } else {
+            ctx.filter = filterStr;
+            ctx.drawImage(fgImg, 0, 0, W, H);
+            ctx.filter = 'none';
+          }
+        };
+        fgImg.src = enhancerRemovedBgB64;
+      } else {
+        ctx.filter = filterStr;
+        ctx.drawImage(enhancerOriginalImg, 0, 0, W, H);
+        ctx.filter = 'none';
+      }
+    };
+    drawFn();
+  }
+
+  async function enhancerRemoveBg() {
+    if (!enhancerOriginalImg) return;
+    const loadEl  = document.getElementById('enhancer-loading');
+    const statusEl = document.getElementById('enhancer-status');
+    const btn     = document.getElementById('enhancer-remove-bg-btn');
+
+    loadEl.style.display   = 'flex'; loadEl.style.alignItems = 'center';
+    if (statusEl) statusEl.style.display = 'none';
+    if (btn)      btn.disabled = true;
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { alert('Session expired — please refresh.'); return; }
+
+      // Get original image as base64
+      const canvas2 = document.createElement('canvas');
+      canvas2.width  = enhancerOriginalImg.naturalWidth;
+      canvas2.height = enhancerOriginalImg.naturalHeight;
+      canvas2.getContext('2d').drawImage(enhancerOriginalImg, 0, 0);
+      const b64 = canvas2.toDataURL('image/png').split(',')[1];
+
+      const res = await fetch(`${BOT_API}/api/photo/enhance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ image: b64 }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error || 'Background removal failed');
+
+      const mimeType = json.mimeType || 'image/png';
+      enhancerRemovedBgB64 = `data:${mimeType};base64,${json.image}`;
+      enhancerUseBgRemoved = true;
+      enhancerComposite();
+
+      if (statusEl) {
+        statusEl.textContent = '✓ Background removed — apply any backdrop below.';
+        statusEl.style.display = '';
+        setTimeout(() => { statusEl.style.display = 'none'; }, 4000);
+      }
+    } catch (err) {
+      alert('Background removal failed: ' + err.message);
+    } finally {
+      loadEl.style.display = 'none';
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function enhancerReset() {
+    enhancerRemovedBgB64 = null;
+    enhancerUseBgRemoved = false;
+    enhancerResetSliders();
+    // Re-select white preset
+    document.querySelectorAll('.bg-preset').forEach(p => p.style.borderColor = 'transparent');
+    const whitePreset = document.querySelector('.bg-preset[data-bg="white"]');
+    if (whitePreset) whitePreset.style.borderColor = 'var(--pink)';
+    enhancerCurrentBg = '#ffffff';
+    enhancerComposite();
+  }
+
+  function enhancerResetSliders() {
+    ['adj-brightness','adj-contrast','adj-saturation'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.value = 100; document.getElementById(id+'-val').textContent = '100%'; }
+    });
+    const sh = document.getElementById('adj-sharpness');
+    if (sh) { sh.value = 0; document.getElementById('adj-sharpness-val').textContent = '0'; }
+    const sd = document.getElementById('adj-shadow');
+    if (sd) { sd.value = 0; document.getElementById('adj-shadow-val').textContent = '0%'; }
+    enhancerComposite();
+  }
+
+  function enhancerDownload() {
+    const canvas = document.getElementById('enhancer-canvas');
+    if (!canvas) return;
+    const format  = document.getElementById('enhancer-format')?.value || 'image/png';
+    const scale   = parseFloat(document.getElementById('enhancer-size')?.value || 1);
+    const quality = format === 'image/jpeg' ? 0.92 : undefined;
+
+    let exportCanvas = canvas;
+    if (scale !== 1) {
+      exportCanvas         = document.createElement('canvas');
+      exportCanvas.width   = Math.round(canvas.width  * scale);
+      exportCanvas.height  = Math.round(canvas.height * scale);
+      const ectx = exportCanvas.getContext('2d');
+      ectx.drawImage(canvas, 0, 0, exportCanvas.width, exportCanvas.height);
+    }
+
+    const ext  = format === 'image/jpeg' ? 'jpg' : format === 'image/webp' ? 'webp' : 'png';
+    const link = document.createElement('a');
+    link.download = `vendora-enhanced.${ext}`;
+    link.href     = quality ? exportCanvas.toDataURL(format, quality) : exportCanvas.toDataURL(format);
+    link.click();
   }
 
   // ── Toggle auto-relist options visibility ────────────────────────────────────
