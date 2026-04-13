@@ -1797,9 +1797,9 @@ async function getPlatformConn(userId, platform) {
 }
 
 async function upsertPlatformConn(userId, platform, data) {
-  if (!SUPABASE_KEY) return { error: 'no key' };
+  if (!SUPABASE_KEY) return { error: 'SUPABASE_SERVICE_KEY not configured on server' };
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/platform_connections`, {
+    const res  = await fetch(`${SUPABASE_URL}/rest/v1/platform_connections`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1809,7 +1809,12 @@ async function upsertPlatformConn(userId, platform, data) {
       },
       body: JSON.stringify({ user_id: userId, platform, ...data }),
     });
-    return { ok: res.ok };
+    const text = await res.text();
+    if (!res.ok) {
+      console.error(`[upsertPlatformConn] ${platform} HTTP ${res.status}:`, text.slice(0, 200));
+      return { error: `Database error (${res.status}): ${text.slice(0, 100)}` };
+    }
+    return { ok: true };
   } catch (e) { return { error: e.message }; }
 }
 
@@ -2250,7 +2255,52 @@ app.post('/api/platform/connect', async (req, res) => {
   if (manual_token) {
     if (!manualUsername) return res.status(400).json({ error: 'username required with manual_token' });
     if (!['depop','vinted'].includes(platform)) return res.status(400).json({ error: 'Unsupported platform' });
-    result = { access_token: manual_token, refresh_token: '', platform_user_id: '', platform_username: manualUsername };
+
+    // Validate the token is real by hitting the platform's profile endpoint
+    if (platform === 'vinted') {
+      try {
+        const check = await fetch('https://www.vinted.co.uk/api/v2/users/current', {
+          headers: { ...VINTED_HEADERS(manual_token), 'Cookie': `access_token=${manual_token}` },
+          signal: AbortSignal.timeout(10000),
+        });
+        const body = await check.json().catch(() => null);
+        console.log(`[manual-token] vinted validation status: ${check.status}`, body?.user?.login || '');
+        if (!check.ok || !body?.user) {
+          return res.status(400).json({ error: 'Vinted token is invalid or expired. Please copy a fresh access_token from your browser cookies.' });
+        }
+        // Use the real username from the token
+        result = {
+          access_token: manual_token,
+          refresh_token: '',
+          platform_user_id: String(body.user.id || ''),
+          platform_username: body.user.login || body.user.username || manualUsername,
+        };
+      } catch (e) {
+        console.warn('[manual-token] vinted validation failed:', e.message);
+        // If Vinted is unreachable, still allow saving with the provided username
+        result = { access_token: manual_token, refresh_token: '', platform_user_id: '', platform_username: manualUsername };
+      }
+    } else if (platform === 'depop') {
+      try {
+        const check = await fetch('https://api.depop.com/api/v1/me/', {
+          headers: DEPOP_HEADERS(manual_token),
+          signal: AbortSignal.timeout(10000),
+        });
+        const body = await check.json().catch(() => null);
+        console.log(`[manual-token] depop validation status: ${check.status}`, body?.username || '');
+        if (!check.ok || !body?.username) {
+          return res.status(400).json({ error: 'Depop token is invalid or expired. Please copy a fresh token.' });
+        }
+        result = {
+          access_token: manual_token,
+          refresh_token: '',
+          platform_user_id: String(body.id || ''),
+          platform_username: body.username || manualUsername,
+        };
+      } catch (e) {
+        result = { access_token: manual_token, refresh_token: '', platform_user_id: '', platform_username: manualUsername };
+      }
+    }
   }
   // ── Credential login mode ──────────────────────────────────────────────────
   else if (credentials) {
@@ -2266,13 +2316,18 @@ app.post('/api/platform/connect', async (req, res) => {
     return res.status(400).json({ error: 'credentials or manual_token required' });
   }
 
-  await upsertPlatformConn(user.id, platform, {
+  const saveResult = await upsertPlatformConn(user.id, platform, {
     access_token:      encryptToken(result.access_token),
     refresh_token:     result.refresh_token ? encryptToken(result.refresh_token) : null,
     platform_user_id:  result.platform_user_id,
     platform_username: result.platform_username,
     connected_at:      new Date().toISOString(),
   });
+
+  if (!saveResult.ok) {
+    console.error(`[platform] upsert failed for ${platform} / user ${user.id}:`, saveResult.error);
+    return res.status(500).json({ error: saveResult.error || 'Failed to save connection. Please try again.' });
+  }
 
   console.log(`[platform] ${platform} connected for user ${user.id} (@${result.platform_username}) mode:${manual_token ? 'manual' : 'credentials'}`);
   res.json({ ok: true, platform, username: result.platform_username });
