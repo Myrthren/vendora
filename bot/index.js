@@ -2273,50 +2273,31 @@ app.post('/api/platform/connect', async (req, res) => {
     if (!manualUsername) return res.status(400).json({ error: 'username required with manual_token' });
     if (!['depop','vinted'].includes(platform)) return res.status(400).json({ error: 'Unsupported platform' });
 
-    // Validate the token is real by hitting the platform's profile endpoint
+    // For manual tokens: skip server-side validation because Railway IPs are blocked
+    // by Cloudflare (Vinted) and similar bot-protection on Depop. Trust the user's
+    // extracted token — if it's wrong it will fail visibly when they try to list.
     if (platform === 'vinted') {
-      try {
-        const check = await fetch('https://www.vinted.co.uk/api/v2/users/current', {
-          headers: { ...VINTED_HEADERS(manual_token), 'Cookie': `access_token=${manual_token}` },
-          signal: AbortSignal.timeout(10000),
-        });
-        const body = await check.json().catch(() => null);
-        console.log(`[manual-token] vinted validation status: ${check.status}`, body?.user?.login || '');
-        if (!check.ok || !body?.user) {
-          return res.status(400).json({ error: 'Vinted token is invalid or expired. Please copy a fresh access_token from your browser cookies.' });
-        }
-        // Use the real username from the token
-        result = {
-          access_token: manual_token,
-          refresh_token: '',
-          platform_user_id: String(body.user.id || ''),
-          platform_username: body.user.login || body.user.username || manualUsername,
-        };
-      } catch (e) {
-        console.warn('[manual-token] vinted validation error:', e.message);
-        return res.status(400).json({ error: 'Could not verify Vinted token — server connection failed. Check Railway logs.' });
+      if (manual_token.length < 20) {
+        return res.status(400).json({ error: 'Token looks too short — make sure you copied the full access_token value from your browser cookies.' });
       }
+      result = {
+        access_token:      manual_token,
+        refresh_token:     '',
+        platform_user_id:  '',
+        platform_username: manualUsername,
+      };
+      console.log(`[manual-token] vinted saved without server validation for @${manualUsername}`);
     } else if (platform === 'depop') {
-      try {
-        const check = await fetch('https://api.depop.com/api/v1/me/', {
-          headers: DEPOP_HEADERS(manual_token),
-          signal: AbortSignal.timeout(10000),
-        });
-        const body = await check.json().catch(() => null);
-        console.log(`[manual-token] depop validation status: ${check.status}`, body?.username || '');
-        if (!check.ok || !body?.username) {
-          return res.status(400).json({ error: 'Depop token is invalid or expired. Please copy a fresh token.' });
-        }
-        result = {
-          access_token: manual_token,
-          refresh_token: '',
-          platform_user_id: String(body.id || ''),
-          platform_username: body.username || manualUsername,
-        };
-      } catch (e) {
-        console.warn('[manual-token] depop validation error:', e.message);
-        return res.status(400).json({ error: 'Could not verify Depop token — server connection failed. Check Railway logs.' });
+      if (manual_token.length < 10) {
+        return res.status(400).json({ error: 'Token looks too short — make sure you copied the full token value.' });
       }
+      result = {
+        access_token:      manual_token,
+        refresh_token:     '',
+        platform_user_id:  '',
+        platform_username: manualUsername,
+      };
+      console.log(`[manual-token] depop saved without server validation for @${manualUsername}`);
     }
   }
   // ── Credential login mode ──────────────────────────────────────────────────
