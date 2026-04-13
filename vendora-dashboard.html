@@ -639,6 +639,29 @@
       Cross-List
       <span class="nav-item-badge" style="background:rgba(232,33,122,0.18);color:var(--pink);font-size:9px;padding:2px 6px;border-radius:4px;margin-left:auto;">Pro</span>
     </div>
+    <div class="nav-item" id="listings-nav-item" onclick="showSection('listings', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      Listings
+      <span class="nav-item-badge" style="background:rgba(232,33,122,0.18);color:var(--pink);font-size:9px;padding:2px 6px;border-radius:4px;margin-left:auto;">Pro</span>
+    </div>
+
+    <div class="nav-item" id="inventory-nav-item" onclick="showSection('inventory', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+      Inventory
+    </div>
+    <div class="nav-item" id="watchlist-nav-item" onclick="showSection('watchlist', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+      Watchlist
+    </div>
+    <div class="nav-item" id="profit-nav-item" onclick="showSection('profit', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      Profit Tracker
+    </div>
+    <div class="nav-item" id="enhancer-nav-item" onclick="showSection('enhancer', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Photo Enhancer
+      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(232,161,33,0.15);color:var(--gold);letter-spacing:.05em;">ELITE</span>
+    </div>
 
     <span class="nav-section-label" style="margin-top:8px;">Support</span>
     <div class="nav-item" onclick="showSection('support', this)">
@@ -654,6 +677,10 @@
     </div>
   </nav>
 
+  <div style="padding: 8px 14px; display:flex; gap:14px; border-top: 1px solid var(--border-dim);">
+    <a href="vendora-tos.html" target="_blank" style="font-size:10px;color:rgba(255,255,255,0.22);text-decoration:none;letter-spacing:0.06em;" onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='rgba(255,255,255,0.22)'">Terms</a>
+    <a href="vendora-privacy.html" target="_blank" style="font-size:10px;color:rgba(255,255,255,0.22);text-decoration:none;letter-spacing:0.06em;" onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='rgba(255,255,255,0.22)'">Privacy</a>
+  </div>
   <div class="sidebar-user">
     <div class="user-avatar" id="sidebar-avi">VV</div>
     <div class="user-info">
@@ -798,7 +825,7 @@
         </div>
         <div class="stat-card">
           <div class="stat-label">Commands Used Today</div>
-          <div class="stat-val">12</div>
+          <div class="stat-val" id="stat-used">—</div>
           <div class="stat-sub" id="stat-limit">of 50/day limit</div>
         </div>
         <div class="stat-card">
@@ -830,24 +857,34 @@
       </div>
 
       <div class="card">
-        <div class="card-title">Change Plan</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div class="card-title" style="margin:0;">Change Plan</div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span id="billing-label-mo" style="font-size:12px;color:var(--text);">Monthly</span>
+            <label class="toggle"><input type="checkbox" id="billing-annual-toggle" onchange="toggleBillingCycle()"><span class="toggle-track"></span></label>
+            <span id="billing-label-yr" style="font-size:12px;color:var(--muted2);">Annual <span style="color:var(--green);font-size:11px;">~2 months free</span></span>
+          </div>
+        </div>
         <div style="display:flex; gap:12px; margin-top:4px;">
           <div class="upgrade-card" data-tier="basic" style="flex:1;padding:20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;position:relative;">
             <div class="upgrade-current-badge" style="display:none;position:absolute;top:12px;right:12px;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted2);border:1px solid rgba(255,255,255,0.1);padding:2px 8px;border-radius:3px;">Current</div>
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted2);margin-bottom:6px;">Basic</div>
-            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--muted2);">£9.99<span style="font-size:12px;font-weight:400;">/mo</span></div>
+            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--muted2);" id="plan-price-basic">£9.99<span id="plan-period-basic" style="font-size:12px;font-weight:400;">/mo</span></div>
+            <div id="plan-saving-basic" style="font-size:11px;color:var(--green);margin-top:2px;display:none;">Save £19.89/yr</div>
             <button class="btn btn-ghost btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('basic')">Get Basic</button>
           </div>
           <div class="upgrade-card" data-tier="pro" style="flex:1;padding:20px;background:rgba(232,33,122,0.06);border:1px solid rgba(232,33,122,0.2);border-radius:10px;position:relative;">
             <div class="upgrade-current-badge" style="display:none;position:absolute;top:12px;right:12px;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--pink);border:1px solid var(--border);padding:2px 8px;border-radius:3px;">Current</div>
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--pink);margin-bottom:6px;">Pro</div>
-            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);">£24.99<span style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
+            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);" id="plan-price-pro">£24.99<span id="plan-period-pro" style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
+            <div id="plan-saving-pro" style="font-size:11px;color:var(--green);margin-top:2px;display:none;">Save £49.89/yr</div>
             <button class="btn btn-pink btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('pro')">Get Pro</button>
           </div>
           <div class="upgrade-card" data-tier="elite" style="flex:1;padding:20px;background:rgba(232,161,33,0.04);border:1px solid rgba(232,161,33,0.18);border-radius:10px;position:relative;">
             <div class="upgrade-current-badge" style="display:none;position:absolute;top:12px;right:12px;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold);border:1px solid rgba(232,161,33,0.2);padding:2px 8px;border-radius:3px;">Current</div>
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--gold);margin-bottom:6px;">Elite</div>
-            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);">£49.99<span style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
+            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);" id="plan-price-elite">£49.99<span id="plan-period-elite" style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
+            <div id="plan-saving-elite" style="font-size:11px;color:var(--green);margin-top:2px;display:none;">Save £99.89/yr</div>
             <button class="btn btn-gold btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('elite')">Get Elite</button>
           </div>
         </div>
@@ -897,35 +934,35 @@
               <div class="toggle-label">Price Drop Alerts</div>
               <div class="toggle-sub">When a watchlisted item drops in price</div>
             </div>
-            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-price-drop" checked><span class="toggle-track"></span></label></div>
           </div>
           <div class="toggle-row">
             <div class="toggle-info">
               <div class="toggle-label">Item Selling Fast</div>
               <div class="toggle-sub">When a watchlisted item starts moving quickly</div>
             </div>
-            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-selling-fast" checked><span class="toggle-track"></span></label></div>
           </div>
           <div class="toggle-row">
             <div class="toggle-info">
               <div class="toggle-label">Competitor New Listings</div>
               <div class="toggle-sub">When a tracked seller lists new stock</div>
             </div>
-            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-competitor-new" checked><span class="toggle-track"></span></label></div>
           </div>
           <div class="toggle-row">
             <div class="toggle-info">
               <div class="toggle-label">Weekly Trend Report</div>
               <div class="toggle-sub">Weekly summary of trending brands and categories</div>
             </div>
-            <div class="toggle-wrap"><label class="toggle"><input type="checkbox"><span class="toggle-track"></span></label></div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-weekly-trend"><span class="toggle-track"></span></label></div>
           </div>
           <div class="toggle-row">
             <div class="toggle-info">
               <div class="toggle-label">Early Deal Alerts <span style="font-size:9px;color:var(--gold);letter-spacing:.08em;text-transform:uppercase;margin-left:6px;">Elite</span></div>
               <div class="toggle-sub">Priority deal access before standard Pro members</div>
             </div>
-            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" disabled><span class="toggle-track"></span></label></div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-early-deals" disabled><span class="toggle-track"></span></label></div>
           </div>
         </div>
       </div>
@@ -936,29 +973,37 @@
           <div class="toggle-row">
             <div class="toggle-info">
               <div class="toggle-label">Platform Connected</div>
-              <div class="toggle-sub">DM when eBay, Depop, or Vinted account links successfully</div>
+              <div class="toggle-sub">DM when Depop or Vinted account links successfully</div>
             </div>
-            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-platform-connected" checked><span class="toggle-track"></span></label></div>
           </div>
           <div class="toggle-row">
             <div class="toggle-info">
               <div class="toggle-label">Cross-Listing Updates</div>
               <div class="toggle-sub">Success and failure notifications for cross-listing jobs</div>
             </div>
-            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-crosslist-updates" checked><span class="toggle-track"></span></label></div>
           </div>
           <div class="toggle-row">
             <div class="toggle-info">
               <div class="toggle-label">Connection Expired</div>
               <div class="toggle-sub">Alert when a platform connection needs re-linking</div>
             </div>
-            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-connection-expired" checked><span class="toggle-track"></span></label></div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Auto-Relist Completed</div>
+              <div class="toggle-sub">DM when a listing is automatically relisted</div>
+            </div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-relist-done" checked><span class="toggle-track"></span></label></div>
           </div>
         </div>
       </div>
 
-      <div style="text-align:right;">
-        <button class="btn btn-pink" onclick="alert('Notification preferences saved.')">
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;">
+        <div id="notif-save-msg" style="display:none;font-size:12px;"></div>
+        <button id="notif-save-btn" class="btn btn-pink" onclick="saveNotificationPrefs()">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
           Save Preferences
         </button>
@@ -970,27 +1015,74 @@
       <div class="page-header">
         <div class="page-eyebrow">Platforms</div>
         <div class="page-title">Connected Accounts</div>
-        <div class="page-sub">Link your reselling accounts so Vendora can scan, research, and cross-list on your behalf.</div>
+        <div class="page-sub">Link your reselling accounts so Vendora can list, cross-list, and auto-relist on your behalf.</div>
       </div>
 
-      <div class="card">
-        <div class="card-title">Live Platforms</div>
-        <div id="platforms-list" class="platform-connect-list">
-          <div style="padding:20px 0;text-align:center;color:var(--muted);font-size:13px;">
-            <div style="display:inline-block;width:16px;height:16px;border:2px solid var(--pink);border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:8px;"></div>
-            Loading platforms...
+      <!-- Depop -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div class="plat-icon" style="background:rgba(255,35,0,0.1);color:#ff2300;">DP</div>
+            <div>
+              <div style="font-weight:600;font-size:14px;color:var(--text);">Depop</div>
+              <div id="plat-status-depop" class="plat-status-row disconnected">○ Not connected</div>
+            </div>
           </div>
+          <button id="plat-disconnect-btn-depop" class="btn btn-danger btn-sm" style="display:none;" onclick="disconnectPlatform('depop')">Disconnect</button>
+        </div>
+        <div id="plat-form-depop">
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;">
+            <div>
+              <label class="form-label">Depop Email</label>
+              <input id="depop-email" type="email" class="form-select" style="height:auto;padding:9px 14px;" placeholder="you@email.com">
+            </div>
+            <div>
+              <label class="form-label">Password</label>
+              <input id="depop-password" type="password" class="form-select" style="height:auto;padding:9px 14px;" placeholder="••••••••">
+            </div>
+            <button id="plat-connect-btn-depop" class="btn btn-pink btn-sm" onclick="connectPlatform('depop')">Connect</button>
+          </div>
+          <div id="depop-connect-msg" style="display:none;margin-top:10px;"></div>
         </div>
       </div>
 
+      <!-- Vinted -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div class="plat-icon" style="background:rgba(9,177,186,0.1);color:#09b1ba;">VT</div>
+            <div>
+              <div style="font-weight:600;font-size:14px;color:var(--text);">Vinted</div>
+              <div id="plat-status-vinted" class="plat-status-row disconnected">○ Not connected</div>
+            </div>
+          </div>
+          <button id="plat-disconnect-btn-vinted" class="btn btn-danger btn-sm" style="display:none;" onclick="disconnectPlatform('vinted')">Disconnect</button>
+        </div>
+        <div id="plat-form-vinted">
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;">
+            <div>
+              <label class="form-label">Vinted Username or Email</label>
+              <input id="vinted-email" type="text" class="form-select" style="height:auto;padding:9px 14px;" placeholder="username or email">
+            </div>
+            <div>
+              <label class="form-label">Password</label>
+              <input id="vinted-password" type="password" class="form-select" style="height:auto;padding:9px 14px;" placeholder="••••••••">
+            </div>
+            <button id="plat-connect-btn-vinted" class="btn btn-pink btn-sm" onclick="connectPlatform('vinted')">Connect</button>
+          </div>
+          <div id="vinted-connect-msg" style="display:none;margin-top:10px;"></div>
+        </div>
+      </div>
+
+      <!-- Coming Soon -->
       <div class="card">
         <div class="card-title">Coming Soon</div>
         <div class="platform-connect-list">
           <div class="platform-connect" style="opacity:.5;cursor:not-allowed;">
-            <div class="plat-icon">EB</div>
+            <div class="plat-icon" style="background:rgba(229,50,56,0.1);color:#e53238;">EB</div>
             <div class="plat-details">
               <div class="plat-name-row">eBay</div>
-              <div class="plat-status-row">Official API integration — coming soon</div>
+              <div class="plat-status-row">Official API — auto-listing in development</div>
             </div>
             <button class="btn btn-ghost btn-sm" disabled>Soon</button>
           </div>
@@ -998,7 +1090,7 @@
             <div class="plat-icon">FB</div>
             <div class="plat-details">
               <div class="plat-name-row">Facebook Marketplace</div>
-              <div class="plat-status-row">Requires OAuth integration — launching soon</div>
+              <div class="plat-status-row">OAuth integration — launching soon</div>
             </div>
             <button class="btn btn-ghost btn-sm" disabled>Soon</button>
           </div>
@@ -1011,6 +1103,233 @@
             <button class="btn btn-ghost btn-sm" disabled>Soon</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ── LISTINGS ── -->
+    <div class="section" id="section-listings">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">Listings</div>
+        <div class="page-sub">Create, cross-list, and automate your listings across Depop and Vinted.</div>
+      </div>
+
+      <!-- Pro gate -->
+      <div id="listings-gate" style="display:none;">
+        <div class="access-denied" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px 24px;gap:16px;">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text);">Pro Required</div>
+          <div style="font-size:13px;color:var(--muted2);max-width:320px;">Listings is available on Vendora Pro and above. Upgrade to list and automate across all platforms.</div>
+          <button class="btn btn-primary btn-sm" onclick="showSection('subscription', document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Pro</button>
+        </div>
+      </div>
+
+      <div id="listings-tool">
+        <!-- Create listing -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title" style="margin-bottom:18px;">New Listing</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              <div>
+                <label class="form-label">Item Title *</label>
+                <input id="list-title" type="text" class="form-select" style="height:auto;padding:10px 14px;" placeholder="e.g. Nike Air Max 90 White UK9">
+              </div>
+              <div>
+                <label class="form-label">Description <span style="color:var(--muted);font-weight:300;text-transform:none;">(optional)</span></label>
+                <textarea id="list-desc" rows="3" class="form-select" style="height:auto;padding:10px 14px;resize:vertical;" placeholder="Extra details — size, colour, defects, original box etc."></textarea>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div>
+                  <label class="form-label">Price (£) *</label>
+                  <input id="list-price" type="number" min="0" step="0.01" class="form-select" style="height:auto;padding:10px 14px;" placeholder="45.00">
+                </div>
+                <div>
+                  <label class="form-label">Condition</label>
+                  <select id="list-condition" class="form-select">
+                    <option value="">Select...</option>
+                    <option value="New with tags">New with tags</option>
+                    <option value="Like New">Like New</option>
+                    <option value="Very Good">Very Good</option>
+                    <option value="Good">Good</option>
+                    <option value="Acceptable">Acceptable</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              <div>
+                <label class="form-label">Platforms *</label>
+                <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+                  <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-dim);border-radius:8px;cursor:pointer;transition:border .15s;" id="list-lbl-depop" onmouseover="this.style.borderColor='rgba(255,35,0,0.3)'" onmouseout="updateListPlatformBorder('depop')">
+                    <input type="checkbox" id="list-depop" style="accent-color:#ff2300;width:14px;height:14px;" onchange="updateListPlatformBorder('depop')">
+                    <span style="font-size:13px;color:var(--text);">Depop</span>
+                    <span id="list-depop-status" style="margin-left:auto;font-size:10px;color:var(--muted);">Not connected</span>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-dim);border-radius:8px;cursor:pointer;transition:border .15s;" id="list-lbl-vinted" onmouseover="this.style.borderColor='rgba(9,177,186,0.3)'" onmouseout="updateListPlatformBorder('vinted')">
+                    <input type="checkbox" id="list-vinted" style="accent-color:#09b1ba;width:14px;height:14px;" onchange="updateListPlatformBorder('vinted')">
+                    <span style="font-size:13px;color:var(--text);">Vinted</span>
+                    <span id="list-vinted-status" style="margin-left:auto;font-size:10px;color:var(--muted);">Not connected</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Image upload -->
+              <div>
+                <label class="form-label">Photos <span style="color:var(--muted);font-weight:300;text-transform:none;">(optional, max 8)</span></label>
+                <div id="image-drop-zone" onclick="document.getElementById('list-images-input').click()" style="margin-top:4px;border:1px dashed rgba(255,255,255,0.1);border-radius:10px;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:border-color .15s;min-height:72px;" onmouseover="this.style.borderColor='rgba(232,33,122,0.35)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.1)'">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  <span style="font-size:11px;color:var(--muted);">Click to add photos</span>
+                </div>
+                <input type="file" id="list-images-input" accept="image/*" multiple style="display:none;" onchange="handleImageSelect(event)">
+                <div id="image-previews" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;"></div>
+              </div>
+
+              <div style="padding:14px;background:rgba(255,255,255,0.02);border:1px solid var(--border-dim);border-radius:10px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                  <div>
+                    <div style="font-size:13px;font-weight:500;color:var(--text);">Auto-Relist</div>
+                    <div style="font-size:11px;color:var(--muted);margin-top:2px;">Delete and repost automatically to stay at the top</div>
+                  </div>
+                  <label class="toggle"><input type="checkbox" id="list-auto-relist" onchange="toggleRelistOptions()"><span class="toggle-track"></span></label>
+                </div>
+                <div id="relist-options" style="display:none;padding-top:10px;border-top:1px solid var(--border-dim);">
+                  <label class="form-label">Relist every</label>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2);cursor:pointer;">
+                      <input type="radio" name="relist-interval" value="1" style="accent-color:var(--pink);"> 1 day
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2);cursor:pointer;">
+                      <input type="radio" name="relist-interval" value="3" style="accent-color:var(--pink);"> 3 days
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2);cursor:pointer;">
+                      <input type="radio" name="relist-interval" value="7" checked style="accent-color:var(--pink);"> 7 days
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2);cursor:pointer;">
+                      <input type="radio" name="relist-interval" value="14" style="accent-color:var(--pink);"> 14 days
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2);cursor:pointer;">
+                      <input type="radio" name="relist-interval" value="30" style="accent-color:var(--pink);"> 30 days
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <button id="list-submit-btn" class="btn btn-primary" onclick="createListing()" style="margin-top:auto;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                List Now
+              </button>
+              <div id="list-msg" style="display:none;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active listings table -->
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div style="padding:16px 20px;border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
+            <div class="card-title" style="margin:0;">Active Listings</div>
+            <button class="btn btn-ghost btn-sm" onclick="loadListings()">Refresh</button>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Platforms</th>
+                <th>Price</th>
+                <th>Condition</th>
+                <th>Auto-Relist</th>
+                <th>Listed</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="listings-tbody">
+              <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Your listings will appear here.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── INVENTORY ── -->
+    <div class="section" id="section-inventory">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">Inventory Tracker</div>
+        <div class="page-sub">Track every item you're selling. Add via the dashboard or with <code style="font-family:monospace;font-size:11px;color:var(--pink);background:rgba(232,33,122,0.1);padding:1px 6px;border-radius:4px;">/tracker add</code> in Discord.</div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-title" style="margin-bottom:14px;">Add Item</div>
+        <div style="display:flex;gap:10px;">
+          <input id="inv-new-item" type="text" class="form-select" style="height:auto;padding:10px 14px;flex:1;" placeholder="e.g. Nike Air Max 90 White UK9">
+          <button id="inv-add-btn" class="btn btn-pink" onclick="addInventoryItem()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add
+          </button>
+        </div>
+        <div id="inv-add-msg" style="display:none;margin-top:10px;font-size:12px;"></div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
+          <div class="card-title" style="margin:0;">Your Items</div>
+          <button class="btn btn-ghost btn-sm" onclick="loadInventory()">Refresh</button>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Item</th>
+              <th>Added</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="inventory-tbody">
+            <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── WATCHLIST ── -->
+    <div class="section" id="section-watchlist">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">Price Watchlist</div>
+        <div class="page-sub">Watch items for price drops. Add via the dashboard or with <code style="font-family:monospace;font-size:11px;color:var(--pink);background:rgba(232,33,122,0.1);padding:1px 6px;border-radius:4px;">/pricedrop</code> in Discord.</div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-title" style="margin-bottom:14px;">Watch an Item</div>
+        <div style="display:flex;gap:10px;">
+          <input id="wl-new-item" type="text" class="form-select" style="height:auto;padding:10px 14px;flex:1;" placeholder="e.g. Stone Island Shadow Project Jacket">
+          <button id="wl-add-btn" class="btn btn-pink" onclick="addWatchlistItem()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Watch
+          </button>
+        </div>
+        <div id="wl-add-msg" style="display:none;margin-top:10px;font-size:12px;"></div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
+          <div class="card-title" style="margin:0;">Watching</div>
+          <button class="btn btn-ghost btn-sm" onclick="loadWatchlist()">Refresh</button>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Item</th>
+              <th>Added</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="watchlist-tbody">
+            <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Loading...</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -1130,6 +1449,273 @@
       </div>
     </div>
 
+    <!-- ── PROFIT TRACKER ── -->
+    <div class="section" id="section-profit">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">Profit Tracker</div>
+        <div class="page-sub">Log your sales and costs. Track your margins, revenue, and ROI over time.</div>
+      </div>
+
+      <!-- Summary stats -->
+      <div class="grid-3" style="margin-bottom:20px;">
+        <div class="stat-card">
+          <div class="stat-label">Total Revenue</div>
+          <div class="stat-val" id="pt-revenue" style="color:var(--green);">£0.00</div>
+          <div class="stat-sub">from logged sales</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Costs</div>
+          <div class="stat-val" id="pt-costs" style="color:var(--red);">£0.00</div>
+          <div class="stat-sub">buy price + fees</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Net Profit</div>
+          <div class="stat-val" id="pt-profit">£0.00</div>
+          <div class="stat-sub" id="pt-roi">0% ROI</div>
+        </div>
+      </div>
+
+      <!-- Log a sale -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-title" style="margin-bottom:16px;">Log a Sale</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px;">
+          <div>
+            <label class="form-label">Item *</label>
+            <input id="pt-item" type="text" class="form-select" style="height:auto;padding:10px 14px;" placeholder="e.g. Nike Air Max 90">
+          </div>
+          <div>
+            <label class="form-label">Sold For (£) *</label>
+            <input id="pt-sell" type="number" min="0" step="0.01" class="form-select" style="height:auto;padding:10px 14px;" placeholder="45.00">
+          </div>
+          <div>
+            <label class="form-label">Bought For (£) *</label>
+            <input id="pt-buy" type="number" min="0" step="0.01" class="form-select" style="height:auto;padding:10px 14px;" placeholder="20.00">
+          </div>
+          <div>
+            <label class="form-label">Platform</label>
+            <select id="pt-platform" class="form-select">
+              <option value="Depop">Depop</option>
+              <option value="Vinted">Vinted</option>
+              <option value="eBay">eBay</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Fees (£)</label>
+            <input id="pt-fees" type="number" min="0" step="0.01" class="form-select" style="height:auto;padding:10px 14px;" placeholder="4.50">
+          </div>
+          <div>
+            <label class="form-label">Shipping (£)</label>
+            <input id="pt-shipping" type="number" min="0" step="0.01" class="form-select" style="height:auto;padding:10px 14px;" placeholder="3.50">
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <button class="btn btn-primary btn-sm" onclick="logSale()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Log Sale
+          </button>
+          <div id="pt-msg" style="font-size:12px;"></div>
+        </div>
+      </div>
+
+      <!-- Sales log table -->
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
+          <div class="card-title" style="margin:0;">Sales Log</div>
+          <button class="btn btn-ghost btn-sm" onclick="clearAllSales()" style="color:var(--red);">Clear All</button>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Platform</th>
+              <th>Sold</th>
+              <th>Bought</th>
+              <th>Fees+Ship</th>
+              <th>Profit</th>
+              <th>Margin</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="pt-tbody">
+            <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">No sales logged yet. Add your first sale above.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── PHOTO ENHANCER ── -->
+    <div class="section" id="section-enhancer">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">AI Photo Enhancer <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(232,161,33,0.14);color:var(--gold);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;letter-spacing:.04em;">ELITE</span></div>
+        <div class="page-sub">Remove backgrounds, apply clean studio backdrops, and enhance your listing photos for maximum buyer appeal.</div>
+      </div>
+
+      <!-- Elite gate -->
+      <div id="enhancer-gate" style="display:none;">
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px;text-align:center;">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(232,161,33,0.6)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text);">Elite Required</div>
+          <div style="font-size:13px;color:var(--muted2);max-width:320px;">AI Photo Enhancer is available on Vendora Elite. Upgrade to remove backgrounds and create pro-quality listing photos instantly.</div>
+          <button class="btn btn-primary btn-sm" onclick="showSection('subscription', document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Elite</button>
+        </div>
+      </div>
+
+      <!-- Enhancer tool -->
+      <div id="enhancer-tool">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+
+          <!-- Left: Upload + Controls -->
+          <div style="display:flex;flex-direction:column;gap:16px;">
+
+            <!-- Upload -->
+            <div class="card" style="padding:20px;">
+              <div class="card-title" style="margin-bottom:14px;">Upload Photo</div>
+              <div id="enhancer-drop-zone"
+                onclick="document.getElementById('enhancer-file-input').click()"
+                ondragover="event.preventDefault();this.style.borderColor='rgba(232,33,122,0.5)'"
+                ondragleave="this.style.borderColor='rgba(255,255,255,0.1)'"
+                ondrop="enhancerHandleDrop(event)"
+                style="border:2px dashed rgba(255,255,255,0.1);border-radius:10px;padding:32px 20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:border-color .18s,background .18s;min-height:140px;"
+                onmouseover="this.style.background='rgba(232,33,122,0.03)';this.style.borderColor='rgba(232,33,122,0.3)'"
+                onmouseout="this.style.background='';this.style.borderColor='rgba(255,255,255,0.1)'">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <span style="font-size:12px;color:var(--muted);">Drop image here or click to browse</span>
+                <span style="font-size:11px;color:rgba(255,255,255,0.2);">JPG, PNG, WEBP — max 10MB</span>
+              </div>
+              <input type="file" id="enhancer-file-input" accept="image/*" style="display:none;" onchange="enhancerLoadFile(event)">
+            </div>
+
+            <!-- Background -->
+            <div class="card" style="padding:20px;">
+              <div class="card-title" style="margin-bottom:14px;">Background</div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;" id="bg-presets">
+                <div class="bg-preset active" data-bg="white" onclick="enhancerSetBg(this,'#ffffff')" style="aspect-ratio:1;border-radius:8px;border:2px solid var(--pink);background:#ffffff;cursor:pointer;transition:border-color .15s;" title="White"></div>
+                <div class="bg-preset" data-bg="light" onclick="enhancerSetBg(this,'#f5f5f5')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:#f5f5f5;cursor:pointer;transition:border-color .15s;" title="Light Grey"></div>
+                <div class="bg-preset" data-bg="studio" onclick="enhancerSetBg(this,'#2a2a2a')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:#2a2a2a;cursor:pointer;transition:border-color .15s;" title="Studio Dark"></div>
+                <div class="bg-preset" data-bg="black" onclick="enhancerSetBg(this,'#000000')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:#000000;cursor:pointer;transition:border-color .15s;outline:1px solid rgba(255,255,255,0.08);" title="Black"></div>
+                <div class="bg-preset" data-bg="marble" onclick="enhancerSetBg(this,'marble')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:linear-gradient(135deg,#e8e8e8 0%,#f9f9f9 40%,#d8d8d8 60%,#f0f0f0 100%);cursor:pointer;transition:border-color .15s;" title="Marble"></div>
+                <div class="bg-preset" data-bg="gradient-pink" onclick="enhancerSetBg(this,'gradient-pink')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:linear-gradient(135deg,#1a0010,#3d0020,#6b0033);cursor:pointer;transition:border-color .15s;" title="Dark Pink Gradient"></div>
+                <div class="bg-preset" data-bg="gradient-blue" onclick="enhancerSetBg(this,'gradient-blue')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:linear-gradient(135deg,#0a0e1a,#0d1b3e,#0a2a5c);cursor:pointer;transition:border-color .15s;" title="Dark Blue Gradient"></div>
+                <div class="bg-preset" data-bg="transparent" onclick="enhancerSetBg(this,'transparent')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:repeating-conic-gradient(#555 0% 25%, #333 0% 50%) 0 0/12px 12px;cursor:pointer;transition:border-color .15s;" title="Transparent (PNG)"></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <label style="font-size:12px;color:var(--muted2);">Custom colour</label>
+                <input type="color" id="enhancer-custom-color" value="#ffffff" onchange="enhancerSetBg(null, this.value, true)" style="width:36px;height:28px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;background:transparent;cursor:pointer;padding:2px;">
+              </div>
+            </div>
+
+            <!-- Adjustments -->
+            <div class="card" style="padding:20px;">
+              <div class="card-title" style="margin-bottom:14px;">Adjustments</div>
+              <div style="display:flex;flex-direction:column;gap:14px;">
+                <div>
+                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Brightness</label><span style="font-size:12px;color:var(--text);" id="adj-brightness-val">100%</span></div>
+                  <input type="range" id="adj-brightness" min="0" max="200" value="100" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-brightness-val').textContent=this.value+'%';enhancerComposite()">
+                </div>
+                <div>
+                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Contrast</label><span style="font-size:12px;color:var(--text);" id="adj-contrast-val">100%</span></div>
+                  <input type="range" id="adj-contrast" min="0" max="200" value="100" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-contrast-val').textContent=this.value+'%';enhancerComposite()">
+                </div>
+                <div>
+                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Saturation</label><span style="font-size:12px;color:var(--text);" id="adj-saturation-val">100%</span></div>
+                  <input type="range" id="adj-saturation" min="0" max="200" value="100" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-saturation-val').textContent=this.value+'%';enhancerComposite()">
+                </div>
+                <div>
+                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Sharpness</label><span style="font-size:12px;color:var(--text);" id="adj-sharpness-val">0</span></div>
+                  <input type="range" id="adj-sharpness" min="0" max="5" value="0" step="0.5" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-sharpness-val').textContent=this.value;enhancerComposite()">
+                </div>
+                <div>
+                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Shadow Depth</label><span style="font-size:12px;color:var(--text);" id="adj-shadow-val">0%</span></div>
+                  <input type="range" id="adj-shadow" min="0" max="60" value="0" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-shadow-val').textContent=this.value+'%';enhancerComposite()">
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="enhancerResetSliders()" style="align-self:flex-start;margin-top:2px;">Reset Adjustments</button>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right: Preview + Actions -->
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div class="card" style="padding:20px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+                <div class="card-title" style="margin:0;">Preview</div>
+                <div style="display:flex;gap:8px;">
+                  <button class="btn btn-ghost btn-sm" id="enhancer-reset-btn" onclick="enhancerReset()" style="display:none;">Reset</button>
+                  <button class="btn btn-primary btn-sm" id="enhancer-remove-bg-btn" onclick="enhancerRemoveBg()" style="display:none;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    Remove Background
+                  </button>
+                </div>
+              </div>
+
+              <!-- Preview canvas area -->
+              <div id="enhancer-placeholder" style="aspect-ratio:1;border-radius:10px;border:1px dashed rgba(255,255,255,0.08);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted);">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <span style="font-size:12px;color:rgba(255,255,255,0.18);">Upload a photo to get started</span>
+              </div>
+              <canvas id="enhancer-canvas" style="display:none;width:100%;border-radius:10px;"></canvas>
+
+              <!-- Status bar -->
+              <div id="enhancer-status" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;font-size:12px;background:rgba(74,222,128,0.07);border:1px solid rgba(74,222,128,0.15);color:var(--green);"></div>
+
+              <!-- Remove bg loading -->
+              <div id="enhancer-loading" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;font-size:12px;background:rgba(232,33,122,0.06);border:1px solid rgba(232,33,122,0.15);color:var(--pink);align-items:center;gap:8px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="animation:spin 1s linear infinite;flex-shrink:0;"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+                Removing background with AI…
+              </div>
+            </div>
+
+            <!-- Download -->
+            <div class="card" style="padding:20px;">
+              <div class="card-title" style="margin-bottom:14px;">Export</div>
+              <div style="display:flex;flex-direction:column;gap:10px;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <label style="font-size:12px;color:var(--muted2);white-space:nowrap;">Format</label>
+                  <select id="enhancer-format" style="flex:1;background:var(--bg3);border:1px solid var(--border-dim);color:var(--text);border-radius:8px;padding:8px 12px;font-size:13px;font-family:'DM Sans',sans-serif;">
+                    <option value="image/png">PNG (lossless, transparent)</option>
+                    <option value="image/jpeg">JPEG (smaller file)</option>
+                    <option value="image/webp">WEBP (best compression)</option>
+                  </select>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <label style="font-size:12px;color:var(--muted2);white-space:nowrap;">Size</label>
+                  <select id="enhancer-size" style="flex:1;background:var(--bg3);border:1px solid var(--border-dim);color:var(--text);border-radius:8px;padding:8px 12px;font-size:13px;font-family:'DM Sans',sans-serif;">
+                    <option value="1">Original</option>
+                    <option value="0.75">75% (Smaller)</option>
+                    <option value="0.5">50% (Thumbnail)</option>
+                    <option value="2">2x (High-res)</option>
+                  </select>
+                </div>
+                <button class="btn btn-primary" id="enhancer-download-btn" onclick="enhancerDownload()" style="display:none;margin-top:4px;justify-content:center;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Download Enhanced Photo
+                </button>
+                <div id="enhancer-download-placeholder" style="padding:12px;border-radius:8px;border:1px dashed rgba(255,255,255,0.06);text-align:center;font-size:12px;color:rgba(255,255,255,0.2);">Upload a photo first</div>
+              </div>
+            </div>
+
+            <!-- Tips -->
+            <div class="card" style="padding:18px;background:rgba(232,161,33,0.04);border-color:rgba(232,161,33,0.12);">
+              <div style="font-size:12px;color:var(--gold);font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:7px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                Pro Tips
+              </div>
+              <ul style="font-size:12px;color:var(--muted2);line-height:1.7;padding-left:14px;margin:0;">
+                <li>Use <strong style="color:var(--text);">White</strong> or <strong style="color:var(--text);">Light Grey</strong> backgrounds for Depop & Vinted — they convert best</li>
+                <li>Add a subtle <strong style="color:var(--text);">Shadow Depth</strong> for a professional studio look</li>
+                <li>Slight <strong style="color:var(--text);">+110% Contrast</strong> makes items pop on dark feeds</li>
+                <li>Export as <strong style="color:var(--text);">WEBP</strong> for faster page loads on cross-listed items</li>
+              </ul>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
     <!-- ── SUPPORT ── -->
     <div class="section" id="section-support">
       <div class="page-header">
@@ -1139,23 +1725,48 @@
       </div>
 
       <div class="card" style="margin-bottom:16px;">
-        <div class="card-title">Contact Us</div>
-        <p style="color:var(--muted2);font-size:13px;line-height:1.6;margin-bottom:20px;">
-          If you're experiencing issues with your subscription, missing Discord roles, billing questions, or anything else — reach out through either channel below and we'll get back to you.
-        </p>
+        <div class="card-title">Send a Message</div>
+        <p style="color:var(--muted2);font-size:13px;line-height:1.6;margin-bottom:6px;">Fill in the form below and your message will be delivered directly via Discord. We typically respond within a few hours.</p>
+        <p style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px;">Messages go directly to <span style="font-family:monospace;color:var(--text);background:rgba(255,255,255,0.05);padding:1px 6px;border-radius:4px;font-size:12px;">pluniez</span> on Discord.</p>
+        <div style="background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.18);border-radius:8px;padding:10px 14px;margin-bottom:18px;display:flex;gap:10px;align-items:flex-start;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span style="font-size:12px;color:rgba(255,255,255,0.5);line-height:1.55;">Only use this form for genuine support requests. Spam or abuse results in a <strong style="color:var(--red);">strike</strong> on your account — <strong style="color:var(--red);">3 strikes = permanent support ban.</strong></span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div>
+            <label class="form-label">Subject</label>
+            <select id="support-subject" class="form-select">
+              <option value="Subscription / Billing">Subscription / Billing</option>
+              <option value="Missing Discord Role">Missing Discord Role</option>
+              <option value="Platform Connection Issue">Platform Connection Issue</option>
+              <option value="Bot Command Not Working">Bot Command Not Working</option>
+              <option value="Account Issue">Account Issue</option>
+              <option value="Feature Request">Feature Request</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Message</label>
+            <textarea id="support-message" class="form-textarea" rows="4" placeholder="Describe your issue in as much detail as possible. Include your Discord ID if relevant."></textarea>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;">
+            <div id="support-msg" style="display:none;font-size:12px;"></div>
+            <button id="support-submit-btn" class="btn btn-pink" onclick="submitSupportTicket()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              Send Message
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">Direct Contact</div>
         <div class="toggle-list">
           <div class="info-row">
             <span class="info-row-label">Discord</span>
             <span class="info-row-val" style="display:flex;align-items:center;gap:10px;">
               <span style="font-family:monospace;font-size:13px;color:var(--text);">pluniez</span>
               <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('pluniez').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})">Copy</button>
-            </span>
-          </div>
-          <div class="info-row">
-            <span class="info-row-label">Email</span>
-            <span class="info-row-val" style="display:flex;align-items:center;gap:10px;">
-              <a href="mailto:keneamaechina@gmail.com" style="color:var(--pink);font-size:13px;text-decoration:none;">keneamaechina@gmail.com</a>
-              <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('keneamaechina@gmail.com').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})">Copy</button>
             </span>
           </div>
         </div>
@@ -1170,11 +1781,15 @@
           </div>
           <div class="info-row" style="flex-direction:column;align-items:flex-start;gap:4px;padding:14px 0;">
             <span style="font-size:13px;font-weight:500;color:var(--text);">I can't log in</span>
-            <span style="font-size:12px;color:var(--muted2);line-height:1.5;">Make sure you're authorising with the correct Discord account. Clear your browser cache and try again. If the problem persists, contact us.</span>
+            <span style="font-size:12px;color:var(--muted2);line-height:1.5;">Make sure you're authorising with the correct Discord account. Clear your browser cache and try again. If the problem persists, send us a message above.</span>
+          </div>
+          <div class="info-row" style="flex-direction:column;align-items:flex-start;gap:4px;padding:14px 0;">
+            <span style="font-size:13px;font-weight:500;color:var(--text);">A bot command returned an error</span>
+            <span style="font-size:12px;color:var(--muted2);line-height:1.5;">Include the exact command you used and the error message when contacting us. Most errors are resolved within minutes.</span>
           </div>
           <div class="info-row" style="flex-direction:column;align-items:flex-start;gap:4px;padding:14px 0;">
             <span style="font-size:13px;font-weight:500;color:var(--text);">I want to cancel my subscription</span>
-            <span style="font-size:12px;color:var(--muted2);line-height:1.5;">Go to the Subscription tab and click Cancel Plan. Your access remains until the end of the billing period.</span>
+            <span style="font-size:12px;color:var(--muted2);line-height:1.5;">Go to the Subscription tab and click Cancel Plan. Your access remains active until the end of your current billing period.</span>
           </div>
         </div>
       </div>
@@ -1269,9 +1884,9 @@
                   <div class="bot-cmd-info">Full product scanner</div>
                 </div>
                 <div class="bot-right">
-                  <div><div class="rate-label">Basic</div><input class="rate-limit-input" value="5"></div>
-                  <div><div class="rate-label">Pro</div><input class="rate-limit-input" value="50"></div>
-                  <div><div class="rate-label">Elite</div><input class="rate-limit-input" value="∞"></div>
+                  <div><div class="rate-label">Basic</div><input id="rl-scan-basic" class="rate-limit-input" value="5"></div>
+                  <div><div class="rate-label">Pro</div><input id="rl-scan-pro" class="rate-limit-input" value="50"></div>
+                  <div><div class="rate-label">Elite</div><input id="rl-scan-elite" class="rate-limit-input" value="∞"></div>
                 </div>
               </div>
               <div class="bot-row">
@@ -1280,9 +1895,9 @@
                   <div class="bot-cmd-info">AI messaging commands</div>
                 </div>
                 <div class="bot-right">
-                  <div><div class="rate-label">Basic</div><input class="rate-limit-input" value="20"></div>
-                  <div><div class="rate-label">Pro</div><input class="rate-limit-input" value="100"></div>
-                  <div><div class="rate-label">Elite</div><input class="rate-limit-input" value="∞"></div>
+                  <div><div class="rate-label">Basic</div><input id="rl-reply-basic" class="rate-limit-input" value="20"></div>
+                  <div><div class="rate-label">Pro</div><input id="rl-reply-pro" class="rate-limit-input" value="100"></div>
+                  <div><div class="rate-label">Elite</div><input id="rl-reply-elite" class="rate-limit-input" value="∞"></div>
                 </div>
               </div>
               <div class="bot-row">
@@ -1291,9 +1906,20 @@
                   <div class="bot-cmd-info">Full research report</div>
                 </div>
                 <div class="bot-right">
-                  <div><div class="rate-label">Basic</div><input class="rate-limit-input" value="3"></div>
-                  <div><div class="rate-label">Pro</div><input class="rate-limit-input" value="20"></div>
-                  <div><div class="rate-label">Elite</div><input class="rate-limit-input" value="∞"></div>
+                  <div><div class="rate-label">Basic</div><input id="rl-research-basic" class="rate-limit-input" value="3"></div>
+                  <div><div class="rate-label">Pro</div><input id="rl-research-pro" class="rate-limit-input" value="20"></div>
+                  <div><div class="rate-label">Elite</div><input id="rl-research-elite" class="rate-limit-input" value="∞"></div>
+                </div>
+              </div>
+              <div class="bot-row">
+                <div>
+                  <div class="bot-cmd">/crosslist</div>
+                  <div class="bot-cmd-info">Cross-listing tool</div>
+                </div>
+                <div class="bot-right">
+                  <div><div class="rate-label">Basic</div><input id="rl-crosslist-basic" class="rate-limit-input" value="5"></div>
+                  <div><div class="rate-label">Pro</div><input id="rl-crosslist-pro" class="rate-limit-input" value="30"></div>
+                  <div><div class="rate-label">Elite</div><input id="rl-crosslist-elite" class="rate-limit-input" value="∞"></div>
                 </div>
               </div>
             </div>
@@ -1307,33 +1933,34 @@
                   <div class="toggle-label">Bot Online</div>
                   <div class="toggle-sub">Toggle the Vendora bot on/off globally</div>
                 </div>
-                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="toggle-bot-online" checked><span class="toggle-track"></span></label></div>
               </div>
               <div class="toggle-row">
                 <div class="toggle-info">
                   <div class="toggle-label">Session Auto-Delete</div>
                   <div class="toggle-sub">Delete inactive session channels after 24 hours</div>
                 </div>
-                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="toggle-session-auto-delete" checked><span class="toggle-track"></span></label></div>
               </div>
               <div class="toggle-row">
                 <div class="toggle-info">
                   <div class="toggle-label">Server Join DM</div>
                   <div class="toggle-sub">Auto-DM new server members with Vendora pitch</div>
                 </div>
-                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="toggle-join-dm" checked><span class="toggle-track"></span></label></div>
               </div>
               <div class="toggle-row">
                 <div class="toggle-info">
                   <div class="toggle-label">Account Share Detection</div>
                   <div class="toggle-sub">Flag concurrent sessions from the same Discord ID</div>
                 </div>
-                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="toggle-share-detection" checked><span class="toggle-track"></span></label></div>
               </div>
             </div>
           </div>
-          <div style="text-align:right;">
-            <button class="btn btn-pink" onclick="alert('Bot configuration saved and applied.')">Save Config</button>
+          <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;">
+            <div id="bot-config-msg" style="display:none;font-size:12px;"></div>
+            <button id="bot-config-save-btn" class="btn btn-pink" onclick="adminSaveConfig()">Save Config</button>
           </div>
         </div>
 
@@ -1344,21 +1971,23 @@
             <div class="announce-form">
               <div>
                 <label class="form-label">Target Audience</label>
-                <select class="form-select">
-                  <option>All Subscribers</option>
-                  <option>Basic Only</option>
-                  <option>Pro Only</option>
-                  <option>Elite Only</option>
-                  <option>Pro + Elite</option>
+                <select id="blast-target" class="form-select">
+                  <option value="all">All Subscribers</option>
+                  <option value="basic">Basic Only</option>
+                  <option value="pro">Pro Only</option>
+                  <option value="elite">Elite Only</option>
+                  <option value="pro_elite">Pro + Elite</option>
                 </select>
               </div>
               <div>
                 <label class="form-label">Message</label>
-                <textarea class="form-textarea" placeholder="Write your announcement..."></textarea>
+                <textarea id="blast-message" class="form-textarea" placeholder="Write your announcement..."></textarea>
               </div>
-              <div style="display:flex;gap:10px;justify-content:flex-end;">
-                <button class="btn btn-ghost" onclick="alert('Preview: message shown here before sending')">Preview</button>
-                <button class="btn btn-pink" onclick="if(confirm('Send DM blast to selected subscribers?')) alert('DM blast sent successfully.')">
+              <div id="blast-preview-box" style="display:none;background:rgba(255,255,255,0.02);border:1px solid var(--border-dim);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--muted2);white-space:pre-wrap;line-height:1.6;"></div>
+              <div style="display:flex;gap:10px;justify-content:flex-end;align-items:center;">
+                <div id="blast-msg" style="display:none;font-size:12px;"></div>
+                <button class="btn btn-ghost" onclick="adminPreviewBlast()">Preview</button>
+                <button id="blast-send-btn" class="btn btn-pink" onclick="adminSendBlast()">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                   Send Blast
                 </button>
@@ -1367,14 +1996,21 @@
           </div>
 
           <div class="card">
-            <div class="card-title">Post to #use-vendora</div>
+            <div class="card-title">Post to Channel</div>
             <div class="announce-form">
-              <div>
-                <label class="form-label">Channel Announcement</label>
-                <textarea class="form-textarea" placeholder="Post a message visible to all subscribers in #use-vendora..."></textarea>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div>
+                  <label class="form-label">Channel Name</label>
+                  <input id="channel-name" class="form-select" style="height:auto;padding:9px 14px;" placeholder="use-vendora" value="use-vendora">
+                </div>
               </div>
-              <div style="text-align:right;">
-                <button class="btn btn-pink" onclick="if(confirm('Post this to #use-vendora?')) alert('Posted to #use-vendora.')">Post to Channel</button>
+              <div>
+                <label class="form-label">Message</label>
+                <textarea id="channel-message" class="form-textarea" placeholder="Post a message visible to all members in the channel..."></textarea>
+              </div>
+              <div style="display:flex;gap:10px;justify-content:flex-end;align-items:center;">
+                <div id="channel-msg" style="display:none;font-size:12px;"></div>
+                <button id="channel-post-btn" class="btn btn-pink" onclick="adminPostToChannel()">Post to Channel</button>
               </div>
             </div>
           </div>
@@ -1384,42 +2020,46 @@
         <div class="admin-panel" id="admin-pricing">
           <div class="card">
             <div class="card-title">Tier Pricing</div>
+            <div style="background:rgba(232,33,122,0.06);border:1px solid rgba(232,33,122,0.15);border-radius:8px;padding:10px 14px;margin-bottom:18px;font-size:12px;color:var(--muted2);line-height:1.5;">
+              <strong style="color:var(--text);">Note:</strong> Prices saved here update Vendora's display and bot messages. PayPal plan prices are set at plan creation — changing them requires creating new PayPal plans and updating the Plan IDs in code.
+            </div>
             <div class="price-edit-row">
               <div class="price-tier-name" style="color:var(--muted2);">Basic</div>
               <div class="price-input-wrap">
-                <span class="price-input-label">Monthly</span>
-                <input class="price-input" value="£9.99">
+                <span class="price-input-label">Monthly (£)</span>
+                <input id="price-basic-monthly" class="price-input" value="9.99" type="number" step="0.01" min="0">
               </div>
               <div class="price-input-wrap">
-                <span class="price-input-label">Annual</span>
-                <input class="price-input" value="£99.99">
+                <span class="price-input-label">Annual (£)</span>
+                <input id="price-basic-annual" class="price-input" value="99.99" type="number" step="0.01" min="0">
               </div>
             </div>
             <div class="price-edit-row">
               <div class="price-tier-name" style="color:var(--pink);">Pro</div>
               <div class="price-input-wrap">
-                <span class="price-input-label">Monthly</span>
-                <input class="price-input" value="£24.99">
+                <span class="price-input-label">Monthly (£)</span>
+                <input id="price-pro-monthly" class="price-input" value="24.99" type="number" step="0.01" min="0">
               </div>
               <div class="price-input-wrap">
-                <span class="price-input-label">Annual</span>
-                <input class="price-input" value="£249.99">
+                <span class="price-input-label">Annual (£)</span>
+                <input id="price-pro-annual" class="price-input" value="249.99" type="number" step="0.01" min="0">
               </div>
             </div>
             <div class="price-edit-row">
               <div class="price-tier-name" style="color:var(--gold);">Elite</div>
               <div class="price-input-wrap">
-                <span class="price-input-label">Monthly</span>
-                <input class="price-input" value="£49.99">
+                <span class="price-input-label">Monthly (£)</span>
+                <input id="price-elite-monthly" class="price-input" value="49.99" type="number" step="0.01" min="0">
               </div>
               <div class="price-input-wrap">
-                <span class="price-input-label">Annual</span>
-                <input class="price-input" value="£499.99">
+                <span class="price-input-label">Annual (£)</span>
+                <input id="price-elite-annual" class="price-input" value="499.99" type="number" step="0.01" min="0">
               </div>
             </div>
           </div>
-          <div style="text-align:right;">
-            <button class="btn btn-pink" onclick="if(confirm('Update pricing? This will affect new subscriptions immediately.')) alert('Pricing updated and synced with PayPal.')">Update Pricing</button>
+          <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;">
+            <div id="pricing-msg" style="display:none;font-size:12px;"></div>
+            <button id="pricing-save-btn" class="btn btn-pink" onclick="adminUpdatePricing()">Update Pricing</button>
           </div>
         </div>
 
@@ -1533,9 +2173,12 @@
   };
 
   const PLAN_IDS = {
-    basic: 'P-93B20926R3557122WNHLYUWQ',
-    pro:   'P-8VH442677L542670XNHLYVLY',
-    elite: 'P-4MT822095D5508948NHLYWKA',
+    basic:        'P-93B20926R3557122WNHLYUWQ',
+    pro:          'P-8VH442677L542670XNHLYVLY',
+    elite:        'P-4MT822095D5508948NHLYWKA',
+    basic_annual: 'P-66V537400C788511YNHN5N3Y',
+    pro_annual:   'P-34N713344H2394230NHN5PFI',
+    elite_annual: 'P-785300449X533243HNHN5QMI',
   };
 
   // Current user — populated by init(), used by coupon + cancel functions
@@ -1602,7 +2245,14 @@
 
     updateUpgradeCards(tier);
     initCrossListAccess(tier);
-    loadPlatforms();
+    initListingsAccess(tier);
+    initEnhancerAccess(tier);
+    loadPlatformStatus();
+    loadNotificationPrefs();
+    loadUsageStats();
+    loadInventory();
+    loadWatchlist();
+    ptRefresh();
 
     if (isOwner) {
       document.getElementById('admin-label').style.display         = '';
@@ -1643,8 +2293,46 @@
     });
   }
 
+  const PLAN_PRICING = {
+    basic:  { monthly: 9.99,  annual: 99.99  },
+    pro:    { monthly: 24.99, annual: 249.99 },
+    elite:  { monthly: 49.99, annual: 499.99 },
+  };
+
+  function toggleBillingCycle() {
+    const isAnnual = document.getElementById('billing-annual-toggle')?.checked;
+    const moLabel  = document.getElementById('billing-label-mo');
+    const yrLabel  = document.getElementById('billing-label-yr');
+
+    if (moLabel) moLabel.style.color = isAnnual ? 'var(--muted2)' : 'var(--text)';
+    if (yrLabel) yrLabel.style.color = isAnnual ? 'var(--text)' : 'var(--muted2)';
+
+    ['basic', 'pro', 'elite'].forEach(tier => {
+      const p       = PLAN_PRICING[tier];
+      const priceEl = document.getElementById(`plan-price-${tier}`);
+      const periodEl = document.getElementById(`plan-period-${tier}`);
+      const savingEl = document.getElementById(`plan-saving-${tier}`);
+      if (!priceEl || !periodEl) return;
+
+      if (isAnnual) {
+        const monthly = (p.annual / 12).toFixed(2);
+        const saving  = (p.monthly * 12 - p.annual).toFixed(2);
+        priceEl.childNodes[0].textContent = `£${monthly}`;
+        periodEl.textContent = '/mo (billed annually)';
+        if (savingEl) { savingEl.textContent = `Save £${saving}/yr vs monthly`; savingEl.style.display = ''; }
+      } else {
+        priceEl.childNodes[0].textContent = `£${p.monthly.toFixed(2)}`;
+        periodEl.textContent = tier === 'basic' ? '/mo' : '/mo';
+        if (savingEl) savingEl.style.display = 'none';
+      }
+    });
+  }
+
   function selectPlan(plan) {
-    const planNames = { basic:'Starter — £9.99/mo', pro:'Pro — £24.99/mo', elite:'Elite — £49.99/mo' };
+    const isAnnual  = document.getElementById('billing-annual-toggle')?.checked;
+    const p         = PLAN_PRICING[plan] || {};
+    const price     = isAnnual ? `£${p.annual}/yr` : `£${p.monthly}/mo`;
+    const planNames = { basic: `Basic — ${price}`, pro: `Pro — ${price}`, elite: `Elite — ${price}` };
     const banner    = document.getElementById('payment-banner');
     const mount     = document.getElementById('paypal-button-mount');
     if (!banner || !mount) return;
@@ -1657,7 +2345,7 @@
 
     paypal.Buttons({
       style: { shape:'rect', color:'black', layout:'vertical', label:'subscribe' },
-      createSubscription: (_d, actions) => actions.subscription.create({ plan_id: PLAN_IDS[plan] }),
+      createSubscription: (_d, actions) => actions.subscription.create({ plan_id: isAnnual ? (PLAN_IDS[plan + '_annual'] || PLAN_IDS[plan]) : PLAN_IDS[plan] }),
       onApprove: async (data) => {
         const { data: { session } } = await sb.auth.getSession();
         if (session) {
@@ -1901,76 +2589,27 @@
     }
   });
 
-  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', crosslist:'Cross-List', support:'Support', admin:'Admin Panel' };
+  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', inventory:'Inventory', watchlist:'Watchlist', profit:'Profit Tracker', crosslist:'Cross-List', listings:'Listings', enhancer:'Photo Enhancer', support:'Support', admin:'Admin Panel' };
 
   // ── Cross-list tool ──────────────────────────────────────────────────────────
-  const BOT_API = 'https://vendora-bot-production.up.railway.app';
-  let _platformConnections = [];
-
-  // ── Platform connections ───────────────────────────────────────────────────
-  const LIVE_PLATFORMS = [
-    { id: 'depop',  icon: 'DP', name: 'Depop',  color: '#ff2300' },
-    { id: 'vinted', icon: 'VT', name: 'Vinted', color: '#09b1ba' },
-  ];
-
-  async function loadPlatforms() {
-    const list = document.getElementById('platforms-list');
-    const { data, error } = await sb.from('platform_connections').select('*').eq('user_id', _user.id);
-    _platformConnections = data || [];
-    if (!list) return;
-    list.innerHTML = LIVE_PLATFORMS.map(p => {
-      const conn = _platformConnections.find(c => c.platform === p.id);
-      const connected = !!conn;
-      return `
-        <div class="platform-connect" id="plat-row-${p.id}">
-          <div class="plat-icon" style="background:${p.color}22;color:${p.color};border:1px solid ${p.color}33;">${p.icon}</div>
-          <div class="plat-details">
-            <div class="plat-name-row">${p.name}</div>
-            <div class="plat-status-row ${connected ? 'connected' : 'disconnected'}">${connected ? `● Connected · @${conn.username}` : '○ Not connected'}</div>
-          </div>
-          ${connected
-            ? `<button class="btn btn-danger btn-sm" onclick="disconnectPlatform('${p.id}','${p.name}')">Disconnect</button>`
-            : `<button class="btn btn-pink btn-sm" onclick="connectPlatform('${p.id}','${p.name}')">Connect</button>`}
-        </div>`;
-    }).join('');
-    refreshCrossListBadges();
-  }
-
-  async function connectPlatform(platformId, displayName) {
-    const username = prompt(`Enter your ${displayName} username:`);
-    if (!username || !username.trim()) return;
-    const clean = username.trim().replace(/^@/, '');
-    const { error } = await sb.from('platform_connections').upsert({
-      user_id: _user.id,
-      discord_id: _user.discordId,
-      platform: platformId,
-      username: clean,
-    }, { onConflict: 'user_id,platform' });
-    if (error) { alert('Error: ' + error.message); return; }
-    await loadPlatforms();
-  }
-
-  async function disconnectPlatform(platformId, displayName) {
-    if (!confirm(`Disconnect ${displayName}? Scanning and auto-listing will stop.`)) return;
-    const { error } = await sb.from('platform_connections').delete()
-      .eq('user_id', _user.id).eq('platform', platformId);
-    if (error) { alert('Error: ' + error.message); return; }
-    await loadPlatforms();
-  }
+  const BOT_API = 'https://vendora-production-8a47.up.railway.app';
 
   function refreshCrossListBadges() {
     const badges = document.getElementById('cl-platform-badges');
     if (!badges) return;
-    if (_platformConnections.length === 0) {
+    const PLAT_META = { depop: { name: 'Depop', color: '#ff2300' }, vinted: { name: 'Vinted', color: '#09b1ba' } };
+    const connected = ['depop','vinted'].filter(p => {
+      const s = document.getElementById('plat-status-' + p);
+      return s && s.classList.contains('connected');
+    });
+    if (connected.length === 0) {
       badges.innerHTML = `<span style="font-size:12px;color:var(--muted);">No accounts connected — <a href="#" onclick="showSection('platforms',document.querySelector('[onclick*=platforms]'));return false;" style="color:var(--pink);text-decoration:none;">connect now</a></span>`;
     } else {
-      badges.innerHTML = _platformConnections.map(c => {
-        const meta = LIVE_PLATFORMS.find(p => p.id === c.platform);
-        if (!meta) return '';
-        return `<span style="display:inline-flex;align-items:center;gap:5px;background:${meta.color}18;border:1px solid ${meta.color}33;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:500;color:${meta.color};">
-          <span style="width:6px;height:6px;border-radius:50%;background:${meta.color};display:inline-block;"></span>
-          ${meta.name} · @${c.username}
-        </span>`;
+      badges.innerHTML = connected.map(p => {
+        const m = PLAT_META[p]; if (!m) return '';
+        const statusEl = document.getElementById('plat-status-' + p);
+        const handle = statusEl ? statusEl.textContent.replace('● Connected · @','').trim() : '';
+        return `<span style="display:inline-flex;align-items:center;gap:5px;background:${m.color}18;border:1px solid ${m.color}33;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:500;color:${m.color};"><span style="width:6px;height:6px;border-radius:50%;background:${m.color};display:inline-block;"></span>${m.name}${handle ? ' · @' + handle : ''}</span>`;
       }).join('');
     }
   }
@@ -2151,7 +2790,1163 @@
     document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
     document.getElementById('admin-' + id).classList.add('active');
     if (el) el.classList.add('active');
+    if (id === 'bot')     adminLoadConfig();
+    if (id === 'pricing') adminLoadPricing();
   }
+
+  // ── Admin: Bot Config ────────────────────────────────────────────────────────
+  async function adminLoadConfig() {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`${BOT_API}/api/admin/config`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) return;
+      const { rate_limits, toggles } = await res.json();
+
+      // Apply to rate limit inputs
+      const map = { scan: 'scan', reply: 'reply', research: 'research', crosslist: 'crosslist' };
+      for (const [group, key] of Object.entries(map)) {
+        const limits = rate_limits[group] || {};
+        ['basic','pro','elite'].forEach(tier => {
+          const el = document.getElementById(`rl-${key}-${tier}`);
+          if (el && limits[tier] !== undefined) el.value = limits[tier] === null ? '∞' : limits[tier];
+        });
+      }
+
+      // Apply to toggles
+      const tMap = { bot_online: 'bot-online', session_auto_delete: 'session-auto-delete', join_dm: 'join-dm', share_detection: 'share-detection' };
+      for (const [key, id] of Object.entries(tMap)) {
+        const el = document.getElementById(`toggle-${id}`);
+        if (el && toggles[key] !== undefined) el.checked = toggles[key];
+      }
+    } catch (e) { console.warn('adminLoadConfig:', e); }
+  }
+
+  async function adminSaveConfig() {
+    const btn   = document.getElementById('bot-config-save-btn');
+    const msgEl = document.getElementById('bot-config-msg');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    const parseLimit = v => (v === '∞' || v === '' ? null : parseInt(v));
+
+    const rate_limits = {
+      scan:      { basic: parseLimit(document.getElementById('rl-scan-basic')?.value),     pro: parseLimit(document.getElementById('rl-scan-pro')?.value),     elite: parseLimit(document.getElementById('rl-scan-elite')?.value) },
+      reply:     { basic: parseLimit(document.getElementById('rl-reply-basic')?.value),    pro: parseLimit(document.getElementById('rl-reply-pro')?.value),    elite: parseLimit(document.getElementById('rl-reply-elite')?.value) },
+      research:  { basic: parseLimit(document.getElementById('rl-research-basic')?.value), pro: parseLimit(document.getElementById('rl-research-pro')?.value), elite: parseLimit(document.getElementById('rl-research-elite')?.value) },
+      crosslist: { basic: parseLimit(document.getElementById('rl-crosslist-basic')?.value),pro: parseLimit(document.getElementById('rl-crosslist-pro')?.value), elite: parseLimit(document.getElementById('rl-crosslist-elite')?.value) },
+    };
+    const toggles = {
+      bot_online:          document.getElementById('toggle-bot-online')?.checked          ?? true,
+      session_auto_delete: document.getElementById('toggle-session-auto-delete')?.checked ?? true,
+      join_dm:             document.getElementById('toggle-join-dm')?.checked             ?? true,
+      share_detection:     document.getElementById('toggle-share-detection')?.checked     ?? true,
+    };
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/admin/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ rate_limits, toggles }),
+      });
+      const json = await res.json();
+      if (res.ok) showMsg(msgEl, 'success', 'Config saved and applied to bot.');
+      else        showMsg(msgEl, 'error', json.error || 'Save failed.');
+    } catch (e) { showMsg(msgEl, 'error', 'Network error.'); }
+
+    btn.disabled = false; btn.textContent = 'Save Config';
+  }
+
+  // ── Admin: Announcements ─────────────────────────────────────────────────────
+  function adminPreviewBlast() {
+    const msg  = document.getElementById('blast-message')?.value?.trim();
+    const box  = document.getElementById('blast-preview-box');
+    if (!msg) return;
+    box.style.display = '';
+    box.textContent = msg;
+  }
+
+  async function adminSendBlast() {
+    const message = document.getElementById('blast-message')?.value?.trim();
+    const target  = document.getElementById('blast-target')?.value;
+    const msgEl   = document.getElementById('blast-msg');
+    const btn     = document.getElementById('blast-send-btn');
+
+    if (!message) { showMsg(msgEl, 'error', 'Write a message first.'); return; }
+    if (!confirm(`Send DM to "${document.getElementById('blast-target').options[document.getElementById('blast-target').selectedIndex].text}"?`)) return;
+
+    btn.disabled = true; btn.innerHTML = `<div style="width:12px;height:12px;border:2px solid rgba(255,255,255,0.4);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;"></div> Sending…`;
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/admin/announce/dm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ message, target }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        showMsg(msgEl, 'success', `Sent to ${json.sent} user${json.sent !== 1 ? 's' : ''} (${json.failed} failed).`);
+        document.getElementById('blast-message').value = '';
+        document.getElementById('blast-preview-box').style.display = 'none';
+      } else {
+        showMsg(msgEl, 'error', json.error || 'Blast failed.');
+      }
+    } catch (e) { showMsg(msgEl, 'error', 'Network error.'); }
+
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Blast`;
+  }
+
+  async function adminPostToChannel() {
+    const message      = document.getElementById('channel-message')?.value?.trim();
+    const channel_name = document.getElementById('channel-name')?.value?.trim() || 'use-vendora';
+    const msgEl        = document.getElementById('channel-msg');
+    const btn          = document.getElementById('channel-post-btn');
+
+    if (!message) { showMsg(msgEl, 'error', 'Write a message first.'); return; }
+    if (!confirm(`Post to #${channel_name}?`)) return;
+
+    btn.disabled = true; btn.textContent = 'Posting…';
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/admin/announce/channel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ message, channel_name }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        showMsg(msgEl, 'success', `Posted to #${json.channel}.`);
+        document.getElementById('channel-message').value = '';
+      } else {
+        showMsg(msgEl, 'error', json.error || 'Post failed.');
+      }
+    } catch (e) { showMsg(msgEl, 'error', 'Network error.'); }
+
+    btn.disabled = false; btn.textContent = 'Post to Channel';
+  }
+
+  // ── Admin: Pricing ───────────────────────────────────────────────────────────
+  async function adminLoadPricing() {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`${BOT_API}/api/admin/pricing`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) return;
+      const { pricing } = await res.json();
+      ['basic','pro','elite'].forEach(tier => {
+        const mEl = document.getElementById(`price-${tier}-monthly`);
+        const aEl = document.getElementById(`price-${tier}-annual`);
+        if (mEl && pricing[tier]?.monthly !== undefined) mEl.value = pricing[tier].monthly;
+        if (aEl && pricing[tier]?.annual  !== undefined) aEl.value = pricing[tier].annual;
+      });
+    } catch (e) { console.warn('adminLoadPricing:', e); }
+  }
+
+  async function adminUpdatePricing() {
+    const btn   = document.getElementById('pricing-save-btn');
+    const msgEl = document.getElementById('pricing-msg');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    const pricing = {};
+    ['basic','pro','elite'].forEach(tier => {
+      pricing[tier] = {
+        monthly: parseFloat(document.getElementById(`price-${tier}-monthly`)?.value) || 0,
+        annual:  parseFloat(document.getElementById(`price-${tier}-annual`)?.value)  || 0,
+      };
+    });
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/admin/pricing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ pricing }),
+      });
+      const json = await res.json();
+      if (res.ok) showMsg(msgEl, 'success', 'Pricing saved. New subscriptions will reflect these prices.');
+      else        showMsg(msgEl, 'error', json.error || 'Save failed.');
+    } catch (e) { showMsg(msgEl, 'error', 'Network error.'); }
+
+    btn.disabled = false; btn.textContent = 'Update Pricing';
+  }
+
+  // ── Usage stats ──────────────────────────────────────────────────────────────
+  async function loadUsageStats() {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`${BOT_API}/api/usage`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) return;
+      const { usage } = await res.json();
+      // Sum all command groups for today's total
+      const total = Object.values(usage).reduce((sum, g) => sum + (g.used || 0), 0);
+      const usedEl = document.getElementById('stat-used');
+      if (usedEl) usedEl.textContent = total > 0 ? total : '0';
+    } catch (e) {
+      const usedEl = document.getElementById('stat-used');
+      if (usedEl) usedEl.textContent = '0';
+    }
+  }
+
+  // ── Notification preferences ──────────────────────────────────────────────────
+  async function loadNotificationPrefs() {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`${BOT_API}/api/notifications`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) return;
+      const { prefs } = await res.json();
+      const map = {
+        'notif-price-drop':          'price_drop',
+        'notif-selling-fast':        'selling_fast',
+        'notif-competitor-new':      'competitor_new',
+        'notif-weekly-trend':        'weekly_trend',
+        'notif-early-deals':         'early_deals',
+        'notif-platform-connected':  'platform_connected',
+        'notif-crosslist-updates':   'crosslist_updates',
+        'notif-connection-expired':  'connection_expired',
+        'notif-relist-done':         'relist_done',
+      };
+      for (const [id, key] of Object.entries(map)) {
+        const el = document.getElementById(id);
+        if (el && prefs[key] !== undefined) el.checked = prefs[key];
+      }
+    } catch (e) { console.warn('loadNotificationPrefs:', e); }
+  }
+
+  async function saveNotificationPrefs() {
+    const btn   = document.getElementById('notif-save-btn');
+    const msgEl = document.getElementById('notif-save-msg');
+    btn.disabled = true; btn.querySelector('svg') && (btn.innerHTML = btn.innerHTML);
+
+    const map = {
+      price_drop:         'notif-price-drop',
+      selling_fast:       'notif-selling-fast',
+      competitor_new:     'notif-competitor-new',
+      weekly_trend:       'notif-weekly-trend',
+      early_deals:        'notif-early-deals',
+      platform_connected: 'notif-platform-connected',
+      crosslist_updates:  'notif-crosslist-updates',
+      connection_expired: 'notif-connection-expired',
+      relist_done:        'notif-relist-done',
+    };
+    const prefs = {};
+    for (const [key, id] of Object.entries(map)) {
+      const el = document.getElementById(id);
+      if (el) prefs[key] = el.checked;
+    }
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/notifications`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ prefs }),
+      });
+      const json = await res.json();
+      if (res.ok) showMsg(msgEl, 'success', 'Preferences saved.');
+      else        showMsg(msgEl, 'error', json.error || 'Save failed.');
+    } catch (e) { showMsg(msgEl, 'error', 'Network error.'); }
+
+    btn.disabled = false;
+  }
+
+  // ── Support ticket ────────────────────────────────────────────────────────────
+  async function submitSupportTicket() {
+    const subject = document.getElementById('support-subject')?.value;
+    const message = document.getElementById('support-message')?.value?.trim();
+    const msgEl   = document.getElementById('support-msg');
+    const btn     = document.getElementById('support-submit-btn');
+
+    if (!message) { showMsg(msgEl, 'error', 'Please write a message first.'); return; }
+
+    btn.disabled = true; btn.textContent = 'Sending…';
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { window.location.href = 'vendora-login.html'; return; }
+
+      const res = await fetch(`${BOT_API}/api/support/ticket`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ subject, message }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        showMsg(msgEl, 'success', 'Message sent! We\'ll get back to you via Discord DM.');
+        document.getElementById('support-message').value = '';
+      } else {
+        showMsg(msgEl, 'error', json.error || 'Failed to send. Please DM pluniez directly on Discord.');
+      }
+    } catch (e) { showMsg(msgEl, 'error', 'Network error. Please DM pluniez on Discord.'); }
+
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Message`;
+  }
+
+  // ── Inventory ─────────────────────────────────────────────────────────────────
+  async function loadInventory() {
+    const tbody = document.getElementById('inventory-tbody');
+    if (!tbody) return;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`${BOT_API}/api/inventory`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Failed to load.</td></tr>`; return; }
+      const { items } = await res.json();
+      renderInventoryTable(items);
+    } catch { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Error loading inventory.</td></tr>`; }
+  }
+
+  function renderInventoryTable(items) {
+    const tbody = document.getElementById('inventory-tbody');
+    if (!tbody) return;
+    if (!items || items.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">No items yet. Add one above or use <code style="font-family:monospace;color:var(--pink);">/tracker add</code> in Discord.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = items.map((item, i) => `
+      <tr>
+        <td style="color:var(--muted);font-size:12px;">${i + 1}</td>
+        <td style="font-size:13px;">${item.item}</td>
+        <td style="font-size:12px;color:var(--muted2);white-space:nowrap;">${new Date(item.added_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="removeInventoryItem('${item.id}')">Remove</button></td>
+      </tr>`).join('');
+  }
+
+  async function addInventoryItem() {
+    const input = document.getElementById('inv-new-item');
+    const item  = input?.value?.trim();
+    const msgEl = document.getElementById('inv-add-msg');
+    const btn   = document.getElementById('inv-add-btn');
+    if (!item) { showMsg(msgEl, 'error', 'Enter an item name.'); return; }
+
+    btn.disabled = true;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/inventory`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ item }),
+      });
+      const json = await res.json();
+      if (res.ok) { input.value = ''; renderInventoryTable(json.items); msgEl.style.display = 'none'; }
+      else showMsg(msgEl, 'error', json.error || 'Failed to add.');
+    } catch { showMsg(msgEl, 'error', 'Network error.'); }
+    btn.disabled = false;
+  }
+
+  async function removeInventoryItem(id) {
+    if (!confirm('Remove this item from your inventory?')) return;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      await fetch(`${BOT_API}/api/inventory/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      loadInventory();
+    } catch { alert('Network error.'); }
+  }
+
+  // ── Watchlist ─────────────────────────────────────────────────────────────────
+  async function loadWatchlist() {
+    const tbody = document.getElementById('watchlist-tbody');
+    if (!tbody) return;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`${BOT_API}/api/watchlist`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Failed to load.</td></tr>`; return; }
+      const { items } = await res.json();
+      renderWatchlistTable(items);
+    } catch { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Error loading watchlist.</td></tr>`; }
+  }
+
+  function renderWatchlistTable(items) {
+    const tbody = document.getElementById('watchlist-tbody');
+    if (!tbody) return;
+    if (!items || items.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Nothing being watched. Add an item above or use <code style="font-family:monospace;color:var(--pink);">/pricedrop</code> in Discord.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = items.map((item, i) => `
+      <tr>
+        <td style="color:var(--muted);font-size:12px;">${i + 1}</td>
+        <td style="font-size:13px;">${item.item}</td>
+        <td style="font-size:12px;color:var(--muted2);white-space:nowrap;">${new Date(item.added_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="removeWatchlistItem('${item.id}')">Remove</button></td>
+      </tr>`).join('');
+  }
+
+  async function addWatchlistItem() {
+    const input = document.getElementById('wl-new-item');
+    const item  = input?.value?.trim();
+    const msgEl = document.getElementById('wl-add-msg');
+    const btn   = document.getElementById('wl-add-btn');
+    if (!item) { showMsg(msgEl, 'error', 'Enter an item to watch.'); return; }
+
+    btn.disabled = true;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/watchlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ item }),
+      });
+      const json = await res.json();
+      if (res.ok) { input.value = ''; renderWatchlistTable(json.items); msgEl.style.display = 'none'; }
+      else showMsg(msgEl, 'error', json.error || 'Failed to add.');
+    } catch { showMsg(msgEl, 'error', 'Network error.'); }
+    btn.disabled = false;
+  }
+
+  async function removeWatchlistItem(id) {
+    if (!confirm('Remove this item from your watchlist?')) return;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      await fetch(`${BOT_API}/api/watchlist/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      loadWatchlist();
+    } catch { alert('Network error.'); }
+  }
+
+  // ── Profit Tracker (localStorage) ────────────────────────────────────────────
+  const PT_KEY = 'vendora_profit_entries';
+
+  function ptLoad() { try { return JSON.parse(localStorage.getItem(PT_KEY) || '[]'); } catch { return []; } }
+  function ptSave(entries) { localStorage.setItem(PT_KEY, JSON.stringify(entries)); }
+
+  function ptRefresh() {
+    const entries  = ptLoad();
+    const tbody    = document.getElementById('pt-tbody');
+    const revEl    = document.getElementById('pt-revenue');
+    const costEl   = document.getElementById('pt-costs');
+    const profEl   = document.getElementById('pt-profit');
+    const roiEl    = document.getElementById('pt-roi');
+    if (!tbody) return;
+
+    let totalRev = 0, totalCost = 0;
+
+    if (!entries.length) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">No sales logged yet. Add your first sale above.</td></tr>`;
+    } else {
+      tbody.innerHTML = entries.map((e, i) => {
+        const fees    = (parseFloat(e.fees) || 0) + (parseFloat(e.shipping) || 0);
+        const profit  = e.sell - e.buy - fees;
+        const margin  = e.sell > 0 ? ((profit / e.sell) * 100).toFixed(0) : 0;
+        const pColor  = profit >= 0 ? 'var(--green)' : 'var(--red)';
+        totalRev  += e.sell;
+        totalCost += e.buy + fees;
+        return `<tr>
+          <td style="font-weight:500;">${e.item}</td>
+          <td><span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);">${e.platform}</span></td>
+          <td style="color:var(--green);">£${e.sell.toFixed(2)}</td>
+          <td style="color:var(--red);">£${e.buy.toFixed(2)}</td>
+          <td style="color:var(--muted2);">£${fees.toFixed(2)}</td>
+          <td style="color:${pColor};font-weight:600;">£${profit.toFixed(2)}</td>
+          <td style="color:${pColor};">${margin}%</td>
+          <td><button class="btn btn-ghost btn-sm" onclick="ptDelete(${i})" style="color:var(--red);font-size:11px;">✕</button></td>
+        </tr>`;
+      }).join('');
+    }
+
+    const netProfit = totalRev - totalCost;
+    const roi       = totalCost > 0 ? ((netProfit / totalCost) * 100).toFixed(0) : 0;
+    if (revEl)  revEl.textContent  = `£${totalRev.toFixed(2)}`;
+    if (costEl) costEl.textContent = `£${totalCost.toFixed(2)}`;
+    if (profEl) { profEl.textContent = `£${netProfit.toFixed(2)}`; profEl.style.color = netProfit >= 0 ? 'var(--green)' : 'var(--red)'; }
+    if (roiEl)  roiEl.textContent  = `${roi}% ROI`;
+  }
+
+  function logSale() {
+    const item     = document.getElementById('pt-item')?.value?.trim();
+    const sell     = parseFloat(document.getElementById('pt-sell')?.value);
+    const buy      = parseFloat(document.getElementById('pt-buy')?.value);
+    const platform = document.getElementById('pt-platform')?.value || 'Other';
+    const fees     = parseFloat(document.getElementById('pt-fees')?.value) || 0;
+    const shipping = parseFloat(document.getElementById('pt-shipping')?.value) || 0;
+    const msgEl    = document.getElementById('pt-msg');
+
+    if (!item) { if (msgEl) showMsg(msgEl, 'error', 'Enter an item name.'); return; }
+    if (isNaN(sell) || sell <= 0) { if (msgEl) showMsg(msgEl, 'error', 'Enter a valid sell price.'); return; }
+    if (isNaN(buy)  || buy < 0)  { if (msgEl) showMsg(msgEl, 'error', 'Enter a valid buy price.');  return; }
+
+    const entries = ptLoad();
+    entries.unshift({ item, sell, buy, platform, fees, shipping, date: new Date().toISOString() });
+    ptSave(entries);
+    ptRefresh();
+
+    // Clear form
+    document.getElementById('pt-item').value = '';
+    document.getElementById('pt-sell').value = '';
+    document.getElementById('pt-buy').value  = '';
+    document.getElementById('pt-fees').value = '';
+    document.getElementById('pt-shipping').value = '';
+    if (msgEl) showMsg(msgEl, 'success', 'Sale logged!');
+  }
+
+  function ptDelete(idx) {
+    const entries = ptLoad();
+    entries.splice(idx, 1);
+    ptSave(entries);
+    ptRefresh();
+  }
+
+  function clearAllSales() {
+    if (!confirm('Clear all logged sales? This cannot be undone.')) return;
+    ptSave([]);
+    ptRefresh();
+  }
+
+  // ── Listings access gate ─────────────────────────────────────────────────────
+  function initListingsAccess(tier) {
+    const gate = document.getElementById('listings-gate');
+    const tool = document.getElementById('listings-tool');
+    const nav  = document.getElementById('listings-nav-item');
+    const rank = { none: 0, basic: 1, pro: 2, elite: 3 };
+    if (rank[tier] >= rank.pro) {
+      if (gate) gate.style.display = 'none';
+      if (tool) tool.style.display = '';
+    } else {
+      if (gate) gate.style.display = '';
+      if (tool) tool.style.display = 'none';
+      if (nav)  nav.style.opacity  = '0.5';
+    }
+  }
+
+  // ── Platform status ──────────────────────────────────────────────────────────
+  async function loadPlatformStatus() {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`${BOT_API}/api/platform/status`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) return;
+      const json = await res.json(); // { depop: { connected, username }, vinted: { connected, username } }
+
+      ['depop', 'vinted'].forEach(p => {
+        const info = json[p];
+        const connected = info && info.connected;
+
+        // Platforms section
+        const statusDiv = document.getElementById(`plat-status-${p}`);
+        const formDiv   = document.getElementById(`plat-form-${p}`);
+        const discBtn   = document.getElementById(`plat-disconnect-btn-${p}`);
+        if (statusDiv) statusDiv.style.display = connected ? '' : 'none';
+        if (formDiv)   formDiv.style.display   = connected ? 'none' : '';
+        if (discBtn)   discBtn.style.display   = connected ? '' : 'none';
+        if (connected && statusDiv) {
+          statusDiv.querySelector('.plat-username') && (statusDiv.querySelector('.plat-username').textContent = info.username || p);
+        }
+
+        // Listings form badges
+        const badge = document.getElementById(`list-${p}-status`);
+        if (badge) {
+          badge.textContent = connected ? `✓ ${info.username || 'Connected'}` : 'Not connected';
+          badge.style.color = connected ? 'var(--green)' : 'var(--muted)';
+        }
+      });
+    } catch (e) {
+      console.warn('loadPlatformStatus error:', e);
+    }
+  }
+
+  // ── Connect / Disconnect platform ────────────────────────────────────────────
+  async function connectPlatform(platform) {
+    const emailOrUser = document.getElementById(`${platform}-email`)?.value?.trim()
+                     || document.getElementById(`${platform}-username`)?.value?.trim();
+    const password    = document.getElementById(`${platform}-password`)?.value;
+    const msgEl       = document.getElementById(`${platform}-connect-msg`);
+    const btn         = document.getElementById(`plat-connect-btn-${platform}`);
+
+    if (!emailOrUser || !password) {
+      showMsg(msgEl, 'error', 'Please fill in all fields.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Connecting...';
+    showMsg(msgEl, 'info', 'Connecting — this may take a moment…');
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { window.location.href = 'vendora-login.html'; return; }
+
+      const body = platform === 'depop'
+        ? { platform, credentials: { email: emailOrUser, password } }
+        : { platform, credentials: { username: emailOrUser, password } };
+
+      const res = await fetch(`${BOT_API}/api/platform/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify(body),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        showMsg(msgEl, 'error', json.error || 'Connection failed. Check your credentials.');
+      } else {
+        showMsg(msgEl, 'success', `Connected as ${json.username || emailOrUser}!`);
+        document.getElementById(`${platform}-email`)  && (document.getElementById(`${platform}-email`).value  = '');
+        document.getElementById(`${platform}-username`) && (document.getElementById(`${platform}-username`).value = '');
+        document.getElementById(`${platform}-password`).value = '';
+        loadPlatformStatus();
+      }
+    } catch (e) {
+      showMsg(msgEl, 'error', 'Network error. Please try again.');
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Connect';
+  }
+
+  async function disconnectPlatform(platform) {
+    if (!confirm(`Disconnect your ${platform.charAt(0).toUpperCase() + platform.slice(1)} account? Active listings will no longer auto-relist.`)) return;
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch(`${BOT_API}/api/platform/${platform}/disconnect`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      });
+
+      if (res.ok) {
+        loadPlatformStatus();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        alert(json.error || 'Disconnect failed. Please try again.');
+      }
+    } catch (e) {
+      alert('Network error. Please try again.');
+    }
+  }
+
+  // ── Image handling ───────────────────────────────────────────────────────────
+  let listingImages = []; // [{ base64, mimeType, name }]
+
+  function handleImageSelect(e) {
+    const files = Array.from(e.target.files);
+    const remaining = 8 - listingImages.length;
+    const toAdd = files.slice(0, remaining);
+
+    toAdd.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const result = ev.target.result; // data:image/jpeg;base64,...
+        const [meta, base64] = result.split(',');
+        const mimeType = meta.match(/:(.*?);/)[1];
+        listingImages.push({ base64, mimeType, name: file.name });
+        renderImagePreviews();
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Reset input so same file can be re-added if removed
+    e.target.value = '';
+  }
+
+  function renderImagePreviews() {
+    const container = document.getElementById('image-previews');
+    if (!container) return;
+    container.innerHTML = listingImages.map((img, i) => `
+      <div style="position:relative;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1px solid var(--border-dim);">
+        <img src="data:${img.mimeType};base64,${img.base64}" style="width:100%;height:100%;object-fit:cover;" alt="${img.name}">
+        <button onclick="removeImage(${i})" style="position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,0.7);border:none;color:white;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">✕</button>
+      </div>
+    `).join('');
+
+    // Show/hide drop zone hint
+    const dz = document.getElementById('image-drop-zone');
+    if (dz) dz.style.display = listingImages.length >= 8 ? 'none' : 'flex';
+  }
+
+  function removeImage(idx) {
+    listingImages.splice(idx, 1);
+    renderImagePreviews();
+  }
+
+  // ── Create listing ───────────────────────────────────────────────────────────
+  async function createListing() {
+    const title       = document.getElementById('list-title')?.value?.trim();
+    const desc        = document.getElementById('list-desc')?.value?.trim();
+    const price       = parseFloat(document.getElementById('list-price')?.value);
+    const condition   = document.getElementById('list-condition')?.value;
+    const autoRelist  = document.getElementById('list-auto-relist')?.checked;
+    const intervalEl  = document.querySelector('input[name="relist-interval"]:checked');
+    const interval    = intervalEl ? parseInt(intervalEl.value) : 7;
+    const platforms   = ['depop', 'vinted'].filter(p => document.getElementById(`list-${p}`)?.checked);
+    const msgEl       = document.getElementById('list-msg');
+    const btn         = document.getElementById('list-submit-btn');
+
+    if (!title) { showMsg(msgEl, 'error', 'Please enter an item title.'); return; }
+    if (!price || isNaN(price) || price <= 0) { showMsg(msgEl, 'error', 'Please enter a valid price.'); return; }
+    if (platforms.length === 0) { showMsg(msgEl, 'error', 'Select at least one platform.'); return; }
+
+    btn.disabled = true;
+    btn.innerHTML = `<div style="width:14px;height:14px;border:2px solid rgba(255,255,255,0.4);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;"></div> Listing…`;
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { window.location.href = 'vendora-login.html'; return; }
+
+      const res = await fetch(`${BOT_API}/api/listing/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ title, description: desc, price, condition, platforms, auto_relist: autoRelist, relist_interval_days: interval, images: listingImages.map(i => ({ base64: i.base64, mimeType: i.mimeType })) }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        showMsg(msgEl, 'error', json.error || 'Listing failed. Make sure your platform accounts are connected.');
+      } else {
+        showMsg(msgEl, 'success', `Listed on ${platforms.join(' & ')} successfully!`);
+        // Reset form
+        document.getElementById('list-title').value = '';
+        document.getElementById('list-desc').value = '';
+        document.getElementById('list-price').value = '';
+        document.getElementById('list-condition').value = '';
+        document.getElementById('list-auto-relist').checked = false;
+        document.getElementById('relist-options').style.display = 'none';
+        listingImages = [];
+        renderImagePreviews();
+        loadListings();
+      }
+    } catch (e) {
+      showMsg(msgEl, 'error', 'Network error. Please try again.');
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> List Now`;
+  }
+
+  // ── Load / render active listings ────────────────────────────────────────────
+  async function loadListings() {
+    const tbody = document.getElementById('listings-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;"><div style="display:inline-flex;align-items:center;gap:10px;opacity:0.5;"><div style="width:14px;height:14px;border:2px solid var(--pink);border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;"></div> Loading…</div></td></tr>`;
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch(`${BOT_API}/api/listings`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+
+      if (!res.ok) { tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Failed to load listings.</td></tr>`; return; }
+
+      const json = await res.json();
+      const listings = json.listings || [];
+
+      if (listings.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">No active listings yet. Create one above.</td></tr>`;
+        return;
+      }
+
+      const platformColors = { depop: '#ff2300', vinted: '#09b1ba' };
+
+      tbody.innerHTML = listings.map(l => {
+        const plats = (l.platforms || []).map(p =>
+          `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
+            <span style="width:6px;height:6px;border-radius:50%;background:${platformColors[p] || '#888'};display:inline-block;"></span>${p}
+          </span>`
+        ).join(' ');
+
+        const listed = new Date(l.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+        const autoRelistBadge = l.auto_relist
+          ? `<span style="color:var(--green);font-size:11px;">Every ${l.relist_interval_days}d</span>`
+          : `<span style="color:var(--muted);font-size:11px;">Off</span>`;
+
+        return `<tr>
+          <td style="font-size:13px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${l.title}">${l.title}</td>
+          <td style="white-space:nowrap;">${plats}</td>
+          <td style="font-size:13px;">£${parseFloat(l.price).toFixed(2)}</td>
+          <td style="font-size:12px;color:var(--muted2);">${l.condition || '—'}</td>
+          <td>${autoRelistBadge}</td>
+          <td style="font-size:12px;color:var(--muted2);white-space:nowrap;">${listed}</td>
+          <td style="white-space:nowrap;">
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-ghost btn-sm" onclick="relistNow('${l.id}')" title="Relist now">Relist</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteListing('${l.id}', '${l.title.replace(/'/g,"\\'")}')">Delete</button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Error loading listings.</td></tr>`;
+    }
+  }
+
+  // ── Delete listing ───────────────────────────────────────────────────────────
+  async function deleteListing(id, title) {
+    if (!confirm(`Delete "${title}" from all platforms? This cannot be undone.`)) return;
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch(`${BOT_API}/api/listing/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      });
+
+      if (res.ok) {
+        loadListings();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        alert(json.error || 'Delete failed. Please try again.');
+      }
+    } catch (e) {
+      alert('Network error. Please try again.');
+    }
+  }
+
+  // ── Relist now ───────────────────────────────────────────────────────────────
+  async function relistNow(id) {
+    const row = document.querySelector(`button[onclick="relistNow('${id}')"]`)?.closest('tr');
+    if (row) row.style.opacity = '0.5';
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch(`${BOT_API}/api/listing/${id}/relist`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      });
+
+      if (res.ok) {
+        if (row) row.style.opacity = '';
+        // Show quick success flash
+        if (row) {
+          row.style.background = 'rgba(74,222,128,0.06)';
+          setTimeout(() => { row.style.background = ''; }, 1800);
+        }
+      } else {
+        if (row) row.style.opacity = '';
+        const json = await res.json().catch(() => ({}));
+        alert(json.error || 'Relist failed. Please try again.');
+      }
+    } catch (e) {
+      if (row) row.style.opacity = '';
+      alert('Network error. Please try again.');
+    }
+  }
+
+  // ── Photo Enhancer ───────────────────────────────────────────────────────────
+  let enhancerOriginalImg    = null;  // Original HTMLImageElement
+  let enhancerRemovedBgB64   = null;  // Base64 of bg-removed PNG (from remove.bg)
+  let enhancerCurrentBg      = '#ffffff';
+  let enhancerUseBgRemoved   = false;
+
+  function initEnhancerAccess(tier) {
+    const gate = document.getElementById('enhancer-gate');
+    const tool = document.getElementById('enhancer-tool');
+    const nav  = document.getElementById('enhancer-nav-item');
+    if (tier === 'elite') {
+      if (gate) gate.style.display = 'none';
+      if (tool) tool.style.display = '';
+    } else {
+      if (gate) gate.style.display = '';
+      if (tool) tool.style.display = 'none';
+      if (nav)  nav.style.opacity  = '0.5';
+    }
+  }
+
+  function enhancerHandleDrop(event) {
+    event.preventDefault();
+    document.getElementById('enhancer-drop-zone').style.borderColor = 'rgba(255,255,255,0.1)';
+    const file = event.dataTransfer?.files?.[0];
+    if (file && file.type.startsWith('image/')) enhancerLoadImageFile(file);
+  }
+
+  function enhancerLoadFile(event) {
+    const file = event.target.files?.[0];
+    if (file) enhancerLoadImageFile(file);
+  }
+
+  function enhancerLoadImageFile(file) {
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Image is too large. Max 10 MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        enhancerOriginalImg  = img;
+        enhancerRemovedBgB64 = null;
+        enhancerUseBgRemoved = false;
+        enhancerShowControls(true);
+        enhancerComposite();
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function enhancerShowControls(show) {
+    document.getElementById('enhancer-placeholder').style.display      = show ? 'none' : '';
+    document.getElementById('enhancer-canvas').style.display           = show ? '' : 'none';
+    document.getElementById('enhancer-remove-bg-btn').style.display    = show ? '' : 'none';
+    document.getElementById('enhancer-reset-btn').style.display        = show ? '' : 'none';
+    document.getElementById('enhancer-download-btn').style.display     = show ? '' : 'none';
+    document.getElementById('enhancer-download-placeholder').style.display = show ? 'none' : '';
+  }
+
+  function enhancerSetBg(el, value, isCustom = false) {
+    // Deselect all presets
+    document.querySelectorAll('.bg-preset').forEach(p => p.style.borderColor = 'transparent');
+    if (el) el.style.borderColor = 'var(--pink)';
+    enhancerCurrentBg = value;
+    enhancerComposite();
+  }
+
+  function enhancerGetFilters() {
+    const brightness  = document.getElementById('adj-brightness')?.value  || 100;
+    const contrast    = document.getElementById('adj-contrast')?.value    || 100;
+    const saturation  = document.getElementById('adj-saturation')?.value  || 100;
+    const sharpness   = parseFloat(document.getElementById('adj-sharpness')?.value || 0);
+    return { brightness: brightness/100, contrast: contrast/100, saturation: saturation/100, sharpness };
+  }
+
+  function enhancerComposite() {
+    const canvas  = document.getElementById('enhancer-canvas');
+    if (!canvas || !enhancerOriginalImg) return;
+    const ctx     = canvas.getContext('2d');
+    const img     = enhancerUseBgRemoved && enhancerRemovedBgB64 ? null : enhancerOriginalImg;
+
+    // Determine source image
+    const drawFn = () => {
+      const { brightness, contrast, saturation, sharpness } = enhancerGetFilters();
+      const shadow = parseFloat(document.getElementById('adj-shadow')?.value || 0);
+
+      const W = enhancerOriginalImg.naturalWidth;
+      const H = enhancerOriginalImg.naturalHeight;
+      canvas.width  = W;
+      canvas.height = H;
+
+      // 1. Draw background
+      const bg = enhancerCurrentBg;
+      if (bg === 'transparent') {
+        ctx.clearRect(0, 0, W, H);
+      } else if (bg === 'marble') {
+        const grad = ctx.createLinearGradient(0, 0, W, H);
+        grad.addColorStop(0,   '#e8e8e8');
+        grad.addColorStop(0.4, '#f9f9f9');
+        grad.addColorStop(0.6, '#d8d8d8');
+        grad.addColorStop(1,   '#f0f0f0');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+        // Subtle marble veins
+        ctx.save();
+        ctx.globalAlpha = 0.08;
+        for (let i = 0; i < 6; i++) {
+          ctx.beginPath();
+          ctx.moveTo(Math.random() * W, 0);
+          ctx.bezierCurveTo(Math.random() * W, H * 0.3, Math.random() * W, H * 0.7, Math.random() * W, H);
+          ctx.strokeStyle = '#bbb';
+          ctx.lineWidth   = Math.random() * 2 + 0.5;
+          ctx.stroke();
+        }
+        ctx.restore();
+      } else if (bg === 'gradient-pink') {
+        const grad = ctx.createLinearGradient(0, 0, W, H);
+        grad.addColorStop(0, '#1a0010');
+        grad.addColorStop(0.5, '#3d0020');
+        grad.addColorStop(1, '#6b0033');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+      } else if (bg === 'gradient-blue') {
+        const grad = ctx.createLinearGradient(0, 0, W, H);
+        grad.addColorStop(0, '#0a0e1a');
+        grad.addColorStop(0.5, '#0d1b3e');
+        grad.addColorStop(1, '#0a2a5c');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+      } else {
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, W, H);
+      }
+
+      // 2. Drop shadow under subject
+      if (shadow > 0 && bg !== 'transparent') {
+        ctx.save();
+        ctx.shadowColor   = 'rgba(0,0,0,' + (shadow / 100 * 0.85) + ')';
+        ctx.shadowBlur    = shadow * 3;
+        ctx.shadowOffsetY = shadow * 0.8;
+        ctx.globalAlpha   = 0;
+        ctx.fillRect(W * 0.1, H * 0.8, W * 0.8, 2);
+        ctx.restore();
+      }
+
+      // 3. CSS filter string
+      const filterStr = `brightness(${brightness}) contrast(${contrast}) saturate(${saturation})${sharpness > 0 ? ` url(#enhancer-sharpen-${Math.round(sharpness*2)})` : ''}`;
+
+      // 4. Draw subject image
+      if (enhancerUseBgRemoved && enhancerRemovedBgB64) {
+        const fgImg = new Image();
+        fgImg.onload = () => {
+          if (shadow > 0 && bg !== 'transparent') {
+            ctx.save();
+            ctx.shadowColor   = 'rgba(0,0,0,' + (shadow / 100 * 0.7) + ')';
+            ctx.shadowBlur    = shadow * 4;
+            ctx.shadowOffsetY = shadow * 1.2;
+            ctx.drawImage(fgImg, 0, 0, W, H);
+            ctx.restore();
+          } else {
+            ctx.filter = filterStr;
+            ctx.drawImage(fgImg, 0, 0, W, H);
+            ctx.filter = 'none';
+          }
+        };
+        fgImg.src = enhancerRemovedBgB64;
+      } else {
+        ctx.filter = filterStr;
+        ctx.drawImage(enhancerOriginalImg, 0, 0, W, H);
+        ctx.filter = 'none';
+      }
+    };
+    drawFn();
+  }
+
+  async function enhancerRemoveBg() {
+    if (!enhancerOriginalImg) return;
+    const loadEl  = document.getElementById('enhancer-loading');
+    const statusEl = document.getElementById('enhancer-status');
+    const btn     = document.getElementById('enhancer-remove-bg-btn');
+
+    loadEl.style.display   = 'flex'; loadEl.style.alignItems = 'center';
+    if (statusEl) statusEl.style.display = 'none';
+    if (btn)      btn.disabled = true;
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { alert('Session expired — please refresh.'); return; }
+
+      // Get original image as base64
+      const canvas2 = document.createElement('canvas');
+      canvas2.width  = enhancerOriginalImg.naturalWidth;
+      canvas2.height = enhancerOriginalImg.naturalHeight;
+      canvas2.getContext('2d').drawImage(enhancerOriginalImg, 0, 0);
+      const b64 = canvas2.toDataURL('image/png').split(',')[1];
+
+      const res = await fetch(`${BOT_API}/api/photo/enhance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ image: b64 }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error || 'Background removal failed');
+
+      const mimeType = json.mimeType || 'image/png';
+      enhancerRemovedBgB64 = `data:${mimeType};base64,${json.image}`;
+      enhancerUseBgRemoved = true;
+      enhancerComposite();
+
+      if (statusEl) {
+        statusEl.textContent = '✓ Background removed — apply any backdrop below.';
+        statusEl.style.display = '';
+        setTimeout(() => { statusEl.style.display = 'none'; }, 4000);
+      }
+    } catch (err) {
+      alert('Background removal failed: ' + err.message);
+    } finally {
+      loadEl.style.display = 'none';
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function enhancerReset() {
+    enhancerRemovedBgB64 = null;
+    enhancerUseBgRemoved = false;
+    enhancerResetSliders();
+    // Re-select white preset
+    document.querySelectorAll('.bg-preset').forEach(p => p.style.borderColor = 'transparent');
+    const whitePreset = document.querySelector('.bg-preset[data-bg="white"]');
+    if (whitePreset) whitePreset.style.borderColor = 'var(--pink)';
+    enhancerCurrentBg = '#ffffff';
+    enhancerComposite();
+  }
+
+  function enhancerResetSliders() {
+    ['adj-brightness','adj-contrast','adj-saturation'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.value = 100; document.getElementById(id+'-val').textContent = '100%'; }
+    });
+    const sh = document.getElementById('adj-sharpness');
+    if (sh) { sh.value = 0; document.getElementById('adj-sharpness-val').textContent = '0'; }
+    const sd = document.getElementById('adj-shadow');
+    if (sd) { sd.value = 0; document.getElementById('adj-shadow-val').textContent = '0%'; }
+    enhancerComposite();
+  }
+
+  function enhancerDownload() {
+    const canvas = document.getElementById('enhancer-canvas');
+    if (!canvas) return;
+    const format  = document.getElementById('enhancer-format')?.value || 'image/png';
+    const scale   = parseFloat(document.getElementById('enhancer-size')?.value || 1);
+    const quality = format === 'image/jpeg' ? 0.92 : undefined;
+
+    let exportCanvas = canvas;
+    if (scale !== 1) {
+      exportCanvas         = document.createElement('canvas');
+      exportCanvas.width   = Math.round(canvas.width  * scale);
+      exportCanvas.height  = Math.round(canvas.height * scale);
+      const ectx = exportCanvas.getContext('2d');
+      ectx.drawImage(canvas, 0, 0, exportCanvas.width, exportCanvas.height);
+    }
+
+    const ext  = format === 'image/jpeg' ? 'jpg' : format === 'image/webp' ? 'webp' : 'png';
+    const link = document.createElement('a');
+    link.download = `vendora-enhanced.${ext}`;
+    link.href     = quality ? exportCanvas.toDataURL(format, quality) : exportCanvas.toDataURL(format);
+    link.click();
+  }
+
+  // ── Toggle auto-relist options visibility ────────────────────────────────────
+  function toggleRelistOptions() {
+    const on = document.getElementById('list-auto-relist')?.checked;
+    const opts = document.getElementById('relist-options');
+    if (opts) opts.style.display = on ? '' : 'none';
+  }
+
+  // ── Update listing platform checkbox border ──────────────────────────────────
+  function updateListPlatformBorder(platform) {
+    const cb  = document.getElementById(`list-${platform}`);
+    const lbl = document.getElementById(`list-lbl-${platform}`);
+    if (!lbl) return;
+    const colors = { depop: 'rgba(255,35,0,0.4)', vinted: 'rgba(9,177,186,0.4)' };
+    lbl.style.borderColor = cb?.checked ? (colors[platform] || 'rgba(232,33,122,0.4)') : '';
+  }
+
 </script>
 
 </body>
