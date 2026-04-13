@@ -1495,9 +1495,10 @@ client.on('interactionCreate', async (interaction) => {
 
 // ── Express server ────────────────────────────────────────────────────────────
 const app = express();
-app.use(express.json());
 
-// CORS — allow dashboard to call bot API endpoints
+// CORS must come BEFORE express.json() so that errors from body parsing
+// (e.g. 413 Payload Too Large) still include CORS headers and the browser
+// can read the error response instead of throwing a network error.
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', 'https://vendora-vv.netlify.app');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, PATCH, OPTIONS');
@@ -1505,6 +1506,9 @@ app.use((req, res, next) => {
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
+
+// Increase body size limit to 25 MB to handle base64-encoded image uploads
+app.use(express.json({ limit: '25mb' }));
 
 app.get('/', (_req, res) => res.json({ status: 'ok', bot: client.user?.tag || 'connecting...' }));
 

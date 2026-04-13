@@ -3537,7 +3537,7 @@
         loadPlatformStatus();
       }
     } catch (e) {
-      showMsg(msgEl, 'error', 'Network error. Please try again.');
+      showMsg(msgEl, 'error', `Request failed: ${e.message || 'network error'}`);
     }
 
     btn.disabled = false;
@@ -3582,7 +3582,7 @@
         document.getElementById(`${platform}-manual-username`).value = '';
         loadPlatformStatus();
       }
-    } catch { showMsg(msgEl, 'error', 'Network error. Please try again.'); }
+    } catch (e) { showMsg(msgEl, 'error', `Request failed: ${e.message || 'network error'}`); }
     btn.disabled = false; btn.textContent = 'Connect';
   }
 
@@ -3742,7 +3742,7 @@
         loadListings();
       }
     } catch (e) {
-      showMsg(msgEl, 'error', 'Network error. Please try again.');
+      showMsg(msgEl, 'error', `Request failed: ${e.message || 'network error'}. Check that Railway is running.`);
     }
 
     btn.disabled = false;
