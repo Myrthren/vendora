@@ -2540,6 +2540,61 @@ app.post('/api/listing/upload-images', async (req, res) => {
   res.json({ ok: true, result });
 });
 
+// ── Photo enhancer — AI instructions via Claude vision ───────────────────────
+app.post('/api/photo/instruct', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const { image, instructions } = req.body || {};
+  if (!image || !instructions) return res.status(400).json({ error: 'image and instructions required' });
+  if (!ANTHROPIC_KEY) return res.status(503).json({ error: 'AI not configured' });
+
+  try {
+    const client = new Anthropic({ apiKey: ANTHROPIC_KEY });
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 400,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: image } },
+          { type: 'text', text: `You are a professional product photo editor for a reselling platform. The user wants: "${instructions}"
+
+Analyse the clothing item in this photo and respond with ONLY valid JSON (no markdown):
+{
+  "brightness": <0-200, default 100>,
+  "contrast": <0-200, default 100>,
+  "saturation": <0-200, default 100>,
+  "sharpness": <0-5, default 0>,
+  "shadow": <0-60, default 0>,
+  "vignette": <0-80, default 0>,
+  "bg": <one of: "white-studio","soft-grey","cream","sage","blush","marble","wood","concrete","linen","studio-dark","black","navy","gradient-pink","gradient-blue","gradient-mesh">,
+  "removeBg": <true or false>,
+  "message": "<one sentence describing what you applied and why>"
+}` }
+        ]
+      }]
+    });
+
+    const raw = response.content[0]?.text?.trim() || '';
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return res.status(502).json({ error: 'AI returned unexpected format' });
+
+    const settings = JSON.parse(jsonMatch[0]);
+    // Clamp values to safe ranges
+    const clamp = (v, min, max, def) => (typeof v === 'number' && !isNaN(v)) ? Math.min(max, Math.max(min, v)) : def;
+    settings.brightness = clamp(settings.brightness, 0, 200, 100);
+    settings.contrast   = clamp(settings.contrast,   0, 200, 100);
+    settings.saturation = clamp(settings.saturation, 0, 200, 100);
+    settings.sharpness  = clamp(settings.sharpness,  0, 5,   0);
+    settings.shadow     = clamp(settings.shadow,     0, 60,  0);
+    settings.vignette   = clamp(settings.vignette,   0, 80,  0);
+
+    res.json({ ok: true, settings, message: settings.message || 'Settings applied.' });
+  } catch (e) {
+    console.error('[photo/instruct]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Photo enhancer — remove.bg background removal ────────────────────────────
 app.post('/api/photo/enhance', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;

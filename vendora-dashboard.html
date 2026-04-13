@@ -1707,22 +1707,66 @@
               <input type="file" id="enhancer-file-input" accept="image/*" style="display:none;" onchange="enhancerLoadFile(event)">
             </div>
 
+            <!-- Style Presets -->
+            <div class="card" style="padding:20px;">
+              <div class="card-title" style="margin-bottom:4px;">Style Presets</div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">One-click looks — removes background automatically</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <button onclick="enhancerApplyPreset('clean')" style="padding:10px 8px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.03);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)';this.style.background='rgba(232,33,122,0.04)'" onmouseout="this.style.borderColor='var(--border-dim)';this.style.background='rgba(255,255,255,0.03)'">
+                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Clean & Bright</div>
+                  <div style="font-size:10px;color:var(--muted);">White bg · crisp · light</div>
+                </button>
+                <button onclick="enhancerApplyPreset('luxury')" style="padding:10px 8px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.03);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='rgba(232,161,33,0.4)';this.style.background='rgba(232,161,33,0.04)'" onmouseout="this.style.borderColor='var(--border-dim)';this.style.background='rgba(255,255,255,0.03)'">
+                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Luxury Studio</div>
+                  <div style="font-size:10px;color:var(--muted);">Marble bg · rich · deep shadow</div>
+                </button>
+                <button onclick="enhancerApplyPreset('street')" style="padding:10px 8px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.03);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='rgba(100,100,255,0.4)';this.style.background='rgba(100,100,255,0.04)'" onmouseout="this.style.borderColor='var(--border-dim)';this.style.background='rgba(255,255,255,0.03)'">
+                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Street / Urban</div>
+                  <div style="font-size:10px;color:var(--muted);">Concrete bg · punchy · bold</div>
+                </button>
+                <button onclick="enhancerApplyPreset('warm')" style="padding:10px 8px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.03);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='rgba(200,130,50,0.4)';this.style.background='rgba(200,130,50,0.04)'" onmouseout="this.style.borderColor='var(--border-dim)';this.style.background='rgba(255,255,255,0.03)'">
+                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Warm Editorial</div>
+                  <div style="font-size:10px;color:var(--muted);">Wood bg · warm tones · natural</div>
+                </button>
+                <button onclick="enhancerApplyPreset('minimal')" style="padding:10px 8px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.03);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)';this.style.background='rgba(232,33,122,0.04)'" onmouseout="this.style.borderColor='var(--border-dim)';this.style.background='rgba(255,255,255,0.03)'">
+                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Minimal White</div>
+                  <div style="font-size:10px;color:var(--muted);">Pure white · soft shadow · clean</div>
+                </button>
+                <button onclick="enhancerApplyPreset('dark')" style="padding:10px 8px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.03);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='rgba(180,50,200,0.4)';this.style.background='rgba(180,50,200,0.04)'" onmouseout="this.style.borderColor='var(--border-dim)';this.style.background='rgba(255,255,255,0.03)'">
+                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Bold Dark</div>
+                  <div style="font-size:10px;color:var(--muted);">Black bg · dramatic · vivid</div>
+                </button>
+              </div>
+            </div>
+
             <!-- Background -->
             <div class="card" style="padding:20px;">
               <div class="card-title" style="margin-bottom:14px;">Background</div>
-              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;" id="bg-presets">
-                <div class="bg-preset active" data-bg="white" onclick="enhancerSetBg(this,'#ffffff')" style="aspect-ratio:1;border-radius:8px;border:2px solid var(--pink);background:#ffffff;cursor:pointer;transition:border-color .15s;" title="White"></div>
-                <div class="bg-preset" data-bg="light" onclick="enhancerSetBg(this,'#f5f5f5')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:#f5f5f5;cursor:pointer;transition:border-color .15s;" title="Light Grey"></div>
-                <div class="bg-preset" data-bg="studio" onclick="enhancerSetBg(this,'#2a2a2a')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:#2a2a2a;cursor:pointer;transition:border-color .15s;" title="Studio Dark"></div>
-                <div class="bg-preset" data-bg="black" onclick="enhancerSetBg(this,'#000000')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:#000000;cursor:pointer;transition:border-color .15s;outline:1px solid rgba(255,255,255,0.08);" title="Black"></div>
-                <div class="bg-preset" data-bg="marble" onclick="enhancerSetBg(this,'marble')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:linear-gradient(135deg,#e8e8e8 0%,#f9f9f9 40%,#d8d8d8 60%,#f0f0f0 100%);cursor:pointer;transition:border-color .15s;" title="Marble"></div>
-                <div class="bg-preset" data-bg="gradient-pink" onclick="enhancerSetBg(this,'gradient-pink')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:linear-gradient(135deg,#1a0010,#3d0020,#6b0033);cursor:pointer;transition:border-color .15s;" title="Dark Pink Gradient"></div>
-                <div class="bg-preset" data-bg="gradient-blue" onclick="enhancerSetBg(this,'gradient-blue')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:linear-gradient(135deg,#0a0e1a,#0d1b3e,#0a2a5c);cursor:pointer;transition:border-color .15s;" title="Dark Blue Gradient"></div>
-                <div class="bg-preset" data-bg="transparent" onclick="enhancerSetBg(this,'transparent')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:repeating-conic-gradient(#555 0% 25%, #333 0% 50%) 0 0/12px 12px;cursor:pointer;transition:border-color .15s;" title="Transparent (PNG)"></div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;" id="bg-presets">
+                <!-- Row 1: Light surfaces -->
+                <div class="bg-preset active" data-bg="white-studio" onclick="enhancerSetBg(this,'white-studio')" style="aspect-ratio:1;border-radius:8px;border:2px solid var(--pink);background:radial-gradient(ellipse at 40% 35%,#ffffff 0%,#f0f0f0 60%,#e0e0e0 100%);cursor:pointer;transition:border-color .15s;" title="White Studio"></div>
+                <div class="bg-preset" data-bg="soft-grey" onclick="enhancerSetBg(this,'soft-grey')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:radial-gradient(ellipse at 40% 35%,#ececec 0%,#d8d8d8 70%,#c8c8c8 100%);cursor:pointer;transition:border-color .15s;" title="Soft Grey"></div>
+                <div class="bg-preset" data-bg="cream" onclick="enhancerSetBg(this,'cream')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:radial-gradient(ellipse at 40% 35%,#fdf8f0 0%,#f5ead8 70%,#e8d9c0 100%);cursor:pointer;transition:border-color .15s;" title="Cream"></div>
+                <div class="bg-preset" data-bg="sage" onclick="enhancerSetBg(this,'sage')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:radial-gradient(ellipse at 40% 35%,#e8ede4 0%,#d0d9c8 70%,#b8c4ae 100%);cursor:pointer;transition:border-color .15s;" title="Sage Green"></div>
+                <!-- Row 2: Textures -->
+                <div class="bg-preset" data-bg="marble" onclick="enhancerSetBg(this,'marble')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:linear-gradient(125deg,#e8e4e0 0%,#f5f2ef 30%,#ddd8d4 55%,#f0ede8 80%,#e4e0dc 100%);cursor:pointer;transition:border-color .15s;" title="Marble"></div>
+                <div class="bg-preset" data-bg="wood" onclick="enhancerSetBg(this,'wood')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:repeating-linear-gradient(92deg,#c8a06a 0px,#d4aa78 4px,#c0986a 8px,#cc9e6e 14px,#c8a06a 16px);cursor:pointer;transition:border-color .15s;" title="Oak Wood"></div>
+                <div class="bg-preset" data-bg="concrete" onclick="enhancerSetBg(this,'concrete')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:radial-gradient(ellipse at 50% 50%,#6a6a6a 0%,#585858 50%,#484848 100%);cursor:pointer;transition:border-color .15s;" title="Concrete"></div>
+                <div class="bg-preset" data-bg="linen" onclick="enhancerSetBg(this,'linen')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:repeating-linear-gradient(0deg,#f0e8d8 0px,#e8deca 2px,#f0e8d8 4px),repeating-linear-gradient(90deg,#f0e8d8 0px,#e8dece 1px,#f0e8d8 3px);cursor:pointer;transition:border-color .15s;" title="Linen"></div>
+                <!-- Row 3: Dark + Gradient -->
+                <div class="bg-preset" data-bg="studio-dark" onclick="enhancerSetBg(this,'studio-dark')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:radial-gradient(ellipse at 40% 35%,#383838 0%,#202020 60%,#111111 100%);cursor:pointer;transition:border-color .15s;" title="Studio Dark"></div>
+                <div class="bg-preset" data-bg="black" onclick="enhancerSetBg(this,'#000000')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:#000;cursor:pointer;transition:border-color .15s;outline:1px solid rgba(255,255,255,0.08);" title="Black"></div>
+                <div class="bg-preset" data-bg="gradient-pink" onclick="enhancerSetBg(this,'gradient-pink')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:linear-gradient(135deg,#1a0010,#3d0020,#6b0033);cursor:pointer;transition:border-color .15s;" title="Dark Pink"></div>
+                <div class="bg-preset" data-bg="gradient-blue" onclick="enhancerSetBg(this,'gradient-blue')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:linear-gradient(135deg,#0a0e1a,#0d1b3e,#0a2a5c);cursor:pointer;transition:border-color .15s;" title="Dark Blue"></div>
+                <!-- Row 4: Special -->
+                <div class="bg-preset" data-bg="navy" onclick="enhancerSetBg(this,'navy')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:radial-gradient(ellipse at 40% 35%,#1a2a4a 0%,#0d1a34 60%,#080f1e 100%);cursor:pointer;transition:border-color .15s;" title="Navy"></div>
+                <div class="bg-preset" data-bg="blush" onclick="enhancerSetBg(this,'blush')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:radial-gradient(ellipse at 40% 35%,#fce8e8 0%,#f0d0d0 70%,#e0bcbc 100%);cursor:pointer;transition:border-color .15s;" title="Blush"></div>
+                <div class="bg-preset" data-bg="gradient-mesh" onclick="enhancerSetBg(this,'gradient-mesh')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:conic-gradient(from 180deg at 50% 50%,#e8217a22,#8b5cf622,#06b6d422,#e8217a22);cursor:pointer;transition:border-color .15s;" title="Colour Mesh"></div>
+                <div class="bg-preset" data-bg="transparent" onclick="enhancerSetBg(this,'transparent')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:repeating-conic-gradient(#555 0% 25%,#333 0% 50%) 0 0/12px 12px;cursor:pointer;transition:border-color .15s;" title="Transparent"></div>
               </div>
               <div style="display:flex;align-items:center;gap:10px;">
-                <label style="font-size:12px;color:var(--muted2);">Custom colour</label>
-                <input type="color" id="enhancer-custom-color" value="#ffffff" onchange="enhancerSetBg(null, this.value, true)" style="width:36px;height:28px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;background:transparent;cursor:pointer;padding:2px;">
+                <label style="font-size:11px;color:var(--muted2);">Custom</label>
+                <input type="color" id="enhancer-custom-color" value="#ffffff" onchange="enhancerSetBg(null, this.value, true)" style="width:32px;height:26px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;background:transparent;cursor:pointer;padding:2px;">
               </div>
             </div>
 
@@ -1750,12 +1794,30 @@
                   <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Shadow Depth</label><span style="font-size:12px;color:var(--text);" id="adj-shadow-val">0%</span></div>
                   <input type="range" id="adj-shadow" min="0" max="60" value="0" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-shadow-val').textContent=this.value+'%';enhancerComposite()">
                 </div>
-                <button class="btn btn-primary btn-sm" onclick="enhancerAutoEnhance()" style="align-self:flex-start;margin-top:2px;">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                  Auto Enhance
-                </button>
-                <button class="btn btn-ghost btn-sm" onclick="enhancerResetSliders()" style="align-self:flex-start;margin-top:2px;">Reset Adjustments</button>
+                <div>
+                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Vignette</label><span style="font-size:12px;color:var(--text);" id="adj-vignette-val">0%</span></div>
+                  <input type="range" id="adj-vignette" min="0" max="80" value="0" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-vignette-val').textContent=this.value+'%';enhancerComposite()">
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <button class="btn btn-primary btn-sm" onclick="enhancerAutoEnhance()">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    Auto Enhance
+                  </button>
+                  <button class="btn btn-ghost btn-sm" onclick="enhancerResetSliders()">Reset</button>
+                </div>
               </div>
+            </div>
+
+            <!-- Custom Instructions -->
+            <div class="card" style="padding:20px;">
+              <div class="card-title" style="margin-bottom:4px;">AI Instructions</div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">Describe the look you want — Claude will suggest the best settings</div>
+              <textarea id="enhancer-instructions" rows="3" class="form-select" style="height:auto;padding:10px 12px;font-size:12px;resize:vertical;margin-bottom:10px;" placeholder="e.g. make it look like a luxury brand product photo on marble&#10;e.g. street style shoot on concrete, bold and punchy&#10;e.g. clean minimal white background for eBay listing"></textarea>
+              <button class="btn btn-primary btn-sm" onclick="enhancerApplyInstructions()" id="enhancer-instruct-btn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                Apply AI Suggestions
+              </button>
+              <div id="enhancer-instruct-result" style="display:none;margin-top:10px;padding:10px 12px;border-radius:8px;font-size:12px;background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.15);color:var(--muted2);line-height:1.6;"></div>
             </div>
 
           </div>
@@ -3978,34 +4040,152 @@
   function enhancerDrawBackground(ctx, W, H) {
     const bg = enhancerCurrentBg;
     if (bg === 'transparent') { ctx.clearRect(0, 0, W, H); return; }
-    if (bg === 'marble') {
-      const grad = ctx.createLinearGradient(0, 0, W, H);
-      grad.addColorStop(0,   '#e8e8e8');
-      grad.addColorStop(0.3, '#f5f5f5');
-      grad.addColorStop(0.6, '#d8d8d8');
-      grad.addColorStop(1,   '#f0f0f0');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, W, H);
+
+    // ── Light studio backgrounds ──────────────────────────────────────────────
+    if (bg === 'white-studio') {
+      const g = ctx.createRadialGradient(W*0.4, H*0.35, 0, W*0.5, H*0.5, W*0.75);
+      g.addColorStop(0, '#ffffff'); g.addColorStop(0.6, '#f2f2f2'); g.addColorStop(1, '#e0e0e0');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    } else if (bg === 'soft-grey') {
+      const g = ctx.createRadialGradient(W*0.4, H*0.35, 0, W*0.5, H*0.5, W*0.75);
+      g.addColorStop(0, '#ececec'); g.addColorStop(0.6, '#d8d8d8'); g.addColorStop(1, '#c4c4c4');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    } else if (bg === 'cream') {
+      const g = ctx.createRadialGradient(W*0.4, H*0.35, 0, W*0.5, H*0.5, W*0.75);
+      g.addColorStop(0, '#fdf8f0'); g.addColorStop(0.6, '#f2e6d0'); g.addColorStop(1, '#e4d4b8');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    } else if (bg === 'sage') {
+      const g = ctx.createRadialGradient(W*0.4, H*0.35, 0, W*0.5, H*0.5, W*0.75);
+      g.addColorStop(0, '#eaf0e4'); g.addColorStop(0.6, '#d0dcc8'); g.addColorStop(1, '#b8c8ae');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    } else if (bg === 'blush') {
+      const g = ctx.createRadialGradient(W*0.4, H*0.35, 0, W*0.5, H*0.5, W*0.75);
+      g.addColorStop(0, '#fdf0f0'); g.addColorStop(0.6, '#f0d4d4'); g.addColorStop(1, '#e0bcbc');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+    // ── Marble ────────────────────────────────────────────────────────────────
+    } else if (bg === 'marble') {
+      // Base stone gradient
+      const base = ctx.createLinearGradient(0, 0, W, H);
+      base.addColorStop(0,    '#eae6e2');
+      base.addColorStop(0.25, '#f5f2ef');
+      base.addColorStop(0.5,  '#ddd9d5');
+      base.addColorStop(0.75, '#f0ece8');
+      base.addColorStop(1,    '#e4e0dc');
+      ctx.fillStyle = base; ctx.fillRect(0, 0, W, H);
+      // Realistic sinusoidal veins
+      const veins = [
+        { x1:W*0.1, y1:0, x2:W*0.55, y2:H, col:'rgba(180,170,165,0.22)', w:1.2 },
+        { x1:W*0.3, y1:0, x2:W*0.75, y2:H, col:'rgba(160,150,145,0.16)', w:0.8 },
+        { x1:W*0.6, y1:0, x2:W*0.2,  y2:H, col:'rgba(190,180,175,0.18)', w:1.5 },
+        { x1:W*0.8, y1:0, x2:W*0.4,  y2:H, col:'rgba(140,130,125,0.12)', w:0.6 },
+        { x1:W*0.05,y1:0, x2:W*0.9,  y2:H, col:'rgba(170,160,155,0.10)', w:2.0 },
+      ];
       ctx.save();
-      ctx.globalAlpha = 0.07;
-      for (let i = 0; i < 7; i++) {
+      for (const v of veins) {
         ctx.beginPath();
-        ctx.moveTo(Math.random() * W, 0);
-        ctx.bezierCurveTo(Math.random() * W, H * 0.3, Math.random() * W, H * 0.7, Math.random() * W, H);
-        ctx.strokeStyle = '#aaa';
-        ctx.lineWidth   = Math.random() * 2 + 0.5;
+        ctx.moveTo(v.x1, v.y1);
+        const cx1 = v.x1 + (v.x2 - v.x1) * 0.25 + W * 0.06;
+        const cy1 = H * 0.35;
+        const cx2 = v.x1 + (v.x2 - v.x1) * 0.75 - W * 0.04;
+        const cy2 = H * 0.65;
+        ctx.bezierCurveTo(cx1, cy1, cx2, cy2, v.x2, v.y2);
+        ctx.strokeStyle = v.col;
+        ctx.lineWidth = v.w;
         ctx.stroke();
       }
       ctx.restore();
+
+    // ── Oak Wood ──────────────────────────────────────────────────────────────
+    } else if (bg === 'wood') {
+      // Base wood colour
+      const base = ctx.createLinearGradient(0, 0, 0, H);
+      base.addColorStop(0,   '#c8a070'); base.addColorStop(0.5, '#d4aa78');
+      base.addColorStop(0.8, '#be9860'); base.addColorStop(1,   '#c8a070');
+      ctx.fillStyle = base; ctx.fillRect(0, 0, W, H);
+      // Grain lines
+      ctx.save();
+      for (let i = 0; i < H; i += 3 + Math.sin(i * 0.3) * 2) {
+        const alpha = 0.04 + Math.abs(Math.sin(i * 0.18)) * 0.08;
+        const dark  = i % 9 < 4;
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        // Slight waviness
+        ctx.bezierCurveTo(W*0.3, i + Math.sin(i*0.05)*3, W*0.7, i - Math.sin(i*0.07)*2, W, i + Math.sin(i*0.04)*3);
+        ctx.strokeStyle = dark ? `rgba(80,50,20,${alpha})` : `rgba(240,200,140,${alpha * 0.6})`;
+        ctx.lineWidth = dark ? 1.2 : 0.6;
+        ctx.stroke();
+      }
+      // Subtle knot
+      const kg = ctx.createRadialGradient(W*0.62, H*0.38, 2, W*0.62, H*0.38, W*0.06);
+      kg.addColorStop(0, 'rgba(100,60,20,0.2)'); kg.addColorStop(1, 'rgba(100,60,20,0)');
+      ctx.fillStyle = kg; ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+
+    // ── Concrete ──────────────────────────────────────────────────────────────
+    } else if (bg === 'concrete') {
+      const base = ctx.createRadialGradient(W*0.4, H*0.4, 0, W*0.5, H*0.5, W*0.7);
+      base.addColorStop(0, '#6e6e6e'); base.addColorStop(0.6, '#5a5a5a'); base.addColorStop(1, '#464646');
+      ctx.fillStyle = base; ctx.fillRect(0, 0, W, H);
+      // Noise texture
+      ctx.save();
+      const imgData = ctx.getImageData(0, 0, W, H);
+      const d = imgData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const n = (Math.random() - 0.5) * 18;
+        d[i] = Math.min(255, Math.max(0, d[i] + n));
+        d[i+1] = Math.min(255, Math.max(0, d[i+1] + n));
+        d[i+2] = Math.min(255, Math.max(0, d[i+2] + n));
+      }
+      ctx.putImageData(imgData, 0, 0);
+      ctx.restore();
+
+    // ── Linen ─────────────────────────────────────────────────────────────────
+    } else if (bg === 'linen') {
+      ctx.fillStyle = '#f0e8d8'; ctx.fillRect(0, 0, W, H);
+      ctx.save();
+      ctx.globalAlpha = 0.12;
+      for (let x = 0; x < W; x += 3) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H);
+        ctx.strokeStyle = x % 6 === 0 ? '#b8a888' : '#d4c8a8'; ctx.lineWidth = 0.5; ctx.stroke();
+      }
+      for (let y = 0; y < H; y += 3) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y);
+        ctx.strokeStyle = y % 6 === 0 ? '#b8a888' : '#d4c8a8'; ctx.lineWidth = 0.5; ctx.stroke();
+      }
+      ctx.restore();
+
+    // ── Dark backgrounds ──────────────────────────────────────────────────────
+    } else if (bg === 'studio-dark') {
+      const g = ctx.createRadialGradient(W*0.4, H*0.35, 0, W*0.5, H*0.5, W*0.75);
+      g.addColorStop(0, '#3a3a3a'); g.addColorStop(0.5, '#222222'); g.addColorStop(1, '#0e0e0e');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    } else if (bg === 'navy') {
+      const g = ctx.createRadialGradient(W*0.4, H*0.35, 0, W*0.5, H*0.5, W*0.75);
+      g.addColorStop(0, '#1e3055'); g.addColorStop(0.5, '#0e1e3a'); g.addColorStop(1, '#060e20');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     } else if (bg === 'gradient-pink') {
-      const grad = ctx.createLinearGradient(0, 0, W, H);
-      grad.addColorStop(0, '#1a0010'); grad.addColorStop(0.5, '#3d0020'); grad.addColorStop(1, '#6b0033');
-      ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+      const g = ctx.createLinearGradient(0, 0, W, H);
+      g.addColorStop(0, '#1a0010'); g.addColorStop(0.5, '#3d0020'); g.addColorStop(1, '#6b0033');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     } else if (bg === 'gradient-blue') {
-      const grad = ctx.createLinearGradient(0, 0, W, H);
-      grad.addColorStop(0, '#0a0e1a'); grad.addColorStop(0.5, '#0d1b3e'); grad.addColorStop(1, '#0a2a5c');
-      ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+      const g = ctx.createLinearGradient(0, 0, W, H);
+      g.addColorStop(0, '#0a0e1a'); g.addColorStop(0.5, '#0d1b3e'); g.addColorStop(1, '#0a2a5c');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    } else if (bg === 'gradient-mesh') {
+      ctx.fillStyle = '#0a0a12'; ctx.fillRect(0, 0, W, H);
+      const blobs = [
+        { x:W*0.2, y:H*0.3, r:W*0.5, c:'rgba(232,33,122,0.18)' },
+        { x:W*0.75,y:H*0.6, r:W*0.4, c:'rgba(139,92,246,0.14)' },
+        { x:W*0.5, y:H*0.8, r:W*0.45,c:'rgba(6,182,212,0.12)' },
+      ];
+      for (const b of blobs) {
+        const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
+        g.addColorStop(0, b.c); g.addColorStop(1, 'transparent');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      }
     } else {
+      // Solid colour fallback
       ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
     }
   }
@@ -4071,6 +4251,16 @@
 
       // 4. Apply sharpness via pixel manipulation (unsharp mask)
       if (sharpness > 0) enhancerApplySharpness(ctx, W, H, sharpness);
+
+      // 5. Vignette overlay
+      const vignette = parseFloat(document.getElementById('adj-vignette')?.value || 0);
+      if (vignette > 0) {
+        const vg = ctx.createRadialGradient(W*0.5, H*0.5, Math.min(W,H)*0.3, W*0.5, H*0.5, Math.max(W,H)*0.75);
+        vg.addColorStop(0, 'rgba(0,0,0,0)');
+        vg.addColorStop(1, `rgba(0,0,0,${vignette / 100 * 0.85})`);
+        ctx.fillStyle = vg;
+        ctx.fillRect(0, 0, W, H);
+      }
     };
 
     if (enhancerUseBgRemoved && enhancerRemovedBgB64) {
@@ -4125,28 +4315,104 @@
     }
   }
 
-  function enhancerAutoEnhance() {
-    if (!enhancerOriginalImg) { alert('Upload a photo first.'); return; }
-    // Set smart defaults for resell product photos
-    const setSlider = (id, val, displaySuffix = '%') => {
-      const el = document.getElementById(id);
-      const disp = document.getElementById(id + '-val');
-      if (el)   el.value = val;
-      if (disp) disp.textContent = val + displaySuffix;
+  const ENHANCER_PRESETS = {
+    clean:   { brightness:118, contrast:108, saturation:108, sharpness:1,   shadow:18, vignette:0,  bg:'white-studio',  label:'Clean & Bright' },
+    luxury:  { brightness:105, contrast:122, saturation:112, sharpness:1.5, shadow:32, vignette:20, bg:'marble',        label:'Luxury Studio' },
+    street:  { brightness:100, contrast:128, saturation:122, sharpness:2,   shadow:28, vignette:35, bg:'concrete',      label:'Street / Urban' },
+    warm:    { brightness:108, contrast:112, saturation:128, sharpness:1,   shadow:22, vignette:12, bg:'wood',          label:'Warm Editorial' },
+    minimal: { brightness:120, contrast:104, saturation:100, sharpness:0.5, shadow:14, vignette:0,  bg:'white-studio',  label:'Minimal White' },
+    dark:    { brightness:98,  contrast:130, saturation:118, sharpness:1.5, shadow:40, vignette:45, bg:'studio-dark',   label:'Bold Dark' },
+  };
+
+  function enhancerSetSliders(p) {
+    const set = (id, val, suffix = '%') => {
+      const el = document.getElementById(id); const disp = document.getElementById(id+'-val');
+      if (el) el.value = val; if (disp) disp.textContent = val + suffix;
     };
-    setSlider('adj-brightness', 108);
-    setSlider('adj-contrast',   115);
-    setSlider('adj-saturation', 118);
-    setSlider('adj-sharpness',  1.5, '');
-    setSlider('adj-shadow',     22);
-    // Switch to marble background
-    enhancerCurrentBg = 'marble';
+    set('adj-brightness', p.brightness);
+    set('adj-contrast',   p.contrast);
+    set('adj-saturation', p.saturation);
+    set('adj-sharpness',  p.sharpness, '');
+    set('adj-shadow',     p.shadow);
+    set('adj-vignette',   p.vignette);
+  }
+
+  function enhancerSelectBg(bgKey) {
+    enhancerCurrentBg = bgKey;
     document.querySelectorAll('.bg-preset').forEach(p => p.style.borderColor = 'transparent');
-    const marble = document.querySelector('.bg-preset[data-bg="marble"]');
-    if (marble) marble.style.borderColor = 'var(--pink)';
+    const el = document.querySelector(`.bg-preset[data-bg="${bgKey}"]`);
+    if (el) el.style.borderColor = 'var(--pink)';
+  }
+
+  function enhancerApplyPreset(name) {
+    if (!enhancerOriginalImg) { alert('Upload a photo first.'); return; }
+    const p = ENHANCER_PRESETS[name]; if (!p) return;
+    enhancerSetSliders(p);
+    enhancerSelectBg(p.bg);
     enhancerComposite();
-    // Trigger bg removal if not already done
     if (!enhancerUseBgRemoved) enhancerRemoveBg();
+  }
+
+  function enhancerAutoEnhance() {
+    enhancerApplyPreset('luxury');
+  }
+
+  async function enhancerApplyInstructions() {
+    if (!enhancerOriginalImg) { alert('Upload a photo first.'); return; }
+    const instructions = document.getElementById('enhancer-instructions')?.value?.trim();
+    if (!instructions) { alert('Enter some instructions first.'); return; }
+
+    const btn      = document.getElementById('enhancer-instruct-btn');
+    const resultEl = document.getElementById('enhancer-instruct-result');
+    btn.disabled   = true;
+    btn.textContent = 'Asking Claude…';
+    if (resultEl) { resultEl.style.display = 'none'; resultEl.textContent = ''; }
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { window.location.href = 'vendora-login.html'; return; }
+
+      // Send thumbnail for faster AI analysis
+      const thumb = document.createElement('canvas');
+      const scale = Math.min(1, 800 / Math.max(enhancerOriginalImg.naturalWidth, enhancerOriginalImg.naturalHeight));
+      thumb.width  = Math.round(enhancerOriginalImg.naturalWidth  * scale);
+      thumb.height = Math.round(enhancerOriginalImg.naturalHeight * scale);
+      thumb.getContext('2d').drawImage(enhancerOriginalImg, 0, 0, thumb.width, thumb.height);
+      const b64 = thumb.toDataURL('image/jpeg', 0.75).split(',')[1];
+
+      const res = await fetch(`${BOT_API}/api/photo/instruct`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ image: b64, instructions }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error || 'AI suggestions failed');
+
+      const s = json.settings;
+      enhancerSetSliders(s);
+      if (s.bg) enhancerSelectBg(s.bg);
+      enhancerComposite();
+      if (s.removeBg && !enhancerUseBgRemoved) enhancerRemoveBg();
+
+      if (resultEl) {
+        resultEl.textContent = json.message || `Applied: brightness ${s.brightness}%, contrast ${s.contrast}%, ${s.bg} background.`;
+        resultEl.style.display = '';
+        resultEl.style.background = 'rgba(74,222,128,0.06)';
+        resultEl.style.borderColor = 'rgba(74,222,128,0.15)';
+        resultEl.style.color = 'var(--muted2)';
+      }
+    } catch (e) {
+      if (resultEl) {
+        resultEl.textContent = '✕ ' + e.message;
+        resultEl.style.display = '';
+        resultEl.style.background = 'rgba(248,113,113,0.07)';
+        resultEl.style.borderColor = 'rgba(248,113,113,0.2)';
+        resultEl.style.color = '#f87171';
+      }
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg> Apply AI Suggestions`;
+    }
   }
 
   function enhancerReset() {
@@ -4155,10 +4421,8 @@
     enhancerViewMode     = 'after';
     enhancerShowMode('after');
     enhancerResetSliders();
-    document.querySelectorAll('.bg-preset').forEach(p => p.style.borderColor = 'transparent');
-    const whitePreset = document.querySelector('.bg-preset[data-bg="white"]');
-    if (whitePreset) whitePreset.style.borderColor = 'var(--pink)';
-    enhancerCurrentBg = '#ffffff';
+    enhancerSelectBg('white-studio');
+    enhancerCurrentBg = 'white-studio';
     enhancerComposite();
   }
 
