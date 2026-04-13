@@ -1750,6 +1750,10 @@
                   <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Shadow Depth</label><span style="font-size:12px;color:var(--text);" id="adj-shadow-val">0%</span></div>
                   <input type="range" id="adj-shadow" min="0" max="60" value="0" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-shadow-val').textContent=this.value+'%';enhancerComposite()">
                 </div>
+                <button class="btn btn-primary btn-sm" onclick="enhancerAutoEnhance()" style="align-self:flex-start;margin-top:2px;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                  Auto Enhance
+                </button>
                 <button class="btn btn-ghost btn-sm" onclick="enhancerResetSliders()" style="align-self:flex-start;margin-top:2px;">Reset Adjustments</button>
               </div>
             </div>
@@ -1761,7 +1765,11 @@
             <div class="card" style="padding:20px;">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
                 <div class="card-title" style="margin:0;">Preview</div>
-                <div style="display:flex;gap:8px;">
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <div id="enhancer-ba-toggle" style="display:none;border:1px solid var(--border-dim);border-radius:6px;overflow:hidden;">
+                    <button onclick="enhancerShowMode('after')" id="ba-after-btn" style="padding:5px 10px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;border:none;cursor:pointer;background:var(--pink);color:#fff;transition:background .15s;">After</button>
+                    <button onclick="enhancerShowMode('before')" id="ba-before-btn" style="padding:5px 10px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;border:none;cursor:pointer;background:var(--bg3);color:var(--muted2);transition:background .15s;">Before</button>
+                  </div>
                   <button class="btn btn-ghost btn-sm" id="enhancer-reset-btn" onclick="enhancerReset()" style="display:none;">Reset</button>
                   <button class="btn btn-primary btn-sm" id="enhancer-remove-bg-btn" onclick="enhancerRemoveBg()" style="display:none;">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
@@ -1776,6 +1784,7 @@
                 <span style="font-size:12px;color:rgba(255,255,255,0.18);">Upload a photo to get started</span>
               </div>
               <canvas id="enhancer-canvas" style="display:none;width:100%;border-radius:10px;"></canvas>
+              <canvas id="enhancer-original-canvas" style="display:none;width:100%;border-radius:10px;"></canvas>
 
               <!-- Status bar -->
               <div id="enhancer-status" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;font-size:12px;background:rgba(74,222,128,0.07);border:1px solid rgba(74,222,128,0.15);color:var(--green);"></div>
@@ -3869,6 +3878,7 @@
   let enhancerRemovedBgB64   = null;  // Base64 of bg-removed PNG (from remove.bg)
   let enhancerCurrentBg      = '#ffffff';
   let enhancerUseBgRemoved   = false;
+  let enhancerViewMode       = 'after'; // 'after' | 'before'
 
   function initEnhancerAccess(tier) {
     const gate = document.getElementById('enhancer-gate');
@@ -3897,10 +3907,7 @@
   }
 
   function enhancerLoadImageFile(file) {
-    if (file.size > 10 * 1024 * 1024) {
-      alert('Image is too large. Max 10 MB.');
-      return;
-    }
+    if (file.size > 10 * 1024 * 1024) { alert('Image is too large. Max 10 MB.'); return; }
     const reader = new FileReader();
     reader.onload = e => {
       const img = new Image();
@@ -3908,7 +3915,15 @@
         enhancerOriginalImg  = img;
         enhancerRemovedBgB64 = null;
         enhancerUseBgRemoved = false;
+        enhancerViewMode     = 'after';
         enhancerShowControls(true);
+        // Draw original to the before-canvas for before/after toggle
+        const origCanvas = document.getElementById('enhancer-original-canvas');
+        if (origCanvas) {
+          origCanvas.width  = img.naturalWidth;
+          origCanvas.height = img.naturalHeight;
+          origCanvas.getContext('2d').drawImage(img, 0, 0);
+        }
         enhancerComposite();
       };
       img.src = e.target.result;
@@ -3917,16 +3932,35 @@
   }
 
   function enhancerShowControls(show) {
-    document.getElementById('enhancer-placeholder').style.display      = show ? 'none' : '';
-    document.getElementById('enhancer-canvas').style.display           = show ? '' : 'none';
-    document.getElementById('enhancer-remove-bg-btn').style.display    = show ? '' : 'none';
-    document.getElementById('enhancer-reset-btn').style.display        = show ? '' : 'none';
-    document.getElementById('enhancer-download-btn').style.display     = show ? '' : 'none';
+    document.getElementById('enhancer-placeholder').style.display          = show ? 'none' : '';
+    document.getElementById('enhancer-canvas').style.display               = show ? '' : 'none';
+    document.getElementById('enhancer-original-canvas').style.display      = 'none'; // always hidden unless before mode
+    document.getElementById('enhancer-remove-bg-btn').style.display        = show ? '' : 'none';
+    document.getElementById('enhancer-reset-btn').style.display            = show ? '' : 'none';
+    document.getElementById('enhancer-download-btn').style.display         = show ? '' : 'none';
     document.getElementById('enhancer-download-placeholder').style.display = show ? 'none' : '';
+    const baToggle = document.getElementById('enhancer-ba-toggle');
+    if (baToggle) baToggle.style.display = show ? '' : 'none';
+  }
+
+  function enhancerShowMode(mode) {
+    enhancerViewMode = mode;
+    const mainCanvas = document.getElementById('enhancer-canvas');
+    const origCanvas = document.getElementById('enhancer-original-canvas');
+    const afterBtn   = document.getElementById('ba-after-btn');
+    const beforeBtn  = document.getElementById('ba-before-btn');
+    if (mode === 'before') {
+      if (mainCanvas) mainCanvas.style.display = 'none';
+      if (origCanvas) origCanvas.style.display = '';
+    } else {
+      if (mainCanvas) mainCanvas.style.display = '';
+      if (origCanvas) origCanvas.style.display = 'none';
+    }
+    if (afterBtn)  { afterBtn.style.background  = mode === 'after'  ? 'var(--pink)' : 'var(--bg3)';  afterBtn.style.color  = mode === 'after'  ? '#fff' : 'var(--muted2)'; }
+    if (beforeBtn) { beforeBtn.style.background = mode === 'before' ? 'var(--pink)' : 'var(--bg3)'; beforeBtn.style.color = mode === 'before' ? '#fff' : 'var(--muted2)'; }
   }
 
   function enhancerSetBg(el, value, isCustom = false) {
-    // Deselect all presets
     document.querySelectorAll('.bg-preset').forEach(p => p.style.borderColor = 'transparent');
     if (el) el.style.borderColor = 'var(--pink)';
     enhancerCurrentBg = value;
@@ -3934,169 +3968,193 @@
   }
 
   function enhancerGetFilters() {
-    const brightness  = document.getElementById('adj-brightness')?.value  || 100;
-    const contrast    = document.getElementById('adj-contrast')?.value    || 100;
-    const saturation  = document.getElementById('adj-saturation')?.value  || 100;
-    const sharpness   = parseFloat(document.getElementById('adj-sharpness')?.value || 0);
-    return { brightness: brightness/100, contrast: contrast/100, saturation: saturation/100, sharpness };
+    const brightness = parseFloat(document.getElementById('adj-brightness')?.value || 100);
+    const contrast   = parseFloat(document.getElementById('adj-contrast')?.value   || 100);
+    const saturation = parseFloat(document.getElementById('adj-saturation')?.value || 100);
+    const sharpness  = parseFloat(document.getElementById('adj-sharpness')?.value  || 0);
+    return { brightness: brightness / 100, contrast: contrast / 100, saturation: saturation / 100, sharpness };
+  }
+
+  function enhancerDrawBackground(ctx, W, H) {
+    const bg = enhancerCurrentBg;
+    if (bg === 'transparent') { ctx.clearRect(0, 0, W, H); return; }
+    if (bg === 'marble') {
+      const grad = ctx.createLinearGradient(0, 0, W, H);
+      grad.addColorStop(0,   '#e8e8e8');
+      grad.addColorStop(0.3, '#f5f5f5');
+      grad.addColorStop(0.6, '#d8d8d8');
+      grad.addColorStop(1,   '#f0f0f0');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+      ctx.save();
+      ctx.globalAlpha = 0.07;
+      for (let i = 0; i < 7; i++) {
+        ctx.beginPath();
+        ctx.moveTo(Math.random() * W, 0);
+        ctx.bezierCurveTo(Math.random() * W, H * 0.3, Math.random() * W, H * 0.7, Math.random() * W, H);
+        ctx.strokeStyle = '#aaa';
+        ctx.lineWidth   = Math.random() * 2 + 0.5;
+        ctx.stroke();
+      }
+      ctx.restore();
+    } else if (bg === 'gradient-pink') {
+      const grad = ctx.createLinearGradient(0, 0, W, H);
+      grad.addColorStop(0, '#1a0010'); grad.addColorStop(0.5, '#3d0020'); grad.addColorStop(1, '#6b0033');
+      ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+    } else if (bg === 'gradient-blue') {
+      const grad = ctx.createLinearGradient(0, 0, W, H);
+      grad.addColorStop(0, '#0a0e1a'); grad.addColorStop(0.5, '#0d1b3e'); grad.addColorStop(1, '#0a2a5c');
+      ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+    } else {
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  // Unsharp mask using OffscreenCanvas blur as the blurred reference
+  function enhancerApplySharpness(ctx, W, H, amount) {
+    if (amount <= 0) return;
+    try {
+      const blurPx = Math.max(0.5, amount * 0.7);
+      const offscreen = new OffscreenCanvas(W, H);
+      const offCtx = offscreen.getContext('2d');
+      offCtx.filter = `blur(${blurPx}px)`;
+      offCtx.drawImage(ctx.canvas, 0, 0);
+      offCtx.filter = 'none';
+      const original = ctx.getImageData(0, 0, W, H);
+      const blurred  = offCtx.getImageData(0, 0, W, H);
+      const out = original.data;
+      const blr = blurred.data;
+      const factor = amount * 0.55;
+      for (let i = 0; i < out.length; i += 4) {
+        out[i]   = Math.min(255, Math.max(0, out[i]   + factor * (out[i]   - blr[i])));
+        out[i+1] = Math.min(255, Math.max(0, out[i+1] + factor * (out[i+1] - blr[i+1])));
+        out[i+2] = Math.min(255, Math.max(0, out[i+2] + factor * (out[i+2] - blr[i+2])));
+      }
+      ctx.putImageData(original, 0, 0);
+    } catch (e) { console.warn('[enhancer] sharpness failed:', e.message); }
   }
 
   function enhancerComposite() {
-    const canvas  = document.getElementById('enhancer-canvas');
+    const canvas = document.getElementById('enhancer-canvas');
     if (!canvas || !enhancerOriginalImg) return;
-    const ctx     = canvas.getContext('2d');
-    const img     = enhancerUseBgRemoved && enhancerRemovedBgB64 ? null : enhancerOriginalImg;
+    const ctx = canvas.getContext('2d');
+    const { brightness, contrast, saturation, sharpness } = enhancerGetFilters();
+    const shadow = parseFloat(document.getElementById('adj-shadow')?.value || 0);
+    const W = enhancerOriginalImg.naturalWidth;
+    const H = enhancerOriginalImg.naturalHeight;
+    canvas.width  = W;
+    canvas.height = H;
 
-    // Determine source image
-    const drawFn = () => {
-      const { brightness, contrast, saturation, sharpness } = enhancerGetFilters();
-      const shadow = parseFloat(document.getElementById('adj-shadow')?.value || 0);
-
-      const W = enhancerOriginalImg.naturalWidth;
-      const H = enhancerOriginalImg.naturalHeight;
-      canvas.width  = W;
-      canvas.height = H;
-
+    const doComposite = (subjectImg) => {
       // 1. Draw background
-      const bg = enhancerCurrentBg;
-      if (bg === 'transparent') {
-        ctx.clearRect(0, 0, W, H);
-      } else if (bg === 'marble') {
-        const grad = ctx.createLinearGradient(0, 0, W, H);
-        grad.addColorStop(0,   '#e8e8e8');
-        grad.addColorStop(0.4, '#f9f9f9');
-        grad.addColorStop(0.6, '#d8d8d8');
-        grad.addColorStop(1,   '#f0f0f0');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, W, H);
-        // Subtle marble veins
+      enhancerDrawBackground(ctx, W, H);
+
+      // 2. Build CSS filter (brightness/contrast/saturation only — no broken SVG refs)
+      const filterStr = `brightness(${brightness}) contrast(${contrast}) saturate(${saturation})`;
+
+      // 3. Draw subject — with shadow and filters applied correctly in all paths
+      if (shadow > 0 && enhancerCurrentBg !== 'transparent') {
         ctx.save();
-        ctx.globalAlpha = 0.08;
-        for (let i = 0; i < 6; i++) {
-          ctx.beginPath();
-          ctx.moveTo(Math.random() * W, 0);
-          ctx.bezierCurveTo(Math.random() * W, H * 0.3, Math.random() * W, H * 0.7, Math.random() * W, H);
-          ctx.strokeStyle = '#bbb';
-          ctx.lineWidth   = Math.random() * 2 + 0.5;
-          ctx.stroke();
-        }
+        ctx.filter        = filterStr;
+        ctx.shadowColor   = `rgba(0,0,0,${(shadow / 100) * 0.55})`;
+        ctx.shadowBlur    = shadow * 3.5;
+        ctx.shadowOffsetX = shadow * 0.3;
+        ctx.shadowOffsetY = shadow * 1.0;
+        ctx.drawImage(subjectImg, 0, 0, W, H);
         ctx.restore();
-      } else if (bg === 'gradient-pink') {
-        const grad = ctx.createLinearGradient(0, 0, W, H);
-        grad.addColorStop(0, '#1a0010');
-        grad.addColorStop(0.5, '#3d0020');
-        grad.addColorStop(1, '#6b0033');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, W, H);
-      } else if (bg === 'gradient-blue') {
-        const grad = ctx.createLinearGradient(0, 0, W, H);
-        grad.addColorStop(0, '#0a0e1a');
-        grad.addColorStop(0.5, '#0d1b3e');
-        grad.addColorStop(1, '#0a2a5c');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, W, H);
-      } else {
-        ctx.fillStyle = bg;
-        ctx.fillRect(0, 0, W, H);
-      }
-
-      // 2. Drop shadow under subject
-      if (shadow > 0 && bg !== 'transparent') {
-        ctx.save();
-        ctx.shadowColor   = 'rgba(0,0,0,' + (shadow / 100 * 0.85) + ')';
-        ctx.shadowBlur    = shadow * 3;
-        ctx.shadowOffsetY = shadow * 0.8;
-        ctx.globalAlpha   = 0;
-        ctx.fillRect(W * 0.1, H * 0.8, W * 0.8, 2);
-        ctx.restore();
-      }
-
-      // 3. CSS filter string
-      const filterStr = `brightness(${brightness}) contrast(${contrast}) saturate(${saturation})${sharpness > 0 ? ` url(#enhancer-sharpen-${Math.round(sharpness*2)})` : ''}`;
-
-      // 4. Draw subject image
-      if (enhancerUseBgRemoved && enhancerRemovedBgB64) {
-        const fgImg = new Image();
-        fgImg.onload = () => {
-          if (shadow > 0 && bg !== 'transparent') {
-            ctx.save();
-            ctx.shadowColor   = 'rgba(0,0,0,' + (shadow / 100 * 0.7) + ')';
-            ctx.shadowBlur    = shadow * 4;
-            ctx.shadowOffsetY = shadow * 1.2;
-            ctx.drawImage(fgImg, 0, 0, W, H);
-            ctx.restore();
-          } else {
-            ctx.filter = filterStr;
-            ctx.drawImage(fgImg, 0, 0, W, H);
-            ctx.filter = 'none';
-          }
-        };
-        fgImg.src = enhancerRemovedBgB64;
+        ctx.filter = 'none';
       } else {
         ctx.filter = filterStr;
-        ctx.drawImage(enhancerOriginalImg, 0, 0, W, H);
+        ctx.drawImage(subjectImg, 0, 0, W, H);
         ctx.filter = 'none';
       }
+
+      // 4. Apply sharpness via pixel manipulation (unsharp mask)
+      if (sharpness > 0) enhancerApplySharpness(ctx, W, H, sharpness);
     };
-    drawFn();
+
+    if (enhancerUseBgRemoved && enhancerRemovedBgB64) {
+      const fgImg = new Image();
+      fgImg.onload = () => doComposite(fgImg);
+      fgImg.src    = enhancerRemovedBgB64;
+    } else {
+      doComposite(enhancerOriginalImg);
+    }
   }
 
   async function enhancerRemoveBg() {
     if (!enhancerOriginalImg) return;
-    const loadEl  = document.getElementById('enhancer-loading');
+    const loadEl   = document.getElementById('enhancer-loading');
     const statusEl = document.getElementById('enhancer-status');
-    const btn     = document.getElementById('enhancer-remove-bg-btn');
-
-    loadEl.style.display   = 'flex'; loadEl.style.alignItems = 'center';
+    const btn      = document.getElementById('enhancer-remove-bg-btn');
+    loadEl.style.display = 'flex';
     if (statusEl) statusEl.style.display = 'none';
     if (btn)      btn.disabled = true;
-
     try {
       const { data: { session } } = await sb.auth.getSession();
       if (!session) { alert('Session expired — please refresh.'); return; }
-
-      // Get original image as base64
       const canvas2 = document.createElement('canvas');
       canvas2.width  = enhancerOriginalImg.naturalWidth;
       canvas2.height = enhancerOriginalImg.naturalHeight;
       canvas2.getContext('2d').drawImage(enhancerOriginalImg, 0, 0);
       const b64 = canvas2.toDataURL('image/png').split(',')[1];
-
       const res = await fetch(`${BOT_API}/api/photo/enhance`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
         body: JSON.stringify({ image: b64 }),
       });
-
       const json = await res.json();
       if (!res.ok || !json.ok) throw new Error(json.error || 'Background removal failed');
-
-      const mimeType = json.mimeType || 'image/png';
-      enhancerRemovedBgB64 = `data:${mimeType};base64,${json.image}`;
+      enhancerRemovedBgB64 = `data:${json.mimeType || 'image/png'};base64,${json.image}`;
       enhancerUseBgRemoved = true;
       enhancerComposite();
-
-      if (statusEl) {
-        statusEl.textContent = '✓ Background removed — apply any backdrop below.';
-        statusEl.style.display = '';
-        setTimeout(() => { statusEl.style.display = 'none'; }, 4000);
-      }
+      if (statusEl) { statusEl.textContent = '✓ Background removed — choose a backdrop below.'; statusEl.style.display = ''; setTimeout(() => { statusEl.style.display = 'none'; }, 5000); }
     } catch (err) {
-      alert('Background removal failed: ' + err.message);
+      const statusEl2 = document.getElementById('enhancer-status');
+      if (statusEl2) {
+        statusEl2.textContent = '✕ ' + err.message;
+        statusEl2.style.background = 'rgba(248,113,113,0.07)';
+        statusEl2.style.borderColor = 'rgba(248,113,113,0.2)';
+        statusEl2.style.color = '#f87171';
+        statusEl2.style.display = '';
+        setTimeout(() => { statusEl2.style.display = 'none'; statusEl2.style.background = ''; statusEl2.style.borderColor = ''; statusEl2.style.color = ''; }, 6000);
+      }
     } finally {
       loadEl.style.display = 'none';
       if (btn) btn.disabled = false;
     }
   }
 
+  function enhancerAutoEnhance() {
+    if (!enhancerOriginalImg) { alert('Upload a photo first.'); return; }
+    // Set smart defaults for resell product photos
+    const setSlider = (id, val, displaySuffix = '%') => {
+      const el = document.getElementById(id);
+      const disp = document.getElementById(id + '-val');
+      if (el)   el.value = val;
+      if (disp) disp.textContent = val + displaySuffix;
+    };
+    setSlider('adj-brightness', 108);
+    setSlider('adj-contrast',   115);
+    setSlider('adj-saturation', 118);
+    setSlider('adj-sharpness',  1.5, '');
+    setSlider('adj-shadow',     22);
+    // Switch to marble background
+    enhancerCurrentBg = 'marble';
+    document.querySelectorAll('.bg-preset').forEach(p => p.style.borderColor = 'transparent');
+    const marble = document.querySelector('.bg-preset[data-bg="marble"]');
+    if (marble) marble.style.borderColor = 'var(--pink)';
+    enhancerComposite();
+    // Trigger bg removal if not already done
+    if (!enhancerUseBgRemoved) enhancerRemoveBg();
+  }
+
   function enhancerReset() {
     enhancerRemovedBgB64 = null;
     enhancerUseBgRemoved = false;
+    enhancerViewMode     = 'after';
+    enhancerShowMode('after');
     enhancerResetSliders();
-    // Re-select white preset
     document.querySelectorAll('.bg-preset').forEach(p => p.style.borderColor = 'transparent');
     const whitePreset = document.querySelector('.bg-preset[data-bg="white"]');
     if (whitePreset) whitePreset.style.borderColor = 'var(--pink)';
@@ -4105,14 +4163,16 @@
   }
 
   function enhancerResetSliders() {
-    ['adj-brightness','adj-contrast','adj-saturation'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) { el.value = 100; document.getElementById(id+'-val').textContent = '100%'; }
-    });
-    const sh = document.getElementById('adj-sharpness');
-    if (sh) { sh.value = 0; document.getElementById('adj-sharpness-val').textContent = '0'; }
-    const sd = document.getElementById('adj-shadow');
-    if (sd) { sd.value = 0; document.getElementById('adj-shadow-val').textContent = '0%'; }
+    const setSlider = (id, val, suffix = '%') => {
+      const el = document.getElementById(id); const disp = document.getElementById(id+'-val');
+      if (el)   el.value = val;
+      if (disp) disp.textContent = val + suffix;
+    };
+    setSlider('adj-brightness', 100);
+    setSlider('adj-contrast',   100);
+    setSlider('adj-saturation', 100);
+    setSlider('adj-sharpness',  0, '');
+    setSlider('adj-shadow',     0);
     enhancerComposite();
   }
 
@@ -4122,16 +4182,13 @@
     const format  = document.getElementById('enhancer-format')?.value || 'image/png';
     const scale   = parseFloat(document.getElementById('enhancer-size')?.value || 1);
     const quality = format === 'image/jpeg' ? 0.92 : undefined;
-
     let exportCanvas = canvas;
     if (scale !== 1) {
       exportCanvas         = document.createElement('canvas');
       exportCanvas.width   = Math.round(canvas.width  * scale);
       exportCanvas.height  = Math.round(canvas.height * scale);
-      const ectx = exportCanvas.getContext('2d');
-      ectx.drawImage(canvas, 0, 0, exportCanvas.width, exportCanvas.height);
+      exportCanvas.getContext('2d').drawImage(canvas, 0, 0, exportCanvas.width, exportCanvas.height);
     }
-
     const ext  = format === 'image/jpeg' ? 'jpg' : format === 'image/webp' ? 'webp' : 'png';
     const link = document.createElement('a');
     link.download = `vendora-enhanced.${ext}`;
