@@ -975,30 +975,10 @@
 
       <div class="card">
         <div class="card-title">Live Platforms</div>
-        <div class="platform-connect-list">
-          <div class="platform-connect">
-            <div class="plat-icon">DP</div>
-            <div class="plat-details">
-              <div class="plat-name-row">Depop</div>
-              <div class="plat-status-row connected">● Connected · @your_depop_handle</div>
-            </div>
-            <button class="btn btn-danger btn-sm" onclick="if(confirm('Disconnect Depop? Scanning and listing will stop.')) alert('Depop disconnected.')">Disconnect</button>
-          </div>
-          <div class="platform-connect">
-            <div class="plat-icon">VT</div>
-            <div class="plat-details">
-              <div class="plat-name-row">Vinted</div>
-              <div class="plat-status-row disconnected">○ Not connected</div>
-            </div>
-            <button class="btn btn-pink btn-sm" onclick="alert('Opening Vinted OAuth flow...')">Connect</button>
-          </div>
-          <div class="platform-connect">
-            <div class="plat-icon">EB</div>
-            <div class="plat-details">
-              <div class="plat-name-row">eBay</div>
-              <div class="plat-status-row connected">● Connected · Official API</div>
-            </div>
-            <button class="btn btn-danger btn-sm" onclick="if(confirm('Disconnect eBay?')) alert('eBay disconnected.')">Disconnect</button>
+        <div id="platforms-list" class="platform-connect-list">
+          <div style="padding:20px 0;text-align:center;color:var(--muted);font-size:13px;">
+            <div style="display:inline-block;width:16px;height:16px;border:2px solid var(--pink);border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:8px;"></div>
+            Loading platforms...
           </div>
         </div>
       </div>
@@ -1006,6 +986,14 @@
       <div class="card">
         <div class="card-title">Coming Soon</div>
         <div class="platform-connect-list">
+          <div class="platform-connect" style="opacity:.5;cursor:not-allowed;">
+            <div class="plat-icon">EB</div>
+            <div class="plat-details">
+              <div class="plat-name-row">eBay</div>
+              <div class="plat-status-row">Official API integration — coming soon</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" disabled>Soon</button>
+          </div>
           <div class="platform-connect" style="opacity:.5;cursor:not-allowed;">
             <div class="plat-icon">FB</div>
             <div class="plat-details">
@@ -1046,6 +1034,17 @@
 
       <!-- Tool UI -->
       <div id="crosslist-tool">
+
+        <!-- Connected platform status bar -->
+        <div id="cl-platform-status" class="card" style="margin-bottom:20px;padding:14px 20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+            <div style="font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted2);">Connected Accounts</div>
+            <div id="cl-platform-badges" style="display:flex;gap:8px;flex-wrap:wrap;">
+              <span style="font-size:12px;color:var(--muted);">Loading...</span>
+            </div>
+          </div>
+        </div>
+
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
 
           <!-- Left: Form -->
@@ -1089,9 +1088,27 @@
                 <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text);cursor:pointer;padding:8px 14px;border:1px solid var(--border-dim);border-radius:8px;transition:border .15s;" id="cl-lbl-vinted">
                   <input type="checkbox" id="cl-vinted" checked onchange="clTogglePlatform('vinted',this.checked)" style="accent-color:var(--pink);width:14px;height:14px;"> Vinted
                 </label>
-                <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text);cursor:pointer;padding:8px 14px;border:1px solid var(--border-dim);border-radius:8px;transition:border .15s;" id="cl-lbl-ebay">
-                  <input type="checkbox" id="cl-ebay" checked onchange="clTogglePlatform('ebay',this.checked)" style="accent-color:var(--pink);width:14px;height:14px;"> eBay
-                </label>
+              </div>
+            </div>
+
+            <!-- Auto-republish scheduling -->
+            <div style="border-top:1px solid var(--border-dim);padding-top:14px;display:flex;flex-direction:column;gap:10px;">
+              <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted2);">Auto-Republish</label>
+              <label style="display:flex;align-items:center;gap:9px;font-size:13px;color:var(--text);cursor:pointer;">
+                <input type="checkbox" id="cl-schedule" onchange="clToggleSchedule(this.checked)" style="accent-color:var(--pink);width:14px;height:14px;">
+                Schedule auto-republish
+              </label>
+              <div id="cl-schedule-opts" style="display:none;background:var(--bg3);border:1px solid var(--border-dim);border-radius:8px;padding:12px 14px;display:none;flex-direction:column;gap:8px;">
+                <div style="font-size:12px;color:var(--muted2);">Listing will auto-delete and republish to stay at the top of search results.</div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <label style="font-size:12px;color:var(--muted2);white-space:nowrap;">Repeat every</label>
+                  <select id="cl-interval" style="background:var(--bg4);border:1px solid var(--border-dim);border-radius:6px;padding:7px 12px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;flex:1;">
+                    <option value="24">1 day</option>
+                    <option value="72">3 days</option>
+                    <option value="168" selected>1 week</option>
+                    <option value="336">2 weeks</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -1201,8 +1218,8 @@
           </div>
           <div class="stat-card">
             <div class="stat-label">New This Week</div>
-            <div class="stat-val">+5</div>
-            <div class="stat-delta delta-up">↑ 2 upgrades from Basic → Pro</div>
+            <div class="stat-val" id="admin-new-week">—</div>
+            <div class="stat-delta delta-up" id="admin-new-week-delta"></div>
           </div>
         </div>
 
@@ -1585,6 +1602,7 @@
 
     updateUpgradeCards(tier);
     initCrossListAccess(tier);
+    loadPlatforms();
 
     if (isOwner) {
       document.getElementById('admin-label').style.display         = '';
@@ -1670,12 +1688,19 @@
     const proCount   = active.filter(u => u.tier === 'pro').length;
     const eliteCount = active.filter(u => u.tier === 'elite').length;
     const mrr        = (basicCount * 9.99 + proCount * 24.99 + eliteCount * 49.99).toFixed(0);
+    const sevenDaysAgo  = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const newThisWeek   = users.filter(u => u.created_at > sevenDaysAgo).length;
+    const paidThisWeek  = users.filter(u => u.created_at > sevenDaysAgo && u.tier && u.tier !== 'none').length;
     const mrrEl = document.getElementById('admin-mrr');
     const subsEl = document.getElementById('admin-subs');
     const breakdownEl = document.getElementById('admin-breakdown');
-    if (mrrEl)       mrrEl.textContent       = '£' + mrr;
-    if (subsEl)      subsEl.textContent      = active.length;
-    if (breakdownEl) breakdownEl.textContent = `Basic: ${basicCount} · Pro: ${proCount} · Elite: ${eliteCount}`;
+    const newWeekEl   = document.getElementById('admin-new-week');
+    const newWeekDeltaEl = document.getElementById('admin-new-week-delta');
+    if (mrrEl)          mrrEl.textContent          = '£' + mrr;
+    if (subsEl)         subsEl.textContent         = active.length;
+    if (breakdownEl)    breakdownEl.textContent    = `Basic: ${basicCount} · Pro: ${proCount} · Elite: ${eliteCount}`;
+    if (newWeekEl)      newWeekEl.textContent      = '+' + newThisWeek;
+    if (newWeekDeltaEl) newWeekDeltaEl.textContent = paidThisWeek ? `↑ ${paidThisWeek} paid sign-up${paidThisWeek > 1 ? 's' : ''}` : newThisWeek ? 'All on free tier' : 'No new sign-ups';
     const tbody = document.getElementById('admin-users-tbody');
     if (!tbody) return;
     tbody.innerHTML = '';
@@ -1880,6 +1905,80 @@
 
   // ── Cross-list tool ──────────────────────────────────────────────────────────
   const BOT_API = 'https://vendora-bot-production.up.railway.app';
+  let _platformConnections = [];
+
+  // ── Platform connections ───────────────────────────────────────────────────
+  const LIVE_PLATFORMS = [
+    { id: 'depop',  icon: 'DP', name: 'Depop',  color: '#ff2300' },
+    { id: 'vinted', icon: 'VT', name: 'Vinted', color: '#09b1ba' },
+  ];
+
+  async function loadPlatforms() {
+    const list = document.getElementById('platforms-list');
+    const { data, error } = await sb.from('platform_connections').select('*').eq('user_id', _user.id);
+    _platformConnections = data || [];
+    if (!list) return;
+    list.innerHTML = LIVE_PLATFORMS.map(p => {
+      const conn = _platformConnections.find(c => c.platform === p.id);
+      const connected = !!conn;
+      return `
+        <div class="platform-connect" id="plat-row-${p.id}">
+          <div class="plat-icon" style="background:${p.color}22;color:${p.color};border:1px solid ${p.color}33;">${p.icon}</div>
+          <div class="plat-details">
+            <div class="plat-name-row">${p.name}</div>
+            <div class="plat-status-row ${connected ? 'connected' : 'disconnected'}">${connected ? `● Connected · @${conn.username}` : '○ Not connected'}</div>
+          </div>
+          ${connected
+            ? `<button class="btn btn-danger btn-sm" onclick="disconnectPlatform('${p.id}','${p.name}')">Disconnect</button>`
+            : `<button class="btn btn-pink btn-sm" onclick="connectPlatform('${p.id}','${p.name}')">Connect</button>`}
+        </div>`;
+    }).join('');
+    refreshCrossListBadges();
+  }
+
+  async function connectPlatform(platformId, displayName) {
+    const username = prompt(`Enter your ${displayName} username:`);
+    if (!username || !username.trim()) return;
+    const clean = username.trim().replace(/^@/, '');
+    const { error } = await sb.from('platform_connections').upsert({
+      user_id: _user.id,
+      discord_id: _user.discordId,
+      platform: platformId,
+      username: clean,
+    }, { onConflict: 'user_id,platform' });
+    if (error) { alert('Error: ' + error.message); return; }
+    await loadPlatforms();
+  }
+
+  async function disconnectPlatform(platformId, displayName) {
+    if (!confirm(`Disconnect ${displayName}? Scanning and auto-listing will stop.`)) return;
+    const { error } = await sb.from('platform_connections').delete()
+      .eq('user_id', _user.id).eq('platform', platformId);
+    if (error) { alert('Error: ' + error.message); return; }
+    await loadPlatforms();
+  }
+
+  function refreshCrossListBadges() {
+    const badges = document.getElementById('cl-platform-badges');
+    if (!badges) return;
+    if (_platformConnections.length === 0) {
+      badges.innerHTML = `<span style="font-size:12px;color:var(--muted);">No accounts connected — <a href="#" onclick="showSection('platforms',document.querySelector('[onclick*=platforms]'));return false;" style="color:var(--pink);text-decoration:none;">connect now</a></span>`;
+    } else {
+      badges.innerHTML = _platformConnections.map(c => {
+        const meta = LIVE_PLATFORMS.find(p => p.id === c.platform);
+        if (!meta) return '';
+        return `<span style="display:inline-flex;align-items:center;gap:5px;background:${meta.color}18;border:1px solid ${meta.color}33;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:500;color:${meta.color};">
+          <span style="width:6px;height:6px;border-radius:50%;background:${meta.color};display:inline-block;"></span>
+          ${meta.name} · @${c.username}
+        </span>`;
+      }).join('');
+    }
+  }
+
+  function clToggleSchedule(checked) {
+    const opts = document.getElementById('cl-schedule-opts');
+    if (opts) opts.style.display = checked ? 'flex' : 'none';
+  }
 
   function clTogglePlatform(platform, checked) {
     const lbl = document.getElementById('cl-lbl-' + platform);
@@ -1887,20 +1986,16 @@
   }
 
   async function generateCrossListing() {
-    const item      = document.getElementById('cl-item')?.value?.trim();
-    const desc      = document.getElementById('cl-desc')?.value?.trim();
-    const condition = document.getElementById('cl-condition')?.value;
-    const price     = document.getElementById('cl-price')?.value;
-    const platforms = ['depop','vinted','ebay'].filter(p => document.getElementById('cl-' + p)?.checked);
+    const item            = document.getElementById('cl-item')?.value?.trim();
+    const desc            = document.getElementById('cl-desc')?.value?.trim();
+    const condition       = document.getElementById('cl-condition')?.value;
+    const price           = document.getElementById('cl-price')?.value;
+    const platforms       = ['depop','vinted'].filter(p => document.getElementById('cl-' + p)?.checked);
+    const scheduleEnabled = document.getElementById('cl-schedule')?.checked;
+    const intervalHours   = parseInt(document.getElementById('cl-interval')?.value || '168');
 
-    if (!item) {
-      showMsg(document.getElementById('cl-msg'), 'error', 'Please enter an item name.');
-      return;
-    }
-    if (platforms.length === 0) {
-      showMsg(document.getElementById('cl-msg'), 'error', 'Select at least one platform.');
-      return;
-    }
+    if (!item) { showMsg(document.getElementById('cl-msg'), 'error', 'Please enter an item name.'); return; }
+    if (platforms.length === 0) { showMsg(document.getElementById('cl-msg'), 'error', 'Select at least one platform.'); return; }
 
     const btn = document.getElementById('cl-generate-btn');
     btn.disabled = true;
@@ -1916,47 +2011,55 @@
 
       const res = await fetch(`${BOT_API}/api/crosslist`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
         body: JSON.stringify({ item, description: desc, condition, price, platforms }),
       });
 
       const json = await res.json();
 
       if (!res.ok) {
-        btn.disabled = false; btn.textContent = 'Generate Listings';
+        btn.disabled = false;
+        btn.textContent = 'Generate Listings';
         showMsg(document.getElementById('cl-msg'), 'error', json.error || 'Generation failed.');
         results.innerHTML = '';
         return;
       }
 
-      renderCrossListResults(json.listings, platforms);
+      if (scheduleEnabled) {
+        const nextPost = new Date(Date.now() + intervalHours * 60 * 60 * 1000).toISOString();
+        await sb.from('crosslist_jobs').insert({
+          user_id: _user.id, discord_id: _user.discordId, item_name: item,
+          item_data: { description: desc, condition, price }, platforms,
+          listings: json.listings, interval_hours: intervalHours,
+          last_posted_at: new Date().toISOString(), next_post_at: nextPost, active: true,
+        });
+        const intervalLabel = document.getElementById('cl-interval').options[document.getElementById('cl-interval').selectedIndex].text;
+        showMsg(document.getElementById('cl-msg'), 'success', `Scheduled — auto-republish every ${intervalLabel}. You'll get a Discord DM when it's time.`);
+      }
+
+      renderCrossListResults(json.listings, platforms, json.suggestions);
     } catch (e) {
       showMsg(document.getElementById('cl-msg'), 'error', 'Connection error. Please try again.');
       results.innerHTML = '';
     }
 
     btn.disabled = false;
-    btn.textContent = 'Generate Listings';
+    btn.textContent = scheduleEnabled ? 'Regenerate & Update Job' : 'Generate Listings';
   }
 
-  function renderCrossListResults(listings, platforms) {
+  function renderCrossListResults(listings, platforms, suggestions) {
     const results = document.getElementById('cl-results');
     const platformMeta = {
-      depop:  { name: 'Depop',  color: '#ff2300', fields: ['title','description','price','hashtags'] },
-      vinted: { name: 'Vinted', color: '#09b1ba', fields: ['title','description','price','brand','size'] },
-      ebay:   { name: 'eBay',   color: '#e53238', fields: ['title','description','price','condition'] },
+      depop:  { name: 'Depop',  color: '#ff2300' },
+      vinted: { name: 'Vinted', color: '#09b1ba' },
     };
 
-    results.innerHTML = platforms.map(p => {
+    const listingCards = platforms.map(p => {
       const meta = platformMeta[p];
       const data = listings[p];
-      if (!data) return '';
-
+      if (!meta || !data) return '';
       const fieldRows = Object.entries(data).map(([key, val]) => {
-        const label = key.charAt(0).toUpperCase() + key.slice(1).replace('_', ' ');
+        const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
         const display = Array.isArray(val) ? val.map(h => '#' + h).join(' ') : (key === 'price' ? `£${val}` : val);
         return `
           <div style="display:flex;flex-direction:column;gap:4px;padding:10px 0;border-bottom:1px solid var(--border-dim);">
@@ -1967,7 +2070,6 @@
             <div id="cl-field-${p}-${key}" style="font-size:12px;color:var(--text);line-height:1.5;word-break:break-word;">${display}</div>
           </div>`;
       }).join('');
-
       return `
         <div class="card" style="padding:0;overflow:hidden;">
           <div style="padding:12px 18px;background:rgba(255,255,255,0.03);border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
@@ -1980,6 +2082,19 @@
           <div style="padding:0 18px;">${fieldRows}</div>
         </div>`;
     }).join('');
+
+    const suggestionsCard = suggestions && suggestions.length ? `
+      <div class="card" style="padding:0;overflow:hidden;border-color:rgba(232,33,122,0.25);">
+        <div style="padding:12px 18px;background:rgba(232,33,122,0.06);border-bottom:1px solid rgba(232,33,122,0.15);display:flex;align-items:center;gap:8px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.05em;color:var(--pink);">AI Suggestions</span>
+        </div>
+        <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px;">
+          ${suggestions.map(s => `<div style="display:flex;gap:10px;font-size:12px;color:var(--text);line-height:1.5;"><span style="color:var(--pink);flex-shrink:0;margin-top:1px;">→</span><span>${s}</span></div>`).join('')}
+        </div>
+      </div>` : '';
+
+    results.innerHTML = listingCards + suggestionsCard;
   }
 
   function clCopyField(btn, fieldId) {

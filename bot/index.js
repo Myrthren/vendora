@@ -817,6 +817,10 @@ client.once('ready', async () => {
       console.error('[commands] Registration failed:', err.message);
     }
   }
+
+  // Start crosslist job scheduler
+  setInterval(runCrosslistScheduler, 30 * 60 * 1000);
+  console.log('[scheduler] Crosslist scheduler started (30min interval)');
 });
 
 client.on('guildMemberAdd', async (member) => {
@@ -936,7 +940,7 @@ app.post('/api/crosslist', async (req, res) => {
     if (p === 'ebay')   return '"ebay": { "title": "...", "description": "...", "price": 0, "condition": "..." }';
   }).join(',\n  ');
 
-  const prompt = `Generate optimised cross-platform resale listings. Return ONLY valid JSON, no markdown.
+  const prompt = `Generate optimised cross-platform resale listings AND outreach suggestions. Return ONLY valid JSON, no markdown.
 
 Item: ${item}${description ? `\nDescription: ${description}` : ''}${condition ? `\nCondition: ${condition}` : ''}${price ? `\nAsking price: £${price}` : ''}
 Platforms: ${platforms.join(', ')}
@@ -944,24 +948,29 @@ Platforms: ${platforms.join(', ')}
 Rules:
 - depop: casual UK tone, title 60-80 chars, 8-10 hashtags (no #), suggest realistic GBP price
 - vinted: clean descriptive title, requires brand and size (estimate if unknown), suggest price
-- ebay: keyword-rich formal title under 80 chars, condition must be one of: New, Like New, Very Good, Good, Acceptable
 
-Return JSON with only the requested platforms as keys:
+Return JSON with this exact structure:
 {
-  ${platformSection}
+  ${platformSection},
+  "suggestions": [
+    "One specific tip to increase visibility or sell faster (e.g. pricing, timing, photos)",
+    "One tip about the item keywords or audience targeting",
+    "One tip about cross-platform strategy or republishing cadence"
+  ]
 }`;
 
   try {
     const msg = await ai.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1400,
+      max_tokens: 1600,
       messages: [{ role: 'user', content: prompt }],
     });
-    const text       = msg.content[0].text;
-    const jsonMatch  = text.match(/\{[\s\S]*\}/);
+    const text      = msg.content[0].text;
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return res.status(500).json({ error: 'Generation failed — could not parse response' });
-    const listings = JSON.parse(jsonMatch[0]);
-    return res.json({ ok: true, listings });
+    const parsed = JSON.parse(jsonMatch[0]);
+    const { suggestions, ...listings } = parsed;
+    return res.json({ ok: true, listings, suggestions: suggestions || [] });
   } catch (e) {
     console.error('[/api/crosslist] Error:', e.message);
     return res.status(500).json({ error: 'Generation failed' });
@@ -1093,6 +1102,60 @@ app.post('/paypal-webhook', async (req, res) => {
   console.log(`[paypal] Marked ${subId} inactive — rows: ${data?.length || 0}`);
   res.json({ ok: true });
 });
+
+// ── Crosslist job scheduler ────────────────────────────────────────────────────
+// Checks every 30 minutes for jobs where next_post_at <= now, DMs the user
+async function runCrosslistScheduler() {
+  if (!SUPABASE_KEY) return;
+  const now = new Date().toISOString();
+  const SB_HEADERS = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
+
+  const jobsRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/crosslist_jobs?active=eq.true&next_post_at=lte.${encodeURIComponent(now)}&select=*`,
+    { headers: SB_HEADERS }
+  ).catch(() => null);
+  if (!jobsRes?.ok) return;
+  const jobs = await jobsRes.json().catch(() => []);
+  if (!jobs?.length) return;
+
+  for (const job of jobs) {
+    try {
+      const nextPost = new Date(Date.now() + job.interval_hours * 60 * 60 * 1000).toISOString();
+
+      await fetch(`${SUPABASE_URL}/rest/v1/crosslist_jobs?id=eq.${job.id}`, {
+        method: 'PATCH',
+        headers: { ...SB_HEADERS, Prefer: 'return=minimal' },
+        body: JSON.stringify({ last_posted_at: now, next_post_at: nextPost }),
+      });
+
+      if (!job.discord_id) continue;
+      const guild  = client.guilds.cache.get(GUILD_ID) || await client.guilds.fetch(GUILD_ID).catch(() => null);
+      if (!guild) continue;
+      const member = await guild.members.fetch(job.discord_id).catch(() => null);
+      if (!member) continue;
+
+      const platformList = (job.platforms || []).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(', ');
+      await sendDM(member, { embeds: [
+        new EmbedBuilder()
+          .setColor('#e8217a')
+          .setTitle('Time to Republish Your Listing')
+          .setDescription(
+            `Your auto-republish job for **${job.item_name}** is ready.\n\n` +
+            `Delete and re-list on ${platformList} to boost visibility.\n\n` +
+            `→ [Open Cross-List Tool](${DASHBOARD_URL})`
+          )
+          .addFields(
+            { name: 'Item',      value: job.item_name, inline: true },
+            { name: 'Platforms', value: platformList,  inline: true },
+            { name: 'Schedule',  value: `Every ${job.interval_hours >= 168 ? Math.round(job.interval_hours / 168) + ' week(s)' : job.interval_hours + 'h'}`, inline: true }
+          )
+          .setFooter({ text: 'Vendora — The Reseller\'s Edge' })
+      ]});
+    } catch (e) {
+      console.error('[scheduler] Job error:', job.id, e.message);
+    }
+  }
+}
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => console.log(`[http] Listening on port ${PORT}`));
