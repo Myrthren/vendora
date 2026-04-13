@@ -1988,14 +1988,23 @@ async function depopUploadImage(accessToken, base64Data, mimeType = 'image/jpeg'
 }
 
 async function depopCreateListing(accessToken, listingData) {
-  const { title, description = '', price, condition, image_ids = [] } = listingData;
+  const {
+    title, description = '', price, condition, image_ids = [],
+    hashtags = '', depop_category_id = null,
+  } = listingData;
   const condMap = { 'New with tags': 1, 'Like New': 2, 'Very Good': 3, 'Good': 4, 'Acceptable': 5 };
   try {
+    // Build description: base text + hashtags appended
+    const hashtagStr = hashtags
+      ? '\n\n' + hashtags.split(/[\s,]+/).filter(Boolean).map(t => t.startsWith('#') ? t : `#${t}`).join(' ')
+      : '';
+    const fullDesc = `${title}\n\n${description}${hashtagStr}`.trim();
+
     const body = {
-      description: `${title}\n\n${description}`.trim(),
+      description: fullDesc,
       price: Math.round(parseFloat(price) * 100),
       currency_name: 'GBP',
-      category_id: 1,
+      category_id: depop_category_id || 20,
       status: 'active',
       source_country: 'gb',
       condition: condMap[condition] || 3,
@@ -2147,17 +2156,25 @@ async function vintedUploadImage(accessToken, base64Data, mimeType = 'image/jpeg
 }
 
 async function vintedCreateListing(accessToken, listingData) {
-  const { title, description = '', price, condition, photo_ids = [] } = listingData;
+  const {
+    title, description = '', price, condition, photo_ids = [],
+    brand = '', size = '',
+    vinted_catalog_id = null, vinted_package_size_id = 2,
+  } = listingData;
   const condMap = { 'New with tags': 6, 'Like New': 2, 'Very Good': 3, 'Good': 4, 'Acceptable': 5 };
   try {
+    // Build description: prepend brand/size info
+    const brandLine = [brand && `Brand: ${brand}`, size && `Size: ${size}`].filter(Boolean).join(' · ');
+    const fullDesc  = brandLine ? `${brandLine}\n\n${description}`.trim() : description;
+
     const body = {
       title,
-      description,
+      description: fullDesc,
       price: String(parseFloat(price).toFixed(2)),
       currency: 'GBP',
-      catalog_id: 1,
+      catalog_id: vinted_catalog_id || 1,
       status_id: condMap[condition] || 3,
-      package_size_id: 1,
+      package_size_id: vinted_package_size_id || 2,
     };
     if (photo_ids.length) body.photos = photo_ids.map(id => ({ id }));
 
@@ -2366,12 +2383,24 @@ app.post('/api/listing/create', async (req, res) => {
   if (!profile || profile.subscription_status !== 'active') return res.status(403).json({ error: 'Active subscription required' });
   if (TIER_RANK[profile.tier] < TIER_RANK.pro) return res.status(403).json({ error: 'Pro subscription required for listings' });
 
-  const { title, description, price, condition, platforms = [], autoRelist = false, relistIntervalDays = 7, images = [] } = req.body;
+  const {
+    title, description, price, condition,
+    platforms = [], autoRelist = false, relistIntervalDays = 7, images = [],
+    // Platform-specific fields
+    brand = '', size = '',
+    vinted_catalog_id = null, vinted_package_size_id = 2,
+    depop_category_id = null, hashtags = '',
+  } = req.body;
   if (!title || !price) return res.status(400).json({ error: 'title and price required' });
   if (!platforms.length) return res.status(400).json({ error: 'Select at least one platform' });
 
   // images = [{ base64: '...', mimeType: 'image/jpeg' }, ...]
-  const listingData = { title, description, price, condition, images };
+  const listingData = {
+    title, description, price, condition, images,
+    brand, size,
+    vinted_catalog_id, vinted_package_size_id,
+    depop_category_id, hashtags,
+  };
   const results = {};
   const platformListingIds = {};
 

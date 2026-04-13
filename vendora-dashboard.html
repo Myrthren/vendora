@@ -1192,16 +1192,106 @@
                 <label class="form-label">Platforms *</label>
                 <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
                   <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-dim);border-radius:8px;cursor:pointer;transition:border .15s;" id="list-lbl-depop" onmouseover="this.style.borderColor='rgba(255,35,0,0.3)'" onmouseout="updateListPlatformBorder('depop')">
-                    <input type="checkbox" id="list-depop" style="accent-color:#ff2300;width:14px;height:14px;" onchange="updateListPlatformBorder('depop')">
+                    <input type="checkbox" id="list-depop" style="accent-color:#ff2300;width:14px;height:14px;" onchange="updateListPlatformBorder('depop');updatePlatformFields();">
                     <span style="font-size:13px;color:var(--text);">Depop</span>
                     <span id="list-depop-status" style="margin-left:auto;font-size:10px;color:var(--muted);">Not connected</span>
                   </label>
                   <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-dim);border-radius:8px;cursor:pointer;transition:border .15s;" id="list-lbl-vinted" onmouseover="this.style.borderColor='rgba(9,177,186,0.3)'" onmouseout="updateListPlatformBorder('vinted')">
-                    <input type="checkbox" id="list-vinted" style="accent-color:#09b1ba;width:14px;height:14px;" onchange="updateListPlatformBorder('vinted')">
+                    <input type="checkbox" id="list-vinted" style="accent-color:#09b1ba;width:14px;height:14px;" onchange="updateListPlatformBorder('vinted');updatePlatformFields();">
                     <span style="font-size:13px;color:var(--text);">Vinted</span>
                     <span id="list-vinted-status" style="margin-left:auto;font-size:10px;color:var(--muted);">Not connected</span>
                   </label>
                 </div>
+              </div>
+
+              <!-- Platform-specific fields -->
+              <div id="plat-fields-wrapper" style="display:none;border:1px solid var(--border-dim);border-radius:10px;overflow:hidden;">
+
+                <!-- Vinted fields -->
+                <div id="plat-fields-vinted" style="display:none;padding:14px;background:rgba(9,177,186,0.04);">
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
+                    <div style="width:6px;height:6px;border-radius:50%;background:#09b1ba;"></div>
+                    <span style="font-size:10px;font-weight:700;color:#09b1ba;text-transform:uppercase;letter-spacing:.07em;">Vinted Details</span>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:10px;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                      <div>
+                        <label class="form-label">Brand <span style="color:var(--pink);">*</span></label>
+                        <input id="list-brand" type="text" class="form-select" style="height:auto;padding:8px 12px;font-size:12px;" placeholder="Nike, Adidas, Zara…">
+                      </div>
+                      <div>
+                        <label class="form-label">Size</label>
+                        <input id="list-size" type="text" class="form-select" style="height:auto;padding:8px 12px;font-size:12px;" placeholder="M, 32, UK9…">
+                      </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                      <div>
+                        <label class="form-label">Category</label>
+                        <select id="list-vinted-category" class="form-select" style="font-size:12px;">
+                          <option value="">Select…</option>
+                          <optgroup label="Men's">
+                            <option value="4">Men's Tops</option>
+                            <option value="88">Men's Hoodies</option>
+                            <option value="16">Men's Trousers</option>
+                            <option value="21">Men's Jackets</option>
+                            <option value="1484">Men's Shoes</option>
+                          </optgroup>
+                          <optgroup label="Women's">
+                            <option value="3">Women's Tops</option>
+                            <option value="7">Women's Dresses</option>
+                            <option value="15">Women's Trousers</option>
+                            <option value="12">Women's Jackets</option>
+                            <option value="1235">Women's Shoes</option>
+                          </optgroup>
+                          <optgroup label="Other">
+                            <option value="2082">Bags</option>
+                            <option value="2140">Accessories</option>
+                            <option value="302">Sportswear</option>
+                            <option value="1">Other</option>
+                          </optgroup>
+                        </select>
+                      </div>
+                      <div>
+                        <label class="form-label">Package Size</label>
+                        <select id="list-package-size" class="form-select" style="font-size:12px;">
+                          <option value="1">Small</option>
+                          <option value="2" selected>Medium</option>
+                          <option value="3">Large</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Depop fields -->
+                <div id="plat-fields-depop" style="display:none;padding:14px;background:rgba(255,35,0,0.04);">
+                  <div id="plat-fields-depop-divider" style="display:none;height:1px;background:var(--border-dim);margin:-14px -14px 14px;"></div>
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
+                    <div style="width:6px;height:6px;border-radius:50%;background:#ff2300;"></div>
+                    <span style="font-size:10px;font-weight:700;color:#ff2300;text-transform:uppercase;letter-spacing:.07em;">Depop Details</span>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:10px;">
+                    <div>
+                      <label class="form-label">Category</label>
+                      <select id="list-depop-category" class="form-select" style="font-size:12px;">
+                        <option value="">Select…</option>
+                        <option value="3">Tops</option>
+                        <option value="4">Bottoms</option>
+                        <option value="5">Dresses</option>
+                        <option value="6">Outerwear</option>
+                        <option value="7">Footwear</option>
+                        <option value="8">Bags & Accessories</option>
+                        <option value="10">Sportswear</option>
+                        <option value="20">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="form-label">Hashtags <span style="color:var(--muted);font-weight:300;text-transform:none;">(space or comma separated)</span></label>
+                      <input id="list-hashtags" type="text" class="form-select" style="height:auto;padding:8px 12px;font-size:12px;" placeholder="nike vintage streetwear y2k">
+                    </div>
+                  </div>
+                </div>
+
               </div>
 
               <!-- Image upload -->
@@ -3565,20 +3655,29 @@
 
   // ── Create listing ───────────────────────────────────────────────────────────
   async function createListing() {
-    const title       = document.getElementById('list-title')?.value?.trim();
-    const desc        = document.getElementById('list-desc')?.value?.trim();
-    const price       = parseFloat(document.getElementById('list-price')?.value);
-    const condition   = document.getElementById('list-condition')?.value;
-    const autoRelist  = document.getElementById('list-auto-relist')?.checked;
-    const intervalEl  = document.querySelector('input[name="relist-interval"]:checked');
-    const interval    = intervalEl ? parseInt(intervalEl.value) : 7;
-    const platforms   = ['depop', 'vinted'].filter(p => document.getElementById(`list-${p}`)?.checked);
-    const msgEl       = document.getElementById('list-msg');
-    const btn         = document.getElementById('list-submit-btn');
+    const title         = document.getElementById('list-title')?.value?.trim();
+    const desc          = document.getElementById('list-desc')?.value?.trim();
+    const price         = parseFloat(document.getElementById('list-price')?.value);
+    const condition     = document.getElementById('list-condition')?.value;
+    const autoRelist    = document.getElementById('list-auto-relist')?.checked;
+    const intervalEl    = document.querySelector('input[name="relist-interval"]:checked');
+    const interval      = intervalEl ? parseInt(intervalEl.value) : 7;
+    const platforms     = ['depop', 'vinted'].filter(p => document.getElementById(`list-${p}`)?.checked);
+    const msgEl         = document.getElementById('list-msg');
+    const btn           = document.getElementById('list-submit-btn');
+
+    // Platform-specific fields
+    const brand         = document.getElementById('list-brand')?.value?.trim() || '';
+    const size          = document.getElementById('list-size')?.value?.trim() || '';
+    const vintedCat     = document.getElementById('list-vinted-category')?.value || '';
+    const packageSize   = document.getElementById('list-package-size')?.value || '2';
+    const depopCat      = document.getElementById('list-depop-category')?.value || '';
+    const hashtags      = document.getElementById('list-hashtags')?.value?.trim() || '';
 
     if (!title) { showMsg(msgEl, 'error', 'Please enter an item title.'); return; }
     if (!price || isNaN(price) || price <= 0) { showMsg(msgEl, 'error', 'Please enter a valid price.'); return; }
     if (platforms.length === 0) { showMsg(msgEl, 'error', 'Select at least one platform.'); return; }
+    if (platforms.includes('vinted') && !brand) { showMsg(msgEl, 'error', 'Brand is required for Vinted listings.'); return; }
 
     btn.disabled = true;
     btn.innerHTML = `<div style="width:14px;height:14px;border:2px solid rgba(255,255,255,0.4);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;"></div> Listing…`;
@@ -3590,15 +3689,42 @@
       const res = await fetch(`${BOT_API}/api/listing/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ title, description: desc, price, condition, platforms, auto_relist: autoRelist, relist_interval_days: interval, images: listingImages.map(i => ({ base64: i.base64, mimeType: i.mimeType })) }),
+        body: JSON.stringify({
+          title, description: desc, price, condition, platforms,
+          auto_relist: autoRelist, relist_interval_days: interval,
+          images: listingImages.map(i => ({ base64: i.base64, mimeType: i.mimeType })),
+          // Platform-specific
+          brand, size,
+          vinted_catalog_id: vintedCat ? parseInt(vintedCat) : null,
+          vinted_package_size_id: parseInt(packageSize),
+          depop_category_id: depopCat ? parseInt(depopCat) : null,
+          hashtags,
+        }),
       });
 
       const json = await res.json();
 
       if (!res.ok) {
-        showMsg(msgEl, 'error', json.error || 'Listing failed. Make sure your platform accounts are connected.');
+        // Build detailed error: show per-platform failures if available
+        let errMsg = json.error || 'Listing failed.';
+        if (json.results) {
+          const details = Object.entries(json.results)
+            .filter(([, r]) => r.error)
+            .map(([p, r]) => `${p}: ${r.error}`)
+            .join(' · ');
+          if (details) errMsg += ` — ${details}`;
+        }
+        showMsg(msgEl, 'error', errMsg);
       } else {
-        showMsg(msgEl, 'success', `Listed on ${platforms.join(' & ')} successfully!`);
+        // Show partial success detail if some platforms failed
+        const successPlatforms = platforms.filter(p => json.results?.[p]?.ok);
+        const failedPlatforms  = platforms.filter(p => json.results?.[p] && !json.results[p].ok);
+        let successMsg = `Listed on ${successPlatforms.join(' & ')} successfully!`;
+        if (failedPlatforms.length) {
+          const failDetails = failedPlatforms.map(p => `${p}: ${json.results[p].error || 'failed'}`).join(', ');
+          successMsg += ` (Failed: ${failDetails})`;
+        }
+        showMsg(msgEl, 'success', successMsg);
         // Reset form
         document.getElementById('list-title').value = '';
         document.getElementById('list-desc').value = '';
@@ -3606,6 +3732,11 @@
         document.getElementById('list-condition').value = '';
         document.getElementById('list-auto-relist').checked = false;
         document.getElementById('relist-options').style.display = 'none';
+        if (document.getElementById('list-brand')) document.getElementById('list-brand').value = '';
+        if (document.getElementById('list-size')) document.getElementById('list-size').value = '';
+        if (document.getElementById('list-vinted-category')) document.getElementById('list-vinted-category').value = '';
+        if (document.getElementById('list-depop-category')) document.getElementById('list-depop-category').value = '';
+        if (document.getElementById('list-hashtags')) document.getElementById('list-hashtags').value = '';
         listingImages = [];
         renderImagePreviews();
         loadListings();
@@ -4022,6 +4153,26 @@
     if (!lbl) return;
     const colors = { depop: 'rgba(255,35,0,0.4)', vinted: 'rgba(9,177,186,0.4)' };
     lbl.style.borderColor = cb?.checked ? (colors[platform] || 'rgba(232,33,122,0.4)') : '';
+  }
+
+  function updatePlatformFields() {
+    const depopChecked  = document.getElementById('list-depop')?.checked;
+    const vintedChecked = document.getElementById('list-vinted')?.checked;
+    const wrapper       = document.getElementById('plat-fields-wrapper');
+    const vintedSec     = document.getElementById('plat-fields-vinted');
+    const depopSec      = document.getElementById('plat-fields-depop');
+    const divider       = document.getElementById('plat-fields-depop-divider');
+
+    if (!wrapper) return;
+
+    const anyChecked = depopChecked || vintedChecked;
+    wrapper.style.display = anyChecked ? '' : 'none';
+
+    if (vintedSec) vintedSec.style.display = vintedChecked ? '' : 'none';
+    if (depopSec)  depopSec.style.display  = depopChecked  ? '' : 'none';
+
+    // Show divider between sections only when both are visible
+    if (divider) divider.style.display = (depopChecked && vintedChecked) ? '' : 'none';
   }
 
 </script>
