@@ -1900,45 +1900,55 @@ const DEPOP_HEADERS = (token) => ({
 async function depopLogin(email, password) {
   try {
     const deviceId = crypto.randomUUID();
-    const res = await fetch('https://api.depop.com/api/v1/auth/email/login/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': DEPOP_UA,
-        'Accept': 'application/json',
-        'Accept-Language': 'en-GB,en;q=0.9',
-        'X-Depop-Client-Version': '3.15.0',
-        'X-Depop-Device-Id': deviceId,
-      },
-      body: JSON.stringify({ login: email, password, device_id: deviceId }),
-      signal: AbortSignal.timeout(15000),
-    });
-    const rawText = await res.text();
-    let data;
-    try { data = JSON.parse(rawText); } catch { return { error: `Depop returned unexpected response. Please try again.` }; }
-
-    if (!res.ok) {
-      const msg = data?.message || data?.error_description || data?.error || '';
+    // Try both field name variants (API has changed over time)
+    for (const body of [
+      { email, password, device_id: deviceId },
+      { login: email, password, device_id: deviceId },
+    ]) {
+      const res = await fetch('https://api.depop.com/api/v1/auth/email/login/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': DEPOP_UA,
+          'Accept': 'application/json',
+          'Accept-Language': 'en-GB,en;q=0.9',
+          'X-Depop-Client-Version': '3.15.0',
+          'X-Depop-Device-Id': deviceId,
+          'X-Depop-Platform': 'ios',
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
+      });
+      const rawText = await res.text();
+      console.log(`[depop-login] status: ${res.status} body-key: ${Object.keys(body)[0]} preview: ${rawText.slice(0, 120)}`);
+      let data;
+      try { data = JSON.parse(rawText); } catch {
+        if (res.status === 200) return { error: 'Depop returned an unexpected response. Check Railway logs.' };
+        continue;
+      }
       if (res.status === 401 || res.status === 403) return { error: 'Depop credentials invalid — check your email and password.' };
       if (res.status === 429) return { error: 'Depop rate limited — wait a few minutes and try again.' };
-      return { error: msg || `Depop login failed (${res.status}). Try again.` };
+      if (!res.ok) {
+        const msg = data?.message || data?.error_description || data?.error || '';
+        if (msg) return { error: msg };
+        continue; // try next body variant
+      }
+      const token = data.access_token;
+      if (!token) continue;
+      // Fetch username
+      const meRes = await fetch('https://api.depop.com/api/v1/me/', {
+        headers: DEPOP_HEADERS(token),
+        signal: AbortSignal.timeout(8000),
+      });
+      const me = meRes.ok ? await meRes.json().catch(() => ({})) : {};
+      return {
+        access_token: token,
+        refresh_token: data.refresh_token || '',
+        platform_user_id: String(me.id || data.user_id || ''),
+        platform_username: me.username || email.split('@')[0],
+      };
     }
-
-    const token = data.access_token;
-    if (!token) return { error: 'Depop login response missing token. Try again.' };
-
-    // Fetch username
-    const meRes = await fetch('https://api.depop.com/api/v1/me/', {
-      headers: DEPOP_HEADERS(token),
-      signal: AbortSignal.timeout(8000),
-    });
-    const me = meRes.ok ? await meRes.json().catch(() => ({})) : {};
-    return {
-      access_token: token,
-      refresh_token: data.refresh_token || '',
-      platform_user_id: String(me.id || data.user_id || ''),
-      platform_username: me.username || email.split('@')[0],
-    };
+    return { error: 'Depop login failed — check your email and password.' };
   } catch (e) {
     if (e.name === 'TimeoutError') return { error: 'Depop request timed out — check your connection and try again.' };
     return { error: e.message };
@@ -2026,37 +2036,67 @@ const VINTED_HEADERS = (token) => ({
 
 async function vintedLogin(usernameOrEmail, password) {
   try {
-    // Vinted uses session-based auth — POST to /api/v2/sessions
+    const BASE_HEADERS = {
+      'User-Agent': VINTED_UA,
+      'Accept-Language': 'en-GB,en;q=0.9',
+      'Origin': 'https://www.vinted.co.uk',
+      'Referer': 'https://www.vinted.co.uk/',
+    };
+
+    // Step 1: Bootstrap a Vinted session to get cookies + real CSRF token.
+    // Without this, Vinted returns an HTML challenge page instead of JSON.
+    let cookieStr = '';
+    let csrfToken = '';
+    try {
+      const initRes = await fetch('https://www.vinted.co.uk/', {
+        headers: { ...BASE_HEADERS, 'Accept': 'text/html,application/xhtml+xml,*/*' },
+        signal: AbortSignal.timeout(10000),
+        redirect: 'follow',
+      });
+      const setCookies = initRes.headers.getSetCookie?.() || [];
+      cookieStr = setCookies.map(c => c.split(';')[0]).join('; ');
+      const csrfCookie = setCookies.find(c => /csrf[-_]?token/i.test(c));
+      if (csrfCookie) csrfToken = csrfCookie.split('=').slice(1).join('=').split(';')[0];
+      console.log(`[vinted-login] bootstrap cookies: ${setCookies.length} found, csrf: ${!!csrfToken}`);
+    } catch (e) {
+      console.warn('[vinted-login] bootstrap failed (continuing anyway):', e.message);
+    }
+
+    // Step 2: POST credentials with session cookies + CSRF
+    const loginHeaders = {
+      ...BASE_HEADERS,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json, text/plain, */*',
+      ...(cookieStr && { 'Cookie': cookieStr }),
+      ...(csrfToken && { 'X-CSRF-Token': csrfToken }),
+    };
+
     const res = await fetch('https://www.vinted.co.uk/api/v2/sessions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': VINTED_UA,
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-GB,en;q=0.9',
-        'Origin': 'https://www.vinted.co.uk',
-        'Referer': 'https://www.vinted.co.uk/',
-        'X-Csrf-Token': 'undefined',
-      },
+      headers: loginHeaders,
       body: JSON.stringify({ login: usernameOrEmail, password, remember: true }),
       signal: AbortSignal.timeout(15000),
     });
 
     const rawText = await res.text();
+    console.log(`[vinted-login] status: ${res.status} preview: ${rawText.slice(0, 200)}`);
+
     let data;
-    try { data = JSON.parse(rawText); } catch { return { error: 'Vinted returned unexpected response. Please try again.' }; }
+    try { data = JSON.parse(rawText); } catch {
+      // Still HTML — Vinted bot protection active on this IP
+      return { error: 'Vinted is blocking the connection from our server. This is a Cloudflare/bot-protection issue — not your credentials. Try again in a few minutes.' };
+    }
 
     if (!res.ok) {
       const msg = data?.error_description || data?.message || data?.error || '';
       if (res.status === 401 || res.status === 403) return { error: 'Vinted credentials invalid — check your username/email and password.' };
       if (res.status === 429) return { error: 'Vinted rate limited — wait a few minutes and try again.' };
-      if (res.status === 422) return { error: msg || 'Vinted rejected the login — check your credentials and try again.' };
-      return { error: msg || `Vinted login failed (${res.status}). Try again.` };
+      if (res.status === 422) return { error: msg || 'Vinted rejected the login — check your credentials.' };
+      return { error: msg || `Vinted login failed (${res.status}).` };
     }
 
-    // Session token lives in data.user.auth_token or data.access_token
-    const user   = data.user || data;
-    const token  = user.auth_token || data.access_token;
+    const user  = data.user || data;
+    const token = user.auth_token || data.access_token;
     if (!token) return { error: 'Vinted login succeeded but no token returned. Try again.' };
 
     return {
@@ -2066,7 +2106,7 @@ async function vintedLogin(usernameOrEmail, password) {
       platform_username: user.login || user.username || usernameOrEmail,
     };
   } catch (e) {
-    if (e.name === 'TimeoutError') return { error: 'Vinted request timed out — check your connection and try again.' };
+    if (e.name === 'TimeoutError') return { error: 'Vinted request timed out — check your connection.' };
     return { error: e.message };
   }
 }
