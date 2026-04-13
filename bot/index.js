@@ -14,6 +14,10 @@ const Anthropic = require('@anthropic-ai/sdk');
 const cron     = require('node-cron');
 const crypto   = require('crypto');
 
+// Residential proxy support for Vinted (DataDome blocks datacenter IPs)
+let ProxyAgent;
+try { ({ ProxyAgent } = require('undici')); } catch { /* undici not available */ }
+
 console.log('[boot] Modules loaded');
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -2042,6 +2046,17 @@ async function depopDeleteListing(accessToken, listingId) {
 }
 
 // ── Vinted API ────────────────────────────────────────────────────────────────
+
+// Returns fetch options with a residential proxy dispatcher if PROXY_URL is set.
+// Vinted uses DataDome bot-protection which blocks datacenter IPs (Railway).
+// Set PROXY_URL in Railway env vars: http://user:pass@residential-proxy-host:port
+function vintedProxyOpts(extraOpts = {}) {
+  if (PROXY_URL && ProxyAgent) {
+    return { ...extraOpts, dispatcher: new ProxyAgent(PROXY_URL) };
+  }
+  return extraOpts;
+}
+
 const VINTED_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148';
 const VINTED_HEADERS = (token) => ({
   'Content-Type': 'application/json',
@@ -2071,6 +2086,7 @@ async function vintedLogin(usernameOrEmail, password) {
         headers: { ...BASE_HEADERS, 'Accept': 'text/html,application/xhtml+xml,*/*' },
         signal: AbortSignal.timeout(10000),
         redirect: 'follow',
+        ...vintedProxyOpts(),
       });
       const setCookies = initRes.headers.getSetCookie?.() || [];
       cookieStr = setCookies.map(c => c.split(';')[0]).join('; ');
@@ -2095,6 +2111,7 @@ async function vintedLogin(usernameOrEmail, password) {
       headers: loginHeaders,
       body: JSON.stringify({ login: usernameOrEmail, password, remember: true }),
       signal: AbortSignal.timeout(15000),
+      ...vintedProxyOpts(),
     });
 
     const rawText = await res.text();
@@ -2152,6 +2169,7 @@ async function vintedUploadImage(accessToken, base64Data, mimeType = 'image/jpeg
       },
       body,
       signal: AbortSignal.timeout(20000),
+      ...vintedProxyOpts(),
     });
     if (!res.ok) { const e = await res.text(); return { error: `Vinted image upload failed: ${e.slice(0, 80)}` }; }
     const data = await res.json();
@@ -2187,10 +2205,15 @@ async function vintedCreateListing(accessToken, listingData) {
       headers: VINTED_HEADERS(accessToken),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(15000),
+      ...vintedProxyOpts(),
     });
     if (!res.ok) {
       const err = await res.text();
-      return { error: `Vinted: ${err.slice(0, 120)}` };
+      // Surface DataDome captcha as a clear message instead of raw JSON
+      if (err.includes('captcha-delivery.com') || err.includes('datadome')) {
+        return { error: 'Vinted blocked by bot-protection (DataDome). Add a residential PROXY_URL to Railway env vars to fix this.' };
+      }
+      return { error: `Vinted: ${err.slice(0, 200)}` };
     }
     const data = await res.json();
     const item = data.item || data;
@@ -2204,6 +2227,7 @@ async function vintedDeleteListing(accessToken, listingId) {
       method: 'DELETE',
       headers: VINTED_HEADERS(accessToken),
       signal: AbortSignal.timeout(10000),
+      ...vintedProxyOpts(),
     });
     return { ok: res.ok || res.status === 204 };
   } catch (e) { return { error: e.message }; }
