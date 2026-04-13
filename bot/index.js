@@ -25,6 +25,7 @@ const SUPABASE_KEY   = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY   = process.env.ANTHROPIC_API_KEY;
 const BRAVE_KEY       = process.env.BRAVE_SEARCH_API_KEY;
 const REMOVE_BG_KEY   = process.env.REMOVE_BG_API_KEY;
+const PROXY_URL       = process.env.PROXY_URL; // optional residential proxy e.g. http://user:pass@host:port
 const PORT            = process.env.PORT || 3000;
 const OWNER_ID       = '731207920007643167';
 const DASHBOARD_URL  = 'https://vendora-vv.netlify.app/vendora-dashboard';
@@ -2234,21 +2235,36 @@ async function requireAuth(req, res) {
 // ── Platform connection endpoints ─────────────────────────────────────────────
 
 // Connect a platform account
+// Supports two modes:
+//   1. credentials  — { email/username + password } → bot logs in on behalf of user
+//   2. manual_token — { token + username }           → user provides their own session token
+//      (use when credential login is blocked by Cloudflare on the server IP)
 app.post('/api/platform/connect', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
-  const { platform, credentials } = req.body;
-  if (!platform || !credentials) return res.status(400).json({ error: 'platform and credentials required' });
+  const { platform, credentials, manual_token, username: manualUsername } = req.body;
+  if (!platform) return res.status(400).json({ error: 'platform required' });
 
   let result;
-  if (platform === 'depop') {
-    result = await depopLogin(credentials.email, credentials.password);
-  } else if (platform === 'vinted') {
-    result = await vintedLogin(credentials.username || credentials.email, credentials.password);
-  } else {
-    return res.status(400).json({ error: 'Unsupported platform' });
-  }
 
-  if (result.error) return res.status(400).json({ error: result.error });
+  // ── Manual token mode ──────────────────────────────────────────────────────
+  if (manual_token) {
+    if (!manualUsername) return res.status(400).json({ error: 'username required with manual_token' });
+    if (!['depop','vinted'].includes(platform)) return res.status(400).json({ error: 'Unsupported platform' });
+    result = { access_token: manual_token, refresh_token: '', platform_user_id: '', platform_username: manualUsername };
+  }
+  // ── Credential login mode ──────────────────────────────────────────────────
+  else if (credentials) {
+    if (platform === 'depop') {
+      result = await depopLogin(credentials.email, credentials.password);
+    } else if (platform === 'vinted') {
+      result = await vintedLogin(credentials.username || credentials.email, credentials.password);
+    } else {
+      return res.status(400).json({ error: 'Unsupported platform' });
+    }
+    if (result.error) return res.status(400).json({ error: result.error });
+  } else {
+    return res.status(400).json({ error: 'credentials or manual_token required' });
+  }
 
   await upsertPlatformConn(user.id, platform, {
     access_token:      encryptToken(result.access_token),
@@ -2258,7 +2274,7 @@ app.post('/api/platform/connect', async (req, res) => {
     connected_at:      new Date().toISOString(),
   });
 
-  console.log(`[platform] ${platform} connected for user ${user.id} (@${result.platform_username})`);
+  console.log(`[platform] ${platform} connected for user ${user.id} (@${result.platform_username}) mode:${manual_token ? 'manual' : 'credentials'}`);
   res.json({ ok: true, platform, username: result.platform_username });
 });
 

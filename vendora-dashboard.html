@@ -1059,17 +1059,46 @@
           <button id="plat-disconnect-btn-vinted" class="btn btn-danger btn-sm" style="display:none;" onclick="disconnectPlatform('vinted')">Disconnect</button>
         </div>
         <div id="plat-form-vinted">
-          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;">
-            <div>
-              <label class="form-label">Vinted Username or Email</label>
-              <input id="vinted-email" type="text" class="form-select" style="height:auto;padding:9px 14px;" placeholder="username or email">
-            </div>
-            <div>
-              <label class="form-label">Password</label>
-              <input id="vinted-password" type="password" class="form-select" style="height:auto;padding:9px 14px;" placeholder="••••••••">
-            </div>
-            <button id="plat-connect-btn-vinted" class="btn btn-pink btn-sm" onclick="connectPlatform('vinted')">Connect</button>
+          <!-- Login tab switcher -->
+          <div style="display:flex;gap:0;margin-bottom:14px;border:1px solid var(--border-dim);border-radius:8px;overflow:hidden;width:fit-content;">
+            <button id="vinted-tab-creds" onclick="vintedTab('creds')" style="padding:7px 16px;font-size:12px;font-weight:500;font-family:'DM Sans',sans-serif;border:none;cursor:pointer;transition:background .15s;background:var(--pink);color:#fff;">Email / Password</button>
+            <button id="vinted-tab-token" onclick="vintedTab('token')" style="padding:7px 16px;font-size:12px;font-weight:500;font-family:'DM Sans',sans-serif;border:none;cursor:pointer;transition:background .15s;background:var(--bg3);color:var(--muted2);">Manual Token</button>
           </div>
+
+          <!-- Credentials form -->
+          <div id="vinted-form-creds">
+            <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;">
+              <div>
+                <label class="form-label">Vinted Username or Email</label>
+                <input id="vinted-email" type="text" class="form-select" style="height:auto;padding:9px 14px;" placeholder="username or email">
+              </div>
+              <div>
+                <label class="form-label">Password</label>
+                <input id="vinted-password" type="password" class="form-select" style="height:auto;padding:9px 14px;" placeholder="••••••••">
+              </div>
+              <button id="plat-connect-btn-vinted" class="btn btn-pink btn-sm" onclick="connectPlatform('vinted')">Connect</button>
+            </div>
+          </div>
+
+          <!-- Manual token form (shown when Cloudflare blocks credential login) -->
+          <div id="vinted-form-token" style="display:none;">
+            <div style="background:rgba(232,161,33,0.08);border:1px solid rgba(232,161,33,0.2);border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:12px;color:rgba(232,161,33,0.9);line-height:1.6;">
+              <strong>Why manual?</strong> Vinted's bot-protection blocks our server from logging in automatically. Your token comes from your real browser so it bypasses this.<br>
+              <strong>Steps:</strong> Open <a href="https://www.vinted.co.uk" target="_blank" style="color:var(--gold);">vinted.co.uk</a> → log in → press <strong>F12</strong> → Application tab → Cookies → <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">www.vinted.co.uk</code> → find <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">access_token</code> → copy the value.
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;">
+              <div>
+                <label class="form-label">Your Vinted Username</label>
+                <input id="vinted-manual-username" type="text" class="form-select" style="height:auto;padding:9px 14px;" placeholder="your_username">
+              </div>
+              <div>
+                <label class="form-label">Session Token (access_token cookie)</label>
+                <input id="vinted-manual-token" type="password" class="form-select" style="height:auto;padding:9px 14px;" placeholder="paste token here">
+              </div>
+              <button id="plat-connect-btn-vinted-manual" class="btn btn-pink btn-sm" onclick="connectPlatformManual('vinted')">Connect</button>
+            </div>
+          </div>
+
           <div id="vinted-connect-msg" style="display:none;margin-top:10px;"></div>
         </div>
       </div>
@@ -3403,7 +3432,12 @@
       const json = await res.json();
 
       if (!res.ok) {
-        showMsg(msgEl, 'error', json.error || 'Connection failed. Check your credentials.');
+        const errMsg = json.error || 'Connection failed. Check your credentials.';
+        showMsg(msgEl, 'error', errMsg);
+        // If Cloudflare blocked it, auto-switch to manual token tab
+        if (platform === 'vinted' && errMsg.toLowerCase().includes('blocking')) {
+          setTimeout(() => vintedTab('token'), 800);
+        }
       } else {
         showMsg(msgEl, 'success', `Connected as ${json.username || emailOrUser}!`);
         document.getElementById(`${platform}-email`)  && (document.getElementById(`${platform}-email`).value  = '');
@@ -3417,6 +3451,48 @@
 
     btn.disabled = false;
     btn.textContent = 'Connect';
+  }
+
+  function vintedTab(tab) {
+    const creds = document.getElementById('vinted-form-creds');
+    const token = document.getElementById('vinted-form-token');
+    const btnC  = document.getElementById('vinted-tab-creds');
+    const btnT  = document.getElementById('vinted-tab-token');
+    if (!creds || !token) return;
+    const isToken = tab === 'token';
+    creds.style.display = isToken ? 'none' : '';
+    token.style.display = isToken ? '' : 'none';
+    btnC.style.background = isToken ? 'var(--bg3)' : 'var(--pink)';
+    btnC.style.color = isToken ? 'var(--muted2)' : '#fff';
+    btnT.style.background = isToken ? 'var(--pink)' : 'var(--bg3)';
+    btnT.style.color = isToken ? '#fff' : 'var(--muted2)';
+  }
+
+  async function connectPlatformManual(platform) {
+    const tokenVal  = document.getElementById(`${platform}-manual-token`)?.value?.trim();
+    const username  = document.getElementById(`${platform}-manual-username`)?.value?.trim();
+    const msgEl     = document.getElementById(`${platform}-connect-msg`);
+    const btn       = document.getElementById(`plat-connect-btn-${platform}-manual`);
+    if (!tokenVal || !username) { showMsg(msgEl, 'error', 'Please fill in both fields.'); return; }
+    btn.disabled = true; btn.textContent = 'Saving...';
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { window.location.href = 'vendora-login.html'; return; }
+      const res = await fetch(`${BOT_API}/api/platform/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ platform, manual_token: tokenVal, username }),
+      });
+      const json = await res.json();
+      if (!res.ok) { showMsg(msgEl, 'error', json.error || 'Failed to save token.'); }
+      else {
+        showMsg(msgEl, 'success', `Connected as @${json.username}!`);
+        document.getElementById(`${platform}-manual-token`).value = '';
+        document.getElementById(`${platform}-manual-username`).value = '';
+        loadPlatformStatus();
+      }
+    } catch { showMsg(msgEl, 'error', 'Network error. Please try again.'); }
+    btn.disabled = false; btn.textContent = 'Connect';
   }
 
   async function disconnectPlatform(platform) {
