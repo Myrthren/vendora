@@ -3369,22 +3369,23 @@
         headers: { 'Authorization': `Bearer ${session.access_token}` }
       });
       if (!res.ok) return;
-      const json = await res.json(); // { depop: { connected, username }, vinted: { connected, username } }
+      const json = await res.json(); // { ok, connections: { depop: { connected, username }, vinted: ... } }
+      const data = json.connections || json; // handle both response shapes
 
       ['depop', 'vinted'].forEach(p => {
-        const info = json[p];
+        const info = data[p];
         const connected = info && info.connected;
 
         // Platforms section
         const statusDiv = document.getElementById(`plat-status-${p}`);
         const formDiv   = document.getElementById(`plat-form-${p}`);
         const discBtn   = document.getElementById(`plat-disconnect-btn-${p}`);
-        if (statusDiv) statusDiv.style.display = connected ? '' : 'none';
+        if (statusDiv) {
+          statusDiv.textContent = connected ? `● Connected · @${info.username || p}` : '○ Not connected';
+          statusDiv.className   = `plat-status-row ${connected ? 'connected' : 'disconnected'}`;
+        }
         if (formDiv)   formDiv.style.display   = connected ? 'none' : '';
         if (discBtn)   discBtn.style.display   = connected ? '' : 'none';
-        if (connected && statusDiv) {
-          statusDiv.querySelector('.plat-username') && (statusDiv.querySelector('.plat-username').textContent = info.username || p);
-        }
 
         // Listings form badges
         const badge = document.getElementById(`list-${p}-status`);

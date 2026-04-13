@@ -2276,9 +2276,8 @@ app.post('/api/platform/connect', async (req, res) => {
           platform_username: body.user.login || body.user.username || manualUsername,
         };
       } catch (e) {
-        console.warn('[manual-token] vinted validation failed:', e.message);
-        // If Vinted is unreachable, still allow saving with the provided username
-        result = { access_token: manual_token, refresh_token: '', platform_user_id: '', platform_username: manualUsername };
+        console.warn('[manual-token] vinted validation error:', e.message);
+        return res.status(400).json({ error: 'Could not verify Vinted token — server connection failed. Check Railway logs.' });
       }
     } else if (platform === 'depop') {
       try {
@@ -2298,7 +2297,8 @@ app.post('/api/platform/connect', async (req, res) => {
           platform_username: body.username || manualUsername,
         };
       } catch (e) {
-        result = { access_token: manual_token, refresh_token: '', platform_user_id: '', platform_username: manualUsername };
+        console.warn('[manual-token] depop validation error:', e.message);
+        return res.status(400).json({ error: 'Could not verify Depop token — server connection failed. Check Railway logs.' });
       }
     }
   }
