@@ -1781,6 +1781,50 @@ app.post('/api/research', async (req, res) => {
   return res.json({ ok: true, results: results || [] });
 });
 
+// ── Inventory API — called from the dashboard ─────────────────────────────────
+
+// Helper: get discord_id from a verified Supabase auth user object
+function discordIdFromUser(user) {
+  return user?.user_metadata?.provider_id
+    || user?.identities?.find(i => i.provider === 'discord')?.id
+    || null;
+}
+
+// GET /api/inventory — fetch all items for the authenticated user
+app.get('/api/inventory', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = discordIdFromUser(user);
+  if (!discordId) return res.status(400).json({ error: 'Discord ID not found' });
+  const items = await dbGetInventory(discordId);
+  return res.json({ ok: true, items });
+});
+
+// POST /api/inventory — add an item, return full updated list
+app.post('/api/inventory', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = discordIdFromUser(user);
+  if (!discordId) return res.status(400).json({ error: 'Discord ID not found' });
+  const { item } = req.body || {};
+  if (!item?.trim()) return res.status(400).json({ error: 'Item name required' });
+  const result = await dbAddInventory(discordId, item.trim());
+  if (result?.error) return res.status(500).json({ error: result.error });
+  const items = await dbGetInventory(discordId);
+  return res.json({ ok: true, items });
+});
+
+// DELETE /api/inventory/:id — remove a specific item by its Supabase row ID
+app.delete('/api/inventory/:id', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = discordIdFromUser(user);
+  if (!discordId) return res.status(400).json({ error: 'Discord ID not found' });
+  // Verify the item belongs to this user before deleting
+  const items = await dbGetInventory(discordId);
+  const owns = items.some(i => String(i.id) === String(req.params.id));
+  if (!owns) return res.status(403).json({ error: 'Not your item' });
+  await dbRemoveInventory(req.params.id);
+  return res.json({ ok: true });
+});
+
 // Supabase DB webhook — profile INSERT/UPDATE
 app.post('/webhook', async (req, res) => {
   console.log('[webhook] Received from', req.ip);
