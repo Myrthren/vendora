@@ -733,9 +733,17 @@ async function executeCommand(interaction, commandName, tier, profile) {
     try {
       // Re-fetch channels to ensure cache is current
       await guild.channels.fetch();
+
+      // Find a VENDORA category — but only use it if the bot can actually manage
+      // channels inside it. Category-level permission overrides can block creation
+      // even when the bot has ManageChannels server-wide.
       const category = guild.channels.cache.find(
         c => c.type === ChannelType.GuildCategory && c.name.toUpperCase().includes('VENDORA')
       );
+      const canManageInCategory = category
+        ? category.permissionsFor(botMember)?.has(PermissionFlagsBits.ManageChannels)
+        : false;
+      const parentId = canManageInCategory ? category.id : null;
 
       const channelName = `session-${interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12)}-${Date.now().toString(36).slice(-4)}`;
       // Use guild.id for @everyone (its role ID always matches the guild ID)
@@ -749,7 +757,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
       const channel = await guild.channels.create({
         name: channelName,
         type: ChannelType.GuildText,
-        parent: category?.id || null,
+        parent: parentId,
         permissionOverwrites: permOverwrites,
         topic: `Private Vendora session for ${interaction.user.tag} — auto-deletes after 24h inactivity`,
       });
