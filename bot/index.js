@@ -573,8 +573,11 @@ const commands = [
   new SlashCommandBuilder().setName('earlydeals').setDescription('Access current early deal alerts [Elite]'),
   new SlashCommandBuilder().setName('negotiate').setDescription('Advanced AI negotiation assistant [Elite]')
     .addStringOption(o => o.setName('offer').setDescription('Describe the negotiation scenario').setRequired(true)),
-  new SlashCommandBuilder().setName('authenticate').setDescription('Authenticity red flag check [Elite]')
-    .addStringOption(o => o.setName('item').setDescription('Item description to check').setRequired(true)),
+  new SlashCommandBuilder().setName('authenticate').setDescription('Authenticity red flag check from a photo [Elite]')
+    .addAttachmentOption(o => o.setName('photo').setDescription('Clear photo of the item (tags, logo, hardware, stitching, etc.)').setRequired(true))
+    .addStringOption(o => o.setName('item').setDescription('Item name & brand (e.g. Louis Vuitton Speedy 30)').setRequired(true))
+    .addStringOption(o => o.setName('price').setDescription('Asking price (e.g. £120) — helps flag suspicious pricing').setRequired(false))
+    .addStringOption(o => o.setName('source').setDescription('Where it is being sold (e.g. Vinted, eBay, Facebook)').setRequired(false)),
   new SlashCommandBuilder().setName('grade').setDescription('Grade item condition from a photo [Elite]')
     .addAttachmentOption(o => o.setName('photo').setDescription('Photo of the item').setRequired(true)),
 ].map(c => c.toJSON());
@@ -1550,16 +1553,41 @@ async function executeCommand(interaction, commandName, tier, profile) {
   }
 
   if (commandName === 'authenticate') {
-    const item = opts.getString('item');
-    const text = await callAI(
-      'You are Vendora\'s authenticity expert for resale items. Analyse the provided item details for red flags indicating a potential fake. Include:\n**Risk Level** — Low/Medium/High/Critical\n**Red Flags Identified** — specific concerns from the description\n**Verify Before Buying** — what to physically check\n**Authentication Points** — key things to inspect\n**Price Assessment** — is the price suspicious?\n**Recommendation** — Buy / Proceed with Caution / Avoid',
-      `Item details: ${item}`,
-      'claude-haiku-4-5-20251001', 800
-    );
+    const attachment = opts.getAttachment('photo');
+    const item      = opts.getString('item');
+    const price     = opts.getString('price');
+    const source    = opts.getString('source');
+
+    const contextLines = [`Item: ${item}`];
+    if (price)  contextLines.push(`Asking price: ${price}`);
+    if (source) contextLines.push(`Platform / seller location: ${source}`);
+    const userContext = contextLines.join('\n');
+
+    const systemPrompt =
+      'You are Vendora\'s authenticity expert for luxury and branded resale items. ' +
+      'The user has provided a photo and item details. Carefully examine the photo for visual authentication markers and cross-reference with the item details provided. ' +
+      'Structure your response exactly as follows:\n' +
+      '**Risk Level** — Critical / High / Medium / Low (one word + one-line reason)\n' +
+      '**Visual Red Flags** — list every suspicious detail you can see in the photo (stitching, logo placement, font, hardware, tags, labels, materials)\n' +
+      '**Authentication Points Passed** — list anything that looks correct/genuine in the photo\n' +
+      '**What to Check in Person** — physical checks the buyer should do before purchasing\n' +
+      '**Price Assessment** — is the asking price consistent with the item\'s authenticity and condition?\n' +
+      '**Verdict** — Buy with Confidence / Proceed with Caution / Request More Photos / Avoid\n\n' +
+      'Be specific about what you see in the photo. Do not give generic advice — reference actual visual details.';
+
+    const text = await callAIWithImage(systemPrompt, userContext, attachment.url);
     if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
+
+    const fields = [{ name: 'Item', value: item.slice(0, 200), inline: true }];
+    if (price)  fields.push({ name: 'Price', value: price.slice(0, 100), inline: true });
+    if (source) fields.push({ name: 'Source', value: source.slice(0, 100), inline: true });
+
     return interaction.editReply({ embeds: [
-      baseEmbed('#e8a121').setTitle('Authenticity Check').setDescription(text.slice(0, 4000))
-        .addFields({ name: 'Item', value: item.slice(0, 200) })
+      baseEmbed('#e8a121')
+        .setTitle('Authenticity Check')
+        .setDescription(text.slice(0, 4000))
+        .addFields(...fields)
+        .setThumbnail(attachment.url)
     ]});
   }
 

@@ -1741,6 +1741,30 @@
               </div>
             </div>
 
+            <!-- Display Style -->
+            <div class="card" style="padding:20px;">
+              <div class="card-title" style="margin-bottom:4px;">Display Style</div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">How the item sits in the shot — applied after background removal</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <button id="dstyle-product" onclick="enhancerSetDisplayStyle('product')" style="padding:10px 8px;border-radius:8px;border:2px solid var(--pink);background:rgba(232,33,122,0.08);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;font-family:'DM Sans',sans-serif;">
+                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Product Shot</div>
+                  <div style="font-size:10px;color:var(--muted);">Centred · floor shadow · breathing room</div>
+                </button>
+                <button id="dstyle-flat" onclick="enhancerSetDisplayStyle('flat')" style="padding:10px 8px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.03);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;font-family:'DM Sans',sans-serif;">
+                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Flat Lay</div>
+                  <div style="font-size:10px;color:var(--muted);">Fills frame · top-down · soft shadow</div>
+                </button>
+                <button id="dstyle-ghost" onclick="enhancerSetDisplayStyle('ghost')" style="padding:10px 8px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.03);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;font-family:'DM Sans',sans-serif;">
+                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Ghost / Float</div>
+                  <div style="font-size:10px;color:var(--muted);">Upper · mannequin-style · drop shadow</div>
+                </button>
+                <button id="dstyle-fill" onclick="enhancerSetDisplayStyle('fill')" style="padding:10px 8px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.03);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;font-family:'DM Sans',sans-serif;">
+                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Fill Frame</div>
+                  <div style="font-size:10px;color:var(--muted);">Max scale · edge to edge · no padding</div>
+                </button>
+              </div>
+            </div>
+
             <!-- Background -->
             <div class="card" style="padding:20px;">
               <div class="card-title" style="margin-bottom:14px;">Background</div>
@@ -1774,8 +1798,16 @@
 
             <!-- Adjustments -->
             <div class="card" style="padding:20px;">
-              <div class="card-title" style="margin-bottom:14px;">Adjustments</div>
-              <div style="display:flex;flex-direction:column;gap:14px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+                <div class="card-title" style="margin:0;">Adjustments</div>
+                <div style="display:flex;gap:0;border:1px solid var(--border-dim);border-radius:8px;overflow:hidden;">
+                  <button id="adj-tab-item" onclick="enhancerSwitchTab('item')" style="padding:5px 14px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;border:none;cursor:pointer;background:var(--pink);color:#fff;transition:background .15s;">Item</button>
+                  <button id="adj-tab-bg" onclick="enhancerSwitchTab('bg')" style="padding:5px 14px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;border:none;cursor:pointer;background:var(--bg3);color:var(--muted2);transition:background .15s;">Background</button>
+                </div>
+              </div>
+
+              <!-- Item tab -->
+              <div id="adj-panel-item" style="display:flex;flex-direction:column;gap:14px;">
                 <div>
                   <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Brightness</label><span style="font-size:12px;color:var(--text);" id="adj-brightness-val">100%</span></div>
                   <input type="range" id="adj-brightness" min="0" max="200" value="100" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-brightness-val').textContent=this.value+'%';enhancerComposite()">
@@ -1793,19 +1825,43 @@
                   <input type="range" id="adj-sharpness" min="0" max="5" value="0" step="0.5" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-sharpness-val').textContent=this.value;enhancerComposite()">
                 </div>
                 <div>
-                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Shadow Depth</label><span style="font-size:12px;color:var(--text);" id="adj-shadow-val">0%</span></div>
-                  <input type="range" id="adj-shadow" min="0" max="60" value="0" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-shadow-val').textContent=this.value+'%';enhancerComposite()">
+                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Warmth</label><span style="font-size:12px;color:var(--text);" id="adj-warmth-val">0</span></div>
+                  <input type="range" id="adj-warmth" min="-60" max="60" value="0" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-warmth-val').textContent=this.value;enhancerComposite()">
+                </div>
+                <div>
+                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Item Scale</label><span style="font-size:12px;color:var(--text);" id="adj-scale-val">82%</span></div>
+                  <input type="range" id="adj-scale" min="40" max="100" value="82" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-scale-val').textContent=this.value+'%';enhancerComposite()">
+                </div>
+                <div style="display:flex;gap:8px;">
+                  <button class="btn btn-primary btn-sm" onclick="enhancerAutoEnhance()" style="flex:1;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    Auto
+                  </button>
+                  <button class="btn btn-ghost btn-sm" onclick="enhancerResetSliders()" style="flex:1;">Reset</button>
+                </div>
+              </div>
+
+              <!-- Background tab -->
+              <div id="adj-panel-bg" style="display:none;flex-direction:column;gap:14px;">
+                <div>
+                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Bg Brightness</label><span style="font-size:12px;color:var(--text);" id="adj-bg-brightness-val">100%</span></div>
+                  <input type="range" id="adj-bg-brightness" min="20" max="180" value="100" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-bg-brightness-val').textContent=this.value+'%';enhancerComposite()">
+                </div>
+                <div>
+                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Shadow</label><span style="font-size:12px;color:var(--text);" id="adj-shadow-val">18%</span></div>
+                  <input type="range" id="adj-shadow" min="0" max="60" value="18" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-shadow-val').textContent=this.value+'%';enhancerComposite()">
+                </div>
+                <div>
+                  <div style="margin-bottom:8px;"><label style="font-size:12px;color:var(--muted2);">Shadow Style</label></div>
+                  <div style="display:flex;gap:6px;">
+                    <button id="shadow-type-floor" onclick="enhancerSetShadowType('floor')" style="flex:1;padding:6px 4px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;border:1px solid var(--pink);border-radius:6px;cursor:pointer;background:rgba(232,33,122,0.12);color:var(--pink);transition:all .15s;">Floor</button>
+                    <button id="shadow-type-drop" onclick="enhancerSetShadowType('drop')" style="flex:1;padding:6px 4px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;border:1px solid var(--border-dim);border-radius:6px;cursor:pointer;background:rgba(255,255,255,0.03);color:var(--muted2);transition:all .15s;">Drop</button>
+                    <button id="shadow-type-none" onclick="enhancerSetShadowType('none')" style="flex:1;padding:6px 4px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;border:1px solid var(--border-dim);border-radius:6px;cursor:pointer;background:rgba(255,255,255,0.03);color:var(--muted2);transition:all .15s;">None</button>
+                  </div>
                 </div>
                 <div>
                   <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Vignette</label><span style="font-size:12px;color:var(--text);" id="adj-vignette-val">0%</span></div>
                   <input type="range" id="adj-vignette" min="0" max="80" value="0" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-vignette-val').textContent=this.value+'%';enhancerComposite()">
-                </div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                  <button class="btn btn-primary btn-sm" onclick="enhancerAutoEnhance()">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                    Auto Enhance
-                  </button>
-                  <button class="btn btn-ghost btn-sm" onclick="enhancerResetSliders()">Reset</button>
                 </div>
               </div>
             </div>
@@ -1813,9 +1869,17 @@
             <!-- Custom Instructions -->
             <div class="card" style="padding:20px;">
               <div class="card-title" style="margin-bottom:4px;">AI Instructions</div>
-              <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">Describe the look you want — Claude will suggest the best settings</div>
-              <textarea id="enhancer-instructions" rows="3" class="form-select" style="height:auto;padding:10px 12px;font-size:12px;resize:vertical;margin-bottom:10px;" placeholder="e.g. make it look like a luxury brand product photo on marble&#10;e.g. street style shoot on concrete, bold and punchy&#10;e.g. clean minimal white background for eBay listing"></textarea>
-              <button class="btn btn-primary btn-sm" onclick="enhancerApplyInstructions()" id="enhancer-instruct-btn">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">Describe the look you want in plain English — Claude will dial in the settings</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
+                <button onclick="enhancerQuickPrompt('product shot on marble, bright and clean, floor shadow')" style="font-size:10px;padding:4px 10px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Luxury marble</button>
+                <button onclick="enhancerQuickPrompt('clean white studio, bright and crisp, flat lay style, for Depop or Vinted listing')" style="font-size:10px;padding:4px 10px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Flat lay white</button>
+                <button onclick="enhancerQuickPrompt('street urban look on concrete, bold high contrast, punchy, ghost float style')" style="font-size:10px;padding:4px 10px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Street ghost</button>
+                <button onclick="enhancerQuickPrompt('warm editorial on natural wood, golden tones, soft shadow, product shot')" style="font-size:10px;padding:4px 10px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Warm wood</button>
+                <button onclick="enhancerQuickPrompt('dramatic dark studio background, high contrast, moody, drop shadow, fill frame')" style="font-size:10px;padding:4px 10px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Dark studio</button>
+                <button onclick="enhancerQuickPrompt('soft cream background, ghost float style, vivid colours, slight warm tones')" style="font-size:10px;padding:4px 10px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Soft cream</button>
+              </div>
+              <textarea id="enhancer-instructions" rows="3" class="form-select" style="height:auto;padding:10px 12px;font-size:12px;resize:vertical;margin-bottom:10px;" placeholder="e.g. flat lay on marble, bright and crisp, warm tones&#10;e.g. ghost float on dark studio, high contrast, moody&#10;e.g. product shot on cream, vivid colours, floor shadow"></textarea>
+              <button class="btn btn-primary btn-sm" onclick="enhancerApplyInstructions()" id="enhancer-instruct-btn" style="width:100%;">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
                 Apply AI Suggestions
               </button>
@@ -1856,7 +1920,7 @@
               <!-- Remove bg loading -->
               <div id="enhancer-loading" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;font-size:12px;background:rgba(232,33,122,0.06);border:1px solid rgba(232,33,122,0.15);color:var(--pink);align-items:center;gap:8px;">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="animation:spin 1s linear infinite;flex-shrink:0;"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
-                Removing background with AI…
+                <span id="enhancer-loading-msg">Removing background…</span>
               </div>
             </div>
 
@@ -3976,9 +4040,11 @@
   // ── Photo Enhancer ───────────────────────────────────────────────────────────
   let enhancerOriginalImg    = null;  // Original HTMLImageElement
   let enhancerRemovedBgB64   = null;  // Base64 of bg-removed PNG (from remove.bg)
-  let enhancerCurrentBg      = '#ffffff';
+  let enhancerCurrentBg      = 'white-studio';
   let enhancerUseBgRemoved   = false;
   let enhancerViewMode       = 'after'; // 'after' | 'before'
+  let enhancerShadowType     = 'floor'; // 'floor' | 'drop' | 'none'
+  let enhancerDisplayStyle   = 'product'; // 'product' | 'flat' | 'ghost' | 'fill'
 
   function initEnhancerAccess(tier) {
     const gate = document.getElementById('enhancer-gate');
@@ -4025,6 +4091,8 @@
           origCanvas.getContext('2d').drawImage(img, 0, 0);
         }
         enhancerComposite();
+        // Auto-remove background as soon as image loads
+        setTimeout(() => enhancerRemoveBg(), 50);
       };
       img.src = e.target.result;
     };
@@ -4068,128 +4136,132 @@
   }
 
   function enhancerGetFilters() {
-    const brightness = parseFloat(document.getElementById('adj-brightness')?.value || 100);
-    const contrast   = parseFloat(document.getElementById('adj-contrast')?.value   || 100);
-    const saturation = parseFloat(document.getElementById('adj-saturation')?.value || 100);
-    const sharpness  = parseFloat(document.getElementById('adj-sharpness')?.value  || 0);
-    return { brightness: brightness / 100, contrast: contrast / 100, saturation: saturation / 100, sharpness };
+    const brightness   = parseFloat(document.getElementById('adj-brightness')?.value    || 100);
+    const contrast     = parseFloat(document.getElementById('adj-contrast')?.value      || 100);
+    const saturation   = parseFloat(document.getElementById('adj-saturation')?.value    || 100);
+    const sharpness    = parseFloat(document.getElementById('adj-sharpness')?.value     || 0);
+    const warmth       = parseFloat(document.getElementById('adj-warmth')?.value        || 0);
+    const scale        = parseFloat(document.getElementById('adj-scale')?.value         || 82);
+    const bgBrightness = parseFloat(document.getElementById('adj-bg-brightness')?.value || 100);
+    return {
+      brightness: brightness / 100,
+      contrast:   contrast   / 100,
+      saturation: saturation / 100,
+      sharpness, warmth, scale, bgBrightness,
+    };
   }
 
-  function enhancerDrawBackground(ctx, W, H) {
+  function enhancerDrawBackground(ctx, W, H, bgBrightness = 100) {
     const bg = enhancerCurrentBg;
     if (bg === 'transparent') { ctx.clearRect(0, 0, W, H); return; }
 
     // ── Light studio backgrounds ──────────────────────────────────────────────
     if (bg === 'white-studio') {
-      const g = ctx.createRadialGradient(W*0.4, H*0.35, 0, W*0.5, H*0.5, W*0.75);
-      g.addColorStop(0, '#ffffff'); g.addColorStop(0.6, '#f2f2f2'); g.addColorStop(1, '#e0e0e0');
+      const g = ctx.createRadialGradient(W*0.42, H*0.32, 0, W*0.5, H*0.5, W*0.8);
+      g.addColorStop(0, '#ffffff'); g.addColorStop(0.55, '#f4f4f4'); g.addColorStop(1, '#e4e4e4');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     } else if (bg === 'soft-grey') {
       const g = ctx.createRadialGradient(W*0.4, H*0.35, 0, W*0.5, H*0.5, W*0.75);
-      g.addColorStop(0, '#ececec'); g.addColorStop(0.6, '#d8d8d8'); g.addColorStop(1, '#c4c4c4');
+      g.addColorStop(0, '#ebebeb'); g.addColorStop(0.6, '#d5d5d5'); g.addColorStop(1, '#c0c0c0');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     } else if (bg === 'cream') {
       const g = ctx.createRadialGradient(W*0.4, H*0.35, 0, W*0.5, H*0.5, W*0.75);
-      g.addColorStop(0, '#fdf8f0'); g.addColorStop(0.6, '#f2e6d0'); g.addColorStop(1, '#e4d4b8');
+      g.addColorStop(0, '#fdf9f2'); g.addColorStop(0.6, '#f3e8d4'); g.addColorStop(1, '#e6d8be');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     } else if (bg === 'sage') {
       const g = ctx.createRadialGradient(W*0.4, H*0.35, 0, W*0.5, H*0.5, W*0.75);
-      g.addColorStop(0, '#eaf0e4'); g.addColorStop(0.6, '#d0dcc8'); g.addColorStop(1, '#b8c8ae');
+      g.addColorStop(0, '#eaf0e4'); g.addColorStop(0.6, '#cfdcc8'); g.addColorStop(1, '#b5c5aa');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     } else if (bg === 'blush') {
       const g = ctx.createRadialGradient(W*0.4, H*0.35, 0, W*0.5, H*0.5, W*0.75);
       g.addColorStop(0, '#fdf0f0'); g.addColorStop(0.6, '#f0d4d4'); g.addColorStop(1, '#e0bcbc');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 
-    // ── Marble ────────────────────────────────────────────────────────────────
+    // ── Marble — rich Carrara style ───────────────────────────────────────────
     } else if (bg === 'marble') {
-      // Base stone gradient
-      const base = ctx.createLinearGradient(0, 0, W, H);
-      base.addColorStop(0,    '#eae6e2');
-      base.addColorStop(0.25, '#f5f2ef');
-      base.addColorStop(0.5,  '#ddd9d5');
-      base.addColorStop(0.75, '#f0ece8');
-      base.addColorStop(1,    '#e4e0dc');
+      const base = ctx.createLinearGradient(0, 0, W * 0.7, H);
+      base.addColorStop(0,    '#f9f6f3');
+      base.addColorStop(0.25, '#ede9e5');
+      base.addColorStop(0.55, '#f5f1ee');
+      base.addColorStop(0.8,  '#e8e4e0');
+      base.addColorStop(1,    '#f2eeea');
       ctx.fillStyle = base; ctx.fillRect(0, 0, W, H);
-      // Realistic sinusoidal veins
-      const veins = [
-        { x1:W*0.1, y1:0, x2:W*0.55, y2:H, col:'rgba(180,170,165,0.22)', w:1.2 },
-        { x1:W*0.3, y1:0, x2:W*0.75, y2:H, col:'rgba(160,150,145,0.16)', w:0.8 },
-        { x1:W*0.6, y1:0, x2:W*0.2,  y2:H, col:'rgba(190,180,175,0.18)', w:1.5 },
-        { x1:W*0.8, y1:0, x2:W*0.4,  y2:H, col:'rgba(140,130,125,0.12)', w:0.6 },
-        { x1:W*0.05,y1:0, x2:W*0.9,  y2:H, col:'rgba(170,160,155,0.10)', w:2.0 },
-      ];
+      // Top-left spotlight
+      const spot = ctx.createRadialGradient(W*0.3, H*0.1, 0, W*0.4, H*0.3, W*0.65);
+      spot.addColorStop(0, 'rgba(255,255,255,0.18)'); spot.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = spot; ctx.fillRect(0, 0, W, H);
+      // Primary flowing veins
       ctx.save();
+      const veins = [
+        { x1:W*0.08, y1:0, x2:W*0.50, y2:H, col:'rgba(148,138,132,0.30)', w:1.6, j:0.06 },
+        { x1:W*0.28, y1:0, x2:W*0.74, y2:H, col:'rgba(128,118,112,0.22)', w:0.9, j:0.05 },
+        { x1:W*0.52, y1:0, x2:W*0.15, y2:H, col:'rgba(165,155,148,0.25)', w:2.0, j:0.07 },
+        { x1:W*0.76, y1:0, x2:W*0.38, y2:H, col:'rgba(138,128,122,0.18)', w:0.7, j:0.04 },
+        { x1:W*0.88, y1:0, x2:W*0.56, y2:H, col:'rgba(175,165,158,0.20)', w:2.4, j:0.08 },
+      ];
       for (const v of veins) {
-        ctx.beginPath();
-        ctx.moveTo(v.x1, v.y1);
-        const cx1 = v.x1 + (v.x2 - v.x1) * 0.25 + W * 0.06;
-        const cy1 = H * 0.35;
-        const cx2 = v.x1 + (v.x2 - v.x1) * 0.75 - W * 0.04;
-        const cy2 = H * 0.65;
-        ctx.bezierCurveTo(cx1, cy1, cx2, cy2, v.x2, v.y2);
-        ctx.strokeStyle = v.col;
-        ctx.lineWidth = v.w;
-        ctx.stroke();
+        const dx = v.x2 - v.x1;
+        ctx.beginPath(); ctx.moveTo(v.x1, v.y1);
+        ctx.bezierCurveTo(v.x1 + dx*0.25 + W*v.j, H*0.30, v.x1 + dx*0.75 - W*v.j*0.7, H*0.68, v.x2, v.y2);
+        ctx.strokeStyle = v.col; ctx.lineWidth = v.w; ctx.stroke();
+        // Hairline alongside
+        ctx.beginPath(); ctx.moveTo(v.x1 + W*0.012, v.y1);
+        ctx.bezierCurveTo(v.x1 + dx*0.25 + W*(v.j+0.02), H*0.33, v.x1 + dx*0.75 - W*v.j*0.5, H*0.65, v.x2 + W*0.008, v.y2);
+        const ha = parseFloat(v.col.match(/[\d.]+\)$/)[0]) * 0.42;
+        ctx.strokeStyle = v.col.replace(/[\d.]+\)$/, `${ha})`); ctx.lineWidth = v.w * 0.32; ctx.stroke();
+      }
+      // Micro hairlines
+      for (let i = 0; i < 5; i++) {
+        const sx = W * (0.06 + i * 0.19);
+        ctx.beginPath(); ctx.moveTo(sx, 0);
+        ctx.bezierCurveTo(sx + W*0.10, H*0.22, sx - W*0.06, H*0.58, sx + W*0.12, H);
+        ctx.strokeStyle = 'rgba(155,145,138,0.09)'; ctx.lineWidth = 0.35; ctx.stroke();
       }
       ctx.restore();
 
     // ── Oak Wood ──────────────────────────────────────────────────────────────
     } else if (bg === 'wood') {
-      // Base wood colour
       const base = ctx.createLinearGradient(0, 0, 0, H);
-      base.addColorStop(0,   '#c8a070'); base.addColorStop(0.5, '#d4aa78');
-      base.addColorStop(0.8, '#be9860'); base.addColorStop(1,   '#c8a070');
+      base.addColorStop(0,   '#caa572'); base.addColorStop(0.45, '#d6ae7c');
+      base.addColorStop(0.8, '#c09a62'); base.addColorStop(1,   '#caa572');
       ctx.fillStyle = base; ctx.fillRect(0, 0, W, H);
-      // Grain lines
       ctx.save();
       for (let i = 0; i < H; i += 3 + Math.sin(i * 0.3) * 2) {
         const alpha = 0.04 + Math.abs(Math.sin(i * 0.18)) * 0.08;
         const dark  = i % 9 < 4;
-        ctx.beginPath();
-        ctx.moveTo(0, i);
-        // Slight waviness
-        ctx.bezierCurveTo(W*0.3, i + Math.sin(i*0.05)*3, W*0.7, i - Math.sin(i*0.07)*2, W, i + Math.sin(i*0.04)*3);
-        ctx.strokeStyle = dark ? `rgba(80,50,20,${alpha})` : `rgba(240,200,140,${alpha * 0.6})`;
-        ctx.lineWidth = dark ? 1.2 : 0.6;
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i);
+        ctx.bezierCurveTo(W*0.3, i+Math.sin(i*0.05)*3, W*0.7, i-Math.sin(i*0.07)*2, W, i+Math.sin(i*0.04)*3);
+        ctx.strokeStyle = dark ? `rgba(75,45,15,${alpha})` : `rgba(240,200,140,${alpha*0.6})`;
+        ctx.lineWidth = dark ? 1.2 : 0.6; ctx.stroke();
       }
-      // Subtle knot
       const kg = ctx.createRadialGradient(W*0.62, H*0.38, 2, W*0.62, H*0.38, W*0.06);
-      kg.addColorStop(0, 'rgba(100,60,20,0.2)'); kg.addColorStop(1, 'rgba(100,60,20,0)');
-      ctx.fillStyle = kg; ctx.fillRect(0, 0, W, H);
-      ctx.restore();
+      kg.addColorStop(0, 'rgba(95,55,15,0.22)'); kg.addColorStop(1, 'rgba(95,55,15,0)');
+      ctx.fillStyle = kg; ctx.fillRect(0, 0, W, H); ctx.restore();
 
     // ── Concrete ──────────────────────────────────────────────────────────────
     } else if (bg === 'concrete') {
       const base = ctx.createRadialGradient(W*0.4, H*0.4, 0, W*0.5, H*0.5, W*0.7);
       base.addColorStop(0, '#6e6e6e'); base.addColorStop(0.6, '#5a5a5a'); base.addColorStop(1, '#464646');
       ctx.fillStyle = base; ctx.fillRect(0, 0, W, H);
-      // Noise texture
       ctx.save();
-      const imgData = ctx.getImageData(0, 0, W, H);
-      const d = imgData.data;
+      const imgData = ctx.getImageData(0, 0, W, H); const d = imgData.data;
       for (let i = 0; i < d.length; i += 4) {
         const n = (Math.random() - 0.5) * 18;
-        d[i] = Math.min(255, Math.max(0, d[i] + n));
-        d[i+1] = Math.min(255, Math.max(0, d[i+1] + n));
-        d[i+2] = Math.min(255, Math.max(0, d[i+2] + n));
+        d[i]=Math.min(255,Math.max(0,d[i]+n)); d[i+1]=Math.min(255,Math.max(0,d[i+1]+n)); d[i+2]=Math.min(255,Math.max(0,d[i+2]+n));
       }
-      ctx.putImageData(imgData, 0, 0);
-      ctx.restore();
+      ctx.putImageData(imgData, 0, 0); ctx.restore();
 
     // ── Linen ─────────────────────────────────────────────────────────────────
     } else if (bg === 'linen') {
       ctx.fillStyle = '#f0e8d8'; ctx.fillRect(0, 0, W, H);
-      ctx.save();
-      ctx.globalAlpha = 0.12;
+      ctx.save(); ctx.globalAlpha = 0.12;
       for (let x = 0; x < W; x += 3) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H);
-        ctx.strokeStyle = x % 6 === 0 ? '#b8a888' : '#d4c8a8'; ctx.lineWidth = 0.5; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H);
+        ctx.strokeStyle = x%6===0 ? '#b8a888' : '#d4c8a8'; ctx.lineWidth = 0.5; ctx.stroke();
       }
       for (let y = 0; y < H; y += 3) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y);
-        ctx.strokeStyle = y % 6 === 0 ? '#b8a888' : '#d4c8a8'; ctx.lineWidth = 0.5; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y);
+        ctx.strokeStyle = y%6===0 ? '#b8a888' : '#d4c8a8'; ctx.lineWidth = 0.5; ctx.stroke();
       }
       ctx.restore();
 
@@ -4215,7 +4287,7 @@
       const blobs = [
         { x:W*0.2, y:H*0.3, r:W*0.5, c:'rgba(232,33,122,0.18)' },
         { x:W*0.75,y:H*0.6, r:W*0.4, c:'rgba(139,92,246,0.14)' },
-        { x:W*0.5, y:H*0.8, r:W*0.45,c:'rgba(6,182,212,0.12)' },
+        { x:W*0.5, y:H*0.8, r:W*0.45,c:'rgba(6,182,212,0.12)'  },
       ];
       for (const b of blobs) {
         const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
@@ -4223,8 +4295,17 @@
         ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
       }
     } else {
-      // Solid colour fallback
       ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    }
+
+    // Background brightness overlay
+    if (bgBrightness !== 100) {
+      if (bgBrightness < 100) {
+        ctx.fillStyle = `rgba(0,0,0,${(100 - bgBrightness) / 100 * 0.72})`;
+      } else {
+        ctx.fillStyle = `rgba(255,255,255,${(bgBrightness - 100) / 100 * 0.52})`;
+      }
+      ctx.fillRect(0, 0, W, H);
     }
   }
 
@@ -4256,8 +4337,9 @@
     const canvas = document.getElementById('enhancer-canvas');
     if (!canvas || !enhancerOriginalImg) return;
     const ctx = canvas.getContext('2d');
-    const { brightness, contrast, saturation, sharpness } = enhancerGetFilters();
-    const shadow = parseFloat(document.getElementById('adj-shadow')?.value || 0);
+    const { brightness, contrast, saturation, sharpness, warmth, scale, bgBrightness } = enhancerGetFilters();
+    const shadow   = parseFloat(document.getElementById('adj-shadow')?.value   || 0);
+    const vignette = parseFloat(document.getElementById('adj-vignette')?.value || 0);
     const W = enhancerOriginalImg.naturalWidth;
     const H = enhancerOriginalImg.naturalHeight;
     canvas.width  = W;
@@ -4265,39 +4347,99 @@
 
     const doComposite = (subjectImg) => {
       // 1. Draw background
-      enhancerDrawBackground(ctx, W, H);
+      enhancerDrawBackground(ctx, W, H, bgBrightness);
 
-      // 2. Build CSS filter (brightness/contrast/saturation only — no broken SVG refs)
+      // 2. CSS filter string
       const filterStr = `brightness(${brightness}) contrast(${contrast}) saturate(${saturation})`;
 
-      // 3. Draw subject — with shadow and filters applied correctly in all paths
-      if (shadow > 0 && enhancerCurrentBg !== 'transparent') {
+      // 3. Product-shot layout when bg has been removed
+      const useProdShot = enhancerUseBgRemoved && enhancerRemovedBgB64 && enhancerCurrentBg !== 'transparent';
+
+      if (useProdShot) {
+        // Display style configuration
+        const DSTYLE = {
+          product: { scaleMult:1.00, yFrac:0.44, shadowTyp:null,    shadowMult:1.0  },
+          flat:    { scaleMult:1.12, yFrac:0.50, shadowTyp:'floor',  shadowMult:0.45 },
+          ghost:   { scaleMult:1.02, yFrac:0.30, shadowTyp:'drop',   shadowMult:1.2  },
+          fill:    { scaleMult:1.22, yFrac:0.50, shadowTyp:'none',   shadowMult:0.0  },
+        };
+        const dc = DSTYLE[enhancerDisplayStyle] || DSTYLE.product;
+        const effShadowType = dc.shadowTyp !== null ? dc.shadowTyp : enhancerShadowType;
+        const effShadow     = shadow * dc.shadowMult;
+
+        const itemW  = W * (scale / 100) * dc.scaleMult * 0.94;
+        const aspect = subjectImg.naturalHeight / subjectImg.naturalWidth;
+        const itemH  = itemW * aspect;
+        const itemX  = (W - itemW) / 2;
+        const itemY  = Math.max(H * 0.02, (H - itemH) * dc.yFrac);
+
+        // Floor shadow — flat ellipse beneath item
+        if (effShadow > 0 && effShadowType === 'floor') {
+          const ex  = itemX + itemW / 2;
+          const ey  = itemY + itemH * 0.97;
+          const erx = itemW * 0.38;
+          const scY = Math.max(H * 0.018, itemH * 0.045) / erx;
+          const sa  = (effShadow / 100) * 0.58;
+          const sg  = ctx.createRadialGradient(ex, ey / scY, 0, ex, ey / scY, erx);
+          sg.addColorStop(0,   `rgba(0,0,0,${sa})`);
+          sg.addColorStop(0.5, `rgba(0,0,0,${sa * 0.4})`);
+          sg.addColorStop(1,   'rgba(0,0,0,0)');
+          ctx.save();
+          ctx.scale(1, scY);
+          ctx.fillStyle = sg;
+          ctx.beginPath();
+          ctx.arc(ex, ey / scY, erx, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // Draw item
         ctx.save();
-        ctx.filter        = filterStr;
-        ctx.shadowColor   = `rgba(0,0,0,${(shadow / 100) * 0.55})`;
-        ctx.shadowBlur    = shadow * 3.5;
-        ctx.shadowOffsetX = shadow * 0.3;
-        ctx.shadowOffsetY = shadow * 1.0;
-        ctx.drawImage(subjectImg, 0, 0, W, H);
+        ctx.filter = filterStr;
+        if (effShadow > 0 && effShadowType === 'drop') {
+          ctx.shadowColor   = `rgba(0,0,0,${(effShadow / 100) * 0.55})`;
+          ctx.shadowBlur    = effShadow * 3.2;
+          ctx.shadowOffsetX = effShadow * 0.2;
+          ctx.shadowOffsetY = effShadow * 0.85;
+        }
+        ctx.drawImage(subjectImg, itemX, itemY, itemW, itemH);
         ctx.restore();
         ctx.filter = 'none';
+
+        // Warmth applied to item bounding box only
+        if (warmth !== 0) {
+          enhancerApplyWarmth(ctx, Math.floor(itemX), Math.floor(itemY), Math.ceil(itemW), Math.ceil(itemH), warmth);
+        }
+
       } else {
-        ctx.filter = filterStr;
-        ctx.drawImage(subjectImg, 0, 0, W, H);
-        ctx.filter = 'none';
+        // Full-frame mode
+        if (shadow > 0 && enhancerCurrentBg !== 'transparent') {
+          ctx.save();
+          ctx.filter        = filterStr;
+          ctx.shadowColor   = `rgba(0,0,0,${(shadow / 100) * 0.55})`;
+          ctx.shadowBlur    = shadow * 3.5;
+          ctx.shadowOffsetX = shadow * 0.3;
+          ctx.shadowOffsetY = shadow * 1.0;
+          ctx.drawImage(subjectImg, 0, 0, W, H);
+          ctx.restore();
+          ctx.filter = 'none';
+        } else {
+          ctx.filter = filterStr;
+          ctx.drawImage(subjectImg, 0, 0, W, H);
+          ctx.filter = 'none';
+        }
+        if (warmth !== 0) enhancerApplyWarmth(ctx, 0, 0, W, H, warmth);
       }
 
-      // 4. Apply sharpness via pixel manipulation (unsharp mask)
+      // Sharpness (unsharp mask)
       if (sharpness > 0) enhancerApplySharpness(ctx, W, H, sharpness);
 
-      // 5. Vignette overlay
-      const vignette = parseFloat(document.getElementById('adj-vignette')?.value || 0);
+      // Vignette
       if (vignette > 0) {
         const vg = ctx.createRadialGradient(W*0.5, H*0.5, Math.min(W,H)*0.3, W*0.5, H*0.5, Math.max(W,H)*0.75);
         vg.addColorStop(0, 'rgba(0,0,0,0)');
         vg.addColorStop(1, `rgba(0,0,0,${vignette / 100 * 0.85})`);
-        ctx.fillStyle = vg;
-        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
       }
     };
 
@@ -4310,42 +4452,60 @@
     }
   }
 
+  // Colour temperature shift applied to a canvas region
+  function enhancerApplyWarmth(ctx, x, y, w, h, amount) {
+    if (amount === 0 || w <= 0 || h <= 0) return;
+    try {
+      const imgData = ctx.getImageData(x, y, w, h);
+      const d = imgData.data;
+      const norm = amount / 60; // −1 (cool) → +1 (warm)
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i+3] < 8) continue; // skip transparent pixels
+        if (norm > 0) {
+          d[i]   = Math.min(255, d[i]   + norm * 28);  // boost red
+          d[i+1] = Math.min(255, d[i+1] + norm * 10);  // slight green
+          d[i+2] = Math.max(0,   d[i+2] - norm * 20);  // reduce blue
+        } else {
+          const abs = -norm;
+          d[i]   = Math.max(0,   d[i]   - abs * 22);   // reduce red
+          d[i+1] = Math.min(255, d[i+1] + abs *  6);   // slight green
+          d[i+2] = Math.min(255, d[i+2] + abs * 24);   // boost blue
+        }
+      }
+      ctx.putImageData(imgData, x, y);
+    } catch (e) { console.warn('[enhancer] warmth failed:', e.message); }
+  }
+
   async function enhancerRemoveBg() {
     if (!enhancerOriginalImg) return;
     const loadEl   = document.getElementById('enhancer-loading');
     const statusEl = document.getElementById('enhancer-status');
+    const msgEl    = document.getElementById('enhancer-loading-msg');
     const btn      = document.getElementById('enhancer-remove-bg-btn');
     loadEl.style.display = 'flex';
+    if (msgEl) msgEl.textContent = 'Removing background…';
     if (statusEl) statusEl.style.display = 'none';
-    if (btn)      btn.disabled = true;
+    if (btn) btn.disabled = true;
     try {
-      const { data: { session } } = await sb.auth.getSession();
-      if (!session) { alert('Session expired — please refresh.'); return; }
-      const canvas2 = document.createElement('canvas');
-      canvas2.width  = enhancerOriginalImg.naturalWidth;
-      canvas2.height = enhancerOriginalImg.naturalHeight;
-      canvas2.getContext('2d').drawImage(enhancerOriginalImg, 0, 0);
-      const b64 = canvas2.toDataURL('image/png').split(',')[1];
-      const res = await fetch(`${BOT_API}/api/photo/enhance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ image: b64 }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.ok) throw new Error(json.error || 'Background removal failed');
-      enhancerRemovedBgB64 = `data:${json.mimeType || 'image/png'};base64,${json.image}`;
-      enhancerUseBgRemoved = true;
-      enhancerComposite();
-      if (statusEl) { statusEl.textContent = '✓ Background removed — choose a backdrop below.'; statusEl.style.display = ''; setTimeout(() => { statusEl.style.display = 'none'; }, 5000); }
-    } catch (err) {
-      const statusEl2 = document.getElementById('enhancer-status');
-      if (statusEl2) {
-        statusEl2.textContent = '✕ ' + err.message;
-        statusEl2.style.background = 'rgba(248,113,113,0.07)';
-        statusEl2.style.borderColor = 'rgba(248,113,113,0.2)';
-        statusEl2.style.color = '#f87171';
-        statusEl2.style.display = '';
-        setTimeout(() => { statusEl2.style.display = 'none'; statusEl2.style.background = ''; statusEl2.style.borderColor = ''; statusEl2.style.color = ''; }, 6000);
+      // Try client-side WASM removal first (no API key required)
+      await enhancerRemoveBgClientSide(msgEl);
+    } catch (clientErr) {
+      console.warn('[enhancer] client-side bg removal failed, trying server:', clientErr.message);
+      // Fall back to server API (requires REMOVE_BG_API_KEY on Railway)
+      try {
+        await enhancerRemoveBgServer(msgEl);
+      } catch (serverErr) {
+        if (statusEl) {
+          statusEl.textContent = '✕ ' + serverErr.message;
+          statusEl.style.background    = 'rgba(248,113,113,0.07)';
+          statusEl.style.borderColor   = 'rgba(248,113,113,0.2)';
+          statusEl.style.color         = '#f87171';
+          statusEl.style.display       = '';
+          setTimeout(() => {
+            statusEl.style.display = 'none';
+            statusEl.style.background = ''; statusEl.style.borderColor = ''; statusEl.style.color = '';
+          }, 7000);
+        }
       }
     } finally {
       loadEl.style.display = 'none';
@@ -4353,13 +4513,93 @@
     }
   }
 
+  async function enhancerRemoveBgClientSide(msgEl) {
+    // Convert image to PNG blob
+    const c = document.createElement('canvas');
+    c.width  = enhancerOriginalImg.naturalWidth;
+    c.height = enhancerOriginalImg.naturalHeight;
+    c.getContext('2d').drawImage(enhancerOriginalImg, 0, 0);
+    const blob = await new Promise(resolve => c.toBlob(resolve, 'image/png'));
+
+    if (msgEl) msgEl.textContent = 'Loading removal model…';
+
+    // Dynamic import — model weights cache in IndexedDB after first download (~20 MB)
+    const { removeBackground } = await import(
+      'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/dist/browser/index.mjs'
+    );
+
+    const resultBlob = await removeBackground(blob, {
+      model: 'medium',
+      output: { format: 'image/png', quality: 0.95 },
+      progress: (key, current, total) => {
+        if (msgEl && key.startsWith('fetch') && total > 0) {
+          const pct = Math.round((current / total) * 100);
+          msgEl.textContent = `Downloading model… ${pct}%`;
+        } else if (msgEl && key === 'compute') {
+          msgEl.textContent = 'Analysing image…';
+        }
+      },
+    });
+
+    // Convert result blob to data URL
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = e => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(resultBlob);
+    });
+
+    enhancerRemovedBgB64 = dataUrl;
+    enhancerUseBgRemoved = true;
+    enhancerComposite();
+
+    const statusEl = document.getElementById('enhancer-status');
+    if (statusEl) {
+      statusEl.textContent = '✓ Background removed — choose a backdrop and display style below.';
+      statusEl.style.background = ''; statusEl.style.borderColor = ''; statusEl.style.color = '';
+      statusEl.style.display = '';
+      setTimeout(() => { statusEl.style.display = 'none'; }, 5000);
+    }
+  }
+
+  async function enhancerRemoveBgServer(msgEl) {
+    if (msgEl) msgEl.textContent = 'Removing background via server…';
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) throw new Error('Session expired — please refresh.');
+
+    const canvas2 = document.createElement('canvas');
+    canvas2.width  = enhancerOriginalImg.naturalWidth;
+    canvas2.height = enhancerOriginalImg.naturalHeight;
+    canvas2.getContext('2d').drawImage(enhancerOriginalImg, 0, 0);
+    const b64 = canvas2.toDataURL('image/png').split(',')[1];
+
+    const res = await fetch(`${BOT_API}/api/photo/enhance`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ image: b64 }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.ok) throw new Error(json.error || 'Background removal failed');
+
+    enhancerRemovedBgB64 = `data:${json.mimeType || 'image/png'};base64,${json.image}`;
+    enhancerUseBgRemoved = true;
+    enhancerComposite();
+
+    const statusEl = document.getElementById('enhancer-status');
+    if (statusEl) {
+      statusEl.textContent = '✓ Background removed — choose a backdrop and display style below.';
+      statusEl.style.display = '';
+      setTimeout(() => { statusEl.style.display = 'none'; }, 5000);
+    }
+  }
+
   const ENHANCER_PRESETS = {
-    clean:   { brightness:118, contrast:108, saturation:108, sharpness:1,   shadow:18, vignette:0,  bg:'white-studio',  label:'Clean & Bright' },
-    luxury:  { brightness:105, contrast:122, saturation:112, sharpness:1.5, shadow:32, vignette:20, bg:'marble',        label:'Luxury Studio' },
-    street:  { brightness:100, contrast:128, saturation:122, sharpness:2,   shadow:28, vignette:35, bg:'concrete',      label:'Street / Urban' },
-    warm:    { brightness:108, contrast:112, saturation:128, sharpness:1,   shadow:22, vignette:12, bg:'wood',          label:'Warm Editorial' },
-    minimal: { brightness:120, contrast:104, saturation:100, sharpness:0.5, shadow:14, vignette:0,  bg:'white-studio',  label:'Minimal White' },
-    dark:    { brightness:98,  contrast:130, saturation:118, sharpness:1.5, shadow:40, vignette:45, bg:'studio-dark',   label:'Bold Dark' },
+    clean:   { brightness:122, contrast:110, saturation:108, sharpness:1,   shadow:20, vignette:0,  bg:'white-studio', warmth: 5, scale:82, bgBrightness:104, shadowType:'floor', displayStyle:'product', label:'Clean & Bright' },
+    luxury:  { brightness:108, contrast:122, saturation:112, sharpness:1.5, shadow:38, vignette:12, bg:'marble',       warmth: 8, scale:80, bgBrightness: 95, shadowType:'floor', displayStyle:'product', label:'Luxury Studio'  },
+    street:  { brightness:100, contrast:130, saturation:125, sharpness:2,   shadow:30, vignette:35, bg:'concrete',     warmth: 0, scale:88, bgBrightness: 86, shadowType:'drop',  displayStyle:'ghost',   label:'Street / Urban' },
+    warm:    { brightness:110, contrast:112, saturation:130, sharpness:1,   shadow:24, vignette:10, bg:'wood',         warmth:30, scale:82, bgBrightness:100, shadowType:'floor', displayStyle:'product', label:'Warm Editorial' },
+    minimal: { brightness:124, contrast:104, saturation: 95, sharpness:0.5, shadow:12, vignette:0,  bg:'white-studio', warmth: 0, scale:90, bgBrightness:108, shadowType:'floor', displayStyle:'flat',    label:'Minimal White'  },
+    dark:    { brightness: 96, contrast:132, saturation:120, sharpness:1.5, shadow:44, vignette:45, bg:'studio-dark',  warmth:-8, scale:82, bgBrightness: 80, shadowType:'drop',  displayStyle:'ghost',   label:'Bold Dark'      },
   };
 
   function enhancerSetSliders(p) {
@@ -4367,12 +4607,18 @@
       const el = document.getElementById(id); const disp = document.getElementById(id+'-val');
       if (el) el.value = val; if (disp) disp.textContent = val + suffix;
     };
-    set('adj-brightness', p.brightness);
-    set('adj-contrast',   p.contrast);
-    set('adj-saturation', p.saturation);
-    set('adj-sharpness',  p.sharpness, '');
-    set('adj-shadow',     p.shadow);
-    set('adj-vignette',   p.vignette);
+    set('adj-brightness',    p.brightness   ?? 100);
+    set('adj-contrast',      p.contrast     ?? 100);
+    set('adj-saturation',    p.saturation   ?? 100);
+    set('adj-sharpness',     p.sharpness    ?? 0, '');
+    set('adj-warmth',        p.warmth       ?? 0, '');
+    set('adj-scale',         p.scale        ?? 82);
+    set('adj-shadow',        p.shadow       ?? 18);
+    set('adj-bg-brightness', p.bgBrightness ?? 100);
+    set('adj-vignette',      p.vignette     ?? 0);
+    if (p.shadowType)    enhancerSetShadowType(p.shadowType);
+    if (p.bg)            enhancerSelectBg(p.bg);
+    if (p.displayStyle)  enhancerSetDisplayStyle(p.displayStyle);
   }
 
   function enhancerSelectBg(bgKey) {
@@ -4385,8 +4631,7 @@
   function enhancerApplyPreset(name) {
     if (!enhancerOriginalImg) { alert('Upload a photo first.'); return; }
     const p = ENHANCER_PRESETS[name]; if (!p) return;
-    enhancerSetSliders(p);
-    enhancerSelectBg(p.bg);
+    enhancerSetSliders(p); // sets bg and shadowType too
     enhancerComposite();
     if (!enhancerUseBgRemoved) enhancerRemoveBg();
   }
@@ -4403,78 +4648,214 @@
     const btn      = document.getElementById('enhancer-instruct-btn');
     const resultEl = document.getElementById('enhancer-instruct-result');
     btn.disabled   = true;
-    btn.textContent = 'Asking Claude…';
+    btn.innerHTML  = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="animation:spin 1s linear infinite;margin-right:5px;flex-shrink:0;"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> Applying…';
     if (resultEl) { resultEl.style.display = 'none'; resultEl.textContent = ''; }
+
+    let appliedViaServer = false;
 
     try {
       const { data: { session } } = await sb.auth.getSession();
-      if (!session) { window.location.href = 'vendora-login.html'; return; }
+      if (session) {
+        const thumb = document.createElement('canvas');
+        const ts = Math.min(1, 800 / Math.max(enhancerOriginalImg.naturalWidth, enhancerOriginalImg.naturalHeight));
+        thumb.width  = Math.round(enhancerOriginalImg.naturalWidth  * ts);
+        thumb.height = Math.round(enhancerOriginalImg.naturalHeight * ts);
+        thumb.getContext('2d').drawImage(enhancerOriginalImg, 0, 0, thumb.width, thumb.height);
+        const b64 = thumb.toDataURL('image/jpeg', 0.75).split(',')[1];
 
-      // Send thumbnail for faster AI analysis
-      const thumb = document.createElement('canvas');
-      const scale = Math.min(1, 800 / Math.max(enhancerOriginalImg.naturalWidth, enhancerOriginalImg.naturalHeight));
-      thumb.width  = Math.round(enhancerOriginalImg.naturalWidth  * scale);
-      thumb.height = Math.round(enhancerOriginalImg.naturalHeight * scale);
-      thumb.getContext('2d').drawImage(enhancerOriginalImg, 0, 0, thumb.width, thumb.height);
-      const b64 = thumb.toDataURL('image/jpeg', 0.75).split(',')[1];
-
-      const res = await fetch(`${BOT_API}/api/photo/instruct`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ image: b64, instructions }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.ok) throw new Error(json.error || 'AI suggestions failed');
-
-      const s = json.settings;
-      enhancerSetSliders(s);
-      if (s.bg) enhancerSelectBg(s.bg);
-      enhancerComposite();
-      if (s.removeBg && !enhancerUseBgRemoved) enhancerRemoveBg();
-
-      if (resultEl) {
-        resultEl.textContent = json.message || `Applied: brightness ${s.brightness}%, contrast ${s.contrast}%, ${s.bg} background.`;
-        resultEl.style.display = '';
-        resultEl.style.background = 'rgba(74,222,128,0.06)';
-        resultEl.style.borderColor = 'rgba(74,222,128,0.15)';
-        resultEl.style.color = 'var(--muted2)';
+        const res = await fetch(`${BOT_API}/api/photo/instruct`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ image: b64, instructions }),
+        });
+        const json = await res.json();
+        if (res.ok && json.ok) {
+          const s = json.settings;
+          enhancerSetSliders(s);
+          if (s.bg) enhancerSelectBg(s.bg);
+          if (s.displayStyle) enhancerSetDisplayStyle(s.displayStyle);
+          enhancerComposite();
+          if (s.removeBg && !enhancerUseBgRemoved) enhancerRemoveBg();
+          if (resultEl) {
+            resultEl.textContent = json.message || 'Applied Claude\'s suggestions.';
+            resultEl.style.display = '';
+            resultEl.style.background = 'rgba(74,222,128,0.06)';
+            resultEl.style.borderColor = 'rgba(74,222,128,0.15)';
+            resultEl.style.color = 'var(--muted2)';
+          }
+          appliedViaServer = true;
+        }
       }
     } catch (e) {
+      console.warn('[enhancer] server instructions unavailable:', e.message);
+    }
+
+    if (!appliedViaServer) {
+      // Local NLP fallback — works without any API key
+      const s = enhancerLocalInstructParse(instructions);
+      enhancerSetSliders(s);
+      if (s.bg)           enhancerSelectBg(s.bg);
+      if (s.displayStyle) enhancerSetDisplayStyle(s.displayStyle);
+      enhancerComposite();
+      const detected = [
+        s.bg           ? s.bg.replace(/-/g,' ') + ' background' : '',
+        s.displayStyle ? s.displayStyle + ' style'             : '',
+        s.warmth > 10  ? 'warm tones'  : s.warmth < -10 ? 'cool tones' : '',
+        s.contrast > 115 ? 'high contrast' : '',
+        s.brightness > 115 ? 'brightened' : s.brightness < 90 ? 'darkened' : '',
+        s.shadow > 30 ? 'deep shadow' : '',
+      ].filter(Boolean).join(', ');
       if (resultEl) {
-        resultEl.textContent = '✕ ' + e.message;
+        resultEl.textContent = `Applied locally${detected ? ': ' + detected : ''}.`;
         resultEl.style.display = '';
-        resultEl.style.background = 'rgba(248,113,113,0.07)';
-        resultEl.style.borderColor = 'rgba(248,113,113,0.2)';
-        resultEl.style.color = '#f87171';
+        resultEl.style.background = 'rgba(232,161,33,0.06)';
+        resultEl.style.borderColor = 'rgba(232,161,33,0.2)';
+        resultEl.style.color = 'var(--gold)';
       }
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg> Apply AI Suggestions`;
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg> Apply AI Suggestions`;
+  }
+
+  function enhancerLocalInstructParse(text) {
+    const t = text.toLowerCase();
+    const s = { brightness:100, contrast:100, saturation:100, sharpness:0, warmth:0, scale:82,
+                shadow:18, bgBrightness:100, vignette:0, bg:null, shadowType:null, displayStyle:null };
+    // Brightness
+    if (/\b(bright|lighter|light|airy)\b/.test(t))                           s.brightness = Math.min(200, s.brightness + 22);
+    if (/\b(dark|darker|moody|dramatic)\b/.test(t) && !/background/.test(t)) s.brightness = Math.max(0,   s.brightness - 18);
+    // Contrast
+    if (/\b(contrast|crisp|pop|bold|punchy|vivid)\b/.test(t))                s.contrast   = Math.min(200, s.contrast + 24);
+    if (/\b(soft|matte|low contrast|subtle)\b/.test(t))                      s.contrast   = Math.max(0,   s.contrast - 18);
+    // Saturation
+    if (/\b(vibrant|saturate|colou?rful|rich)\b/.test(t))                    s.saturation = Math.min(200, s.saturation + 26);
+    if (/\b(desaturate|muted|neutral|grey tones?|gray tones?)\b/.test(t))    s.saturation = Math.max(0,   s.saturation - 28);
+    // Warmth
+    if (/\b(warm|golden|amber|honey|autumn|sunset)\b/.test(t))               s.warmth = 32;
+    if (/\b(cool|cold|icy|winter|blue tones?|fresh)\b/.test(t))              s.warmth = -28;
+    // Sharpness
+    if (/\b(sharp|crisp|defined|detail)\b/.test(t))                          s.sharpness = 2;
+    // Scale
+    if (/\b(large|big|close.?up|fills? frame)\b/.test(t))                    s.scale = 92;
+    if (/\b(small|tiny|minimal space)\b/.test(t))                            s.scale = 70;
+    // Shadow
+    if (/\b(shadow|depth|dimension)\b/.test(t) && !/no shadow/.test(t))      s.shadow = 36;
+    if (/no shadow|shadowless/.test(t))                                       s.shadow = 0;
+    // Vignette
+    if (/\b(vignette|dark edges?|framed?)\b/.test(t))                        s.vignette = 35;
+    // Background detection (ordered most-specific to least)
+    if      (/\b(marble|luxury stone|italian marble)\b/.test(t))             s.bg = 'marble';
+    else if (/\b(soft grey|soft gray|light grey|light gray)\b/.test(t))      s.bg = 'soft-grey';
+    else if (/\b(cream|beige|warm white)\b/.test(t))                         s.bg = 'cream';
+    else if (/\b(sage|botanical|green tone)\b/.test(t))                      s.bg = 'sage';
+    else if (/\b(linen|fabric texture|woven)\b/.test(t))                     s.bg = 'linen';
+    else if (/\b(wood|oak|timber|rustic)\b/.test(t))                         s.bg = 'wood';
+    else if (/\b(concrete|urban|street|gritty)\b/.test(t))                   s.bg = 'concrete';
+    else if (/\b(dark studio|studio dark|black studio)\b/.test(t))           s.bg = 'studio-dark';
+    else if (/\b(navy|dark blue)\b/.test(t))                                  s.bg = 'navy';
+    else if (/\b(blush|rose|pink bg|pink background)\b/.test(t))             s.bg = 'blush';
+    else if (/\b(white|clean|bright|depop|vinted|ebay)\b/.test(t) && !/dark/.test(t)) s.bg = 'white-studio';
+    else if (/\b(dark|black)\b.*\b(background|bg|backdrop)\b/.test(t))       s.bg = 'studio-dark';
+    // Display style
+    if      (/\b(flat.?lay|flatlay|laid flat|top.?down)\b/.test(t))          s.displayStyle = 'flat';
+    else if (/\b(ghost|invisible mannequin|float)\b/.test(t))                s.displayStyle = 'ghost';
+    else if (/\b(fill|full.?frame|edge to edge)\b/.test(t))                  s.displayStyle = 'fill';
+    else if (/\b(product shot|centred|centered)\b/.test(t))                  s.displayStyle = 'product';
+    // Shadow style override
+    if (/floor shadow|ground shadow/.test(t))                                 s.shadowType = 'floor';
+    if (/drop shadow/.test(t))                                                s.shadowType = 'drop';
+    return s;
+  }
+
+  function enhancerSwitchTab(tab) {
+    const itemPanel = document.getElementById('adj-panel-item');
+    const bgPanel   = document.getElementById('adj-panel-bg');
+    const itemBtn   = document.getElementById('adj-tab-item');
+    const bgBtn     = document.getElementById('adj-tab-bg');
+    if (tab === 'item') {
+      if (itemPanel) itemPanel.style.display = 'flex';
+      if (bgPanel)   bgPanel.style.display   = 'none';
+      if (itemBtn) { itemBtn.style.background = 'var(--pink)'; itemBtn.style.color = '#fff'; }
+      if (bgBtn)   { bgBtn.style.background   = 'var(--bg3)';  bgBtn.style.color   = 'var(--muted2)'; }
+    } else {
+      if (itemPanel) itemPanel.style.display = 'none';
+      if (bgPanel)   bgPanel.style.display   = 'flex';
+      if (bgBtn)   { bgBtn.style.background   = 'var(--pink)'; bgBtn.style.color   = '#fff'; }
+      if (itemBtn) { itemBtn.style.background = 'var(--bg3)';  itemBtn.style.color = 'var(--muted2)'; }
     }
   }
 
+  function enhancerSetShadowType(type) {
+    enhancerShadowType = type;
+    ['floor','drop','none'].forEach(t => {
+      const btn = document.getElementById(`shadow-type-${t}`);
+      if (!btn) return;
+      if (t === type) {
+        btn.style.background  = 'rgba(232,33,122,0.12)';
+        btn.style.borderColor = 'var(--pink)';
+        btn.style.color       = 'var(--pink)';
+      } else {
+        btn.style.background  = 'rgba(255,255,255,0.03)';
+        btn.style.borderColor = 'var(--border-dim)';
+        btn.style.color       = 'var(--muted2)';
+      }
+    });
+    enhancerComposite();
+  }
+
+  function enhancerSetDisplayStyle(style) {
+    enhancerDisplayStyle = style;
+    ['product','flat','ghost','fill'].forEach(s => {
+      const btn = document.getElementById(`dstyle-${s}`);
+      if (!btn) return;
+      if (s === style) {
+        btn.style.border     = '2px solid var(--pink)';
+        btn.style.background = 'rgba(232,33,122,0.08)';
+      } else {
+        btn.style.border     = '1px solid var(--border-dim)';
+        btn.style.background = 'rgba(255,255,255,0.03)';
+      }
+    });
+    enhancerComposite();
+  }
+
+  function enhancerQuickPrompt(text) {
+    const ta = document.getElementById('enhancer-instructions');
+    if (ta) { ta.value = text; ta.focus(); }
+  }
+
   function enhancerReset() {
-    enhancerRemovedBgB64 = null;
-    enhancerUseBgRemoved = false;
-    enhancerViewMode     = 'after';
+    enhancerRemovedBgB64   = null;
+    enhancerUseBgRemoved   = false;
+    enhancerViewMode       = 'after';
+    enhancerShadowType     = 'floor';
+    enhancerDisplayStyle   = 'product';
     enhancerShowMode('after');
     enhancerResetSliders();
     enhancerSelectBg('white-studio');
     enhancerCurrentBg = 'white-studio';
+    enhancerSetShadowType('floor');
+    enhancerSetDisplayStyle('product');
     enhancerComposite();
   }
 
   function enhancerResetSliders() {
-    const setSlider = (id, val, suffix = '%') => {
+    const set = (id, val, suffix = '%') => {
       const el = document.getElementById(id); const disp = document.getElementById(id+'-val');
       if (el)   el.value = val;
       if (disp) disp.textContent = val + suffix;
     };
-    setSlider('adj-brightness', 100);
-    setSlider('adj-contrast',   100);
-    setSlider('adj-saturation', 100);
-    setSlider('adj-sharpness',  0, '');
-    setSlider('adj-shadow',     0);
+    set('adj-brightness',    100);
+    set('adj-contrast',      100);
+    set('adj-saturation',    100);
+    set('adj-sharpness',     0, '');
+    set('adj-warmth',        0, '');
+    set('adj-scale',         82);
+    set('adj-shadow',        18);
+    set('adj-bg-brightness', 100);
+    set('adj-vignette',      0);
+    enhancerSetShadowType('floor');
     enhancerComposite();
   }
 
