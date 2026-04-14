@@ -399,6 +399,56 @@ async function webSearch(query, count = 5) {
   }
 }
 
+// ── Brave Image Search ────────────────────────────────────────────────────────
+async function braveImageSearch(query, count = 5) {
+  if (!BRAVE_KEY) return null;
+  try {
+    const res = await fetch(
+      `https://api.search.brave.com/res/v1/images/search?q=${encodeURIComponent(query)}&count=${count}&safesearch=off&country=gb`,
+      {
+        headers: { 'Accept': 'application/json', 'X-Subscription-Token': BRAVE_KEY },
+        signal: AbortSignal.timeout(8000),
+      }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.results || []).map(r => ({
+      title:    r.title || '',
+      imageUrl: r.thumbnail?.src || r.properties?.url || '',
+      pageUrl:  r.url || '',
+      source:   r.source || '',
+    }));
+  } catch (e) {
+    console.warn('[search] Brave image search failed:', e.message);
+    return null;
+  }
+}
+
+// ── Brave News Search ─────────────────────────────────────────────────────────
+async function braveNewsSearch(query, count = 4) {
+  if (!BRAVE_KEY) return null;
+  try {
+    const res = await fetch(
+      `https://api.search.brave.com/res/v1/news/search?q=${encodeURIComponent(query)}&count=${count}&country=gb`,
+      {
+        headers: { 'Accept': 'application/json', 'X-Subscription-Token': BRAVE_KEY },
+        signal: AbortSignal.timeout(8000),
+      }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.results || []).map(r => ({
+      title:       r.title || '',
+      description: r.description || '',
+      url:         r.url || '',
+      age:         r.age || '',
+    }));
+  } catch (e) {
+    console.warn('[search] Brave news search failed:', e.message);
+    return null;
+  }
+}
+
 function formatWebResults(results) {
   if (!results?.length) return '';
   return results.slice(0, 5).map(r =>
@@ -1057,43 +1107,101 @@ async function executeCommand(interaction, commandName, tier, profile) {
 
   if (commandName === 'research') {
     const item = opts.getString('item');
-    const [depopR, vintedR, ebayR, webR] = await Promise.all([
-      searchDepop(item), searchVinted(item), searchEbay(item),
-      webSearch(`${item} resale price UK site:depop.com OR site:vinted.co.uk OR site:ebay.co.uk`, 5),
+
+    // Fire all sources in parallel — platform scrapes, web searches, images, news
+    const [depopR, vintedR, priceWebR, sourcingWebR, newsR, imagesR] = await Promise.all([
+      searchDepop(item),
+      searchVinted(item),
+      webSearch(`${item} resale price UK sold`, 6),
+      webSearch(`${item} buy cheap source where to find UK`, 4),
+      braveNewsSearch(`${item} resale hype market 2025`, 4),
+      braveImageSearch(`${item}`, 6),
     ]);
 
+    // Build live price context from platform scrapes
     const extractP = (r) => (r || []).map(x => parseFloat((x.price || '').replace('£', ''))).filter(p => !isNaN(p) && p > 0);
-    const depopPrices = extractP(depopR), vintedPrices = extractP(vintedR), ebayPrices = extractP(ebayR);
-    const allPrices   = [...depopPrices, ...vintedPrices, ...ebayPrices].sort((a, b) => a - b);
+    const depopPrices = extractP(depopR), vintedPrices = extractP(vintedR);
+    const allPrices   = [...depopPrices, ...vintedPrices].sort((a, b) => a - b);
 
-    let liveCtx = 'No live data retrieved — using market knowledge.';
-    if (allPrices.length >= 3) {
-      const avg = (allPrices.reduce((a, b) => a + b, 0) / allPrices.length).toFixed(2);
-      const low = allPrices[0].toFixed(2), high = allPrices[allPrices.length - 1].toFixed(2);
+    let liveCtx = 'No live platform data scraped — use market knowledge.';
+    if (allPrices.length >= 2) {
+      const avg  = (allPrices.reduce((a, b) => a + b, 0) / allPrices.length).toFixed(2);
+      const low  = allPrices[0].toFixed(2), high = allPrices[allPrices.length - 1].toFixed(2);
       const dAvg = depopPrices.length  ? `£${(depopPrices.reduce((a,b)=>a+b,0)/depopPrices.length).toFixed(2)}`  : 'n/a';
       const vAvg = vintedPrices.length ? `£${(vintedPrices.reduce((a,b)=>a+b,0)/vintedPrices.length).toFixed(2)}` : 'n/a';
-      const eAvg = ebayPrices.length   ? `£${(ebayPrices.reduce((a,b)=>a+b,0)/ebayPrices.length).toFixed(2)}`    : 'n/a';
-      liveCtx = `LIVE DATA (${allPrices.length} listings scraped now):\n` +
-        `- Depop: ${depopPrices.length} listings, avg ${dAvg}\n` +
-        `- Vinted: ${vintedPrices.length} listings, avg ${vAvg}\n` +
-        `- eBay: ${ebayPrices.length} listings, avg ${eAvg}\n` +
-        `- Overall range: £${low}–£${high}, avg £${avg}\n\n` +
-        `Use this as your primary data source. Reference specific £ figures in your report.`;
+      liveCtx = `LIVE PLATFORM DATA (${allPrices.length} listings scraped right now):\n- Depop: ${depopPrices.length} listings, avg ${dAvg}\n- Vinted: ${vintedPrices.length} listings, avg ${vAvg}\n- Range: £${low}–£${high}, avg £${avg}`;
     }
 
-    const webCtx = webR?.length ? `\nWEB SEARCH RESULTS (latest context from the web):\n${formatWebResults(webR)}\n` : '';
+    const priceCtx   = priceWebR?.length   ? `\nWEB — PRICES & SOLD RESULTS:\n${priceWebR.map(r => `• ${r.title}: ${r.description?.slice(0,120)}`).join('\n')}`   : '';
+    const sourcingCtx = sourcingWebR?.length ? `\nWEB — SOURCING:\n${sourcingWebR.map(r => `• ${r.title}: ${r.description?.slice(0,100)}`).join('\n')}` : '';
+    const newsCtx    = newsR?.length        ? `\nRECENT NEWS:\n${newsR.map(r => `• ${r.title}${r.age ? ` (${r.age})` : ''}: ${r.description?.slice(0,100)}`).join('\n')}` : '';
 
-    const text = await callAI(
-      `You are Vendora's research engine. Provide a comprehensive UK resale research report grounded in the live data provided.\n\n${liveCtx}${webCtx}\n\nStructure:\n**Market Overview** — buy/sell price range with specific £ figures\n**Best Platforms** — where this sells best and why\n**Key Search Terms** — what to search for deals\n**Demand Level** — High/Medium/Low with reasoning\n**Margin Estimate** — specific buy price target, sell price, net profit after fees\n**Sourcing Tips** — 3 actionable tips`,
-      `Item: ${item}`,
-      'claude-sonnet-4-6', 1200
-    );
-    if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
-    const sources = [allPrices.length >= 3 ? `${allPrices.length} live listings` : null, webR?.length ? 'web search' : null].filter(Boolean);
-    const footer = sources.length ? `Sources: ${sources.join(' + ')}` : 'AI market knowledge — live data unavailable';
-    return interaction.editReply({ embeds: [
-      baseEmbed().setTitle(`Research Report — ${item}`).setDescription(text.slice(0, 4000)).setFooter({ text: footer })
-    ]});
+    // Pick first usable product image (https, likely a direct image URL)
+    const productImage = imagesR?.find(img => img.imageUrl?.startsWith('https'))?.imageUrl || null;
+
+    const systemPrompt = `You are Vendora's deep research engine for UK resellers. You have live scraped data, web search results, and news. Produce a comprehensive research report. Return ONLY valid JSON — no markdown, no explanation, just the JSON object:
+{
+  "overview": "2-3 sentences on what this item is, its resale market position, and why resellers care about it",
+  "priceAnalysis": "Detailed price breakdown with specific £ figures per platform. Cover budget/mid/premium tiers if relevant.",
+  "flipOpportunity": "Target buy price, which platform to sell on, estimated net profit after platform fees and £3.50 shipping. Include ROI %.",
+  "demandSignals": "How fast does this sell? What drives demand right now? Any upcoming drops, collabs, or seasonal factors?",
+  "whereToBuy": "Top 3-4 specific places to source this cheaply — charity shops, car boots, Facebook Marketplace, specific platform search terms, keywords to use.",
+  "watchOut": "Fakes to identify, condition issues that kill value, slow-moving variants or sizes, anything that hurts margins.",
+  "verdict": "One punchy sentence — is this worth flipping right now and why.",
+  "stats": {
+    "buyAt": "£XX",
+    "sellAt": "£XX–XX",
+    "margin": "£XX (XX%)",
+    "demand": "High / Medium / Low",
+    "risk": "Low / Medium / High"
+  }
+}`;
+
+    const userPrompt = `Item: ${item}\n\n${liveCtx}${priceCtx}${sourcingCtx}${newsCtx}`;
+
+    let report = null;
+    try {
+      const raw = await callAI(systemPrompt, userPrompt, 'claude-sonnet-4-6', 1600);
+      if (!raw) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (match) report = JSON.parse(match[0]);
+    } catch (e) {
+      console.error('[research] JSON parse failed:', e.message);
+    }
+
+    if (!report) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
+
+    const s = report.stats || {};
+    const sourceCount = allPrices.length + (priceWebR?.length || 0) + (newsR?.length || 0);
+
+    const mainEmbed = baseEmbed()
+      .setTitle(`🔍 Research Report — ${item}`)
+      .setDescription(
+        `**Overview**\n${(report.overview || '—').slice(0, 800)}\n\n` +
+        `**📊 Price Analysis**\n${(report.priceAnalysis || '—').slice(0, 900)}\n\n` +
+        `**💰 Flip Opportunity**\n${(report.flipOpportunity || '—').slice(0, 900)}`
+      )
+      .addFields(
+        { name: 'Buy At',  value: s.buyAt  || '—', inline: true },
+        { name: 'Sell At', value: s.sellAt || '—', inline: true },
+        { name: 'Margin',  value: s.margin || '—', inline: true },
+        { name: 'Demand',  value: s.demand || '—', inline: true },
+        { name: 'Risk',    value: s.risk   || '—', inline: true },
+      )
+      .setFooter({ text: `Vendora Research · ${sourceCount} sources · Depop + Vinted + Web + News` });
+
+    if (productImage) mainEmbed.setImage(productImage);
+
+    const detailEmbed = baseEmbed('#141414')
+      .setTitle('📋 Deep Dive')
+      .addFields(
+        { name: '📈 Demand Signals',   value: (report.demandSignals || '—').slice(0, 1020), inline: false },
+        { name: '🛒 Where to Source',  value: (report.whereToBuy   || '—').slice(0, 1020), inline: false },
+        { name: '⚠️ Watch Out For',    value: (report.watchOut     || '—').slice(0, 1020), inline: false },
+        { name: '✅ Verdict',           value: (report.verdict      || '—').slice(0, 1020), inline: false },
+      );
+
+    return interaction.editReply({ embeds: [mainEmbed, detailEmbed] });
   }
 
   if (commandName === 'margins') {
