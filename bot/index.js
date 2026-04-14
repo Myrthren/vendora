@@ -3102,6 +3102,26 @@ async function requireOwner(req, res) {
   return user;
 }
 
+// ── Discord channels — returns all text channels grouped by category ──────────
+app.get('/api/discord/channels', async (req, res) => {
+  if (!await requireOwner(req, res)) return;
+  try {
+    const guild = await client.guilds.fetch(GUILD_ID);
+    await guild.channels.fetch(); // ensure cache is populated
+    const channels = guild.channels.cache
+      .filter(c => c.type === ChannelType.GuildText)
+      .sort((a, b) => (a.rawPosition || 0) - (b.rawPosition || 0))
+      .map(c => ({
+        id:       c.id,
+        name:     c.name,
+        category: c.parent?.name || 'Uncategorised',
+      }));
+    return res.json({ ok: true, channels });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Admin: get bot config ─────────────────────────────────────────────────────
 app.get('/api/admin/config', async (req, res) => {
   if (!await requireOwner(req, res)) return;
@@ -3173,17 +3193,26 @@ app.post('/api/admin/announce/dm', async (req, res) => {
 // ── Admin: post to channel ────────────────────────────────────────────────────
 app.post('/api/admin/announce/channel', async (req, res) => {
   if (!await requireOwner(req, res)) return;
-  const { message, channel_name } = req.body || {};
+  const { message, channel_id, channel_name } = req.body || {};
   if (!message?.trim()) return res.status(400).json({ error: 'Message required' });
 
-  const targetName = (channel_name || 'use-vendora').replace(/^#/, '');
-
   try {
-    const guild   = await client.guilds.fetch(GUILD_ID);
-    const channel = guild.channels.cache.find(c => c.name === targetName && c.type === ChannelType.GuildText);
-    if (!channel) return res.status(404).json({ error: `Channel #${targetName} not found` });
+    const guild = await client.guilds.fetch(GUILD_ID);
+    await guild.channels.fetch();
+
+    let channel;
+    if (channel_id) {
+      // Prefer ID-based lookup — reliable even if channel is renamed
+      channel = guild.channels.cache.get(channel_id);
+    } else {
+      // Fallback: name-based lookup
+      const targetName = (channel_name || 'use-vendora').replace(/^#/, '');
+      channel = guild.channels.cache.find(c => c.name === targetName && c.type === ChannelType.GuildText);
+    }
+
+    if (!channel) return res.status(404).json({ error: 'Channel not found' });
     await channel.send(message);
-    res.json({ ok: true, channel: targetName });
+    res.json({ ok: true, channel: channel.name });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

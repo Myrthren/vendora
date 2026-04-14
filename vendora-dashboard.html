@@ -2192,8 +2192,10 @@
             <div class="announce-form">
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                 <div>
-                  <label class="form-label">Channel Name</label>
-                  <input id="channel-name" class="form-select" style="height:auto;padding:9px 14px;" placeholder="use-vendora" value="use-vendora">
+                  <label class="form-label">Channel</label>
+                  <select id="channel-select" class="form-select">
+                    <option value="">Loading channels…</option>
+                  </select>
                 </div>
               </div>
               <div>
@@ -2982,8 +2984,9 @@
     document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
     document.getElementById('admin-' + id).classList.add('active');
     if (el) el.classList.add('active');
-    if (id === 'bot')     adminLoadConfig();
-    if (id === 'pricing') adminLoadPricing();
+    if (id === 'bot')      adminLoadConfig();
+    if (id === 'pricing')  adminLoadPricing();
+    if (id === 'announce') loadDiscordChannels();
   }
 
   // ── Admin: Bot Config ────────────────────────────────────────────────────────
@@ -3092,14 +3095,47 @@
     btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Blast`;
   }
 
-  async function adminPostToChannel() {
-    const message      = document.getElementById('channel-message')?.value?.trim();
-    const channel_name = document.getElementById('channel-name')?.value?.trim() || 'use-vendora';
-    const msgEl        = document.getElementById('channel-msg');
-    const btn          = document.getElementById('channel-post-btn');
+  async function loadDiscordChannels() {
+    const sel = document.getElementById('channel-select');
+    if (!sel) return;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/discord/channels`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) { sel.innerHTML = '<option value="">Failed to load channels</option>'; return; }
+      const { channels } = await res.json();
+      if (!channels?.length) { sel.innerHTML = '<option value="">No channels found</option>'; return; }
 
-    if (!message) { showMsg(msgEl, 'error', 'Write a message first.'); return; }
-    if (!confirm(`Post to #${channel_name}?`)) return;
+      // Group by category
+      const grouped = {};
+      channels.forEach(c => {
+        if (!grouped[c.category]) grouped[c.category] = [];
+        grouped[c.category].push(c);
+      });
+
+      sel.innerHTML = Object.entries(grouped).map(([cat, chans]) =>
+        `<optgroup label="${cat}">${chans.map(c =>
+          `<option value="${c.id}">#${c.name}</option>`
+        ).join('')}</optgroup>`
+      ).join('');
+    } catch {
+      sel.innerHTML = '<option value="">Error loading channels</option>';
+    }
+  }
+
+  async function adminPostToChannel() {
+    const sel     = document.getElementById('channel-select');
+    const message = document.getElementById('channel-message')?.value?.trim();
+    const msgEl   = document.getElementById('channel-msg');
+    const btn     = document.getElementById('channel-post-btn');
+
+    const channel_id   = sel?.value;
+    const channel_name = sel?.options[sel.selectedIndex]?.text?.replace('#', '') || 'channel';
+
+    if (!channel_id) { showMsg(msgEl, 'error', 'Select a channel first.'); return; }
+    if (!message)    { showMsg(msgEl, 'error', 'Write a message first.'); return; }
+    if (!confirm(`Post to ${channel_name}?`)) return;
 
     btn.disabled = true; btn.textContent = 'Posting…';
 
@@ -3108,7 +3144,7 @@
       const res = await fetch(`${BOT_API}/api/admin/announce/channel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ message, channel_name }),
+        body: JSON.stringify({ message, channel_id }),
       });
       const json = await res.json();
       if (res.ok) {
@@ -3117,7 +3153,7 @@
       } else {
         showMsg(msgEl, 'error', json.error || 'Post failed.');
       }
-    } catch (e) { showMsg(msgEl, 'error', 'Network error.'); }
+    } catch { showMsg(msgEl, 'error', 'Network error.'); }
 
     btn.disabled = false; btn.textContent = 'Post to Channel';
   }
