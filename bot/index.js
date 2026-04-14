@@ -69,7 +69,6 @@ const RATE_LIMITS = {
   scan:      { basic: 5,  pro: 50,  elite: Infinity },
   reply:     { basic: 20, pro: 100, elite: Infinity },
   research:  { basic: 3,  pro: 20,  elite: Infinity },
-  crosslist: { basic: 5,  pro: 30,  elite: Infinity },
   flip:      { basic: 0,  pro: 0,   elite: 20       },
   default:   { basic: 10, pro: 50,  elite: Infinity },
 };
@@ -77,11 +76,11 @@ const CMD_RATE_GROUP = {
   scan: 'scan', research: 'research', margins: 'research',
   sold: 'research', competitor: 'research', trends: 'research',
   reply: 'reply', lowball: 'reply', price: 'reply',
-  crosslist: 'crosslist', pricedrop: 'crosslist',
+  pricedrop: 'default',
   flip: 'flip',
 };
 const CMD_TIER_REQUIRED = {
-  scan: 'pro', research: 'pro', margins: 'pro', crosslist: 'pro',
+  scan: 'pro', research: 'pro', margins: 'pro',
   pricedrop: 'pro', trends: 'pro', tracker: 'pro', sold: 'pro', competitor: 'pro',
   flip: 'elite', analytics: 'elite', earlydeals: 'elite',
   negotiate: 'elite', authenticate: 'elite', grade: 'elite',
@@ -555,18 +554,6 @@ const commands = [
     .addStringOption(o => o.setName('item').setDescription('Item to research').setRequired(true)),
   new SlashCommandBuilder().setName('margins').setDescription('Detailed profit margin breakdown [Pro+]')
     .addStringOption(o => o.setName('item').setDescription('Item to analyse').setRequired(true)),
-  new SlashCommandBuilder().setName('crosslist').setDescription('Generate optimised copy-ready listings for Depop, Vinted & eBay [Pro+]')
-    .addStringOption(o => o.setName('item').setDescription('Item name (e.g. Nike Air Max 90 White UK9)').setRequired(true))
-    .addStringOption(o => o.setName('description').setDescription('Extra details — size, colour, defects etc.').setRequired(false))
-    .addNumberOption(o => o.setName('price').setDescription('Your asking price in £').setRequired(false))
-    .addStringOption(o => o.setName('condition').setDescription('Item condition').setRequired(false)
-      .addChoices(
-        { name: 'New with tags', value: 'New with tags' },
-        { name: 'Like New', value: 'Like New' },
-        { name: 'Very Good', value: 'Very Good' },
-        { name: 'Good', value: 'Good' },
-        { name: 'Acceptable', value: 'Acceptable' }
-      )),
   new SlashCommandBuilder().setName('pricedrop').setDescription('Set a price drop watchlist alert [Pro+]')
     .addStringOption(o => o.setName('item').setDescription('Item to watch').setRequired(true)),
   new SlashCommandBuilder().setName('trends').setDescription('Current brand/category trend report [Pro+]')
@@ -697,7 +684,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
   // /help
   if (commandName === 'help') {
     const allCmds   = '`/reply` `//lowball` `/price` `/session open` `/session close`';
-    const proCmds   = '`/scan` `/research` `/margins` `/crosslist` `/pricedrop` `/trends` `/tracker` `/sold` `/competitor`';
+    const proCmds   = '`/scan` `/research` `/margins` `/pricedrop` `/trends` `/tracker` `/sold` `/competitor`';
     const eliteCmds = '`/flip` `/analytics` `/earlydeals` `/negotiate` `/authenticate` `/grade`';
     const e = baseEmbed(TIER_COLOR[tier] || '#e8217a')
       .setTitle(`Vendora ${TIER_NAMES[tier]} — Available Commands`)
@@ -1013,96 +1000,169 @@ async function executeCommand(interaction, commandName, tier, profile) {
   if (commandName === 'price') {
     const item = opts.getString('item');
 
-    // Fetch live prices from Depop + Vinted in parallel
-    const [depopResults, vintedResults] = await Promise.all([
+    const [depopResults, vintedResults, priceWebR, newsR, imagesR] = await Promise.all([
       searchDepop(item),
       searchVinted(item),
+      webSearch(`${item} resale price UK sold`, 5),
+      braveNewsSearch(`${item} resale demand 2025`, 3),
+      braveImageSearch(`${item}`, 4),
     ]);
 
-    // Extract real prices
     const extractPrices = (results) =>
-      (results || [])
-        .map(r => parseFloat((r.price || '').replace('£', '')))
-        .filter(p => !isNaN(p) && p > 0);
+      (results || []).map(r => parseFloat((r.price || '').replace('£', ''))).filter(p => !isNaN(p) && p > 0);
 
     const depopPrices  = extractPrices(depopResults);
     const vintedPrices = extractPrices(vintedResults);
     const allPrices    = [...depopPrices, ...vintedPrices].sort((a, b) => a - b);
 
-    let liveContext = '';
-    if (allPrices.length >= 3) {
+    let liveContext = `Live platform data unavailable. Using UK resale market knowledge.`;
+    if (allPrices.length >= 2) {
       const low  = allPrices[0].toFixed(2);
       const high = allPrices[allPrices.length - 1].toFixed(2);
       const avg  = (allPrices.reduce((a, b) => a + b, 0) / allPrices.length).toFixed(2);
-      const depopAvg  = depopPrices.length  ? `£${(depopPrices.reduce((a,b)=>a+b,0)/depopPrices.length).toFixed(2)}`   : 'n/a';
+      const depopAvg  = depopPrices.length  ? `£${(depopPrices.reduce((a,b)=>a+b,0)/depopPrices.length).toFixed(2)}`  : 'n/a';
       const vintedAvg = vintedPrices.length ? `£${(vintedPrices.reduce((a,b)=>a+b,0)/vintedPrices.length).toFixed(2)}` : 'n/a';
-      liveContext = `LIVE PLATFORM DATA (${allPrices.length} listings scraped right now):\n` +
-        `- Depop: ${depopPrices.length} listings, avg ${depopAvg}\n` +
-        `- Vinted: ${vintedPrices.length} listings, avg ${vintedAvg}\n` +
-        `- Overall range: £${low}–£${high}, avg £${avg}\n\n` +
-        `Use this real data as your primary source. Be very specific with your estimates based on it.`;
-    } else {
-      liveContext = `Live platform data unavailable or too few results (${allPrices.length} found). Use your UK resale market knowledge to estimate.`;
+      liveContext = `LIVE PLATFORM DATA (${allPrices.length} listings scraped now):\n- Depop: ${depopPrices.length} listings, avg ${depopAvg}\n- Vinted: ${vintedPrices.length} listings, avg ${vintedAvg}\n- Range: £${low}–£${high}, avg £${avg}`;
     }
 
-    const text = await callAI(
-      `You are Vendora, a UK resale market analyst. Your job is to give an accurate, actionable price check.\n\n${liveContext}\n\nProvide: 1) Current resale price range on Depop and Vinted, 2) A good buy price to flip profitably, 3) Rough margin after platform fees (~10% Depop, ~5% Vinted), 4) One sentence on current demand. Keep it to 5 lines max. Use £ figures throughout.`,
-      `Item: ${item}`
-    );
-    if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
-    const footerText = allPrices.length >= 3
-      ? `Based on ${allPrices.length} live listings from Depop + Vinted`
-      : 'Vendora AI estimate — live data temporarily unavailable';
-    return interaction.editReply({ embeds: [
-      baseEmbed().setTitle(`Price Check — ${item}`).setDescription(text.slice(0, 4000))
-        .setFooter({ text: footerText })
-    ]});
+    const webCtx  = priceWebR?.length ? `\nWEB — PRICES:\n${priceWebR.map(r => `• ${r.title}: ${r.description?.slice(0,100)}`).join('\n')}` : '';
+    const newsCtx = newsR?.length     ? `\nNEWS:\n${newsR.map(r => `• ${r.title}: ${r.description?.slice(0,80)}`).join('\n')}`              : '';
+    const productImage = imagesR?.find(img => img.imageUrl?.startsWith('https'))?.imageUrl || null;
+
+    const systemPrompt = `You are Vendora's price analyst for UK resellers. Return ONLY valid JSON — no markdown, no extra text:
+{
+  "summary": "2-3 sentence price overview with specific £ figures from the live data",
+  "depopRange": "£XX–XX",
+  "vintedRange": "£XX–XX",
+  "buyAt": "£XX target buy price to flip profitably",
+  "sellAt": "£XX–XX recommended sell price",
+  "margin": "£XX estimated net profit after fees and £3.50 shipping",
+  "demand": "High / Medium / Low — one sentence reason based on data",
+  "tip": "One actionable tip for buying or selling this item right now"
+}`;
+
+    let report = null;
+    try {
+      const raw = await callAI(systemPrompt, `Item: ${item}\n\n${liveContext}${webCtx}${newsCtx}`, 'claude-haiku-4-5-20251001', 600);
+      if (raw) { const m = raw.match(/\{[\s\S]*\}/); if (m) report = JSON.parse(m[0]); }
+    } catch (e) { console.error('[price] JSON parse failed:', e.message); }
+
+    if (!report) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
+
+    const sourceCount = allPrices.length + (priceWebR?.length || 0);
+    const embed = baseEmbed()
+      .setTitle(`💷 Price Check — ${item}`)
+      .setDescription((report.summary || '—').slice(0, 900))
+      .addFields(
+        { name: 'Depop Range',  value: report.depopRange  || '—', inline: true },
+        { name: 'Vinted Range', value: report.vintedRange || '—', inline: true },
+        { name: '\u200B',       value: '\u200B',                  inline: true },
+        { name: 'Buy At',       value: report.buyAt       || '—', inline: true },
+        { name: 'Sell At',      value: report.sellAt      || '—', inline: true },
+        { name: 'Margin',       value: report.margin      || '—', inline: true },
+        { name: '📈 Demand',    value: (report.demand     || '—').slice(0, 512), inline: false },
+        { name: '💡 Tip',       value: (report.tip        || '—').slice(0, 512), inline: false },
+      )
+      .setFooter({ text: sourceCount > 0 ? `${sourceCount} sources · Depop + Vinted + Web` : 'Vendora AI estimate' });
+
+    if (productImage) embed.setThumbnail(productImage);
+    return interaction.editReply({ embeds: [embed] });
   }
 
   if (commandName === 'scan') {
-    const platform     = opts.getString('platform');
-    const item         = opts.getString('item');
-    const platformNames = { ebay: 'eBay', depop: 'Depop', vinted: 'Vinted' };
+    const platform      = opts.getString('platform');
+    const item          = opts.getString('item');
+    const platformNames = { depop: 'Depop', vinted: 'Vinted' };
+    const platformLabel = platformNames[platform] || platform;
 
-    let results = null;
-    if (platform === 'depop')  results = await searchDepop(item);
-    if (platform === 'vinted') results = await searchVinted(item);
-    if (platform === 'ebay')   results = await searchEbay(item);
+    const [platformResults, webR, imagesR] = await Promise.all([
+      platform === 'depop'  ? searchDepop(item)  :
+      platform === 'vinted' ? searchVinted(item) : Promise.resolve(null),
+      webSearch(`${item} resale price UK market value`, 4),
+      braveImageSearch(`${item}`, 3),
+    ]);
 
-    const formatted = results ? formatPlatformResults(results, platformNames[platform]) : null;
+    const productImage = imagesR?.find(img => img.imageUrl?.startsWith('https'))?.imageUrl || null;
 
-    if (formatted) {
-      // Real data — find the cheapest few to surface deals
-      const prices = (results || [])
-        .map(r => parseFloat(r.price.replace('£', '')))
-        .filter(p => !isNaN(p))
-        .sort((a, b) => a - b);
-      const cheapest = prices[0] ? `£${prices[0].toFixed(2)}` : '—';
-      const avg      = prices.length ? `£${(prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2)}` : '—';
-
+    if (!platformResults?.length) {
+      const text = await callAI(
+        `You are Vendora's scan engine. Analyse ${platformLabel} for underpriced listings of the given item. Include: typical price range, what underpriced looks like (specific £ threshold), best search terms, and 3-5 listing types to target.`,
+        `Platform: ${platformLabel}\nItem: ${item}`,
+        'claude-haiku-4-5-20251001', 700
+      );
+      if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
       return interaction.editReply({ embeds: [
-        baseEmbed().setTitle(`Scan — ${item} on ${platformNames[platform]}`)
-          .setDescription(formatted)
-          .addFields(
-            { name: 'Lowest Listed', value: cheapest, inline: true },
-            { name: 'Average Price', value: avg, inline: true },
-            { name: 'Results',       value: `${results.length} listings found`, inline: true }
-          )
+        baseEmbed().setTitle(`🔍 Scan — ${item} on ${platformLabel}`)
+          .setDescription(text.slice(0, 4000))
+          .setFooter({ text: 'AI estimate — live data temporarily unavailable' })
       ]});
     }
 
-    // Fallback: AI analysis if platform API unavailable
-    const text = await callAI(
-      `You are Vendora's product research engine. Analyse ${platformNames[platform]} for the given item. Include: typical listing price range, what "underpriced" looks like (specific £ threshold), best search terms to find deals, current demand level, and 3-5 types of listings to target.${platform === 'ebay' && !process.env.EBAY_APP_ID ? ' Note: live eBay data coming soon.' : ''}`,
-      `Platform: ${platformNames[platform]}\nItem: ${item}`,
-      'claude-haiku-4-5-20251001', 900
-    );
-    if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
-    return interaction.editReply({ embeds: [
-      baseEmbed().setTitle(`Scan — ${item} on ${platformNames[platform]}`)
-        .setDescription(text.slice(0, 4000))
-        .setFooter({ text: platform === 'ebay' && !process.env.EBAY_APP_ID ? 'Vendora AI estimate — eBay live data activating soon' : 'Vendora AI estimate — live data temporarily unavailable' })
-    ]});
+    const prices = platformResults
+      .map(r => parseFloat((r.price || '').replace('£', '')))
+      .filter(p => !isNaN(p) && p > 0)
+      .sort((a, b) => a - b);
+
+    const avg           = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
+    const median        = prices.length ? prices[Math.floor(prices.length / 2)] : 0;
+    const dealThreshold = avg * 0.75;
+
+    const deals = platformResults
+      .filter(r => { const p = parseFloat((r.price || '').replace('£', '')); return !isNaN(p) && p > 0 && p <= dealThreshold; })
+      .slice(0, 5);
+
+    const dealsText = deals.length
+      ? deals.map(d => `${d.title.slice(0,60)} — ${d.price}${d.url ? `\n${d.url}` : ''}`).join('\n\n')
+      : 'No clear deals found below market average right now.';
+
+    const webCtx = webR?.length ? `\nWEB MARKET CONTEXT:\n${webR.map(r => `• ${r.title}: ${r.description?.slice(0,100)}`).join('\n')}` : '';
+
+    const systemPrompt = `You are Vendora's deal scanner. Return ONLY valid JSON:
+{
+  "dealSummary": "1-2 sentences — are there good deals right now or is the market overpriced?",
+  "marketAvg": "£XX — one sentence on current market price level",
+  "dealThreshold": "£XX — what counts as genuinely underpriced",
+  "topDeals": "Best 1-3 specific deals from the data with prices, or state if none found",
+  "searchTips": "2-3 specific search terms or filters to find more deals on ${platformLabel}",
+  "verdict": "Buy now / Wait / Oversaturated — one punchy line"
+}`;
+
+    let report = null;
+    try {
+      const raw = await callAI(systemPrompt,
+        `Item: ${item}\nPlatform: ${platformLabel}\n\nLIVE: ${platformResults.length} listings, avg £${avg.toFixed(2)}, median £${median.toFixed(2)}, range £${prices[0]?.toFixed(2) || '?'}–£${prices[prices.length-1]?.toFixed(2) || '?'}\n\nDEALS (≤ £${dealThreshold.toFixed(2)}):\n${dealsText}${webCtx}`,
+        'claude-haiku-4-5-20251001', 600);
+      if (raw) { const m = raw.match(/\{[\s\S]*\}/); if (m) report = JSON.parse(m[0]); }
+    } catch (e) { console.error('[scan] JSON parse failed:', e.message); }
+
+    if (!report) {
+      return interaction.editReply({ embeds: [
+        baseEmbed().setTitle(`🔍 Scan — ${item} on ${platformLabel}`)
+          .setDescription(formatPlatformResults(platformResults, platformLabel) || 'No results.')
+          .addFields(
+            { name: 'Lowest',  value: prices[0] ? `£${prices[0].toFixed(2)}` : '—', inline: true },
+            { name: 'Average', value: avg        ? `£${avg.toFixed(2)}`       : '—', inline: true },
+            { name: 'Results', value: `${platformResults.length}`,                   inline: true },
+          )
+          .setFooter({ text: `Live from ${platformLabel}` })
+      ]});
+    }
+
+    const embed = baseEmbed()
+      .setTitle(`🔍 Scan — ${item} on ${platformLabel}`)
+      .setDescription((report.dealSummary || '—').slice(0, 600))
+      .addFields(
+        { name: 'Market Average', value: report.marketAvg     || `£${avg.toFixed(2)}`,            inline: true },
+        { name: 'Deal Threshold', value: report.dealThreshold || `≤ £${dealThreshold.toFixed(2)}`, inline: true },
+        { name: 'Listings Found', value: `${platformResults.length}`,                              inline: true },
+        { name: '🎯 Best Deals',  value: (report.topDeals    || 'None right now').slice(0, 1020),  inline: false },
+        { name: '🔎 Search Tips', value: (report.searchTips  || '—').slice(0, 1020),               inline: false },
+        { name: '✅ Verdict',      value: (report.verdict     || '—').slice(0, 512),                inline: false },
+      )
+      .setFooter({ text: `${platformResults.length} live listings from ${platformLabel}` });
+
+    if (productImage) embed.setThumbnail(productImage);
+    return interaction.editReply({ embeds: [embed] });
   }
 
   if (commandName === 'research') {
@@ -1206,106 +1266,83 @@ async function executeCommand(interaction, commandName, tier, profile) {
 
   if (commandName === 'margins') {
     const item = opts.getString('item');
-    const [depopR, vintedR] = await Promise.all([searchDepop(item), searchVinted(item)]);
+    const [depopR, vintedR, webR] = await Promise.all([
+      searchDepop(item),
+      searchVinted(item),
+      webSearch(`${item} resale price UK sold average`, 4),
+    ]);
 
     const extractP = (r) => (r || []).map(x => parseFloat((x.price || '').replace('£', ''))).filter(p => !isNaN(p) && p > 0);
     const depopP = extractP(depopR), vintedP = extractP(vintedR);
     const all    = [...depopP, ...vintedP].sort((a, b) => a - b);
 
-    let liveCtx = '';
-    let preCalc = '';
-    if (all.length >= 3) {
-      const avg  = all.reduce((a, b) => a + b, 0) / all.length;
-      const low  = all[0], high = all[all.length - 1];
-      const targetBuy    = (avg * 0.55).toFixed(2);
-      const depopSell    = (depopP.length ? depopP.reduce((a,b)=>a+b,0)/depopP.length : avg).toFixed(2);
-      const vintedSell   = (vintedP.length ? vintedP.reduce((a,b)=>a+b,0)/vintedP.length : avg).toFixed(2);
-      const depopFee     = (parseFloat(depopSell) * 0.10).toFixed(2);
-      const vintedFee    = (parseFloat(vintedSell) * 0.05).toFixed(2);
-      const shipping     = 3.50;
-      const depopProfit  = (parseFloat(depopSell) - parseFloat(targetBuy) - parseFloat(depopFee) - shipping).toFixed(2);
-      const vintedProfit = (parseFloat(vintedSell) - parseFloat(targetBuy) - parseFloat(vintedFee) - shipping).toFixed(2);
-      const depopROI     = ((parseFloat(depopProfit) / parseFloat(targetBuy)) * 100).toFixed(0);
-      const vintedROI    = ((parseFloat(vintedProfit) / parseFloat(targetBuy)) * 100).toFixed(0);
+    const webCtx = webR?.length ? `\nWEB PRICE CONTEXT:\n${webR.map(r => `• ${r.title}: ${r.description?.slice(0,100)}`).join('\n')}` : '';
 
-      liveCtx = `LIVE DATA (${all.length} listings):\n- Price range: £${low.toFixed(2)}–£${high.toFixed(2)}, avg £${avg.toFixed(2)}\n- Depop avg: £${depopSell}, Vinted avg: £${vintedSell}\n\n`;
-      preCalc = `PRE-CALCULATED FIGURES (use these exactly):\n` +
-        `- Suggested buy price: £${targetBuy} (55% of avg sell)\n` +
-        `- Depop sell: £${depopSell} → fee £${depopFee} → profit £${depopProfit} (${depopROI}% ROI)\n` +
-        `- Vinted sell: £${vintedSell} → fee £${vintedFee} → profit £${vintedProfit} (${vintedROI}% ROI)\n` +
-        `- Shipping estimate: £${shipping}`;
+    const shipping = 3.50;
+    let liveCtx = 'No live data — using market knowledge.';
+    let targetBuy = '0', depopSell = '0', vintedSell = '0';
+    let depopFee = '0', vintedFee = '0';
+    let depopProfit = '0', vintedProfit = '0';
+    let depopROI = '0', vintedROI = '0';
+
+    if (all.length >= 2) {
+      const avg = all.reduce((a, b) => a + b, 0) / all.length;
+      const low = all[0], high = all[all.length - 1];
+      targetBuy    = (avg * 0.55).toFixed(2);
+      depopSell    = (depopP.length  ? depopP.reduce((a,b)=>a+b,0)/depopP.length   : avg).toFixed(2);
+      vintedSell   = (vintedP.length ? vintedP.reduce((a,b)=>a+b,0)/vintedP.length : avg).toFixed(2);
+      depopFee     = (parseFloat(depopSell)  * 0.10).toFixed(2);
+      vintedFee    = (parseFloat(vintedSell) * 0.05).toFixed(2);
+      depopProfit  = (parseFloat(depopSell)  - parseFloat(targetBuy) - parseFloat(depopFee)  - shipping).toFixed(2);
+      vintedProfit = (parseFloat(vintedSell) - parseFloat(targetBuy) - parseFloat(vintedFee) - shipping).toFixed(2);
+      depopROI     = ((parseFloat(depopProfit)  / parseFloat(targetBuy)) * 100).toFixed(0);
+      vintedROI    = ((parseFloat(vintedProfit) / parseFloat(targetBuy)) * 100).toFixed(0);
+      liveCtx = `LIVE DATA (${all.length} listings):\n- Range: £${low.toFixed(2)}–£${high.toFixed(2)}, avg £${avg.toFixed(2)}\n- Depop avg: £${depopSell}, Vinted avg: £${vintedSell}`;
     }
 
-    const text = await callAI(
-      `You are Vendora's margin calculator. ${liveCtx}${preCalc}\n\nUsing the data above, provide a clear profit breakdown covering: buy price target, sell price per platform, all fees (Depop 10%, Vinted 5%), shipping, net profit, ROI. Use the pre-calculated figures if provided. End with a one-line verdict on whether this flip is worth it.`,
-      `Item: ${item}`
-    );
-    if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
-    const footer = all.length >= 3 ? `Based on ${all.length} live listings` : 'AI estimate — live data unavailable';
-    return interaction.editReply({ embeds: [
-      baseEmbed().setTitle(`Margin Breakdown — ${item}`).setDescription(text.slice(0, 4000)).setFooter({ text: footer })
-    ]});
-  }
-
-  if (commandName === 'crosslist') {
-    if (!ai) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
-    const item      = opts.getString('item');
-    const desc      = opts.getString('description') || '';
-    const price     = opts.getNumber('price') || null;
-    const condition = opts.getString('condition') || '';
-
-    const prompt = `Generate optimised cross-platform resale listings for all three platforms. Return ONLY valid JSON, no markdown, no explanation.
-
-Item: ${item}${desc ? `\nDescription: ${desc}` : ''}${condition ? `\nCondition: ${condition}` : ''}${price ? `\nAsking price: £${price}` : ''}
-
-Rules:
-- depop: casual UK tone, title max 70 chars, 8-10 hashtags (words only, no #), suggest realistic GBP price if none given
-- vinted: clean descriptive title, requires brand and size fields (estimate if unknown), suggest realistic price
-- ebay: keyword-rich formal title max 80 chars, condition must be one of: New, Like New, Very Good, Good, Acceptable
-
-Return this exact JSON structure:
+    const systemPrompt = `You are Vendora's margin calculator. Return ONLY valid JSON:
 {
-  "depop":  { "title": "...", "description": "...", "price": 0, "hashtags": ["..."] },
-  "vinted": { "title": "...", "description": "...", "price": 0, "brand": "...", "size": "..." },
-  "ebay":   { "title": "...", "description": "...", "price": 0, "condition": "..." }
+  "summary": "1-2 sentence overview of the margin opportunity",
+  "buyAdvice": "Where and how to source at the target buy price",
+  "bestPlatform": "Depop or Vinted — which is better for this item and why",
+  "depopVerdict": "One sentence on the Depop margin",
+  "vintedVerdict": "One sentence on the Vinted margin",
+  "warning": "Any margin risks (fakes, slow sell, seasonal demand etc)"
 }`;
 
-    let listings;
+    let report = null;
     try {
-      const msg  = await ai.messages.create({ model: 'claude-haiku-4-5-20251001', max_tokens: 1400, messages: [{ role: 'user', content: prompt }] });
-      const text = msg.content[0].text;
-      const match = text.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error('no json');
-      listings = JSON.parse(match[0]);
-    } catch {
-      return interaction.editReply({ embeds: [
-        baseEmbed('#f87171').setTitle('Cross-List Failed').setDescription('Could not generate listings. Please try again.')
-      ]});
-    }
+      const raw = await callAI(systemPrompt,
+        `Item: ${item}\n\n${liveCtx}${webCtx}\n\nCALCULATED:\n- Buy: £${targetBuy} | Depop sell: £${depopSell} fee £${depopFee} profit £${depopProfit} (${depopROI}% ROI) | Vinted sell: £${vintedSell} fee £${vintedFee} profit £${vintedProfit} (${vintedROI}% ROI) | Shipping: £${shipping}`,
+        'claude-haiku-4-5-20251001', 500);
+      if (raw) { const m = raw.match(/\{[\s\S]*\}/); if (m) report = JSON.parse(m[0]); }
+    } catch (e) { console.error('[margins] JSON parse failed:', e.message); }
 
-    const d = listings.depop  || {};
-    const v = listings.vinted || {};
-    const e = listings.ebay   || {};
+    if (!report) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
 
+    const footer = all.length >= 2 ? `Based on ${all.length} live listings · Depop + Vinted + Web` : 'AI estimate — live data unavailable';
     return interaction.editReply({ embeds: [
-      baseEmbed('#ff2300').setTitle(`Cross-List — ${item}`)
-        .setDescription('Copy-ready listings for all three platforms 👇')
+      baseEmbed()
+        .setTitle(`📊 Margin Breakdown — ${item}`)
+        .setDescription((report.summary || '—').slice(0, 600))
         .addFields(
-          { name: '🔴 DEPOP', value: `**${d.title || '—'}**\n${d.description?.slice(0, 200) || ''}`, inline: false },
-          { name: 'Depop Price', value: d.price ? `£${d.price}` : '—', inline: true },
-          { name: 'Hashtags', value: d.hashtags ? d.hashtags.slice(0, 6).join(', ') : '—', inline: true },
-          { name: '\u200B', value: '\u200B', inline: false },
-          { name: '🟦 VINTED', value: `**${v.title || '—'}**\n${v.description?.slice(0, 200) || ''}`, inline: false },
-          { name: 'Vinted Price', value: v.price ? `£${v.price}` : '—', inline: true },
-          { name: 'Brand / Size', value: `${v.brand || '—'} / ${v.size || '—'}`, inline: true },
-          { name: '\u200B', value: '\u200B', inline: false },
-          { name: '🟡 EBAY', value: `**${e.title || '—'}**\n${e.description?.slice(0, 200) || ''}`, inline: false },
-          { name: 'eBay Price', value: e.price ? `£${e.price}` : '—', inline: true },
-          { name: 'Condition', value: e.condition || '—', inline: true }
+          { name: '🛒 Buy At',           value: `£${targetBuy}`,                                       inline: true },
+          { name: '📦 Shipping',         value: `£${shipping.toFixed(2)}`,                             inline: true },
+          { name: '\u200B',              value: '\u200B',                                              inline: true },
+          { name: '🔴 Depop Sell',       value: `£${depopSell}`,                                      inline: true },
+          { name: 'Depop Fee (10%)',     value: `£${depopFee}`,                                       inline: true },
+          { name: 'Depop Profit',        value: `**£${depopProfit}** (${depopROI}% ROI)`,             inline: true },
+          { name: '🟦 Vinted Sell',      value: `£${vintedSell}`,                                     inline: true },
+          { name: 'Vinted Fee (5%)',     value: `£${vintedFee}`,                                      inline: true },
+          { name: 'Vinted Profit',       value: `**£${vintedProfit}** (${vintedROI}% ROI)`,           inline: true },
+          { name: '🏆 Best Platform',    value: (report.bestPlatform || '—').slice(0, 512),            inline: false },
+          { name: '💡 Sourcing Advice',  value: (report.buyAdvice    || '—').slice(0, 512),            inline: false },
+          { name: '⚠️ Risks',            value: (report.warning      || 'None identified').slice(0, 512), inline: false },
         )
-        .setFooter({ text: 'Vendora — Copy each section to the respective platform' })
+        .setFooter({ text: footer })
     ]});
   }
+
 
   if (commandName === 'trends') {
     const category = opts.getString('category');
@@ -1395,39 +1432,78 @@ Return this exact JSON structure:
 
   if (commandName === 'competitor') {
     const seller = opts.getString('seller');
-    const [depopData, vintedData, webR] = await Promise.all([
-      searchDepopSeller(seller), searchVintedSeller(seller),
-      webSearch(`${seller} depop vinted reseller UK seller review`, 4),
+    const [depopData, vintedData, webR, newsR, imagesR] = await Promise.all([
+      searchDepopSeller(seller),
+      searchVintedSeller(seller),
+      webSearch(`${seller} depop vinted reseller UK`, 4),
+      braveNewsSearch(`${seller} reseller streetwear fashion UK`, 3),
+      braveImageSearch(`${seller} depop`, 3),
     ]);
 
-    let liveCtx = `No listings found for seller "${seller}" on Depop or Vinted. Providing strategic advice only.`;
-    let foundOn = [];
+    let liveCtx = `Seller "${seller}" not found on Depop or Vinted.`;
+    let foundOn  = [];
 
     if (depopData?.products?.length) {
       foundOn.push('Depop');
       const prices = depopData.products.map(p => parseFloat(p.price.replace('£', ''))).filter(p => !isNaN(p));
-      const avg = prices.length ? (prices.reduce((a,b)=>a+b,0)/prices.length).toFixed(2) : '?';
-      const top5 = depopData.products.slice(0, 5).map(p => `${p.title.slice(0, 50)} — ${p.price}`).join('\n');
-      liveCtx = `DEPOP — @${depopData.username}:\n- Followers: ${depopData.followers}, Total sold: ${depopData.totalListings}\n- Active listings shown: ${depopData.products.length}, avg price £${avg}\n- Current listings:\n${top5}\n`;
+      const avg    = prices.length ? (prices.reduce((a,b)=>a+b,0)/prices.length).toFixed(2) : '?';
+      const top5   = depopData.products.slice(0, 5).map(p => `${p.title.slice(0,50)} — ${p.price}`).join('\n');
+      liveCtx      = `DEPOP — @${depopData.username}:\n- Followers: ${depopData.followers.toLocaleString()}, Total sold: ${depopData.totalListings.toLocaleString()}\n- Active listings shown: ${depopData.products.length}, avg £${avg}\n- Current listings:\n${top5}`;
     }
     if (vintedData?.products?.length) {
       foundOn.push('Vinted');
       const prices = vintedData.products.map(p => parseFloat(p.price.replace('£', ''))).filter(p => !isNaN(p));
-      const avg = prices.length ? (prices.reduce((a,b)=>a+b,0)/prices.length).toFixed(2) : '?';
-      const top5 = vintedData.products.slice(0, 5).map(p => `${p.title.slice(0, 50)} — ${p.price}`).join('\n');
-      liveCtx += `\nVINTED — @${vintedData.username}:\n- Followers: ${vintedData.followers}, Active items: ${vintedData.totalListings}\n- Listings shown: ${vintedData.products.length}, avg price £${avg}\n- Current listings:\n${top5}`;
+      const avg    = prices.length ? (prices.reduce((a,b)=>a+b,0)/prices.length).toFixed(2) : '?';
+      const top5   = vintedData.products.slice(0, 5).map(p => `${p.title.slice(0,50)} — ${p.price}`).join('\n');
+      liveCtx     += `\nVINTED — @${vintedData.username}:\n- Followers: ${vintedData.followers.toLocaleString()}, Active items: ${vintedData.totalListings.toLocaleString()}\n- Listings shown: ${vintedData.products.length}, avg £${avg}\n- Current listings:\n${top5}`;
     }
 
-    const webCtx = webR?.length ? `\nWEB SEARCH (external mentions):\n${formatWebResults(webR)}\n` : '';
-    const text = await callAI(
-      `You are Vendora's competitor intelligence system. You have real seller and web data.\n\n${liveCtx}${webCtx}\n\nBased on all available data, provide:\n**Seller Profile** — what type of reseller this is (niche, budget, premium etc.)\n**Pricing Strategy** — how they price vs market average\n**What They Specialise In** — based on their actual listings\n**Counter Strategy** — how to position yourself against them\n**Watch For** — specific signals to monitor\n**Opportunity** — gaps in their inventory you could exploit`,
-      `Seller to analyse: ${seller}`
-    );
-    if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
+    const webCtx   = webR?.length  ? `\nWEB MENTIONS:\n${webR.map(r => `• ${r.title}: ${r.description?.slice(0,100)}`).join('\n')}`  : '';
+    const newsCtx  = newsR?.length ? `\nNEWS:\n${newsR.map(r => `• ${r.title}: ${r.description?.slice(0,80)}`).join('\n')}`          : '';
+    const profileImage = imagesR?.find(img => img.imageUrl?.startsWith('https'))?.imageUrl || null;
+
+    const systemPrompt = `You are Vendora's competitor intelligence system. You have live seller data and web context. Return ONLY valid JSON:
+{
+  "sellerType": "One line: what type of reseller (niche, volume, premium, budget etc.)",
+  "pricingStrategy": "How they price vs market — specific observation with £ figures if possible",
+  "speciality": "What categories or items they focus on based on their actual listings",
+  "counterStrategy": "3 specific ways to position against this seller and steal their customers",
+  "watchFor": "2-3 specific signals to monitor on their profile",
+  "opportunity": "The single biggest gap in their inventory you could exploit right now",
+  "threat": "Low / Medium / High — how dangerous are they as a competitor and why"
+}`;
+
+    let report = null;
+    try {
+      const raw = await callAI(systemPrompt, `Seller: ${seller}\n\n${liveCtx}${webCtx}${newsCtx}`, 'claude-sonnet-4-6', 900);
+      if (raw) { const m = raw.match(/\{[\s\S]*\}/); if (m) report = JSON.parse(m[0]); }
+    } catch (e) { console.error('[competitor] JSON parse failed:', e.message); }
+
+    if (!report) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
+
     const footer = foundOn.length ? `Live data from ${foundOn.join(' + ')}` : 'Seller not found — strategic advice only';
-    return interaction.editReply({ embeds: [
-      baseEmbed().setTitle(`Competitor Profile — ${seller}`).setDescription(text.slice(0, 4000)).setFooter({ text: footer })
-    ]});
+
+    const mainEmbed = baseEmbed()
+      .setTitle(`🕵️ Competitor — ${seller}`)
+      .setDescription(
+        `**Seller Type**\n${(report.sellerType      || '—').slice(0,300)}\n\n` +
+        `**Pricing Strategy**\n${(report.pricingStrategy || '—').slice(0,400)}\n\n` +
+        `**Speciality**\n${(report.speciality       || '—').slice(0,400)}`
+      )
+      .addFields({ name: '⚠️ Threat Level', value: (report.threat || '—').slice(0, 512), inline: false })
+      .setFooter({ text: footer });
+
+    if (profileImage) mainEmbed.setThumbnail(profileImage);
+
+    const stratEmbed = baseEmbed('#141414')
+      .setTitle('📋 Counter Strategy')
+      .addFields(
+        { name: '⚔️ How to Counter',   value: (report.counterStrategy || '—').slice(0, 1020), inline: false },
+        { name: '👁️ Watch For',        value: (report.watchFor        || '—').slice(0, 1020), inline: false },
+        { name: '💡 Exploit This Gap', value: (report.opportunity     || '—').slice(0, 1020), inline: false },
+      );
+
+    return interaction.editReply({ embeds: [mainEmbed, stratEmbed] });
   }
 
   if (commandName === 'flip') {
@@ -1744,7 +1820,7 @@ app.post('/webhook', async (req, res) => {
             `Your **${TIER_NAMES[tier]}** subscription is active.\n\n` +
             `**What's unlocked:**\n` +
             (TIER_RANK[tier] >= 1 ? '→ `/reply` `/lowball` `/price` `/help` `/session`\n' : '') +
-            (TIER_RANK[tier] >= 2 ? '→ `/scan` `/research` `/margins` `/crosslist` and more\n' : '') +
+            (TIER_RANK[tier] >= 2 ? '→ `/scan` `/research` `/margins` `/pricedrop` `/trends` and more\n' : '') +
             (TIER_RANK[tier] >= 3 ? '→ All Elite commands including `/flip` `/grade` `/negotiate`\n' : '') +
             `\nManage your account: ${DASHBOARD_URL}`
           )
