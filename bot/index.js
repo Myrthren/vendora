@@ -313,10 +313,10 @@ async function callAIWithImage(system, userText, imageUrl, model = 'claude-opus-
 async function searchDepop(query) {
   try {
     const url = `https://api.depop.com/api/v1/search/products/?q=${encodeURIComponent(query)}&country=gb&currency=GBP&sort=relevance&itemsPerPage=12`;
-    const res = await fetch(url, {
+    const res = await fetch(url, vintedProxyOpts({
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', Accept: 'application/json' },
-      signal: AbortSignal.timeout(8000),
-    });
+      signal: AbortSignal.timeout(10000),
+    }));
     if (!res.ok) return null;
     const data = await res.json();
     return (data.objects || []).map(o => ({
@@ -334,10 +334,10 @@ async function searchDepop(query) {
 async function searchVinted(query) {
   try {
     const url = `https://www.vinted.co.uk/api/v2/catalog/items?search_text=${encodeURIComponent(query)}&per_page=12&order=newest_first`;
-    const res = await fetch(url, {
+    const res = await fetch(url, vintedProxyOpts({
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', Accept: 'application/json' },
-      signal: AbortSignal.timeout(8000),
-    });
+      signal: AbortSignal.timeout(10000),
+    }));
     if (!res.ok) return null;
     const data = await res.json();
     return (data.items || []).map(i => ({
@@ -458,16 +458,14 @@ function formatWebResults(results) {
 async function searchDepopSeller(username) {
   try {
     const BASE_HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', Accept: 'application/json' };
-    const userRes = await fetch(`https://api.depop.com/api/v1/users/${encodeURIComponent(username)}/`, {
-      headers: BASE_HEADERS, signal: AbortSignal.timeout(8000),
-    });
+    const userRes = await fetch(`https://api.depop.com/api/v1/users/${encodeURIComponent(username)}/`,
+      vintedProxyOpts({ headers: BASE_HEADERS, signal: AbortSignal.timeout(10000) }));
     if (!userRes.ok) return null;
     const user = await userRes.json();
     const uid  = user.id;
     if (!uid) return null;
-    const prodRes = await fetch(`https://api.depop.com/api/v1/users/${uid}/products/?offset=0&limit=12`, {
-      headers: BASE_HEADERS, signal: AbortSignal.timeout(8000),
-    });
+    const prodRes = await fetch(`https://api.depop.com/api/v1/users/${uid}/products/?offset=0&limit=12`,
+      vintedProxyOpts({ headers: BASE_HEADERS, signal: AbortSignal.timeout(10000) }));
     if (!prodRes.ok) return null;
     const data = await prodRes.json();
     return {
@@ -487,16 +485,14 @@ async function searchDepopSeller(username) {
 async function searchVintedSeller(username) {
   try {
     const BASE_HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', Accept: 'application/json' };
-    const userRes = await fetch(`https://www.vinted.co.uk/api/v2/users?login=${encodeURIComponent(username)}&per_page=1`, {
-      headers: BASE_HEADERS, signal: AbortSignal.timeout(8000),
-    });
+    const userRes = await fetch(`https://www.vinted.co.uk/api/v2/users?login=${encodeURIComponent(username)}&per_page=1`,
+      vintedProxyOpts({ headers: BASE_HEADERS, signal: AbortSignal.timeout(10000) }));
     if (!userRes.ok) return null;
     const userData = await userRes.json();
     const user = userData.users?.[0];
     if (!user) return null;
-    const itemsRes = await fetch(`https://www.vinted.co.uk/api/v2/users/${user.id}/items?per_page=12`, {
-      headers: BASE_HEADERS, signal: AbortSignal.timeout(8000),
-    });
+    const itemsRes = await fetch(`https://www.vinted.co.uk/api/v2/users/${user.id}/items?per_page=12`,
+      vintedProxyOpts({ headers: BASE_HEADERS, signal: AbortSignal.timeout(10000) }));
     if (!itemsRes.ok) return null;
     const items = await itemsRes.json();
     return {
