@@ -49,6 +49,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
   ],
 });
 client.on('error', err => console.error('[discord] Client error:', err));
@@ -720,8 +721,8 @@ async function executeCommand(interaction, commandName, tier, profile) {
       ]});
     }
 
-    // Check bot has ManageChannels permission
-    const botMember = guild.members.me;
+    // Check bot has ManageChannels permission — use fetchMe() to avoid stale cache
+    const botMember = await guild.members.fetchMe().catch(() => guild.members.me);
     if (!botMember?.permissions.has(PermissionFlagsBits.ManageChannels)) {
       return interaction.editReply({ embeds: [
         baseEmbed('#f87171').setTitle('Missing Permission')
@@ -737,15 +738,13 @@ async function executeCommand(interaction, commandName, tier, profile) {
       );
 
       const channelName = `session-${interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12)}-${Date.now().toString(36).slice(-4)}`;
-      const ownerMember = await guild.members.fetch(OWNER_ID).catch(() => null);
+      // Use guild.id for @everyone (its role ID always matches the guild ID)
       const permOverwrites = [
-        { id: guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
+        { id: guild.id,            deny:  [PermissionFlagsBits.ViewChannel] },
         { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles] },
-        { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ReadMessageHistory] },
+        { id: client.user.id,      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels,  PermissionFlagsBits.ReadMessageHistory] },
+        { id: OWNER_ID,            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
       ];
-      if (ownerMember) {
-        permOverwrites.push({ id: OWNER_ID, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
-      }
 
       const channel = await guild.channels.create({
         name: channelName,
