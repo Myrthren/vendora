@@ -734,12 +734,13 @@ async function executeCommand(interaction, commandName, tier, profile) {
       // Re-fetch channels to ensure cache is current
       await guild.channels.fetch();
 
-      // Find a VENDORA category — but only use it if the bot can actually manage
-      // channels inside it. Category-level permission overrides can block creation
-      // even when the bot has ManageChannels server-wide.
-      const category = guild.channels.cache.find(
-        c => c.type === ChannelType.GuildCategory && c.name.toUpperCase().includes('VENDORA')
+      // Use the same category as #use-vendora so session channels sit alongside it.
+      // Fall back to server root if the channel doesn't exist or the bot can't
+      // manage channels inside that category.
+      const useVendoraChannel = guild.channels.cache.find(
+        c => c.type === ChannelType.GuildText && c.name === 'use-vendora'
       );
+      const category = useVendoraChannel?.parent ?? null;
       const canManageInCategory = category
         ? category.permissionsFor(botMember)?.has(PermissionFlagsBits.ManageChannels)
         : false;
