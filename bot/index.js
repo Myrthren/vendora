@@ -560,8 +560,8 @@ const commands = [
     .addStringOption(o => o.setName('item').setDescription('Item to research').setRequired(true)),
   new SlashCommandBuilder().setName('margins').setDescription('Detailed profit margin breakdown [Pro+]')
     .addStringOption(o => o.setName('item').setDescription('Item to analyse').setRequired(true)),
-  new SlashCommandBuilder().setName('pricedrop').setDescription('Set a price drop watchlist alert [Pro+]')
-    .addStringOption(o => o.setName('item').setDescription('Item to watch').setRequired(true)),
+  new SlashCommandBuilder().setName('pricedrop').setDescription('Track price drops for a product page [Pro+]')
+    .addStringOption(o => o.setName('url').setDescription('Direct link to the product page (Nike, ASOS, JD Sports, Selfridges, etc.)').setRequired(true)),
   new SlashCommandBuilder().setName('trends').setDescription('Current brand/category trend report [Pro+]')
     .addStringOption(o => o.setName('category').setDescription('Category or brand name').setRequired(true)),
   new SlashCommandBuilder().setName('tracker').setDescription('Manage your inventory tracker [Pro+]')
@@ -627,6 +627,225 @@ async function dbRemoveInventory(id) {
       headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
     });
   } catch {}
+}
+
+// ── Price-drop URL scraper ────────────────────────────────────────────────────
+const PLATFORM_MAP = {
+  'nike.com':             'Nike',
+  'adidas.com':           'Adidas',
+  'asos.com':             'ASOS',
+  'amazon.co.uk':         'Amazon UK',
+  'amazon.com':           'Amazon',
+  'jdsports.co.uk':       'JD Sports',
+  'jdsports.com':         'JD Sports',
+  'footlocker.co.uk':     'Foot Locker',
+  'footlocker.com':       'Foot Locker',
+  'size.co.uk':           'Size?',
+  'endclothing.com':      'END Clothing',
+  'end.com':              'END Clothing',
+  'farfetch.com':         'Farfetch',
+  'ssense.com':           'SSENSE',
+  'selfridges.com':       'Selfridges',
+  'johnlewis.com':        'John Lewis',
+  'zalando.co.uk':        'Zalando',
+  'zalando.com':          'Zalando',
+  'zara.com':             'Zara',
+  'hm.com':               'H&M',
+  'sportsdirect.com':     'Sports Direct',
+  'schuh.co.uk':          'Schuh',
+  'footasylum.com':       'Footasylum',
+  'offspring.co.uk':      'Offspring',
+  'office.co.uk':         'Office',
+  'newbalance.com':       'New Balance',
+  'newbalance.co.uk':     'New Balance',
+  'next.co.uk':           'Next',
+  'prettylittlething.com':'PrettyLittleThing',
+  'boohoo.com':           'Boohoo',
+  'revolve.com':          'Revolve',
+  'gymshark.com':         'Gymshark',
+  'vans.co.uk':           'Vans',
+  'vans.com':             'Vans',
+  'converse.com':         'Converse',
+  'puma.com':             'Puma',
+  'reebok.com':           'Reebok',
+  'asics.com':            'Asics',
+  'superdry.com':         'Superdry',
+  'patagonia.com':        'Patagonia',
+  'allbirds.com':         'Allbirds',
+  'skechers.com':         'Skechers',
+  'underarmour.com':      'Under Armour',
+};
+
+// Platforms that are known to block bots consistently
+const BLOCKED_PLATFORMS = new Set(['nike.com', 'adidas.com', 'zara.com', 'hm.com', 'amazon.co.uk', 'amazon.com', 'asos.com']);
+
+function detectPlatformFromUrl(rawUrl) {
+  try {
+    const host = new URL(rawUrl).hostname.replace(/^www\./, '').toLowerCase();
+    for (const [domain, name] of Object.entries(PLATFORM_MAP)) {
+      if (host === domain || host.endsWith('.' + domain)) return { domain, name, likelyBlocked: BLOCKED_PLATFORMS.has(domain) };
+    }
+    // Unknown but valid URL — still try
+    return { domain: host, name: host, likelyBlocked: false };
+  } catch { return null; }
+}
+
+async function scrapeProductPage(rawUrl) {
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-GB,en-US;q=0.9,en;q=0.8',
+    'Cache-Control': 'no-cache',
+    'Upgrade-Insecure-Requests': '1',
+  };
+
+  const fetchOpts = { headers, redirect: 'follow' };
+  if (PROXY_URL && ProxyAgent) fetchOpts.dispatcher = new ProxyAgent(PROXY_URL);
+
+  const controller = new AbortController();
+  const timeout    = setTimeout(() => controller.abort(), 15000);
+  let html;
+  try {
+    const res = await fetch(rawUrl, { ...fetchOpts, signal: controller.signal });
+    if (res.status === 403 || res.status === 429 || res.status === 503)
+      throw new Error(`blocked:${res.status}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    html = await res.text();
+  } finally { clearTimeout(timeout); }
+
+  // ── 1. JSON-LD structured data ──────────────────────────────────────────────
+  const ldMatches = [...html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
+  for (const m of ldMatches) {
+    try {
+      let data = JSON.parse(m[1].trim());
+      if (!Array.isArray(data)) data = [data];
+      for (const node of data) {
+        const nodes = node['@graph'] ? node['@graph'] : [node];
+        for (const obj of nodes) {
+          if (obj['@type'] !== 'Product') continue;
+          const r = parseSchemaProduct(obj, rawUrl);
+          if (r) return r;
+        }
+      }
+    } catch { /* bad JSON — try next */ }
+  }
+
+  // ── 2. Shopify /products/{handle}.js ───────────────────────────────────────
+  if (/shopify/i.test(html)) {
+    try {
+      const urlObj   = new URL(rawUrl);
+      const parts    = urlObj.pathname.split('/');
+      const pidx     = parts.indexOf('products');
+      if (pidx !== -1 && parts[pidx + 1]) {
+        const handle   = parts[pidx + 1].split('?')[0];
+        const shopUrl  = `${urlObj.origin}/products/${handle}.js`;
+        const sRes     = await fetch(shopUrl, { headers });
+        if (sRes.ok) {
+          const sj = await sRes.json();
+          const r  = parseShopifyProduct(sj, rawUrl);
+          if (r) return r;
+        }
+      }
+    } catch { /* not Shopify / handle missing */ }
+  }
+
+  // ── 3. OG / meta tag fallback ──────────────────────────────────────────────
+  const metaResult = parseMetaTags(html, rawUrl);
+  if (metaResult?.lowestPrice) return metaResult;
+
+  // ── 4. Embedded JSON in script tags (Next.js / Nuxt / etc.) ───────────────
+  const nextData = html.match(/<script[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i);
+  if (nextData) {
+    try {
+      const nd = JSON.parse(nextData[1]);
+      const r  = parseNextData(nd, rawUrl);
+      if (r) return r;
+    } catch { /* bad JSON */ }
+  }
+
+  throw new Error('no_data');
+}
+
+function parseSchemaProduct(product, url) {
+  const name = (product.name || '').trim();
+  if (!name) return null;
+
+  const offersRaw = product.offers;
+  if (!offersRaw) return null;
+
+  const offerList = Array.isArray(offersRaw) ? offersRaw : [offersRaw];
+  const variants  = [];
+
+  for (const offer of offerList) {
+    const rawPrice = offer.price ?? offer.lowPrice;
+    const price    = parseFloat(String(rawPrice).replace(/[^0-9.]/g, ''));
+    if (!price || isNaN(price) || price <= 0) continue;
+    const currency     = offer.priceCurrency || 'GBP';
+    const availability = offer.availability
+      ? (String(offer.availability).toLowerCase().includes('instock') ? 'in_stock' : 'out_of_stock')
+      : 'unknown';
+    const size = offer.sku || offer.name || null;
+    variants.push({ price, currency, availability, size: size ? String(size).slice(0, 30) : null });
+  }
+
+  // AggregateOffer fallback
+  if (!variants.length) {
+    const p = parseFloat(String(offersRaw.lowPrice ?? offersRaw.price ?? '').replace(/[^0-9.]/g, ''));
+    if (p && p > 0) variants.push({ price: p, currency: offersRaw.priceCurrency || 'GBP', availability: 'unknown', size: null });
+  }
+
+  if (!variants.length) return null;
+
+  const lowestPrice = Math.min(...variants.map(v => v.price));
+  const image       = Array.isArray(product.image) ? product.image[0] : (typeof product.image === 'string' ? product.image : product.image?.url || null);
+
+  return { name, variants, lowestPrice, currency: variants[0].currency, image, url };
+}
+
+function parseMetaTags(html, url) {
+  const get = prop => {
+    const patterns = [
+      new RegExp(`<meta[^>]+property=["']${prop}["'][^>]+content=["']([^"']+)["']`, 'i'),
+      new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${prop}["']`, 'i'),
+      new RegExp(`<meta[^>]+name=["']${prop}["'][^>]+content=["']([^"']+)["']`, 'i'),
+    ];
+    for (const re of patterns) { const m = html.match(re); if (m) return m[1]; }
+    return null;
+  };
+  const name  = get('og:title') || get('twitter:title') || get('title');
+  const price = parseFloat((get('product:price:amount') || get('og:price:amount') || get('price') || '0').replace(/[^0-9.]/g, ''));
+  if (!name || !price || price <= 0) return null;
+  const currency = get('product:price:currency') || get('og:price:currency') || 'GBP';
+  return { name, variants: [{ price, currency, availability: 'unknown', size: null }], lowestPrice: price, currency, image: get('og:image'), url };
+}
+
+function parseShopifyProduct(product, url) {
+  const name = (product.title || '').trim();
+  if (!name) return null;
+  const variants = (product.variants || []).map(v => {
+    // Shopify /products/*.js returns price as integer cents (e.g. 8999 = £89.99)
+    const raw   = parseInt(v.price, 10);
+    const price = raw > 1000 ? raw / 100 : raw; // guard: already decimal on some themes
+    const size  = [v.option1, v.option2].filter(Boolean).join(' / ') || v.title || null;
+    return { price, currency: 'GBP', availability: v.available ? 'in_stock' : 'out_of_stock', size };
+  }).filter(v => v.price > 0);
+  if (!variants.length) return null;
+  const lowestPrice = Math.min(...variants.map(v => v.price));
+  return { name, variants, lowestPrice, currency: 'GBP', image: product.images?.[0]?.src || null, url };
+}
+
+function parseNextData(nd, url) {
+  // Walk Next.js page props looking for a product object with a price field
+  const walk = (obj, depth = 0) => {
+    if (depth > 8 || !obj || typeof obj !== 'object') return null;
+    if (obj.name && (obj.price !== undefined || obj.offers)) {
+      const price = parseFloat(String(obj.price || obj.offers?.price || '').replace(/[^0-9.]/g, ''));
+      if (price > 0) return { name: String(obj.name).slice(0, 200), variants: [{ price, currency: 'GBP', availability: 'unknown', size: null }], lowestPrice: price, currency: 'GBP', image: obj.image || null, url };
+    }
+    for (const v of Object.values(obj)) { const r = walk(v, depth + 1); if (r) return r; }
+    return null;
+  };
+  return walk(nd);
 }
 
 // ── Watchlist (persistent via Supabase) ───────────────────────────────────────
@@ -863,13 +1082,101 @@ async function executeCommand(interaction, commandName, tier, profile) {
 
   // /pricedrop
   if (commandName === 'pricedrop') {
-    const item = opts.getString('item');
-    await dbAddWatchlist(interaction.user.id, item);
-    const wl = await dbGetWatchlist(interaction.user.id);
-    return interaction.editReply({ embeds: [
-      baseEmbed().setTitle('Price Drop Alert Set')
-        .setDescription(`You'll be alerted when **${item}** drops in price.\n\nWatchlist total: **${wl.length}** item${wl.length !== 1 ? 's' : ''}\n\n*Live price monitoring coming soon. Your item is saved and will alert you once platform scanning is live.*`)
-    ]});
+    const rawUrl = opts.getString('url').trim();
+
+    // Validate it's a URL
+    let parsedUrl;
+    try { parsedUrl = new URL(rawUrl); }
+    catch {
+      return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Invalid URL')
+        .setDescription('Please paste a full product URL starting with `https://`, e.g.:\n`https://www.jdsports.co.uk/product/...`')] });
+    }
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Invalid URL').setDescription('URL must start with `https://`.')] });
+    }
+
+    const platform = detectPlatformFromUrl(rawUrl);
+    if (!platform) {
+      return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Unrecognised Platform')
+        .setDescription('Could not identify a supported retail platform from that URL. Make sure you paste the full product page link.')] });
+    }
+
+    // Warn up-front if platform is known to block bots
+    if (platform.likelyBlocked) {
+      return interaction.editReply({ embeds: [baseEmbed('#e8a121').setTitle(`⚠️ ${platform.name} Blocks Automated Checks`)
+        .setDescription(
+          `**${platform.name}** uses bot protection that prevents Vendora from reading their prices directly.\n\n` +
+          `**Platforms that work well:**\n` +
+          `JD Sports · Selfridges · John Lewis · Schuh · Footasylum · Offspring · END Clothing · Size? · Sports Direct · New Balance · Gymshark · Vans · Converse · Puma · Asics · Revolve · Superdry · Zalando\n\n` +
+          `If you still want to track ${platform.name}, use their app or browser price alerts instead.`
+        )] });
+    }
+
+    // Send a "checking…" reply first (scraping can take a few seconds)
+    await interaction.editReply({ embeds: [baseEmbed().setTitle('🔍 Fetching product data…')
+      .setDescription(`Checking **${platform.name}** for price and size information…`)] });
+
+    try {
+      const product = await scrapeProductPage(rawUrl);
+
+      // Save URL to watchlist
+      await dbAddWatchlist(user.id, rawUrl);
+      const wl = await dbGetWatchlist(user.id);
+
+      // Persist baseline + full variant data
+      const baselineKey = 'watchlist_price_baselines';
+      const baselines   = (await getSetting(baselineKey)) || {};
+      const entry       = wl.find(w => w.item === rawUrl);
+      if (entry) {
+        baselines[entry.id] = {
+          platform:    platform.name,
+          productName: product.name,
+          baseline:    product.lowestPrice,
+          lowestSeen:  product.lowestPrice,
+          variants:    product.variants,
+          currency:    product.currency,
+          url:         rawUrl,
+          checkedAt:   new Date().toISOString(),
+        };
+        await saveSetting(baselineKey, baselines);
+      }
+
+      // Build size/variant display
+      const inStock = product.variants.filter(v => v.availability === 'in_stock');
+      const display = (inStock.length ? inStock : product.variants).slice(0, 18);
+      const variantLines = display.map(v => v.size ? `**${v.size}** — ${product.currency === 'GBP' ? '£' : product.currency}${v.price.toFixed(2)}` : `${product.currency === 'GBP' ? '£' : product.currency}${v.price.toFixed(2)}`);
+      const sizeCount   = product.variants.length;
+
+      const embed = baseEmbed('#4ade80')
+        .setTitle('✅ Price Drop Alert Set')
+        .addFields(
+          { name: 'Product',        value: product.name.slice(0, 200), inline: true },
+          { name: 'Platform',       value: platform.name,              inline: true },
+          { name: 'Current lowest', value: `£${product.lowestPrice.toFixed(2)}`, inline: true },
+          { name: `Sizes / variants tracked (${sizeCount})`, value: variantLines.join('\n').slice(0, 1020) || 'No size data available' },
+          { name: 'Watchlist', value: `${wl.length} item${wl.length !== 1 ? 's' : ''} tracked`, inline: true },
+        )
+        .setFooter({ text: "You'll be alerted when any variant drops 10%+ from today's price • Checked every 6 hours" });
+
+      if (product.image) embed.setThumbnail(product.image);
+
+      return interaction.editReply({ embeds: [embed] });
+
+    } catch (err) {
+      const msg = err.message || '';
+      const isBlocked = msg.startsWith('blocked:') || msg.includes('403') || msg.includes('429');
+      const noData    = msg === 'no_data';
+
+      return interaction.editReply({ embeds: [baseEmbed('#f87171')
+        .setTitle(isBlocked ? '❌ Site Blocked Access' : noData ? '❌ No Price Data Found' : '❌ Could Not Fetch Page')
+        .setDescription(
+          isBlocked
+            ? `**${platform.name}** blocked our request (bot protection active).\n\nThis platform requires a real browser to load prices. Try one of these instead:\n**JD Sports · Selfridges · John Lewis · Schuh · Footasylum · END Clothing · Gymshark · Vans · Puma**`
+            : noData
+            ? `We fetched the **${platform.name}** page but couldn't extract price data from it. The site may use JavaScript rendering to display prices.\n\nTry a different platform.`
+            : `Failed to load the page from **${platform.name}**:\n\`${msg.slice(0, 200)}\`\n\nCheck the URL is a direct product page and try again.`
+        )] });
+    }
   }
 
   // /earlydeals
@@ -3649,69 +3956,96 @@ cron.schedule('0 */6 * * *', async () => {
 
     for (const wl of items) {
       try {
-        const [depopR, vintedR] = await Promise.all([searchDepop(wl.item), searchVinted(wl.item)]);
-        const allPrices = [...(depopR || []), ...(vintedR || [])]
-          .map(x => parseFloat((x.price || '').replace('£', '')))
-          .filter(p => !isNaN(p) && p > 0);
+        const isUrl    = wl.item?.startsWith('http');
+        const stored   = baselines[wl.id];
+        const displayName = stored?.productName || wl.item;
 
-        if (!allPrices.length) continue;
-        checkedCount++;
+        let currentLow, currentAvg, dropVariants = [], currency = 'GBP';
 
-        const currentLow = Math.min(...allPrices);
-        const currentAvg = allPrices.reduce((a, b) => a + b, 0) / allPrices.length;
-        const stored     = baselines[wl.id];
+        if (isUrl) {
+          // ── URL-based item: re-scrape the product page ──────────────────────
+          let product;
+          try { product = await scrapeProductPage(wl.item); }
+          catch (e) {
+            console.warn(`[cron:watchlist] Scrape failed for ${wl.item}: ${e.message}`);
+            continue;
+          }
+          if (!product?.variants?.length) continue;
+          checkedCount++;
 
-        // Find the cheapest matching listing for the link
-        const allListings = [...(depopR || []), ...(vintedR || [])];
-        const cheapestListing = allListings
-          .filter(x => {
-            const p = parseFloat((x.price || '').replace('£', ''));
-            return !isNaN(p) && Math.abs(p - currentLow) < 0.01;
-          })[0];
+          currentLow = product.lowestPrice;
+          currentAvg = product.variants.reduce((s, v) => s + v.price, 0) / product.variants.length;
+          currency   = product.currency || 'GBP';
 
-        if (!stored) {
-          // First time seeing this item — store baseline and move on
-          baselines[wl.id] = { baseline: currentAvg, low: currentLow, item: wl.item, checkedAt: new Date().toISOString() };
-          console.log(`[cron:watchlist] Baselined "${wl.item}" at avg £${currentAvg.toFixed(2)}`);
-          continue;
+          if (!stored) {
+            baselines[wl.id] = { platform: stored?.platform, productName: product.name, baseline: currentAvg, lowestSeen: currentLow, variants: product.variants, currency, url: wl.item, checkedAt: new Date().toISOString() };
+            console.log(`[cron:watchlist] Baselined URL "${product.name}" at £${currentLow.toFixed(2)}`);
+            continue;
+          }
+
+          // Find per-variant drops ≥10%
+          for (const v of product.variants) {
+            const baseline = (stored.variants || []).find(sv => sv.size === v.size)?.price || stored.baseline;
+            if (!baseline) continue;
+            const pct = ((baseline - v.price) / baseline) * 100;
+            if (pct >= 10) dropVariants.push({ size: v.size, price: v.price, baseline, pct });
+          }
+
+          // Update stored data
+          baselines[wl.id] = { ...stored, productName: product.name, lowestSeen: Math.min(currentLow, stored.lowestSeen || currentLow), variants: product.variants, checkedAt: new Date().toISOString() };
+
+        } else {
+          // ── Text-based item (legacy): search Depop + Vinted ─────────────────
+          const [depopR, vintedR] = await Promise.all([searchDepop(wl.item), searchVinted(wl.item)]);
+          const allPrices = [...(depopR || []), ...(vintedR || [])]
+            .map(x => parseFloat((x.price || '').replace('£', '')))
+            .filter(p => !isNaN(p) && p > 0);
+          if (!allPrices.length) continue;
+          checkedCount++;
+          currentLow = Math.min(...allPrices);
+          currentAvg = allPrices.reduce((a, b) => a + b, 0) / allPrices.length;
+          if (!stored) {
+            baselines[wl.id] = { baseline: currentAvg, low: currentLow, item: wl.item, checkedAt: new Date().toISOString() };
+            continue;
+          }
+          const dropPct = ((stored.baseline - currentLow) / stored.baseline) * 100;
+          if (dropPct >= 10) dropVariants.push({ size: null, price: currentLow, baseline: stored.baseline, pct: dropPct });
+          baselines[wl.id] = { ...stored, baseline: currentAvg, low: currentLow, checkedAt: new Date().toISOString() };
         }
 
-        const dropPct = ((stored.baseline - currentLow) / stored.baseline) * 100;
-
-        if (dropPct >= 10) {
-          // Significant price drop detected
+        // ── Send alert if any variant dropped ──────────────────────────────────
+        if (dropVariants.length > 0) {
           try {
             const discordUser = await client.users.fetch(wl.discord_id).catch(() => null);
             if (discordUser) {
-              await discordUser.send({
-                embeds: [
-                  new EmbedBuilder().setColor('#e8a121')
-                    .setTitle(`📉 Price Drop Alert — ${wl.item}`)
-                    .setDescription(
-                      `An item on your watchlist has dropped **${dropPct.toFixed(0)}%** since you added it.\n\n` +
-                      `**Item:** ${wl.item}\n` +
-                      `**Current low:** £${currentLow.toFixed(2)}\n` +
-                      `**Previous avg:** £${stored.baseline.toFixed(2)}\n` +
-                      (cheapestListing?.url ? `\n[View cheapest listing](${cheapestListing.url})` : '') +
-                      `\n\nAct fast — deals disappear quickly.`
-                    )
-                    .setFooter({ text: 'Vendora Watchlist — /pricedrop' })
-                ]
-              });
+              const sym   = currency === 'GBP' ? '£' : currency;
+              const lines = dropVariants.slice(0, 10).map(v =>
+                v.size
+                  ? `**${v.size}** — ${sym}${v.price.toFixed(2)} *(was ${sym}${v.baseline.toFixed(2)}, −${v.pct.toFixed(0)}%)*`
+                  : `${sym}${v.price.toFixed(2)} *(was ${sym}${v.baseline.toFixed(2)}, −${v.pct.toFixed(0)}%)*`
+              );
+              const embed = new EmbedBuilder().setColor('#e8a121')
+                .setTitle(`📉 Price Drop — ${displayName.slice(0, 60)}`)
+                .addFields(
+                  { name: 'Drops detected', value: lines.join('\n').slice(0, 1024) },
+                  ...(isUrl ? [{ name: 'Product page', value: wl.item.slice(0, 500) }] : []),
+                )
+                .setFooter({ text: 'Vendora Watchlist • /pricedrop' });
+              await discordUser.send({ embeds: [embed] });
               alertCount++;
-              console.log(`[cron:watchlist] Alerted ${wl.discord_id} — "${wl.item}" dropped ${dropPct.toFixed(0)}%`);
+              console.log(`[cron:watchlist] Alerted ${wl.discord_id} — "${displayName}" (${dropVariants.length} variants dropped)`);
             }
           } catch (e) {
             console.warn(`[cron:watchlist] DM failed for ${wl.discord_id}:`, e.message);
           }
         }
 
-        // Also honour manual price_drop_signal flags
+        // Legacy manual signal
         if (wl.price_drop_signal === true) {
           try {
             const discordUser = await client.users.fetch(wl.discord_id).catch(() => null);
             if (discordUser) {
-              await discordUser.send(`📉 **Price Drop Alert — ${wl.item}**\nA price drop has been detected for an item on your watchlist. Check the platform now.`);
+              await discordUser.send(`📉 **Price Drop Alert — ${displayName}**\nA price drop has been detected. Check the platform now.`);
               await fetch(`${SUPABASE_URL}/rest/v1/watchlist?id=eq.${wl.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
@@ -3721,8 +4055,6 @@ cron.schedule('0 */6 * * *', async () => {
           } catch {}
         }
 
-        // Update stored baseline with current data
-        baselines[wl.id] = { baseline: currentAvg, low: currentLow, item: wl.item, checkedAt: new Date().toISOString() };
       } catch (e) {
         console.warn(`[cron:watchlist] Error checking "${wl.item}":`, e.message);
       }
