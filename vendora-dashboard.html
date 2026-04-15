@@ -1709,93 +1709,6 @@
               <input type="file" id="enhancer-file-input" accept="image/*" style="display:none;" onchange="enhancerLoadFile(event)">
             </div>
 
-            <!-- Style Presets -->
-            <div class="card" style="padding:20px;">
-              <div class="card-title" style="margin-bottom:4px;">Style Presets</div>
-              <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">One-click looks — removes background automatically</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                <button onclick="enhancerApplyPreset('clean')" style="padding:10px 8px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.03);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)';this.style.background='rgba(232,33,122,0.04)'" onmouseout="this.style.borderColor='var(--border-dim)';this.style.background='rgba(255,255,255,0.03)'">
-                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Clean & Bright</div>
-                  <div style="font-size:10px;color:var(--muted);">White bg · crisp · light</div>
-                </button>
-                <button onclick="enhancerApplyPreset('luxury')" style="padding:10px 8px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.03);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='rgba(232,161,33,0.4)';this.style.background='rgba(232,161,33,0.04)'" onmouseout="this.style.borderColor='var(--border-dim)';this.style.background='rgba(255,255,255,0.03)'">
-                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Luxury Studio</div>
-                  <div style="font-size:10px;color:var(--muted);">Marble bg · rich · deep shadow</div>
-                </button>
-                <button onclick="enhancerApplyPreset('street')" style="padding:10px 8px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.03);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='rgba(100,100,255,0.4)';this.style.background='rgba(100,100,255,0.04)'" onmouseout="this.style.borderColor='var(--border-dim)';this.style.background='rgba(255,255,255,0.03)'">
-                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Street / Urban</div>
-                  <div style="font-size:10px;color:var(--muted);">Concrete bg · punchy · bold</div>
-                </button>
-                <button onclick="enhancerApplyPreset('warm')" style="padding:10px 8px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.03);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='rgba(200,130,50,0.4)';this.style.background='rgba(200,130,50,0.04)'" onmouseout="this.style.borderColor='var(--border-dim)';this.style.background='rgba(255,255,255,0.03)'">
-                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Warm Editorial</div>
-                  <div style="font-size:10px;color:var(--muted);">Wood bg · warm tones · natural</div>
-                </button>
-                <button onclick="enhancerApplyPreset('minimal')" style="padding:10px 8px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.03);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)';this.style.background='rgba(232,33,122,0.04)'" onmouseout="this.style.borderColor='var(--border-dim)';this.style.background='rgba(255,255,255,0.03)'">
-                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Minimal White</div>
-                  <div style="font-size:10px;color:var(--muted);">Pure white · soft shadow · clean</div>
-                </button>
-                <button onclick="enhancerApplyPreset('dark')" style="padding:10px 8px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.03);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='rgba(180,50,200,0.4)';this.style.background='rgba(180,50,200,0.04)'" onmouseout="this.style.borderColor='var(--border-dim)';this.style.background='rgba(255,255,255,0.03)'">
-                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Bold Dark</div>
-                  <div style="font-size:10px;color:var(--muted);">Black bg · dramatic · vivid</div>
-                </button>
-              </div>
-            </div>
-
-            <!-- Display Style -->
-            <div class="card" style="padding:20px;">
-              <div class="card-title" style="margin-bottom:4px;">Display Style</div>
-              <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">How the item sits in the shot — applied after background removal</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                <button id="dstyle-product" onclick="enhancerSetDisplayStyle('product')" style="padding:10px 8px;border-radius:8px;border:2px solid var(--pink);background:rgba(232,33,122,0.08);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;font-family:'DM Sans',sans-serif;">
-                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Product Shot</div>
-                  <div style="font-size:10px;color:var(--muted);">Centred · floor shadow · breathing room</div>
-                </button>
-                <button id="dstyle-flat" onclick="enhancerSetDisplayStyle('flat')" style="padding:10px 8px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.03);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;font-family:'DM Sans',sans-serif;">
-                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Flat Lay</div>
-                  <div style="font-size:10px;color:var(--muted);">Fills frame · top-down · soft shadow</div>
-                </button>
-                <button id="dstyle-ghost" onclick="enhancerSetDisplayStyle('ghost')" style="padding:10px 8px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.03);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;font-family:'DM Sans',sans-serif;">
-                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Ghost / Float</div>
-                  <div style="font-size:10px;color:var(--muted);">Upper · mannequin-style · drop shadow</div>
-                </button>
-                <button id="dstyle-fill" onclick="enhancerSetDisplayStyle('fill')" style="padding:10px 8px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.03);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;font-family:'DM Sans',sans-serif;">
-                  <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Fill Frame</div>
-                  <div style="font-size:10px;color:var(--muted);">Max scale · edge to edge · no padding</div>
-                </button>
-              </div>
-            </div>
-
-            <!-- Background -->
-            <div class="card" style="padding:20px;">
-              <div class="card-title" style="margin-bottom:14px;">Background</div>
-              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;" id="bg-presets">
-                <!-- Row 1: Light surfaces -->
-                <div class="bg-preset active" data-bg="white-studio" onclick="enhancerSetBg(this,'white-studio')" style="aspect-ratio:1;border-radius:8px;border:2px solid var(--pink);background:radial-gradient(ellipse at 40% 35%,#ffffff 0%,#f0f0f0 60%,#e0e0e0 100%);cursor:pointer;transition:border-color .15s;" title="White Studio"></div>
-                <div class="bg-preset" data-bg="soft-grey" onclick="enhancerSetBg(this,'soft-grey')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:radial-gradient(ellipse at 40% 35%,#ececec 0%,#d8d8d8 70%,#c8c8c8 100%);cursor:pointer;transition:border-color .15s;" title="Soft Grey"></div>
-                <div class="bg-preset" data-bg="cream" onclick="enhancerSetBg(this,'cream')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:radial-gradient(ellipse at 40% 35%,#fdf8f0 0%,#f5ead8 70%,#e8d9c0 100%);cursor:pointer;transition:border-color .15s;" title="Cream"></div>
-                <div class="bg-preset" data-bg="sage" onclick="enhancerSetBg(this,'sage')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:radial-gradient(ellipse at 40% 35%,#e8ede4 0%,#d0d9c8 70%,#b8c4ae 100%);cursor:pointer;transition:border-color .15s;" title="Sage Green"></div>
-                <!-- Row 2: Textures -->
-                <div class="bg-preset" data-bg="marble" onclick="enhancerSetBg(this,'marble')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:linear-gradient(125deg,#e8e4e0 0%,#f5f2ef 30%,#ddd8d4 55%,#f0ede8 80%,#e4e0dc 100%);cursor:pointer;transition:border-color .15s;" title="Marble"></div>
-                <div class="bg-preset" data-bg="wood" onclick="enhancerSetBg(this,'wood')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:repeating-linear-gradient(92deg,#c8a06a 0px,#d4aa78 4px,#c0986a 8px,#cc9e6e 14px,#c8a06a 16px);cursor:pointer;transition:border-color .15s;" title="Oak Wood"></div>
-                <div class="bg-preset" data-bg="concrete" onclick="enhancerSetBg(this,'concrete')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:radial-gradient(ellipse at 50% 50%,#6a6a6a 0%,#585858 50%,#484848 100%);cursor:pointer;transition:border-color .15s;" title="Concrete"></div>
-                <div class="bg-preset" data-bg="linen" onclick="enhancerSetBg(this,'linen')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:repeating-linear-gradient(0deg,#f0e8d8 0px,#e8deca 2px,#f0e8d8 4px),repeating-linear-gradient(90deg,#f0e8d8 0px,#e8dece 1px,#f0e8d8 3px);cursor:pointer;transition:border-color .15s;" title="Linen"></div>
-                <!-- Row 3: Dark + Gradient -->
-                <div class="bg-preset" data-bg="studio-dark" onclick="enhancerSetBg(this,'studio-dark')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:radial-gradient(ellipse at 40% 35%,#383838 0%,#202020 60%,#111111 100%);cursor:pointer;transition:border-color .15s;" title="Studio Dark"></div>
-                <div class="bg-preset" data-bg="black" onclick="enhancerSetBg(this,'#000000')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:#000;cursor:pointer;transition:border-color .15s;outline:1px solid rgba(255,255,255,0.08);" title="Black"></div>
-                <div class="bg-preset" data-bg="gradient-pink" onclick="enhancerSetBg(this,'gradient-pink')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:linear-gradient(135deg,#1a0010,#3d0020,#6b0033);cursor:pointer;transition:border-color .15s;" title="Dark Pink"></div>
-                <div class="bg-preset" data-bg="gradient-blue" onclick="enhancerSetBg(this,'gradient-blue')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:linear-gradient(135deg,#0a0e1a,#0d1b3e,#0a2a5c);cursor:pointer;transition:border-color .15s;" title="Dark Blue"></div>
-                <!-- Row 4: Special -->
-                <div class="bg-preset" data-bg="navy" onclick="enhancerSetBg(this,'navy')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:radial-gradient(ellipse at 40% 35%,#1a2a4a 0%,#0d1a34 60%,#080f1e 100%);cursor:pointer;transition:border-color .15s;" title="Navy"></div>
-                <div class="bg-preset" data-bg="blush" onclick="enhancerSetBg(this,'blush')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:radial-gradient(ellipse at 40% 35%,#fce8e8 0%,#f0d0d0 70%,#e0bcbc 100%);cursor:pointer;transition:border-color .15s;" title="Blush"></div>
-                <div class="bg-preset" data-bg="gradient-mesh" onclick="enhancerSetBg(this,'gradient-mesh')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:conic-gradient(from 180deg at 50% 50%,#e8217a22,#8b5cf622,#06b6d422,#e8217a22);cursor:pointer;transition:border-color .15s;" title="Colour Mesh"></div>
-                <div class="bg-preset" data-bg="transparent" onclick="enhancerSetBg(this,'transparent')" style="aspect-ratio:1;border-radius:8px;border:2px solid transparent;background:repeating-conic-gradient(#555 0% 25%,#333 0% 50%) 0 0/12px 12px;cursor:pointer;transition:border-color .15s;" title="Transparent"></div>
-              </div>
-              <div style="display:flex;align-items:center;gap:10px;">
-                <label style="font-size:11px;color:var(--muted2);">Custom</label>
-                <input type="color" id="enhancer-custom-color" value="#ffffff" onchange="enhancerSetBg(null, this.value, true)" style="width:32px;height:26px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;background:transparent;cursor:pointer;padding:2px;">
-              </div>
-            </div>
-
             <!-- Adjustments -->
             <div class="card" style="padding:20px;">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
@@ -1866,19 +1779,35 @@
               </div>
             </div>
 
-            <!-- Custom Instructions -->
+            <!-- AI Photo Enhancer -->
             <div class="card" style="padding:20px;">
-              <div class="card-title" style="margin-bottom:4px;">AI Instructions</div>
-              <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">Describe the look you want in plain English — Claude will dial in the settings</div>
-              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
-                <button onclick="enhancerQuickPrompt('product shot on marble, bright and clean, floor shadow')" style="font-size:10px;padding:4px 10px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Luxury marble</button>
-                <button onclick="enhancerQuickPrompt('clean white studio, bright and crisp, flat lay style, for Depop or Vinted listing')" style="font-size:10px;padding:4px 10px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Flat lay white</button>
-                <button onclick="enhancerQuickPrompt('street urban look on concrete, bold high contrast, punchy, ghost float style')" style="font-size:10px;padding:4px 10px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Street ghost</button>
-                <button onclick="enhancerQuickPrompt('warm editorial on natural wood, golden tones, soft shadow, product shot')" style="font-size:10px;padding:4px 10px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Warm wood</button>
-                <button onclick="enhancerQuickPrompt('dramatic dark studio background, high contrast, moody, drop shadow, fill frame')" style="font-size:10px;padding:4px 10px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Dark studio</button>
-                <button onclick="enhancerQuickPrompt('soft cream background, ghost float style, vivid colours, slight warm tones')" style="font-size:10px;padding:4px 10px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Soft cream</button>
+              <div class="card-title" style="margin-bottom:4px;">AI Photo Enhancer</div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:16px;">Describe the look you want — OpenAI will generate a professional product photo</div>
+
+              <!-- Background instructions -->
+              <div style="margin-bottom:14px;">
+                <label style="font-size:11px;color:var(--muted2);display:block;margin-bottom:6px;font-weight:600;letter-spacing:0.03em;">BACKGROUND</label>
+                <input type="text" id="enhancer-bg-instructions" class="form-select" style="padding:9px 12px;font-size:12px;" placeholder="e.g. white studio, marble surface, dark concrete, blurred outdoor...">
+                <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;">
+                  <button onclick="document.getElementById('enhancer-bg-instructions').value='pure white studio'" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">White studio</button>
+                  <button onclick="document.getElementById('enhancer-bg-instructions').value='white Carrara marble surface'" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Marble</button>
+                  <button onclick="document.getElementById('enhancer-bg-instructions').value='dark charcoal studio with soft spotlight'" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Dark studio</button>
+                  <button onclick="document.getElementById('enhancer-bg-instructions').value='natural warm oak wood surface'" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Wood</button>
+                  <button onclick="document.getElementById('enhancer-bg-instructions').value='raw urban concrete'" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Concrete</button>
+                  <button onclick="document.getElementById('enhancer-bg-instructions').value='warm cream off-white backdrop'" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Cream</button>
+                </div>
               </div>
-              <textarea id="enhancer-instructions" rows="3" class="form-select" style="height:auto;padding:10px 12px;font-size:12px;resize:vertical;margin-bottom:10px;" placeholder="e.g. flat lay on marble, bright and crisp, warm tones&#10;e.g. ghost float on dark studio, high contrast, moody&#10;e.g. product shot on cream, vivid colours, floor shadow"></textarea>
+
+              <!-- Instructions -->
+              <label style="font-size:11px;color:var(--muted2);display:block;margin-bottom:6px;font-weight:600;letter-spacing:0.03em;">INSTRUCTIONS</label>
+              <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">
+                <button onclick="enhancerQuickPrompt('bright and crisp, flat lay, vivid colours')" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Flat lay</button>
+                <button onclick="enhancerQuickPrompt('ghost mannequin float effect, drop shadow, centred')" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Ghost float</button>
+                <button onclick="enhancerQuickPrompt('high contrast, bold and punchy, moody lighting')" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">High contrast</button>
+                <button onclick="enhancerQuickPrompt('warm golden tones, soft shadow, natural light feel')" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Warm tones</button>
+                <button onclick="enhancerQuickPrompt('clean product shot, soft floor shadow, breathing room, crisp edges')" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Clean shot</button>
+              </div>
+              <textarea id="enhancer-instructions" rows="3" class="form-select" style="height:auto;padding:10px 12px;font-size:12px;resize:vertical;margin-bottom:10px;" placeholder="e.g. flat lay, bright and crisp, vivid colours&#10;e.g. ghost float, high contrast, moody lighting&#10;e.g. upright product shot, warm tones, soft shadow"></textarea>
               <div style="display:flex;gap:8px;margin-bottom:4px;">
                 <button class="btn btn-ghost btn-sm" onclick="enhancerApplyInstructions()" id="enhancer-instruct-btn" style="flex:1;">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
@@ -1889,7 +1818,7 @@
                   ✨ AI Generate
                 </button>
               </div>
-              <div style="font-size:10px;color:rgba(255,255,255,0.22);text-align:center;margin-bottom:8px;">Apply Settings adjusts sliders · AI Generate creates a new photo using OpenAI</div>
+              <div style="font-size:10px;color:rgba(255,255,255,0.22);text-align:center;margin-bottom:8px;">Apply Settings adjusts sliders · AI Generate creates a new photo via OpenAI</div>
               <div id="enhancer-instruct-result" style="display:none;margin-top:6px;padding:10px 12px;border-radius:8px;font-size:12px;background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.15);color:var(--muted2);line-height:1.6;"></div>
             </div>
 
@@ -4738,34 +4667,38 @@
         if (res.ok && json.ok) {
           const s = json.settings;
           enhancerSetSliders(s);
-          if (s.bg) enhancerSelectBg(s.bg);
-          if (s.displayStyle) enhancerSetDisplayStyle(s.displayStyle);
           enhancerComposite();
           if (s.removeBg && !enhancerUseBgRemoved) enhancerRemoveBg();
           if (resultEl) {
-            resultEl.textContent = json.message || 'Applied Claude\'s suggestions.';
+            resultEl.textContent = json.message || 'Settings applied.';
             resultEl.style.display = '';
             resultEl.style.background = 'rgba(74,222,128,0.06)';
             resultEl.style.borderColor = 'rgba(74,222,128,0.15)';
             resultEl.style.color = 'var(--muted2)';
           }
           appliedViaServer = true;
+        } else {
+          const errMsg = (await res.json().catch(() => ({}))).error || `Server error ${res.status}`;
+          throw new Error(errMsg);
         }
       }
     } catch (e) {
-      console.warn('[enhancer] server instructions unavailable:', e.message);
+      console.warn('[enhancer] server instructions error:', e.message);
+      if (resultEl) {
+        resultEl.textContent = `\u26a0\ufe0f Could not apply settings: ${e.message}`;
+        resultEl.style.display = '';
+        resultEl.style.background = 'rgba(248,113,113,0.07)';
+        resultEl.style.borderColor = 'rgba(248,113,113,0.2)';
+        resultEl.style.color = '#f87171';
+      }
     }
 
-    if (!appliedViaServer) {
+    if (!appliedViaServer && !resultEl?.textContent?.startsWith('\u26a0\ufe0f')) {
       // Local NLP fallback — works without any API key
       const s = enhancerLocalInstructParse(instructions);
       enhancerSetSliders(s);
-      if (s.bg)           enhancerSelectBg(s.bg);
-      if (s.displayStyle) enhancerSetDisplayStyle(s.displayStyle);
       enhancerComposite();
       const detected = [
-        s.bg           ? s.bg.replace(/-/g,' ') + ' background' : '',
-        s.displayStyle ? s.displayStyle + ' style'             : '',
         s.warmth > 10  ? 'warm tones'  : s.warmth < -10 ? 'cool tones' : '',
         s.contrast > 115 ? 'high contrast' : '',
         s.brightness > 115 ? 'brightened' : s.brightness < 90 ? 'darkened' : '',
@@ -4781,7 +4714,7 @@
     }
 
     btn.disabled = false;
-    btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg> Apply AI Suggestions`;
+    btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg> Apply Settings`;
   }
 
   // ── AI Image Generation (gpt-image-1) ──────────────────────────────────────
@@ -4820,22 +4753,26 @@
         imageB64 = canvas.toDataURL('image/png').split(',')[1];
       }
 
-      const instructions = fromInstructions
+      const instructions   = fromInstructions
         ? (document.getElementById('enhancer-instructions')?.value?.trim() || '')
         : '';
+      const bgInstructions = document.getElementById('enhancer-bg-instructions')?.value?.trim() || '';
 
       const res = await fetch(`${BOT_API}/api/photo/ai-generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
         body: JSON.stringify({
           image: imageB64,
-          bg: enhancerCurrentBg,
-          style: enhancerDisplayStyle,
+          bgInstructions,
           instructions,
         }),
       });
 
-      const json = await res.json();
+      const rawText = await res.text();
+      let json;
+      try { json = JSON.parse(rawText); } catch {
+        throw new Error(`Bot server error (${res.status}) — check Railway deployment logs`);
+      }
       if (!res.ok || !json.ok) throw new Error(json.error || 'AI generation failed.');
 
       // Load the AI result onto the canvas

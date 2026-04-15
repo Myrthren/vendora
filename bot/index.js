@@ -1958,55 +1958,56 @@ async function executeCommand(interaction, commandName, tier, profile) {
     }
 
   }
-}
 
-// ── /supportsetup — one-time command that posts the embed then deletes itself ──
-if (commandName === 'supportsetup') {
-  if (interaction.user.id !== OWNER_ID) {
-    return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Owner Only').setDescription('This command is owner-only.')] });
-  }
+  // ── /supportsetup — one-time command that posts the embed then deletes itself ──
+  if (commandName === 'supportsetup') {
+    if (interaction.user.id !== OWNER_ID) {
+      return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Owner Only').setDescription('This command is owner-only.')] });
+    }
 
-  const supportChannel = findSupportChannel(interaction.guild);
-  if (!supportChannel) {
-    return interaction.editReply({ embeds: [baseEmbed('#f87171')
-      .setTitle('Channel Not Found')
-      .setDescription('No channel named `❓｜support` found. Create it and try again.')
+    const supportChannel = findSupportChannel(interaction.guild);
+    if (!supportChannel) {
+      return interaction.editReply({ embeds: [baseEmbed('#f87171')
+        .setTitle('Channel Not Found')
+        .setDescription('No channel named `❓｜support` found. Create it and try again.')
+      ]});
+    }
+
+    // Post the embed
+    await supportChannel.send({
+      embeds: [new EmbedBuilder()
+        .setColor('#e8217a')
+        .setTitle('Vendora Support')
+        .setDescription(
+          'Need help with your subscription, role, or anything else?\n\n' +
+          'Click the button below to open a **private support ticket**.\n' +
+          'Only you and the Vendora team will be able to see it.\n\n' +
+          '**Typical response time:** within a few hours.'
+        )
+        .addFields({ name: '📋 Before opening a ticket', value: '• Check your role was assigned after payment\n• Run `/help` to see all available commands\n• Check announcements for known issues' })
+        .setFooter({ text: 'Vendora — The Reseller\'s Edge  •  Tickets close after 24h of inactivity' })
+        .setTimestamp()
+      ],
+      components: [new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('ticket_open_direct').setLabel('🎫 Open a Ticket').setStyle(ButtonStyle.Primary)
+      )],
+    });
+
+    // Self-destruct: re-register commands without /supportsetup
+    try {
+      const rest            = new REST().setToken(TOKEN);
+      const trimmedCommands = commands.filter(c => c.name !== 'supportsetup');
+      await rest.put(Routes.applicationGuildCommands(client.application.id, GUILD_ID), { body: trimmedCommands });
+    } catch (e) {
+      console.warn('[supportsetup] Could not deregister command:', e.message);
+    }
+
+    return interaction.editReply({ embeds: [baseEmbed('#4ade80')
+      .setTitle('✅ Done')
+      .setDescription(`Support embed posted to ${supportChannel}.\n\nThis command has been removed and won't appear again.`)
     ]});
   }
 
-  // Post the embed
-  await supportChannel.send({
-    embeds: [new EmbedBuilder()
-      .setColor('#e8217a')
-      .setTitle('Vendora Support')
-      .setDescription(
-        'Need help with your subscription, role, or anything else?\n\n' +
-        'Click the button below to open a **private support ticket**.\n' +
-        'Only you and the Vendora team will be able to see it.\n\n' +
-        '**Typical response time:** within a few hours.'
-      )
-      .addFields({ name: '📋 Before opening a ticket', value: '• Check your role was assigned after payment\n• Run `/help` to see all available commands\n• Check announcements for known issues' })
-      .setFooter({ text: 'Vendora — The Reseller\'s Edge  •  Tickets close after 24h of inactivity' })
-      .setTimestamp()
-    ],
-    components: [new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('ticket_open_direct').setLabel('🎫 Open a Ticket').setStyle(ButtonStyle.Primary)
-    )],
-  });
-
-  // Self-destruct: re-register commands without /supportsetup
-  try {
-    const rest            = new REST().setToken(TOKEN);
-    const trimmedCommands = commands.filter(c => c.name !== 'supportsetup');
-    await rest.put(Routes.applicationGuildCommands(client.application.id, GUILD_ID), { body: trimmedCommands });
-  } catch (e) {
-    console.warn('[supportsetup] Could not deregister command:', e.message);
-  }
-
-  return interaction.editReply({ embeds: [baseEmbed('#4ade80')
-    .setTitle('✅ Done')
-    .setDescription(`Support embed posted to ${supportChannel}.\n\nThis command has been removed and won't appear again.`)
-  ]});
 }
 
 // ── Bot events ────────────────────────────────────────────────────────────────
@@ -3235,7 +3236,7 @@ app.post('/api/photo/instruct', async (req, res) => {
           role: 'user',
           content: [
             { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${image}`, detail: 'low' } },
-            { type: 'text', text: `You are a professional product photo editor for a clothing resale platform. The user wants: "${instructions}"\n\nAnalyse the clothing item and respond with ONLY valid JSON:\n{"brightness":<0-200>,"contrast":<0-200>,"saturation":<0-200>,"sharpness":<0-5>,"shadow":<0-60>,"vignette":<0-80>,"warmth":<-60 to 60>,"scale":<40-100>,"bgBrightness":<20-180>,"bg":<one of: "white-studio","soft-grey","cream","sage","blush","marble","wood","concrete","linen","studio-dark","black","navy","gradient-pink","gradient-blue","gradient-mesh">,"displayStyle":<one of: "product","flat","ghost","fill">,"shadowType":<one of: "floor","drop","none">,"removeBg":<true/false>,"message":"<one sentence>"}` }
+            { type: 'text', text: `You are a professional product photo editor for a clothing resale platform. The user wants: "${instructions}"\n\nAnalyse the clothing item and respond with ONLY valid JSON:\n{"brightness":<0-200>,"contrast":<0-200>,"saturation":<0-200>,"sharpness":<0-5>,"shadow":<0-60>,"vignette":<0-80>,"warmth":<-60 to 60>,"scale":<40-100>,"bgBrightness":<20-180>,"shadowType":<one of: "floor","drop","none">,"removeBg":<true/false>,"message":"<one sentence>"}` }
           ]
         }]
       }),
@@ -3274,40 +3275,16 @@ app.post('/api/photo/instruct', async (req, res) => {
 // ── Photo enhancer — AI image generation via gpt-image-1 ─────────────────────
 app.post('/api/photo/ai-generate', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
-  const { image, bg = 'white-studio', style = 'product', instructions = '' } = req.body || {};
+  const { image, bgInstructions = '', instructions = '' } = req.body || {};
   if (!image) return res.status(400).json({ error: 'image (base64 PNG) required' });
-  if (!OPENAI_KEY) return res.status(503).json({ error: 'AI not configured — OPENAI_API_KEY missing' });
+  if (!OPENAI_KEY) return res.status(503).json({ error: 'AI not configured — OPENAI_API_KEY missing on server' });
 
-  const BG_DESCRIPTIONS = {
-    'white-studio':   'pure white studio backdrop with soft even lighting and subtle floor reflection',
-    'soft-grey':      'soft neutral light grey studio backdrop',
-    'cream':          'warm cream off-white backdrop',
-    'marble':         'genuine white Carrara marble surface with subtle natural grey veining',
-    'wood':           'natural warm oak wood surface with fine grain',
-    'concrete':       'raw urban concrete surface with natural texture',
-    'linen':          'textured cream linen fabric backdrop',
-    'studio-dark':    'dark charcoal studio backdrop with soft overhead spotlight',
-    'black':          'pure black studio backdrop',
-    'navy':           'deep navy midnight blue backdrop',
-    'gradient-pink':  'deep rose burgundy gradient backdrop',
-    'gradient-blue':  'deep midnight navy blue gradient backdrop',
-    'sage':           'soft sage muted green backdrop',
-    'blush':          'soft blush rose pink backdrop',
-    'transparent':    'clean white backdrop',
-  };
+  const bgPart = bgInstructions.trim()
+    ? `Background: ${bgInstructions.trim()}.`
+    : 'Background: pure white studio backdrop with soft even lighting.';
 
-  const STYLE_DESCRIPTIONS = {
-    'product': 'upright centred product shot, garment positioned at centre of frame filling ~80% of the image',
-    'flat':    'overhead flat lay, garment laid flat on the surface photographed from directly above',
-    'ghost':   'ghost mannequin invisible body effect — garment appears to float as if worn by an invisible person',
-    'fill':    'fill-frame composition, garment fills the entire image edge to edge with no wasted space',
-  };
-
-  const bgDesc    = BG_DESCRIPTIONS[bg]    || 'clean neutral studio backdrop';
-  const styleDesc = STYLE_DESCRIPTIONS[style] || 'centred product shot';
-
-  let prompt = `Professional product photography for a fashion resale listing. ${styleDesc}. Background: ${bgDesc}. Soft studio lighting that renders colours accurately and makes the garment look appealing. The clothing should appear clean, pressed, and in excellent condition. High-quality photorealistic image suitable for eBay, Depop, or Vinted listings. No watermarks, no text overlays, no price tags, no visible mannequin faces or hands.`;
-  if (instructions.trim()) prompt += ` Additional style requirements: ${instructions.trim()}`;
+  let prompt = `Professional product photography for a fashion resale listing. Upright centred product shot, garment positioned at centre of frame. ${bgPart} Soft studio lighting that renders colours accurately and makes the garment look appealing. The clothing should appear clean, pressed, and in excellent condition. High-quality photorealistic image suitable for eBay, Depop, or Vinted listings. No watermarks, no text overlays, no price tags, no visible mannequin faces or hands.`;
+  if (instructions.trim()) prompt += ` Additional requirements: ${instructions.trim()}`;
 
   try {
     const imgBuffer = Buffer.from(image, 'base64');
