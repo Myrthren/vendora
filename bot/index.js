@@ -593,8 +593,9 @@ const commands = [
   // ── Support ──
   new SlashCommandBuilder().setName('ticket')
     .setDescription('Ticket management')
-    .addSubcommand(s => s.setName('close').setDescription('Close this support ticket'))
-    .addSubcommand(s => s.setName('setup').setDescription('Post the Open Ticket embed to the support channel (owner only)')),
+    .addSubcommand(s => s.setName('close').setDescription('Close this support ticket')),
+  new SlashCommandBuilder().setName('supportsetup')
+    .setDescription('Post the Vendora support embed — one-time use, command deletes itself after'),
 ].map(c => c.toJSON());
 
 // ── Inventory (persistent via Supabase) ──────────────────────────────────────
@@ -1954,38 +1955,56 @@ async function executeCommand(interaction, commandName, tier, profile) {
       try { await channel.setArchived(true, `Closed by ${interaction.user.tag}`); } catch { /* ignore */ }
     }
 
-    if (sub === 'setup') {
-      if (interaction.user.id !== OWNER_ID) {
-        return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Owner Only').setDescription('Only the server owner can run this command.')] });
-      }
-      const guild = interaction.guild;
-      const supportChannel = findSupportChannel(guild);
-      if (!supportChannel) {
-        return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Channel Not Found').setDescription('Could not find a channel named `❓｜support` or containing "support". Make sure the channel exists and the bot has access to it.')] });
-      }
-      const openBtn = new ButtonBuilder()
-        .setCustomId('ticket_open_direct')
-        .setLabel('🎫 Open a Ticket')
-        .setStyle(ButtonStyle.Primary);
-      await supportChannel.send({
-        embeds: [new EmbedBuilder()
-          .setColor('#e8217a')
-          .setTitle('Vendora Support')
-          .setDescription(
-            'Need help with your subscription, role, or anything else?\n\n' +
-            'Click the button below to open a **private support ticket**. ' +
-            'Only you and the Vendora team will be able to see it.\n\n' +
-            '**Typical response time:** within a few hours.'
-          )
-          .addFields({ name: '📋 Before opening a ticket', value: '• Check your role assigned correctly after payment\n• Try `/help` to see all available commands\n• Check announcements for known issues' })
-          .setFooter({ text: 'Vendora — The Reseller\'s Edge  •  Tickets close after 24h of inactivity' })
-          .setTimestamp()
-        ],
-        components: [new ActionRowBuilder().addComponents(openBtn)],
-      });
-      return interaction.editReply({ embeds: [baseEmbed('#4ade80').setTitle('✅ Support Embed Posted').setDescription(`Embed sent to ${supportChannel}.`)] });
-    }
   }
+}
+
+// ── /supportsetup — one-time command that posts the embed then deletes itself ──
+if (commandName === 'supportsetup') {
+  if (interaction.user.id !== OWNER_ID) {
+    return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Owner Only').setDescription('This command is owner-only.')] });
+  }
+
+  const supportChannel = findSupportChannel(interaction.guild);
+  if (!supportChannel) {
+    return interaction.editReply({ embeds: [baseEmbed('#f87171')
+      .setTitle('Channel Not Found')
+      .setDescription('No channel named `❓｜support` found. Create it and try again.')
+    ]});
+  }
+
+  // Post the embed
+  await supportChannel.send({
+    embeds: [new EmbedBuilder()
+      .setColor('#e8217a')
+      .setTitle('Vendora Support')
+      .setDescription(
+        'Need help with your subscription, role, or anything else?\n\n' +
+        'Click the button below to open a **private support ticket**.\n' +
+        'Only you and the Vendora team will be able to see it.\n\n' +
+        '**Typical response time:** within a few hours.'
+      )
+      .addFields({ name: '📋 Before opening a ticket', value: '• Check your role was assigned after payment\n• Run `/help` to see all available commands\n• Check announcements for known issues' })
+      .setFooter({ text: 'Vendora — The Reseller\'s Edge  •  Tickets close after 24h of inactivity' })
+      .setTimestamp()
+    ],
+    components: [new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('ticket_open_direct').setLabel('🎫 Open a Ticket').setStyle(ButtonStyle.Primary)
+    )],
+  });
+
+  // Self-destruct: re-register commands without /supportsetup
+  try {
+    const rest            = new REST().setToken(TOKEN);
+    const trimmedCommands = commands.filter(c => c.name !== 'supportsetup');
+    await rest.put(Routes.applicationGuildCommands(client.application.id, GUILD_ID), { body: trimmedCommands });
+  } catch (e) {
+    console.warn('[supportsetup] Could not deregister command:', e.message);
+  }
+
+  return interaction.editReply({ embeds: [baseEmbed('#4ade80')
+    .setTitle('✅ Done')
+    .setDescription(`Support embed posted to ${supportChannel}.\n\nThis command has been removed and won't appear again.`)
+  ]});
 }
 
 // ── Bot events ────────────────────────────────────────────────────────────────
