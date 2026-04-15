@@ -1879,11 +1879,18 @@
                 <button onclick="enhancerQuickPrompt('soft cream background, ghost float style, vivid colours, slight warm tones')" style="font-size:10px;padding:4px 10px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Soft cream</button>
               </div>
               <textarea id="enhancer-instructions" rows="3" class="form-select" style="height:auto;padding:10px 12px;font-size:12px;resize:vertical;margin-bottom:10px;" placeholder="e.g. flat lay on marble, bright and crisp, warm tones&#10;e.g. ghost float on dark studio, high contrast, moody&#10;e.g. product shot on cream, vivid colours, floor shadow"></textarea>
-              <button class="btn btn-primary btn-sm" onclick="enhancerApplyInstructions()" id="enhancer-instruct-btn" style="width:100%;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-                Apply AI Suggestions
-              </button>
-              <div id="enhancer-instruct-result" style="display:none;margin-top:10px;padding:10px 12px;border-radius:8px;font-size:12px;background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.15);color:var(--muted2);line-height:1.6;"></div>
+              <div style="display:flex;gap:8px;margin-bottom:4px;">
+                <button class="btn btn-ghost btn-sm" onclick="enhancerApplyInstructions()" id="enhancer-instruct-btn" style="flex:1;">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                  Apply Settings
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="enhancerAiGenerate(true)" id="enhancer-ai-instruct-btn" style="flex:1;background:linear-gradient(135deg,#e8217a,#9b1fcd);">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
+                  ✨ AI Generate
+                </button>
+              </div>
+              <div style="font-size:10px;color:rgba(255,255,255,0.22);text-align:center;margin-bottom:8px;">Apply Settings adjusts sliders · AI Generate creates a new photo using OpenAI</div>
+              <div id="enhancer-instruct-result" style="display:none;margin-top:6px;padding:10px 12px;border-radius:8px;font-size:12px;background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.15);color:var(--muted2);line-height:1.6;"></div>
             </div>
 
           </div>
@@ -1899,9 +1906,13 @@
                     <button onclick="enhancerShowMode('before')" id="ba-before-btn" style="padding:5px 10px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;border:none;cursor:pointer;background:var(--bg3);color:var(--muted2);transition:background .15s;">Before</button>
                   </div>
                   <button class="btn btn-ghost btn-sm" id="enhancer-reset-btn" onclick="enhancerReset()" style="display:none;">Reset</button>
-                  <button class="btn btn-primary btn-sm" id="enhancer-remove-bg-btn" onclick="enhancerRemoveBg()" style="display:none;">
+                  <button class="btn btn-ghost btn-sm" id="enhancer-remove-bg-btn" onclick="enhancerRemoveBg()" style="display:none;">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                    Remove Background
+                    Remove BG
+                  </button>
+                  <button class="btn btn-primary btn-sm" id="enhancer-ai-btn" onclick="enhancerAiGenerate()" style="display:none;background:linear-gradient(135deg,#e8217a,#9b1fcd);">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
+                    AI Enhance
                   </button>
                 </div>
               </div>
@@ -4092,7 +4103,8 @@
 
   // ── Photo Enhancer ───────────────────────────────────────────────────────────
   let enhancerOriginalImg    = null;  // Original HTMLImageElement
-  let enhancerRemovedBgB64   = null;  // Base64 of bg-removed PNG (from remove.bg)
+  let enhancerRemovedBgB64   = null;  // Base64 of bg-removed PNG
+  let enhancerAiResultB64    = null;  // Base64 of AI-generated image
   let enhancerCurrentBg      = 'white-studio';
   let enhancerUseBgRemoved   = false;
   let enhancerViewMode       = 'after'; // 'after' | 'before'
@@ -4157,6 +4169,7 @@
     document.getElementById('enhancer-canvas').style.display               = show ? '' : 'none';
     document.getElementById('enhancer-original-canvas').style.display      = 'none'; // always hidden unless before mode
     document.getElementById('enhancer-remove-bg-btn').style.display        = show ? '' : 'none';
+    document.getElementById('enhancer-ai-btn').style.display               = show ? '' : 'none';
     document.getElementById('enhancer-reset-btn').style.display            = show ? '' : 'none';
     document.getElementById('enhancer-download-btn').style.display         = show ? '' : 'none';
     document.getElementById('enhancer-download-placeholder').style.display = show ? 'none' : '';
@@ -4771,6 +4784,114 @@
     btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg> Apply AI Suggestions`;
   }
 
+  // ── AI Image Generation (gpt-image-1) ──────────────────────────────────────
+  async function enhancerAiGenerate(fromInstructions = false) {
+    if (!enhancerOriginalImg) { alert('Upload a photo first.'); return; }
+
+    const loadEl    = document.getElementById('enhancer-loading');
+    const msgEl     = document.getElementById('enhancer-loading-msg');
+    const aiBtn     = document.getElementById('enhancer-ai-btn');
+    const instrBtn  = document.getElementById('enhancer-ai-instruct-btn');
+    const statusEl  = document.getElementById('enhancer-status');
+    const resultEl  = document.getElementById('enhancer-instruct-result');
+
+    if (loadEl) loadEl.style.display = 'flex';
+    if (msgEl)  msgEl.textContent = '✨ Generating AI photo… this takes ~15–30s';
+    if (aiBtn)  aiBtn.disabled    = true;
+    if (instrBtn) instrBtn.disabled = true;
+    if (statusEl) statusEl.style.display = 'none';
+    if (resultEl) resultEl.style.display = 'none';
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) throw new Error('Session expired — please refresh.');
+
+      // Use BG-removed PNG if available (best quality for gpt-image-1)
+      // otherwise export the original canvas image
+      let imageB64;
+      if (enhancerUseBgRemoved && enhancerRemovedBgB64) {
+        imageB64 = enhancerRemovedBgB64.includes(',')
+          ? enhancerRemovedBgB64.split(',')[1]
+          : enhancerRemovedBgB64;
+      } else {
+        // Export current canvas as PNG
+        const canvas = document.getElementById('enhancer-canvas');
+        if (!canvas) throw new Error('Canvas not found.');
+        imageB64 = canvas.toDataURL('image/png').split(',')[1];
+      }
+
+      const instructions = fromInstructions
+        ? (document.getElementById('enhancer-instructions')?.value?.trim() || '')
+        : '';
+
+      const res = await fetch(`${BOT_API}/api/photo/ai-generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          image: imageB64,
+          bg: enhancerCurrentBg,
+          style: enhancerDisplayStyle,
+          instructions,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error || 'AI generation failed.');
+
+      // Load the AI result onto the canvas
+      enhancerAiResultB64 = `data:${json.mimeType || 'image/png'};base64,${json.image}`;
+      const resultImg = new Image();
+      resultImg.onload = () => {
+        const canvas = document.getElementById('enhancer-canvas');
+        if (!canvas) return;
+        canvas.width  = resultImg.naturalWidth;
+        canvas.height = resultImg.naturalHeight;
+        canvas.getContext('2d').drawImage(resultImg, 0, 0);
+        if (statusEl) {
+          statusEl.textContent = '✨ AI photo generated — adjust or download below.';
+          statusEl.style.background  = 'rgba(155,31,205,0.08)';
+          statusEl.style.borderColor = 'rgba(155,31,205,0.25)';
+          statusEl.style.color       = '#c084fc';
+          statusEl.style.display     = '';
+          setTimeout(() => {
+            statusEl.style.display     = 'none';
+            statusEl.style.background  = '';
+            statusEl.style.borderColor = '';
+            statusEl.style.color       = '';
+          }, 8000);
+        }
+        if (resultEl && fromInstructions) {
+          resultEl.textContent    = '✨ AI generated your product photo using gpt-image-1. Download below or refine with another prompt.';
+          resultEl.style.display  = '';
+          resultEl.style.background  = 'rgba(155,31,205,0.06)';
+          resultEl.style.borderColor = 'rgba(155,31,205,0.2)';
+          resultEl.style.color       = '#c084fc';
+        }
+      };
+      resultImg.src = enhancerAiResultB64;
+
+    } catch (e) {
+      console.error('[enhancer] AI generate error:', e);
+      if (statusEl) {
+        statusEl.textContent    = '✕ AI generation failed: ' + e.message;
+        statusEl.style.background  = 'rgba(248,113,113,0.07)';
+        statusEl.style.borderColor = 'rgba(248,113,113,0.2)';
+        statusEl.style.color       = '#f87171';
+        statusEl.style.display     = '';
+        setTimeout(() => {
+          statusEl.style.display     = 'none';
+          statusEl.style.background  = '';
+          statusEl.style.borderColor = '';
+          statusEl.style.color       = '';
+        }, 9000);
+      }
+    } finally {
+      if (loadEl)  loadEl.style.display = 'none';
+      if (aiBtn)   aiBtn.disabled   = false;
+      if (instrBtn) instrBtn.disabled = false;
+    }
+  }
+
   function enhancerLocalInstructParse(text) {
     const t = text.toLowerCase();
     const s = { brightness:100, contrast:100, saturation:100, sharpness:0, warmth:0, scale:82,
@@ -4880,6 +5001,7 @@
 
   function enhancerReset() {
     enhancerRemovedBgB64   = null;
+    enhancerAiResultB64    = null;
     enhancerUseBgRemoved   = false;
     enhancerViewMode       = 'after';
     enhancerShadowType     = 'floor';

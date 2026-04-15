@@ -28,6 +28,7 @@ const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 const SUPABASE_URL   = process.env.SUPABASE_URL || 'https://fqfanqtybvnurhzkoxwr.supabase.co';
 const SUPABASE_KEY   = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY   = process.env.ANTHROPIC_API_KEY;
+const OPENAI_KEY      = process.env.OPENAI_API_KEY;
 const BRAVE_KEY       = process.env.BRAVE_SEARCH_API_KEY;
 const REMOVE_BG_KEY   = process.env.REMOVE_BG_API_KEY;
 const PROXY_URL       = process.env.PROXY_URL; // optional residential proxy e.g. http://user:pass@host:port
@@ -41,6 +42,7 @@ if (!TOKEN)         console.warn('[warn] DISCORD_BOT_TOKEN not set');
 if (!GUILD_ID)      console.warn('[warn] DISCORD_GUILD_ID not set');
 if (!SUPABASE_KEY)  console.warn('[warn] SUPABASE_SERVICE_KEY not set');
 if (!ANTHROPIC_KEY) console.warn('[warn] ANTHROPIC_API_KEY not set — AI commands will fail');
+if (!OPENAI_KEY)    console.warn('[warn] OPENAI_API_KEY not set — AI photo enhancement will fail');
 
 // ── Anthropic ─────────────────────────────────────────────────────────────────
 const ai = ANTHROPIC_KEY ? new Anthropic({ apiKey: ANTHROPIC_KEY }) : null;
@@ -3214,57 +3216,131 @@ app.post('/api/listing/upload-images', async (req, res) => {
   res.json({ ok: true, result });
 });
 
-// ── Photo enhancer — AI instructions via Claude vision ───────────────────────
+// ── Photo enhancer — AI instructions via GPT-4o vision ───────────────────────
 app.post('/api/photo/instruct', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const { image, instructions } = req.body || {};
   if (!image || !instructions) return res.status(400).json({ error: 'image and instructions required' });
-  if (!ANTHROPIC_KEY) return res.status(503).json({ error: 'AI not configured' });
+  if (!OPENAI_KEY) return res.status(503).json({ error: 'AI not configured — OPENAI_API_KEY missing' });
 
   try {
-    const client = new Anthropic({ apiKey: ANTHROPIC_KEY });
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 400,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: image } },
-          { type: 'text', text: `You are a professional product photo editor for a reselling platform. The user wants: "${instructions}"
-
-Analyse the clothing item in this photo and respond with ONLY valid JSON (no markdown):
-{
-  "brightness": <0-200, default 100>,
-  "contrast": <0-200, default 100>,
-  "saturation": <0-200, default 100>,
-  "sharpness": <0-5, default 0>,
-  "shadow": <0-60, default 0>,
-  "vignette": <0-80, default 0>,
-  "bg": <one of: "white-studio","soft-grey","cream","sage","blush","marble","wood","concrete","linen","studio-dark","black","navy","gradient-pink","gradient-blue","gradient-mesh">,
-  "removeBg": <true or false>,
-  "message": "<one sentence describing what you applied and why>"
-}` }
-        ]
-      }]
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        max_tokens: 400,
+        response_format: { type: 'json_object' },
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${image}`, detail: 'low' } },
+            { type: 'text', text: `You are a professional product photo editor for a clothing resale platform. The user wants: "${instructions}"\n\nAnalyse the clothing item and respond with ONLY valid JSON:\n{"brightness":<0-200>,"contrast":<0-200>,"saturation":<0-200>,"sharpness":<0-5>,"shadow":<0-60>,"vignette":<0-80>,"warmth":<-60 to 60>,"scale":<40-100>,"bgBrightness":<20-180>,"bg":<one of: "white-studio","soft-grey","cream","sage","blush","marble","wood","concrete","linen","studio-dark","black","navy","gradient-pink","gradient-blue","gradient-mesh">,"displayStyle":<one of: "product","flat","ghost","fill">,"shadowType":<one of: "floor","drop","none">,"removeBg":<true/false>,"message":"<one sentence>"}` }
+          ]
+        }]
+      }),
+      signal: AbortSignal.timeout(30000),
     });
 
-    const raw = response.content[0]?.text?.trim() || '';
+    if (!response.ok) {
+      const err = await response.text();
+      return res.status(502).json({ error: 'OpenAI error: ' + err.slice(0, 200) });
+    }
+
+    const data = await response.json();
+    const raw = data.choices?.[0]?.message?.content?.trim() || '';
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return res.status(502).json({ error: 'AI returned unexpected format' });
 
     const settings = JSON.parse(jsonMatch[0]);
-    // Clamp values to safe ranges
     const clamp = (v, min, max, def) => (typeof v === 'number' && !isNaN(v)) ? Math.min(max, Math.max(min, v)) : def;
-    settings.brightness = clamp(settings.brightness, 0, 200, 100);
-    settings.contrast   = clamp(settings.contrast,   0, 200, 100);
-    settings.saturation = clamp(settings.saturation, 0, 200, 100);
-    settings.sharpness  = clamp(settings.sharpness,  0, 5,   0);
-    settings.shadow     = clamp(settings.shadow,     0, 60,  0);
-    settings.vignette   = clamp(settings.vignette,   0, 80,  0);
+    settings.brightness   = clamp(settings.brightness,   0,   200, 100);
+    settings.contrast     = clamp(settings.contrast,     0,   200, 100);
+    settings.saturation   = clamp(settings.saturation,   0,   200, 100);
+    settings.sharpness    = clamp(settings.sharpness,    0,     5,   0);
+    settings.shadow       = clamp(settings.shadow,       0,    60,   0);
+    settings.vignette     = clamp(settings.vignette,     0,    80,   0);
+    settings.warmth       = clamp(settings.warmth,     -60,    60,   0);
+    settings.scale        = clamp(settings.scale,       40,   100,  82);
+    settings.bgBrightness = clamp(settings.bgBrightness, 20,  180, 100);
 
     res.json({ ok: true, settings, message: settings.message || 'Settings applied.' });
   } catch (e) {
     console.error('[photo/instruct]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Photo enhancer — AI image generation via gpt-image-1 ─────────────────────
+app.post('/api/photo/ai-generate', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const { image, bg = 'white-studio', style = 'product', instructions = '' } = req.body || {};
+  if (!image) return res.status(400).json({ error: 'image (base64 PNG) required' });
+  if (!OPENAI_KEY) return res.status(503).json({ error: 'AI not configured — OPENAI_API_KEY missing' });
+
+  const BG_DESCRIPTIONS = {
+    'white-studio':   'pure white studio backdrop with soft even lighting and subtle floor reflection',
+    'soft-grey':      'soft neutral light grey studio backdrop',
+    'cream':          'warm cream off-white backdrop',
+    'marble':         'genuine white Carrara marble surface with subtle natural grey veining',
+    'wood':           'natural warm oak wood surface with fine grain',
+    'concrete':       'raw urban concrete surface with natural texture',
+    'linen':          'textured cream linen fabric backdrop',
+    'studio-dark':    'dark charcoal studio backdrop with soft overhead spotlight',
+    'black':          'pure black studio backdrop',
+    'navy':           'deep navy midnight blue backdrop',
+    'gradient-pink':  'deep rose burgundy gradient backdrop',
+    'gradient-blue':  'deep midnight navy blue gradient backdrop',
+    'sage':           'soft sage muted green backdrop',
+    'blush':          'soft blush rose pink backdrop',
+    'transparent':    'clean white backdrop',
+  };
+
+  const STYLE_DESCRIPTIONS = {
+    'product': 'upright centred product shot, garment positioned at centre of frame filling ~80% of the image',
+    'flat':    'overhead flat lay, garment laid flat on the surface photographed from directly above',
+    'ghost':   'ghost mannequin invisible body effect — garment appears to float as if worn by an invisible person',
+    'fill':    'fill-frame composition, garment fills the entire image edge to edge with no wasted space',
+  };
+
+  const bgDesc    = BG_DESCRIPTIONS[bg]    || 'clean neutral studio backdrop';
+  const styleDesc = STYLE_DESCRIPTIONS[style] || 'centred product shot';
+
+  let prompt = `Professional product photography for a fashion resale listing. ${styleDesc}. Background: ${bgDesc}. Soft studio lighting that renders colours accurately and makes the garment look appealing. The clothing should appear clean, pressed, and in excellent condition. High-quality photorealistic image suitable for eBay, Depop, or Vinted listings. No watermarks, no text overlays, no price tags, no visible mannequin faces or hands.`;
+  if (instructions.trim()) prompt += ` Additional style requirements: ${instructions.trim()}`;
+
+  try {
+    const imgBuffer = Buffer.from(image, 'base64');
+    const form = new FormData();
+    form.append('model', 'gpt-image-1');
+    form.append('prompt', prompt);
+    form.append('size', '1024x1024');
+    form.append('quality', 'high');
+    form.append('n', '1');
+    form.append('image', new Blob([imgBuffer], { type: 'image/png' }), 'image.png');
+
+    const aiRes = await fetch('https://api.openai.com/v1/images/edits', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_KEY}` },
+      body: form,
+      signal: AbortSignal.timeout(120000),
+    });
+
+    if (!aiRes.ok) {
+      const errText = await aiRes.text();
+      console.error('[photo/ai-generate] OpenAI error:', errText.slice(0, 300));
+      let errMsg = 'AI generation failed.';
+      try { errMsg = JSON.parse(errText)?.error?.message || errMsg; } catch {}
+      return res.status(502).json({ error: errMsg });
+    }
+
+    const data = await aiRes.json();
+    const b64 = data.data?.[0]?.b64_json;
+    if (!b64) return res.status(502).json({ error: 'No image returned from OpenAI' });
+
+    res.json({ ok: true, image: b64, mimeType: 'image/png' });
+  } catch (e) {
+    console.error('[photo/ai-generate]', e.message);
     res.status(500).json({ error: e.message });
   }
 });
