@@ -593,7 +593,8 @@ const commands = [
   // ── Support ──
   new SlashCommandBuilder().setName('ticket')
     .setDescription('Ticket management')
-    .addSubcommand(s => s.setName('close').setDescription('Close this support ticket')),
+    .addSubcommand(s => s.setName('close').setDescription('Close this support ticket'))
+    .addSubcommand(s => s.setName('setup').setDescription('Post the Open Ticket embed to the support channel (owner only)')),
 ].map(c => c.toJSON());
 
 // ── Inventory (persistent via Supabase) ──────────────────────────────────────
@@ -1951,6 +1952,38 @@ async function executeCommand(interaction, commandName, tier, profile) {
           .setTimestamp()
       ]});
       try { await channel.setArchived(true, `Closed by ${interaction.user.tag}`); } catch { /* ignore */ }
+    }
+
+    if (sub === 'setup') {
+      if (interaction.user.id !== OWNER_ID) {
+        return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Owner Only').setDescription('Only the server owner can run this command.')] });
+      }
+      const guild = interaction.guild;
+      const supportChannel = findSupportChannel(guild);
+      if (!supportChannel) {
+        return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Channel Not Found').setDescription('Could not find a channel named `❓｜support` or containing "support". Make sure the channel exists and the bot has access to it.')] });
+      }
+      const openBtn = new ButtonBuilder()
+        .setCustomId('ticket_open_direct')
+        .setLabel('🎫 Open a Ticket')
+        .setStyle(ButtonStyle.Primary);
+      await supportChannel.send({
+        embeds: [new EmbedBuilder()
+          .setColor('#e8217a')
+          .setTitle('Vendora Support')
+          .setDescription(
+            'Need help with your subscription, role, or anything else?\n\n' +
+            'Click the button below to open a **private support ticket**. ' +
+            'Only you and the Vendora team will be able to see it.\n\n' +
+            '**Typical response time:** within a few hours.'
+          )
+          .addFields({ name: '📋 Before opening a ticket', value: '• Check your role assigned correctly after payment\n• Try `/help` to see all available commands\n• Check announcements for known issues' })
+          .setFooter({ text: 'Vendora — The Reseller\'s Edge  •  Tickets close after 24h of inactivity' })
+          .setTimestamp()
+        ],
+        components: [new ActionRowBuilder().addComponents(openBtn)],
+      });
+      return interaction.editReply({ embeds: [baseEmbed('#4ade80').setTitle('✅ Support Embed Posted').setDescription(`Embed sent to ${supportChannel}.`)] });
     }
   }
 }
@@ -3404,6 +3437,16 @@ app.post('/api/support/ticket', async (req, res) => {
   }
 });
 
+// ── Shared: find the support text channel reliably ───────────────────────────
+function findSupportChannel(guild) {
+  if (!guild) return null;
+  // Prefer exact ❓｜support name first, then any GuildText channel with "support" in it
+  return (
+    guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.name === '❓｜support') ||
+    guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.name.toLowerCase().includes('support'))
+  );
+}
+
 // ── Ticket: owner opens thread from DM button ─────────────────────────────────
 async function handleOpenTicketButton(interaction) {
   if (interaction.user.id !== OWNER_ID) {
@@ -3424,10 +3467,7 @@ async function handleOpenTicketButton(interaction) {
   const guild = client.guilds.cache.first();
   if (!guild) return;
 
-  // Find ❓｜support channel (matches name containing "support")
-  const supportChannel = guild.channels.cache.find(
-    c => c.name.toLowerCase().includes('support') && c.isTextBased() && !c.isThread?.()
-  );
+  const supportChannel = findSupportChannel(guild);
   if (!supportChannel) {
     return interaction.editReply({ content: '⚠️ Could not find a support channel.', components: [] });
   }
@@ -3544,9 +3584,7 @@ async function handleTicketModalSubmit(interaction) {
   const strikes = profile?.spam_strikes || 0;
 
   const guild = interaction.guild;
-  const supportChannel = guild?.channels.cache.find(
-    c => c.name.toLowerCase().includes('support') && c.isTextBased() && !c.isThread?.()
-  );
+  const supportChannel = findSupportChannel(guild);
   if (!supportChannel) {
     return interaction.editReply({ content: '⚠️ Support channel not found. Please DM the server owner directly.' });
   }
@@ -3754,9 +3792,7 @@ app.post('/api/admin/post-support-embed', async (req, res) => {
   const guild = client.guilds.cache.first();
   if (!guild) return res.status(500).json({ error: 'Bot not in any guild' });
 
-  const supportChannel = guild.channels.cache.find(
-    c => c.name.toLowerCase().includes('support') && c.isTextBased() && !c.isThread?.()
-  );
+  const supportChannel = findSupportChannel(guild);
   if (!supportChannel) return res.status(404).json({ error: 'Could not find a support channel' });
 
   const openBtn = new ButtonBuilder()
