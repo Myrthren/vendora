@@ -2214,6 +2214,23 @@
               </div>
             </div>
           </div>
+          <div class="card" style="margin-top:0;">
+            <div class="card-title">Ticket Settings</div>
+            <div style="display:flex;flex-direction:column;gap:18px;">
+              <div>
+                <label class="form-label">Roles that can use <code style="font-size:11px;background:rgba(232,33,122,0.12);color:var(--pink);padding:1px 6px;border-radius:4px;">/ticket close</code></label>
+                <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Comma-separated Role IDs. The owner can always close tickets regardless.</div>
+                <input type="text" id="ticket-close-roles" class="form-select" placeholder="e.g. 1234567890123456789, 9876543210987654321" style="font-size:12px;">
+              </div>
+              <div>
+                <label class="form-label" style="margin-bottom:6px;">Support Channel Embed</label>
+                <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Posts a branded embed with an <strong style="color:var(--text);">Open Ticket</strong> button to <strong style="color:var(--text);">#❓｜support</strong>. Users click it to open a private ticket thread directly from Discord.</div>
+                <button class="btn btn-primary btn-sm" onclick="adminPostSupportEmbed()" id="post-embed-btn">Post Support Embed to Channel</button>
+                <div id="post-embed-msg" style="display:none;font-size:11px;margin-top:8px;padding:7px 10px;border-radius:6px;"></div>
+              </div>
+            </div>
+          </div>
+
           <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;">
             <div id="bot-config-msg" style="display:none;font-size:12px;"></div>
             <button id="bot-config-save-btn" class="btn btn-pink" onclick="adminSaveConfig()">Save Config</button>
@@ -3080,6 +3097,12 @@
         const el = document.getElementById(`toggle-${id}`);
         if (el && toggles[key] !== undefined) el.checked = toggles[key];
       }
+
+      // Ticket close roles
+      const rolesEl = document.getElementById('ticket-close-roles');
+      if (rolesEl && Array.isArray(toggles.ticket_close_roles)) {
+        rolesEl.value = toggles.ticket_close_roles.join(', ');
+      }
     } catch (e) { console.warn('adminLoadConfig:', e); }
   }
 
@@ -3096,11 +3119,14 @@
       research:  { basic: parseLimit(document.getElementById('rl-research-basic')?.value), pro: parseLimit(document.getElementById('rl-research-pro')?.value), elite: parseLimit(document.getElementById('rl-research-elite')?.value) },
       crosslist: { basic: parseLimit(document.getElementById('rl-crosslist-basic')?.value),pro: parseLimit(document.getElementById('rl-crosslist-pro')?.value), elite: parseLimit(document.getElementById('rl-crosslist-elite')?.value) },
     };
+    const rawRoles = document.getElementById('ticket-close-roles')?.value || '';
+    const ticketCloseRoles = rawRoles.split(',').map(s => s.trim()).filter(s => /^\d+$/.test(s));
     const toggles = {
       bot_online:          document.getElementById('toggle-bot-online')?.checked          ?? true,
       session_auto_delete: document.getElementById('toggle-session-auto-delete')?.checked ?? true,
       join_dm:             document.getElementById('toggle-join-dm')?.checked             ?? true,
       share_detection:     document.getElementById('toggle-share-detection')?.checked     ?? true,
+      ticket_close_roles:  ticketCloseRoles,
     };
 
     try {
@@ -3116,6 +3142,33 @@
     } catch (e) { showMsg(msgEl, 'error', 'Network error.'); }
 
     btn.disabled = false; btn.textContent = 'Save Config';
+  }
+
+  async function adminPostSupportEmbed() {
+    const btn   = document.getElementById('post-embed-btn');
+    const msgEl = document.getElementById('post-embed-msg');
+    btn.disabled = true; btn.textContent = 'Posting…';
+    msgEl.style.display = 'none';
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res  = await fetch(`${BOT_API}/api/admin/post-support-embed`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      });
+      const json = await res.json();
+      if (res.ok) {
+        msgEl.textContent = '✓ Embed posted to #support successfully.';
+        msgEl.style.background = 'rgba(74,222,128,0.08)'; msgEl.style.border = '1px solid rgba(74,222,128,0.2)'; msgEl.style.color = 'var(--green)';
+      } else {
+        msgEl.textContent = '✕ ' + (json.error || 'Failed to post embed.');
+        msgEl.style.background = 'rgba(248,113,113,0.07)'; msgEl.style.border = '1px solid rgba(248,113,113,0.2)'; msgEl.style.color = '#f87171';
+      }
+    } catch (e) {
+      msgEl.textContent = '✕ Network error.';
+      msgEl.style.background = 'rgba(248,113,113,0.07)'; msgEl.style.border = '1px solid rgba(248,113,113,0.2)'; msgEl.style.color = '#f87171';
+    }
+    msgEl.style.display = '';
+    btn.disabled = false; btn.textContent = 'Post Support Embed to Channel';
   }
 
   // ── Admin: Announcements ─────────────────────────────────────────────────────

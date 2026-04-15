@@ -8,6 +8,7 @@ const {
   SlashCommandBuilder, EmbedBuilder, ChannelType,
   PermissionFlagsBits, PermissionsBitField,
   ButtonBuilder, ButtonStyle, ActionRowBuilder,
+  ModalBuilder, TextInputBuilder, TextInputStyle,
 } = require('discord.js');
 const express  = require('express');
 const Anthropic = require('@anthropic-ai/sdk');
@@ -89,14 +90,22 @@ const CMD_TIER_REQUIRED = {
 
 // ── Bot feature toggles (defaults — overwritten by Supabase on boot) ──────────
 const BOT_TOGGLES = {
-  bot_online:         true,
+  bot_online:          true,
   session_auto_delete: true,
-  join_dm:            true,
-  share_detection:    true,
+  join_dm:             true,
+  share_detection:     true,
+  ticket_close_roles:  [], // Array of role IDs allowed to use /ticket close
 };
 
 // In-memory rate limit store: Map<discordId, Map<group, { count, resetAt }>>
 const usageStore = new Map();
+
+// In-memory ticket store: ticketId -> { discordId, username, message, subject, createdAt }
+const ticketStore = new Map();
+setInterval(() => {
+  const cutoff = Date.now() - 48 * 60 * 60 * 1000;
+  for (const [id, t] of ticketStore) { if (t.createdAt < cutoff) ticketStore.delete(id); }
+}, 60 * 60 * 1000);
 
 function checkRateLimit(discordId, commandName, tier) {
   const group     = CMD_RATE_GROUP[commandName] || 'default';
@@ -580,6 +589,11 @@ const commands = [
     .addStringOption(o => o.setName('source').setDescription('Where it is being sold (e.g. Vinted, eBay, Facebook)').setRequired(false)),
   new SlashCommandBuilder().setName('grade').setDescription('Grade item condition from a photo [Elite]')
     .addAttachmentOption(o => o.setName('photo').setDescription('Photo of the item').setRequired(true)),
+
+  // ── Support ──
+  new SlashCommandBuilder().setName('ticket')
+    .setDescription('Ticket management')
+    .addSubcommand(s => s.setName('close').setDescription('Close this support ticket')),
 ].map(c => c.toJSON());
 
 // ── Inventory (persistent via Supabase) ──────────────────────────────────────
@@ -1603,6 +1617,35 @@ async function executeCommand(interaction, commandName, tier, profile) {
       baseEmbed('#e8a121').setTitle('Condition Grade').setDescription(text.slice(0, 4000))
     ]});
   }
+
+  // ── /ticket close ────────────────────────────────────────────────────────────
+  if (commandName === 'ticket') {
+    const sub = interaction.options.getSubcommand();
+    if (sub === 'close') {
+      const channel = interaction.channel;
+      if (!channel?.isThread() || !channel.name.startsWith('ticket-')) {
+        return interaction.editReply({ embeds: [
+          baseEmbed('#f87171').setTitle('Not a Ticket Thread')
+            .setDescription('This command can only be used inside a Vendora ticket thread.')
+        ]});
+      }
+      const allowedRoles = Array.isArray(BOT_TOGGLES.ticket_close_roles) ? BOT_TOGGLES.ticket_close_roles : [];
+      const memberRoles  = interaction.member?.roles?.cache?.map(r => r.id) || [];
+      const canClose     = interaction.user.id === OWNER_ID || memberRoles.some(r => allowedRoles.includes(r));
+      if (!canClose) {
+        return interaction.editReply({ embeds: [
+          baseEmbed('#f87171').setTitle('No Permission')
+            .setDescription("You don't have permission to close tickets.")
+        ]});
+      }
+      await interaction.editReply({ embeds: [
+        baseEmbed('#4ade80').setTitle('🔒 Ticket Closed')
+          .setDescription(`Closed by <@${interaction.user.id}>.\n\nThis thread is now archived.`)
+          .setTimestamp()
+      ]});
+      try { await channel.setArchived(true, `Closed by ${interaction.user.tag}`); } catch { /* ignore */ }
+    }
+  }
 }
 
 // ── Bot events ────────────────────────────────────────────────────────────────
@@ -1649,10 +1692,22 @@ client.on('guildMemberAdd', async (member) => {
 });
 
 client.on('interactionCreate', async (interaction) => {
-  // Button interactions (spam marking etc.)
+  // ── Button interactions ──────────────────────────────────────────────────────
   if (interaction.isButton()) {
     if (interaction.customId.startsWith('spam_')) {
-      await handleSpamButton(interaction).catch(e => console.error('[button] spam handler error:', e.message));
+      await handleSpamButton(interaction).catch(e => console.error('[button] spam error:', e.message));
+    } else if (interaction.customId.startsWith('open_ticket_')) {
+      await handleOpenTicketButton(interaction).catch(e => console.error('[button] open_ticket error:', e.message));
+    } else if (interaction.customId === 'ticket_open_direct') {
+      await handleTicketDirectButton(interaction).catch(e => console.error('[button] ticket_direct error:', e.message));
+    }
+    return;
+  }
+
+  // ── Modal submissions ────────────────────────────────────────────────────────
+  if (interaction.isModalSubmit()) {
+    if (interaction.customId.startsWith('ticket_modal_')) {
+      await handleTicketModalSubmit(interaction).catch(e => console.error('[modal] ticket error:', e.message));
     }
     return;
   }
@@ -3005,20 +3060,34 @@ app.post('/api/support/ticket', async (req, res) => {
     const owner = await client.users.fetch(OWNER_ID);
     const ticketId = Date.now().toString(36);
 
+    // Cache ticket data so the Open Ticket button can retrieve it
+    ticketStore.set(ticketId, { discordId, username, message: message.slice(0, 1800), subject: subject || 'General enquiry', createdAt: Date.now() });
+
+    const openBtn = new ButtonBuilder()
+      .setCustomId(`open_ticket_${discordId}_${ticketId}`)
+      .setLabel('🎫 Open Ticket')
+      .setStyle(ButtonStyle.Primary);
+
     const spamBtn = new ButtonBuilder()
       .setCustomId(`spam_${discordId}_${ticketId}`)
       .setLabel(`⚑ Mark as Spam (${strikes}/3 strikes)`)
       .setStyle(ButtonStyle.Danger);
 
-    const row = new ActionRowBuilder().addComponents(spamBtn);
+    const row = new ActionRowBuilder().addComponents(openBtn, spamBtn);
 
     await owner.send({
-      content:
-        `📩 **Support Ticket** | ID: \`${ticketId}\`\n` +
-        `**From:** ${username} (\`${discordId}\`)\n` +
-        `**Subject:** ${subject || 'General enquiry'}\n` +
-        `**Current strikes:** ${strikes}/3\n\n` +
-        `**Message:**\n${message.slice(0, 1800)}`,
+      embeds: [new EmbedBuilder()
+        .setColor('#e8217a')
+        .setTitle('📩 Support Message')
+        .addFields(
+          { name: 'From', value: `${username} (\`${discordId}\`)`, inline: true },
+          { name: 'Subject', value: subject || 'General enquiry', inline: true },
+          { name: 'Strikes', value: `${strikes}/3`, inline: true },
+          { name: 'Message', value: message.slice(0, 1024) },
+        )
+        .setFooter({ text: `Ticket ID: ${ticketId}` })
+        .setTimestamp()
+      ],
       components: [row],
     });
     res.json({ ok: true });
@@ -3027,6 +3096,220 @@ app.post('/api/support/ticket', async (req, res) => {
     res.status(500).json({ error: 'Could not send ticket. Please DM pluniez directly on Discord.' });
   }
 });
+
+// ── Ticket: owner opens thread from DM button ─────────────────────────────────
+async function handleOpenTicketButton(interaction) {
+  if (interaction.user.id !== OWNER_ID) {
+    return interaction.reply({ content: 'Only the owner can open tickets from here.', ephemeral: true });
+  }
+  await interaction.deferUpdate();
+
+  const parts          = interaction.customId.split('_'); // open_ticket_<discordId>_<ticketId>
+  const targetDiscordId = parts[2];
+  const ticketId        = parts[3];
+  if (!targetDiscordId) return;
+
+  const data     = ticketStore.get(ticketId) || {};
+  const username = data.username || 'user';
+  const message  = data.message  || '*(message not cached — see original DM)*';
+  const subject  = data.subject  || 'General enquiry';
+
+  const guild = client.guilds.cache.first();
+  if (!guild) return;
+
+  // Find ❓｜support channel (matches name containing "support")
+  const supportChannel = guild.channels.cache.find(
+    c => c.name.toLowerCase().includes('support') && c.isTextBased() && !c.isThread?.()
+  );
+  if (!supportChannel) {
+    return interaction.editReply({ content: '⚠️ Could not find a support channel.', components: [] });
+  }
+
+  const threadName = `ticket-${username.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 20)}-${ticketId}`;
+
+  let thread;
+  try {
+    thread = await supportChannel.threads.create({
+      name: threadName,
+      autoArchiveDuration: 1440,
+      type: ChannelType.PrivateThread,
+      reason: `Support ticket for ${username} (${targetDiscordId})`,
+    });
+  } catch {
+    thread = await supportChannel.threads.create({
+      name: threadName,
+      autoArchiveDuration: 1440,
+      reason: `Support ticket for ${username} (${targetDiscordId})`,
+    });
+  }
+
+  try { await thread.members.add(targetDiscordId); } catch { /* user left guild */ }
+  try { await thread.members.add(OWNER_ID); }        catch { /* owner already in */ }
+
+  await thread.send({
+    content: `<@${targetDiscordId}> <@${OWNER_ID}>`,
+    embeds: [new EmbedBuilder()
+      .setColor('#e8217a')
+      .setTitle('🎫 Support Ticket Opened')
+      .addFields(
+        { name: 'User',      value: `<@${targetDiscordId}> (\`${targetDiscordId}\`)`, inline: true },
+        { name: 'Subject',   value: subject,                                          inline: true },
+        { name: 'Ticket ID', value: `\`${ticketId}\``,                               inline: true },
+        { name: 'Original Message', value: message.slice(0, 1024) },
+      )
+      .setFooter({ text: 'Closes after 24h of inactivity  •  /ticket close to close manually' })
+      .setTimestamp()
+    ],
+  });
+
+  // DM the user with the thread link
+  try {
+    const targetUser = await client.users.fetch(targetDiscordId);
+    await targetUser.send({ embeds: [new EmbedBuilder()
+      .setColor('#e8217a')
+      .setTitle('🎫 Your Support Ticket Has Been Opened')
+      .setDescription(
+        `The Vendora team has opened a ticket for your message.\n\n` +
+        `**[Click here to view your ticket](${thread.url})**\n\n` +
+        `Reply in the thread and we'll get back to you. The ticket closes automatically after **24 hours of inactivity**.`
+      )
+      .addFields({ name: 'Subject', value: subject, inline: true })
+      .setFooter({ text: 'Vendora — The Reseller\'s Edge' })
+    ]});
+  } catch { /* DMs closed */ }
+
+  // Update the owner DM buttons to show ticket opened
+  const openedBtn = new ButtonBuilder()
+    .setCustomId(`ticket_opened_${ticketId}`)
+    .setLabel(`✓ Ticket Opened`)
+    .setStyle(ButtonStyle.Success)
+    .setDisabled(true);
+  const spamBtn = new ButtonBuilder()
+    .setCustomId(`spam_${targetDiscordId}_${ticketId}`)
+    .setLabel('⚑ Mark as Spam')
+    .setStyle(ButtonStyle.Danger);
+  await interaction.editReply({ components: [new ActionRowBuilder().addComponents(openedBtn, spamBtn)] });
+}
+
+// ── Ticket: user clicks Open Ticket from support channel embed ─────────────────
+async function handleTicketDirectButton(interaction) {
+  const modal = new ModalBuilder()
+    .setCustomId(`ticket_modal_${interaction.user.id}_${Date.now().toString(36)}`)
+    .setTitle('Open a Support Ticket');
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('ticket_subject')
+        .setLabel('What is this about?')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('e.g. Role not assigned after payment')
+        .setRequired(true)
+        .setMaxLength(100)
+    ),
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('ticket_message')
+        .setLabel('Describe your issue')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('Please include as much detail as possible…')
+        .setRequired(true)
+        .setMaxLength(1000)
+    ),
+  );
+  await interaction.showModal(modal);
+}
+
+// ── Ticket: modal submitted from support channel embed ─────────────────────────
+async function handleTicketModalSubmit(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  const discordId = interaction.user.id;
+  const username  = interaction.user.username;
+  const subject   = interaction.fields.getTextInputValue('ticket_subject');
+  const message   = interaction.fields.getTextInputValue('ticket_message');
+  const ticketId  = Date.now().toString(36);
+
+  const profile = await getProfileByDiscordId(discordId);
+  if (profile?.is_banned) {
+    return interaction.editReply({ content: '⛔ Your support access has been suspended.' });
+  }
+  const strikes = profile?.spam_strikes || 0;
+
+  const guild = interaction.guild;
+  const supportChannel = guild?.channels.cache.find(
+    c => c.name.toLowerCase().includes('support') && c.isTextBased() && !c.isThread?.()
+  );
+  if (!supportChannel) {
+    return interaction.editReply({ content: '⚠️ Support channel not found. Please DM the server owner directly.' });
+  }
+
+  const threadName = `ticket-${username.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 20)}-${ticketId}`;
+  let thread;
+  try {
+    thread = await supportChannel.threads.create({
+      name: threadName,
+      autoArchiveDuration: 1440,
+      type: ChannelType.PrivateThread,
+      reason: `Support ticket from ${username} (${discordId})`,
+    });
+  } catch {
+    thread = await supportChannel.threads.create({
+      name: threadName,
+      autoArchiveDuration: 1440,
+      reason: `Support ticket from ${username} (${discordId})`,
+    });
+  }
+
+  try { await thread.members.add(discordId); } catch { /* guild issues */ }
+  try { await thread.members.add(OWNER_ID); }  catch { /* already in */ }
+
+  await thread.send({
+    content: `<@${discordId}> <@${OWNER_ID}>`,
+    embeds: [new EmbedBuilder()
+      .setColor('#e8217a')
+      .setTitle('🎫 Support Ticket Opened')
+      .addFields(
+        { name: 'User',      value: `<@${discordId}> (\`${discordId}\`)`, inline: true },
+        { name: 'Subject',   value: subject,                               inline: true },
+        { name: 'Ticket ID', value: `\`${ticketId}\``,                    inline: true },
+        { name: 'Message',   value: message.slice(0, 1024) },
+      )
+      .setFooter({ text: 'Closes after 24h of inactivity  •  /ticket close to close manually' })
+      .setTimestamp()
+    ],
+  });
+
+  // Notify owner by DM
+  try {
+    const owner = await client.users.fetch(OWNER_ID);
+    const spamBtn = new ButtonBuilder()
+      .setCustomId(`spam_${discordId}_${ticketId}`)
+      .setLabel(`⚑ Mark as Spam (${strikes}/3)`)
+      .setStyle(ButtonStyle.Danger);
+    await owner.send({
+      embeds: [new EmbedBuilder()
+        .setColor('#e8217a')
+        .setTitle('📩 New Support Ticket (via server)')
+        .addFields(
+          { name: 'From',    value: `${username} (\`${discordId}\`)`, inline: true },
+          { name: 'Subject', value: subject,                           inline: true },
+          { name: 'Thread',  value: `[View ticket](${thread.url})`,   inline: true },
+          { name: 'Message', value: message.slice(0, 1024) },
+        )
+        .setFooter({ text: `Ticket ID: ${ticketId}` })
+        .setTimestamp()
+      ],
+      components: [new ActionRowBuilder().addComponents(spamBtn)],
+    });
+  } catch { /* DMs closed */ }
+
+  ticketStore.set(ticketId, { discordId, username, message, subject, createdAt: Date.now() });
+
+  return interaction.editReply({
+    content: `✅ **Ticket opened!** [Click here to go to your ticket](${thread.url})\n\nThe support team has been notified and will respond shortly. Your ticket closes automatically after 24 hours of inactivity.`,
+  });
+}
 
 // ── Spam strike handler (button interactions) ─────────────────────────────────
 async function handleSpamButton(interaction) {
@@ -3156,6 +3439,48 @@ app.get('/api/discord/channels', async (req, res) => {
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
+});
+
+// ── Admin: post support channel embed ────────────────────────────────────────
+app.post('/api/admin/post-support-embed', async (req, res) => {
+  if (!await requireOwner(req, res)) return;
+  const guild = client.guilds.cache.first();
+  if (!guild) return res.status(500).json({ error: 'Bot not in any guild' });
+
+  const supportChannel = guild.channels.cache.find(
+    c => c.name.toLowerCase().includes('support') && c.isTextBased() && !c.isThread?.()
+  );
+  if (!supportChannel) return res.status(404).json({ error: 'Could not find a support channel' });
+
+  const openBtn = new ButtonBuilder()
+    .setCustomId('ticket_open_direct')
+    .setLabel('🎫 Open a Ticket')
+    .setStyle(ButtonStyle.Primary);
+
+  await supportChannel.send({
+    embeds: [new EmbedBuilder()
+      .setColor('#e8217a')
+      .setTitle('Vendora Support')
+      .setDescription(
+        'Need help with your subscription, role, or anything else?\n\n' +
+        'Click the button below to open a **private support ticket**. ' +
+        'Only you and the Vendora team will be able to see it.\n\n' +
+        '**Typical response time:** within a few hours.'
+      )
+      .addFields({
+        name: '📋 Before opening a ticket',
+        value:
+          '• Check your role assigned correctly after payment\n' +
+          '• Try `/help` to see all available commands\n' +
+          '• Make sure your issue hasn\'t already been addressed in announcements',
+      })
+      .setFooter({ text: 'Vendora — The Reseller\'s Edge  •  Tickets close after 24h of inactivity' })
+      .setTimestamp()
+    ],
+    components: [new ActionRowBuilder().addComponents(openBtn)],
+  });
+
+  res.json({ ok: true });
 });
 
 // ── Admin: get bot config ─────────────────────────────────────────────────────
