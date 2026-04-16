@@ -3024,11 +3024,17 @@ async function validateVintedToken(token) {
       return { valid: false, error: 'Unexpected response from Vinted — token may be invalid.' };
     }
     if (!r.ok) {
+      // DataDome challenge returns JSON like {"url":"https://geo.captcha-delivery.com/..."}
+      // Must check this BEFORE treating it as an auth error.
+      if (data?.url?.includes('captcha-delivery.com') || data?.url?.includes('datadome')) {
+        return { valid: null, warning: 'Could not validate token server-side (bot-protection on this endpoint). Token saved — it will fail with a clear error if incorrect when you list.' };
+      }
       const code = data?.message_code || data?.error || '';
-      if (r.status === 401 || r.status === 403 || code.includes('unauthenticated') || code.includes('invalid_auth') || code.includes('access_denied')) {
+      if (r.status === 401 || code.includes('unauthenticated') || code.includes('invalid_auth')) {
         return { valid: false, error: 'Token is invalid or expired. Make sure you copied the full `access_token` value from your Vinted browser cookies.' };
       }
-      return { valid: false, error: `Vinted returned ${r.status} — token may be wrong.` };
+      // Any other non-OK response — don't block the save, just warn
+      return { valid: null, warning: `Vinted returned ${r.status} during validation — token saved, test by attempting a listing.` };
     }
     const u = data.user || data;
     return { valid: true, username: u.login || u.username || '', user_id: String(u.id || '') };
