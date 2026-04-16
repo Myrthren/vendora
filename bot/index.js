@@ -2988,9 +2988,8 @@ async function vintedCreateListing(accessToken, listingData) {
       const err = await res.text();
       console.error(`[vinted-list] HTTP ${res.status} base=${vintedBase} proxy=${!!PROXY_AGENT}:`, err.slice(0, 400));
 
-      // Expired / invalid token — clear error prompting reconnect
-      if (err.includes('invalid_auth') || err.includes('Invalid authentification') ||
-          err.includes('access_denied') || err.includes('Accès refus') || res.status === 401) {
+      // Expired / invalid token — only trigger on genuine auth errors, not permission errors
+      if (err.includes('invalid_auth') || err.includes('Invalid authentification') || res.status === 401) {
         return { error: 'Your Vinted session token has expired or is invalid. Reconnect your Vinted account in the dashboard.' };
       }
       // DataDome challenge still triggering — log details
@@ -3066,11 +3065,7 @@ async function uploadImagesToPlatform(token, platform, images = []) {
     if (!r || r.error) {
       console.warn(`[image] ${platform} upload failed:`, r?.error);
       // Propagate auth errors immediately — no point continuing with an expired token
-      if (r?.error && (
-        r.error.includes('Invalid authentification') || r.error.includes('invalid_auth') ||
-        r.error.includes('Unauthorized') || r.error.includes('access_denied') ||
-        r.error.includes('Accès refus')
-      )) {
+      if (r?.error && (r.error.includes('Invalid authentification') || r.error.includes('invalid_auth') || r.error.includes('Unauthorized'))) {
         return { authError: 'Your Vinted session token has expired or is invalid. Reconnect your Vinted account in the dashboard.' };
       }
       continue;

@@ -1020,31 +1020,19 @@
         <div class="page-sub">Link your reselling accounts so Vendora can list, cross-list, and auto-relist on your behalf.</div>
       </div>
 
-      <!-- Depop -->
-      <div class="card" style="margin-bottom:16px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <!-- Depop — Coming Soon -->
+      <div class="card" style="margin-bottom:16px;opacity:0.6;pointer-events:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
           <div style="display:flex;align-items:center;gap:12px;">
             <div class="plat-icon" style="background:rgba(255,35,0,0.1);color:#ff2300;">DP</div>
             <div>
-              <div style="font-weight:600;font-size:14px;color:var(--text);">Depop</div>
-              <div id="plat-status-depop" class="plat-status-row disconnected">○ Not connected</div>
+              <div style="font-weight:600;font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px;">
+                Depop
+                <span style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.07);color:var(--muted);">Coming Soon</span>
+              </div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px;">Depop integration is currently in development</div>
             </div>
           </div>
-          <button id="plat-disconnect-btn-depop" class="btn btn-danger btn-sm" style="display:none;" onclick="disconnectPlatform('depop')">Disconnect</button>
-        </div>
-        <div id="plat-form-depop">
-          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;">
-            <div>
-              <label class="form-label">Depop Email</label>
-              <input id="depop-email" type="email" class="form-select" style="height:auto;padding:9px 14px;" placeholder="you@email.com">
-            </div>
-            <div>
-              <label class="form-label">Password</label>
-              <input id="depop-password" type="password" class="form-select" style="height:auto;padding:9px 14px;" placeholder="••••••••">
-            </div>
-            <button id="plat-connect-btn-depop" class="btn btn-pink btn-sm" onclick="connectPlatform('depop')">Connect</button>
-          </div>
-          <div id="depop-connect-msg" style="display:none;margin-top:10px;"></div>
         </div>
       </div>
 
@@ -1193,10 +1181,10 @@
               <div>
                 <label class="form-label">Platforms *</label>
                 <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
-                  <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-dim);border-radius:8px;cursor:pointer;transition:border .15s;" id="list-lbl-depop" onmouseover="this.style.borderColor='rgba(255,35,0,0.3)'" onmouseout="updateListPlatformBorder('depop')">
-                    <input type="checkbox" id="list-depop" style="accent-color:#ff2300;width:14px;height:14px;" onchange="updateListPlatformBorder('depop');updatePlatformFields();">
+                  <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-dim);border-radius:8px;opacity:0.45;pointer-events:none;" id="list-lbl-depop">
+                    <input type="checkbox" id="list-depop" disabled style="accent-color:#ff2300;width:14px;height:14px;">
                     <span style="font-size:13px;color:var(--text);">Depop</span>
-                    <span id="list-depop-status" style="margin-left:auto;font-size:10px;color:var(--muted);">Not connected</span>
+                    <span style="margin-left:auto;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);">Coming Soon</span>
                   </label>
                   <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-dim);border-radius:8px;cursor:pointer;transition:border .15s;" id="list-lbl-vinted" onmouseover="this.style.borderColor='rgba(9,177,186,0.3)'" onmouseout="updateListPlatformBorder('vinted')">
                     <input type="checkbox" id="list-vinted" style="accent-color:#09b1ba;width:14px;height:14px;" onchange="updateListPlatformBorder('vinted');updatePlatformFields();">
@@ -1522,8 +1510,8 @@
             <div style="display:flex;flex-direction:column;gap:8px;">
               <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted2);">Platforms</label>
               <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text);cursor:pointer;padding:8px 14px;border:1px solid var(--border-dim);border-radius:8px;transition:border .15s;" id="cl-lbl-depop">
-                  <input type="checkbox" id="cl-depop" checked onchange="clTogglePlatform('depop',this.checked)" style="accent-color:var(--pink);width:14px;height:14px;"> Depop
+                <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text);padding:8px 14px;border:1px solid var(--border-dim);border-radius:8px;opacity:0.45;pointer-events:none;" id="cl-lbl-depop">
+                  <input type="checkbox" id="cl-depop" disabled style="accent-color:var(--pink);width:14px;height:14px;"> Depop <span style="margin-left:4px;font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);">Soon</span>
                 </label>
                 <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text);cursor:pointer;padding:8px 14px;border:1px solid var(--border-dim);border-radius:8px;transition:border .15s;" id="cl-lbl-vinted">
                   <input type="checkbox" id="cl-vinted" checked onchange="clTogglePlatform('vinted',this.checked)" style="accent-color:var(--pink);width:14px;height:14px;"> Vinted
