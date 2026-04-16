@@ -36,13 +36,25 @@ const REMOVE_BG_KEY   = process.env.REMOVE_BG_API_KEY;
 const PROXY_URL       = process.env.PROXY_URL; // optional residential proxy e.g. http://user:pass@host:port
 
 // Create ONE shared proxy agent — reusing it keeps the same exit IP across a full Vinted session.
-// Rotating proxy pools assign a new IP per-connection; a fresh ProxyAgent per request would give
-// a different IP on every call, which DataDome detects and blocks.
+// Chrome-like TLS cipher configuration to avoid JA3 fingerprint detection by DataDome.
+const CHROME_CIPHERS = [
+  'TLS_AES_128_GCM_SHA256', 'TLS_AES_256_GCM_SHA384', 'TLS_CHACHA20_POLY1305_SHA256',
+  'ECDHE-ECDSA-AES128-GCM-SHA256', 'ECDHE-RSA-AES128-GCM-SHA256',
+  'ECDHE-ECDSA-AES256-GCM-SHA384', 'ECDHE-RSA-AES256-GCM-SHA384',
+  'ECDHE-ECDSA-CHACHA20-POLY1305', 'ECDHE-RSA-CHACHA20-POLY1305',
+  'ECDHE-RSA-AES128-SHA', 'ECDHE-RSA-AES256-SHA',
+  'AES128-GCM-SHA256', 'AES256-GCM-SHA384', 'AES128-SHA', 'AES256-SHA',
+].join(':');
+const CHROME_SIGALGS = 'ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256:rsa_pkcs1_sha256:ecdsa_secp384r1_sha384:rsa_pss_rsae_sha384:rsa_pkcs1_sha384:rsa_pss_rsae_sha512:rsa_pkcs1_sha512';
+
 let PROXY_AGENT = null;
 if (PROXY_URL && ProxyAgent) {
   try {
-    PROXY_AGENT = new ProxyAgent(PROXY_URL);
-    console.log('[proxy] Proxy agent ready — Vinted requests will route through residential proxy');
+    PROXY_AGENT = new ProxyAgent({
+      uri: PROXY_URL,
+      connect: { ciphers: CHROME_CIPHERS, sigalgs: CHROME_SIGALGS },
+    });
+    console.log('[proxy] Proxy agent ready (Chrome TLS) — Vinted requests will route through residential proxy');
   } catch (e) {
     console.error('[proxy] Failed to create ProxyAgent:', e.message);
   }
@@ -2818,9 +2830,10 @@ async function vintedLogin(usernameOrEmail, password) {
 
     let data;
     try { data = JSON.parse(rawText); } catch {
-      // HTML response = DataDome challenge page (bot-protection on this IP)
+      // HTML response = DataDome challenge page (bot-protection on this IP/fingerprint)
+      console.error(`[vinted-login] Non-JSON response (proxy=${!!PROXY_AGENT}) status=${res.status}:`, rawText.slice(0, 400));
       const proxyNote = PROXY_AGENT
-        ? 'Proxy is active but this exit IP may be flagged — try a different proxy or wait a few minutes.'
+        ? 'Proxy active but fingerprint still flagged — check Railway logs for details.'
         : 'No proxy set — add a residential PROXY_URL to Railway env vars.';
       return { error: `Vinted bot-protection on login. ${proxyNote}` };
     }
@@ -2909,10 +2922,11 @@ async function vintedCreateListing(accessToken, listingData) {
     });
     if (!res.ok) {
       const err = await res.text();
-      // DataDome captcha block — proxy is active but this IP is flagged or session mismatch
+      // Log the response so Railway logs reveal what Vinted actually returned
+      console.error(`[vinted-list] HTTP ${res.status} (proxy=${!!PROXY_AGENT}):`, err.slice(0, 400));
       if (err.includes('captcha-delivery.com') || err.includes('datadome')) {
         const proxyNote = PROXY_AGENT
-          ? 'Proxy is active but this IP may be flagged by DataDome. Try a different proxy or wait a few minutes.'
+          ? 'Proxy active but fingerprint still flagged — check Railway logs for the raw response.'
           : 'Add a residential PROXY_URL to Railway env vars to bypass DataDome.';
         return { error: `Vinted bot-protection triggered. ${proxyNote}` };
       }
