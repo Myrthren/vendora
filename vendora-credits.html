@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="favicon.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vendora — Buy Credits</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root {
+    --pink: #e8217a;
+    --pink-light: #f72e8a;
+    --pink-glow: rgba(232,33,122,0.3);
+    --pink-soft: rgba(232,33,122,0.08);
+    --gold: #e8a121;
+    --gold-glow: rgba(232,161,33,0.3);
+    --green: #4ade80;
+    --red: #f87171;
+    --bg: #090909;
+    --bg2: #0f0f0f;
+    --bg3: #141414;
+    --border: rgba(255,255,255,0.06);
+    --border-pink: rgba(232,33,122,0.3);
+    --border-gold: rgba(232,161,33,0.35);
+    --text: #f0f0f0;
+    --muted: #888;
+    --muted2: rgba(255,255,255,0.35);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { height: 100%; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  /* Noise overlay */
+  body::after {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 900;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    opacity: 0.6;
+  }
+
+  /* ─── NAV ─── */
+  .topnav {
+    height: 60px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    flex-shrink: 0;
+  }
+
+  .topnav-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .brand-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+  }
+
+  .brand-mark {
+    width: 34px; height: 34px;
+    background: var(--pink);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 0 16px rgba(232,33,122,0.35);
+  }
+
+  .brand-mark svg {
+    width: 18px; height: 18px;
+    fill: white;
+  }
+
+  .brand-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--text);
+  }
+
+  .nav-divider {
+    width: 1px; height: 20px;
+    background: var(--border);
+  }
+
+  .back-link {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 13px; color: var(--muted);
+    text-decoration: none;
+    transition: color .18s;
+  }
+  .back-link:hover { color: var(--text); }
+  .back-link svg { display: block; }
+
+  .credit-balance {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(232,33,122,0.07);
+    border: 1px solid rgba(232,33,122,0.18);
+    border-radius: 20px;
+    padding: 7px 16px;
+    font-size: 13px; font-weight: 500;
+    color: var(--text);
+  }
+  .credit-balance .bolt {
+    font-size: 14px;
+    color: var(--pink);
+  }
+  .credit-balance .bal-num {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    color: var(--pink);
+  }
+  .credit-balance .bal-label {
+    color: var(--muted2);
+    font-size: 12px;
+  }
+
+  /* ─── MAIN ─── */
+  .main {
+    flex: 1;
+    max-width: 900px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  .page-header {
+    margin-bottom: 42px;
+  }
+  .page-header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 30px; font-weight: 800;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  .page-header p {
+    font-size: 14px; color: var(--muted);
+    line-height: 1.5;
+  }
+  .page-header span.highlight {
+    color: var(--pink); font-weight: 500;
+  }
+
+  /* ─── PACKAGE GRID ─── */
+  .packages-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+    margin-bottom: 48px;
+  }
+
+  @media (max-width: 640px) {
+    .packages-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (min-width: 900px) {
+    .packages-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+
+  .pkg-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 22px;
+    display: flex; flex-direction: column;
+    gap: 14px;
+    position: relative;
+    transition: border-color .22s, box-shadow .22s, transform .18s;
+    cursor: default;
+  }
+  .pkg-card:hover {
+    border-color: var(--border-pink);
+    box-shadow: 0 0 28px rgba(232,33,122,0.08);
+    transform: translateY(-2px);
+  }
+
+  .pkg-card.popular {
+    border-color: var(--pink);
+    box-shadow: 0 0 32px rgba(232,33,122,0.12);
+  }
+  .pkg-card.popular:hover {
+    box-shadow: 0 0 40px rgba(232,33,122,0.2);
+  }
+
+  .pkg-card.best-value {
+    border-color: var(--gold);
+    box-shadow: 0 0 32px rgba(232,161,33,0.1);
+  }
+  .pkg-card.best-value:hover {
+    box-shadow: 0 0 40px rgba(232,161,33,0.2);
+    border-color: var(--gold);
+  }
+
+  .pkg-badge {
+    position: absolute;
+    top: -11px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 3px 12px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .pkg-badge.pink-badge {
+    background: var(--pink);
+    color: white;
+  }
+  .pkg-badge.gold-badge {
+    background: var(--gold);
+    color: #090909;
+  }
+
+  .pkg-name {
+    font-size: 12px; font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .popular .pkg-name { color: var(--pink); }
+  .best-value .pkg-name { color: var(--gold); }
+
+  .pkg-credits {
+    font-family: 'Syne', sans-serif;
+    font-size: 32px; font-weight: 800;
+    color: var(--text);
+    line-height: 1;
+  }
+  .pkg-credits span {
+    font-size: 14px; font-weight: 600;
+    color: var(--muted2);
+    margin-left: 4px;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .pkg-price {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px; font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .pkg-per-credit {
+    font-size: 11px; color: var(--muted);
+    margin-top: -6px;
+  }
+
+  .pkg-divider {
+    height: 1px;
+    background: var(--border);
+  }
+
+  .btn-buy {
+    display: block; width: 100%;
+    padding: 11px 0;
+    background: var(--pink);
+    color: white;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 600;
+    border: none; border-radius: 10px;
+    cursor: pointer;
+    transition: background .18s, transform .12s, box-shadow .18s;
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+  .btn-buy:hover {
+    background: #c91968;
+    box-shadow: 0 4px 18px rgba(232,33,122,0.32);
+    transform: translateY(-1px);
+  }
+  .btn-buy:active { transform: translateY(0); }
+
+  .best-value .btn-buy {
+    background: var(--gold);
+    color: #090909;
+  }
+  .best-value .btn-buy:hover {
+    background: #d4921a;
+    box-shadow: 0 4px 18px rgba(232,161,33,0.35);
+  }
+
+  /* ─── SECTION HEADING ─── */
+  .section-heading {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text);
+    margin-bottom: 16px;
+  }
+  .section-sub {
+    font-size: 13px; color: var(--muted);
+    margin-bottom: 20px;
+    margin-top: -10px;
+  }
+
+  /* ─── REDEEM SECTION ─── */
+  .redeem-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    max-width: 500px;
+  }
+
+  .redeem-row {
+    display: flex; gap: 10px;
+    align-items: stretch;
+  }
+
+  .redeem-input {
+    flex: 1;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    padding: 11px 16px;
+    outline: none;
+    transition: border-color .18s;
+    letter-spacing: 0.06em;
+  }
+  .redeem-input::placeholder { color: var(--muted); }
+  .redeem-input:focus { border-color: var(--pink); }
+
+  .btn-redeem {
+    padding: 11px 22px;
+    background: var(--pink);
+    color: white;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 600;
+    border: none; border-radius: 10px;
+    cursor: pointer;
+    transition: background .18s, box-shadow .18s;
+    white-space: nowrap;
+  }
+  .btn-redeem:hover {
+    background: #c91968;
+    box-shadow: 0 4px 18px rgba(232,33,122,0.3);
+  }
+  .btn-redeem:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .redeem-msg {
+    margin-top: 12px;
+    font-size: 13px;
+    font-weight: 500;
+    min-height: 18px;
+    display: none;
+  }
+  .redeem-msg.success { color: var(--green); display: block; }
+  .redeem-msg.error { color: var(--red); display: block; }
+
+  /* ─── MODAL OVERLAY ─── */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 500;
+    background: rgba(0,0,0,0.72);
+    align-items: center; justify-content: center;
+    padding: 24px;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 36px 32px;
+    width: 100%; max-width: 420px;
+    position: relative;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.7);
+    animation: modal-in .22s ease;
+  }
+  @keyframes modal-in {
+    from { opacity: 0; transform: scale(0.94) translateY(12px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  .modal-close {
+    position: absolute; top: 16px; right: 16px;
+    width: 30px; height: 30px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--muted);
+    transition: background .15s, color .15s;
+    font-size: 16px; line-height: 1;
+  }
+  .modal-close:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+
+  .modal-pkg-name {
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--pink); margin-bottom: 6px;
+  }
+  .modal-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px; font-weight: 800;
+    color: var(--text); margin-bottom: 4px;
+  }
+  .modal-price {
+    font-size: 14px; color: var(--muted);
+    margin-bottom: 28px;
+  }
+
+  .modal-divider {
+    height: 1px; background: var(--border);
+    margin-bottom: 24px;
+  }
+
+  #paypal-container {
+    min-height: 48px;
+  }
+
+  .paypal-loading {
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px;
+    padding: 18px 0;
+    color: var(--muted); font-size: 13px;
+  }
+
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid rgba(255,255,255,0.1);
+    border-top-color: var(--pink);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .btn-cancel {
+    display: block; width: 100%;
+    margin-top: 14px;
+    padding: 10px 0;
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: border-color .18s, color .18s;
+  }
+  .btn-cancel:hover { border-color: rgba(255,255,255,0.15); color: var(--text); }
+
+  .modal-success {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 20px 0 10px;
+    gap: 12px;
+  }
+  .modal-success.show { display: flex; }
+  .success-icon {
+    width: 56px; height: 56px;
+    background: rgba(74,222,128,0.12);
+    border: 1px solid rgba(74,222,128,0.25);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+  }
+  .modal-success h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px; font-weight: 700;
+    color: var(--green);
+  }
+  .modal-success p {
+    font-size: 13px; color: var(--muted);
+  }
+
+  .modal-error {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: rgba(248,113,113,0.08);
+    border: 1px solid rgba(248,113,113,0.2);
+    border-radius: 8px;
+    font-size: 13px; color: var(--red);
+    display: none;
+  }
+  .modal-error.show { display: block; }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 520px) {
+    .topnav { padding: 0 16px; }
+    .main { padding: 32px 16px 60px; }
+    .modal-card { padding: 28px 20px; }
+    .topnav .brand-name { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── NAV ─── -->
+<nav class="topnav">
+  <div class="topnav-left">
+    <a href="vendora-dashboard.html" class="brand-link">
+      <div class="brand-mark">
+        <!-- VV mark -->
+        <svg viewBox="0 0 24 18" xmlns="http://www.w3.org/2000/svg">
+          <path d="M0 0 L4.5 12 L9 0 M4 0 L8.5 12 L13 0" stroke="white" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+          <path d="M11 0 L15.5 12 L20 0 M15 0 L19.5 12 L24 0" stroke="white" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" fill="none" opacity="0.65"/>
+        </svg>
+      </div>
+      <span class="brand-name">Vendora</span>
+    </a>
+    <div class="nav-divider"></div>
+    <a href="vendora-dashboard.html" class="back-link">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      Back to Dashboard
+    </a>
+  </div>
+
+  <div class="credit-balance" id="balance-display">
+    <span class="bolt">⚡</span>
+    <span class="bal-num" id="balance-num">—</span>
+    <span class="bal-label">credits</span>
+  </div>
+</nav>
+
+<!-- ─── MAIN ─── -->
+<main class="main">
+  <div class="page-header">
+    <h1>Buy Credits</h1>
+    <p>Credits power the <span class="highlight">AI Photo Enhancer</span>. 1 photo = 80 credits. Credits never expire.</p>
+  </div>
+
+  <!-- Packages -->
+  <div class="packages-grid">
+
+    <!-- Starter -->
+    <div class="pkg-card" id="pkg-starter">
+      <div class="pkg-name">Starter Pack</div>
+      <div class="pkg-credits">500 <span>credits</span></div>
+      <div class="pkg-price">£3.99</div>
+      <div class="pkg-per-credit">0.8p per credit</div>
+      <div class="pkg-divider"></div>
+      <button class="btn-buy" onclick="openModal('credits_500', 'Starter Pack', '500 Credits', '£3.99')">Buy Now</button>
+    </div>
+
+    <!-- Popular -->
+    <div class="pkg-card popular" id="pkg-popular">
+      <div class="pkg-badge pink-badge">Most Popular</div>
+      <div class="pkg-name">Popular</div>
+      <div class="pkg-credits">1,000 <span>credits</span></div>
+      <div class="pkg-price">£7.99</div>
+      <div class="pkg-per-credit">0.8p per credit</div>
+      <div class="pkg-divider"></div>
+      <button class="btn-buy" onclick="openModal('credits_1000', 'Popular', '1,000 Credits', '£7.99')">Buy Now</button>
+    </div>
+
+    <!-- Best Value -->
+    <div class="pkg-card best-value" id="pkg-bestvalue">
+      <div class="pkg-badge gold-badge">Best Value</div>
+      <div class="pkg-name">Best Value</div>
+      <div class="pkg-credits">2,500 <span>credits</span></div>
+      <div class="pkg-price">£16.99</div>
+      <div class="pkg-per-credit">0.68p per credit</div>
+      <div class="pkg-divider"></div>
+      <button class="btn-buy" onclick="openModal('credits_2500', 'Best Value', '2,500 Credits', '£16.99')">Buy Now</button>
+    </div>
+
+    <!-- Pro Pack -->
+    <div class="pkg-card" id="pkg-pro">
+      <div class="pkg-name">Pro Pack</div>
+      <div class="pkg-credits">5,000 <span>credits</span></div>
+      <div class="pkg-price">£29.99</div>
+      <div class="pkg-per-credit">0.6p per credit</div>
+      <div class="pkg-divider"></div>
+      <button class="btn-buy" onclick="openModal('credits_5000', 'Pro Pack', '5,000 Credits', '£29.99')">Buy Now</button>
+    </div>
+
+  </div>
+
+  <!-- Redeem a Code -->
+  <div class="section-heading">Redeem a Code</div>
+  <p class="section-sub">Have a promo or gift code? Enter it below.</p>
+  <div class="redeem-card">
+    <div class="redeem-row">
+      <input
+        type="text"
+        class="redeem-input"
+        id="redeem-input"
+        placeholder="XXXX-XXXX-XXXX"
+        maxlength="32"
+        autocomplete="off"
+        spellcheck="false"
+      >
+      <button class="btn-redeem" id="redeem-btn" onclick="redeemCode()">Redeem</button>
+    </div>
+    <div class="redeem-msg" id="redeem-msg"></div>
+  </div>
+</main>
+
+<!-- ─── PURCHASE MODAL ─── -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-card">
+    <button class="modal-close" onclick="closeModal()" title="Cancel">✕</button>
+
+    <div id="modal-main-content">
+      <div class="modal-pkg-name" id="modal-pkg-name">Starter Pack</div>
+      <div class="modal-title" id="modal-credits">500 Credits</div>
+      <div class="modal-price" id="modal-price">£3.99 one-time purchase</div>
+      <div class="modal-divider"></div>
+
+      <div id="paypal-container">
+        <div class="paypal-loading" id="paypal-loading">
+          <div class="spinner"></div>
+          <span>Loading payment options…</span>
+        </div>
+      </div>
+
+      <div class="modal-error" id="modal-error"></div>
+
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+    </div>
+
+    <div class="modal-success" id="modal-success">
+      <div class="success-icon">✓</div>
+      <h3 id="success-title">Credits Added!</h3>
+      <p id="success-body">Your credits have been added to your account.</p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ─── CONFIG ───────────────────────────────────────────────
+  const SUPABASE_URL = 'https://fqfanqtybvnurhzkoxwr.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxZmFucXR5YnZudXJoemtveHdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2OTcxNjMsImV4cCI6MjA5MTI3MzE2M30.aoqhW8hXgRVfX8JI27jfN7QBfyY-ev6PQ52xvUz-X-E';
+
+  const BOT_API = 'https://vendora-production-8a47.up.railway.app';
+
+  const PAYPAL_CLIENT_ID = 'Ad69aCRO915AbyIBrcdwElMCyPEnbzRbByPb5vr2tD6RlOG8JNC8S34-8GCgNHG4PaDm2FVdWbFnx_m8';
+
+  // ─── SUPABASE ─────────────────────────────────────────────
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let currentSession = null;
+  let currentPackage = null;
+  let paypalButtonsInstance = null;
+  let paypalSdkLoaded = false;
+
+  async function init() {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (!session) {
+      window.location.href = 'vendora-login.html';
+      return;
+    }
+    currentSession = session;
+    loadCreditBalance();
+  }
+
+  // ─── BALANCE ──────────────────────────────────────────────
+  async function loadCreditBalance() {
+    try {
+      const res = await fetch(`${BOT_API}/api/credits/balance`, {
+        headers: { 'Authorization': `Bearer ${currentSession.access_token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        updateBalanceDisplay(data.credits ?? 0);
+      }
+    } catch (e) {
+      // Silently fail — balance stays as "—"
+    }
+  }
+
+  function updateBalanceDisplay(amount) {
+    document.getElementById('balance-num').textContent = amount.toLocaleString();
+  }
+
+  // ─── MODAL ────────────────────────────────────────────────
+  function openModal(pkgKey, pkgName, creditsLabel, price) {
+    currentPackage = { key: pkgKey, name: pkgName, credits: creditsLabel, price };
+
+    // Reset modal state
+    document.getElementById('modal-pkg-name').textContent = pkgName;
+    document.getElementById('modal-credits').textContent = creditsLabel;
+    document.getElementById('modal-price').textContent = `${price} — one-time purchase`;
+    document.getElementById('modal-main-content').style.display = '';
+    document.getElementById('modal-success').classList.remove('show');
+    document.getElementById('modal-error').classList.remove('show');
+    document.getElementById('modal-error').textContent = '';
+
+    // Reset PayPal container
+    const container = document.getElementById('paypal-container');
+    container.innerHTML = '<div class="paypal-loading" id="paypal-loading"><div class="spinner"></div><span>Loading payment options…</span></div>';
+
+    document.getElementById('modal-overlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+
+    loadPayPalSDK().then(() => renderPayPalButton(pkgKey));
+  }
+
+  function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('open');
+    document.body.style.overflow = '';
+    paypalButtonsInstance = null;
+  }
+
+  // Close on overlay click
+  document.getElementById('modal-overlay').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+
+  // ─── PAYPAL SDK ───────────────────────────────────────────
+  function loadPayPalSDK() {
+    return new Promise((resolve, reject) => {
+      if (paypalSdkLoaded && window.paypal) {
+        resolve();
+        return;
+      }
+      // Remove any stale script
+      const old = document.getElementById('paypal-sdk-script');
+      if (old) old.remove();
+
+      const script = document.createElement('script');
+      script.id = 'paypal-sdk-script';
+      script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&currency=GBP&intent=capture`;
+      script.onload = () => { paypalSdkLoaded = true; resolve(); };
+      script.onerror = () => reject(new Error('Failed to load PayPal SDK'));
+      document.head.appendChild(script);
+    });
+  }
+
+  async function renderPayPalButton(pkgKey) {
+    const container = document.getElementById('paypal-container');
+    if (!container) return;
+
+    container.innerHTML = '<div id="paypal-buttons-wrapper"></div>';
+
+    try {
+      await window.paypal.Buttons({
+        style: {
+          layout: 'vertical',
+          color: 'gold',
+          shape: 'rect',
+          label: 'pay',
+          height: 44
+        },
+
+        createOrder: async () => {
+          showModalError('');
+          const res = await fetch(`${BOT_API}/api/credits/create-order`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${currentSession.access_token}`
+            },
+            body: JSON.stringify({ package: pkgKey })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed to create order');
+          return data.orderID;
+        },
+
+        onApprove: async (data) => {
+          try {
+            const res = await fetch(`${BOT_API}/api/credits/capture-order`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${currentSession.access_token}`
+              },
+              body: JSON.stringify({ orderID: data.orderID })
+            });
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.error || 'Failed to capture payment');
+
+            // Show success
+            const creditsAdded = currentPackage.credits;
+            document.getElementById('success-title').textContent = `${creditsAdded} Added!`;
+            document.getElementById('success-body').textContent = `Your credits have been added to your account.`;
+            document.getElementById('modal-main-content').style.display = 'none';
+            document.getElementById('modal-success').classList.add('show');
+
+            // Update balance
+            if (result.newBalance != null) {
+              updateBalanceDisplay(result.newBalance);
+            } else {
+              loadCreditBalance();
+            }
+
+            // Auto-close after 3s
+            setTimeout(() => closeModal(), 3000);
+          } catch (err) {
+            showModalError(err.message || 'Payment capture failed. Please contact support.');
+          }
+        },
+
+        onError: (err) => {
+          console.error('PayPal error', err);
+          showModalError('Payment failed. Please try again or use a different payment method.');
+        },
+
+        onCancel: () => {
+          // User cancelled in PayPal — do nothing, keep modal open
+        }
+
+      }).render('#paypal-buttons-wrapper');
+
+    } catch (err) {
+      container.innerHTML = `<div style="color:var(--red);font-size:13px;padding:12px 0;">Failed to load PayPal: ${err.message}</div>`;
+    }
+  }
+
+  function showModalError(msg) {
+    const el = document.getElementById('modal-error');
+    if (msg) {
+      el.textContent = msg;
+      el.classList.add('show');
+    } else {
+      el.classList.remove('show');
+      el.textContent = '';
+    }
+  }
+
+  // ─── REDEEM CODE ──────────────────────────────────────────
+  async function redeemCode() {
+    const input = document.getElementById('redeem-input');
+    const btn = document.getElementById('redeem-btn');
+    const msg = document.getElementById('redeem-msg');
+    const code = input.value.trim().toUpperCase();
+
+    if (!code) {
+      showRedeemMsg('Please enter a code.', 'error');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Redeeming…';
+    msg.className = 'redeem-msg';
+    msg.textContent = '';
+    msg.style.display = 'none';
+
+    try {
+      const res = await fetch(`${BOT_API}/api/credits/redeem`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentSession.access_token}`
+        },
+        body: JSON.stringify({ code })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        const added = data.creditsAdded ? `+${data.creditsAdded.toLocaleString()} credits added!` : 'Code redeemed successfully!';
+        showRedeemMsg(`✓ ${added}`, 'success');
+        input.value = '';
+        if (data.newBalance != null) updateBalanceDisplay(data.newBalance);
+        else loadCreditBalance();
+      } else {
+        showRedeemMsg(data.error || 'Invalid or expired code.', 'error');
+      }
+    } catch (e) {
+      showRedeemMsg('Could not connect to server. Please try again.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Redeem';
+    }
+  }
+
+  function showRedeemMsg(text, type) {
+    const el = document.getElementById('redeem-msg');
+    el.textContent = text;
+    el.className = `redeem-msg ${type}`;
+  }
+
+  // Allow Enter key in redeem input
+  document.getElementById('redeem-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') redeemCode();
+  });
+
+  // ─── BOOT ─────────────────────────────────────────────────
+  init();
+</script>
+</body>
+</html>

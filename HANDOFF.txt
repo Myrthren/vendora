@@ -1,0 +1,398 @@
+VENDORA — SESSION HANDOFF
+Generated: 2026-04-16
+==============================================================
+
+PROJECT OVERVIEW
+----------------
+Vendora is a SaaS + Discord bot platform for resellers, built under the "Vendor Village" brand.
+Tagline: "The Reseller's Edge"
+
+Tiers:
+  Basic  £9.99/mo
+  Pro    £24.99/mo
+  Elite  £49.99/mo
+
+Stack:
+  Frontend:  Plain HTML/JS/CSS on Netlify (Netlify site: vendora-vv.netlify.app)
+  Bot:       Discord.js v14 on Railway
+  DB/Auth:   Supabase (PostgreSQL)
+  Payments:  PayPal Subscriptions API
+  Repo:      github.com/Myrthren/vendora (main branch auto-deploys everywhere)
+
+Working directory: C:\Users\USER\OneDrive\Documents\Downloads\Vendora - PC Work\
+
+Key files:
+  index.html              — Landing page
+  vendora-login.html      — Discord OAuth login
+  vendora-dashboard.html  — Full user dashboard (~5095 lines)
+  bot/index.js            — Discord bot + Express API (~4209 lines)
+  favicon.png             — VV logo favicon (added to all HTML pages)
+
+Bot URL: https://vendora-production-8a47.up.railway.app
+(BOT_API constant in vendora-dashboard.html)
+
+
+INFRASTRUCTURE KEYS & IDs
+--------------------------
+Supabase:
+  URL:                  https://fqfanqtybvnurhzkoxwr.supabase.co
+  Management API token: sbp_bd7f8563e41b302a4887d5bdd601d2acc84173cf
+  Owner user ID:        8b9c8343-ea69-4e09-8188-16431729b6d5
+
+Railway:
+  Personal token:       eefc3a74-405b-4859-97c0-5a2b2b372243
+  Project ID:           ae2e3d7e-f83b-450b-904f-33bdeefefcb5
+  Service ID:           2ad91700-80ca-4392-89bd-2ad6d959856f
+  Environment ID:       0b4a455d-b4ff-405b-ad28-f1b8d9ead369
+  Domain ID:            1ecc9483-9662-445f-8af4-88e01c14a713
+  Bot URL:              https://vendora-production-8a47.up.railway.app
+
+Discord:
+  Owner Discord ID:     731207920007643167 (pluniez)
+  Guild ID:             stored as DISCORD_GUILD_ID env var on Railway
+  Role IDs:
+    basic = 1491388683327242290
+    pro   = 1491389600852349061
+    elite = 1491389713607823420
+
+Netlify site: vendora-vv.netlify.app
+
+remove.bg:
+  API Key:       ngbi19QKxTmFJFrxmASqTr1Q
+  Railway env:   REMOVE_BG_API_KEY
+  Used by:       bot /api/photo/enhance endpoint (server fallback only now)
+
+OpenAI:
+  Railway env:   OPENAI_API_KEY  ← USER HAS ADDED THIS
+  Used by:       /api/photo/instruct (GPT-4o vision → slider settings)
+                 /api/photo/ai-generate (gpt-image-1 → actual AI product photo)
+
+Anthropic:
+  Railway env:   ANTHROPIC_API_KEY  ← USER HAS ADDED THIS
+  Used by:       /authenticate, /grade, /research, /price, /scan, /margins,
+                 /competitor, /negotiate — all AI Discord commands
+
+
+RAILWAY ENVIRONMENT VARIABLES (all set)
+-----------------------------------------
+DISCORD_BOT_TOKEN       — bot auth
+DISCORD_GUILD_ID        — server ID
+SUPABASE_URL            — https://fqfanqtybvnurhzkoxwr.supabase.co
+SUPABASE_SERVICE_KEY    — supabase service role key
+ANTHROPIC_API_KEY       — Claude for Discord AI commands
+OPENAI_API_KEY          — GPT-4o + gpt-image-1 for photo enhancer
+REMOVE_BG_API_KEY       — remove.bg (server fallback for BG removal)
+WEBHOOK_SECRET          — PayPal webhook verification
+PROXY_URL               — residential proxy for Vinted scraping (may not be set yet)
+
+
+PENDING ACTIONS (user must do these)
+--------------------------------------
+1. PROXY_URL — Add a quality residential proxy to Railway env vars if not already set.
+   Format: PROXY_URL=http://username:password@host:port
+   All proxy infrastructure is now correctly wired (undici vFetch, single PROXY_AGENT).
+   If the proxy IP is flagged by DataDome, try a different IP/provider.
+   Recommended: Webshare.io residential (or similar).
+
+2. Run /supportsetup in Discord (owner only) if not already done.
+   Posts the support embed to #❓｜support and permanently deletes the command.
+   Only needs to be done once.
+
+3. Confirm Supabase tables were created. Three new tables added (April 16):
+   - platform_connections  — stores encrypted Vinted/Depop tokens per user
+   - listings              — tracks listed items
+   - crosslist_jobs        — tracks crosslisting job status
+   Run SELECT * FROM platform_connections LIMIT 1 in Supabase SQL editor to verify.
+
+
+WHAT WAS BUILT (cumulative across all sessions)
+-------------------------------------------------
+
+── DISCORD BOT COMMANDS ──
+
+/scan          — Live eBay sold listings scrape; Basic 5/day, Pro 50/day, Elite unlimited
+/price         — Market pricing with median/range; tiered limits
+/research      — Multi-source deep dive with images and news embed
+/margins       — Profit/loss calculator with platform fee breakdown
+/competitor    — Seller analysis across platforms
+/negotiate     — AI-powered negotiation script generator
+/grade         — Condition grading from photo attachment [Elite]
+/authenticate  — Authenticity check from photo + item/price/source context [Elite]
+                 Accepts: photo attachment, item name, price paid, source (required fields)
+/pricedrop     — URL-based price drop tracker (see below)
+/tracker       — Inventory tracker (syncs with dashboard)
+/session open  — Opens private session channel in #use-vendora category
+/ticket close  — Closes a support ticket thread
+/supportsetup  — ONE-TIME: posts support embed to #❓｜support, then self-destructs
+
+── PRICE DROP TRACKING (/pricedrop) ──
+
+Users provide a product URL (not a search term).
+Bot detects platform from domain, blocks known anti-scrape platforms (Nike, Adidas,
+ASOS, Amazon, Zara, H&M) with a helpful message.
+For accessible platforms (Shopify stores, etc.):
+  - Scrapes JSON-LD structured data → Shopify /products/{handle}.js → meta tags → Next.js __NEXT_DATA__
+  - Extracts all size variants with their individual prices
+  - Stores full variant baseline in Supabase settings
+  - Cron job re-scrapes and alerts on any per-variant price drop via Discord DM
+  - Legacy text-based watchlist items still work (Depop/Vinted search)
+
+PLATFORM_MAP: 40+ domain→name mappings
+BLOCKED_PLATFORMS: Set — nike.com, adidas.com, asos.com, amazon.com/co.uk, zara.com, hm.com
+
+── TICKET SYSTEM ──
+
+Support channel: #❓｜support
+How it works:
+  1. /supportsetup posts embed with "🎫 Open a Ticket" button (owner-only, one-time)
+  2. User clicks button → modal appears (Subject + Message fields)
+  3. Bot creates a PrivateThread named ticket-{username}-{timestamp}
+  4. Owner gets a DM with "🎫 Open Ticket" and "⚑ Mark as Spam" buttons
+  5. Owner clicks "Open Ticket" → gets added to thread, DM updated to "✓ Ticket Opened"
+  6. /ticket close — archives thread (owner or configured roles)
+
+ticketStore: in-memory Map with 48h TTL auto-cleanup
+BOT_TOGGLES.ticket_close_roles: [] — configurable in admin panel
+
+Admin panel → Bot Settings → Ticket Settings:
+  - Role IDs input (comma-separated) for who can close tickets
+  - "Post Support Embed" button → calls /api/admin/post-support-embed
+
+── PHOTO ENHANCER (vendora-dashboard.html) — Elite only ──
+
+Full client-side + AI pipeline:
+
+1. Upload photo → auto-triggers WASM background removal
+   - Primary: @imgly/background-removal@1.4.5 via CDN (client-side, free, ~20MB model cached in IndexedDB)
+   - Fallback: /api/photo/enhance → remove.bg API (requires REMOVE_BG_API_KEY)
+
+2. Canvas compositing:
+   - 14 background options: white-studio, soft-grey, cream, sage, blush, marble, wood,
+     concrete, linen, studio-dark, black, navy, gradient-pink, gradient-blue, gradient-mesh,
+     transparent + custom colour picker
+   - All backgrounds drawn procedurally in canvas (marble has bezier veins, wood has grain, etc.)
+   - Floor shadow (ellipse) or Drop shadow or None
+   - Vignette overlay
+   NOTE: Style Presets grid and Display Style selector were REMOVED (April 16 session).
+         Background is now controlled via free-text bgInstructions field only.
+
+3. Adjustments (Item tab / Background tab):
+   Item:       Brightness, Contrast, Saturation, Sharpness (unsharp mask), Warmth (-60→+60), Scale (40–100%)
+   Background: Bg Brightness (20–180%), Shadow depth, Shadow Style, Vignette
+
+4. bgInstructions text field (replaced Style Presets + Display Style selectors):
+   - Free-text field describing desired background/scene
+   - Used by both AI Settings and AI Generate as part of the prompt
+
+5. AI Settings button:
+   - Sends thumbnail + instructions to /api/photo/instruct
+   - GPT-4o Vision analyses image, returns JSON with all slider values + bg + shadowType
+   - Errors now surface to the user instead of silently falling back to local NLP parser
+
+6. ✨ AI Generate button (gpt-image-1):
+   - In preview header: "AI Enhance" button (one-click, no instructions needed)
+   - In instructions panel: "✨ AI Generate" button (uses bgInstructions text + typed instructions)
+   - Sends PNG to /api/photo/ai-generate on bot
+   - Bot builds prompt from bgInstructions text field + instructions
+   - Calls OpenAI /v1/images/edits with gpt-image-1, size 1024x1024, quality high
+   - Returns AI-generated professional product shot, displayed on canvas
+   - Takes ~15–30 seconds, costs ~$0.08/image
+
+Bot API endpoints for photo enhancer:
+  POST /api/photo/instruct    — GPT-4o vision → returns slider settings JSON
+  POST /api/photo/ai-generate — gpt-image-1 → returns base64 PNG of AI product shot
+  POST /api/photo/enhance     — remove.bg server fallback for BG removal
+
+── SESSION CHANNEL SYSTEM ──
+
+/session open:
+  - Finds #use-vendora channel, reads its .parent category
+  - Creates session channel inside that category (falls back to server root if bot lacks perms)
+  - Sets permissions: owner + user can see, @everyone blocked
+  - Auto-deletes after 24hr inactivity (cron); 1hr warning DM sent first
+
+── ADMIN PANEL (vendora-dashboard.html) ──
+
+Sections built:
+  - Bot Toggles (on/off switches for features, saved to Supabase settings table)
+  - Coupon Management (create/list/delete discount codes)
+  - Post to Channel (post message to any Discord channel via dropdown)
+  - Live Discord channel list (fetches from /api/admin/channels)
+  - Ticket Settings (role IDs for /ticket close + Post Support Embed button)
+  - User Management (view subscribers)
+
+BOT_TOGGLES object (saved/loaded from Supabase settings table, key='bot_config'):
+  commands_enabled, scan_enabled, research_enabled, price_enabled,
+  margins_enabled, competitor_enabled, negotiate_enabled, grade_enabled,
+  authenticate_enabled, pricedrop_enabled, session_enabled,
+  ticket_close_roles: []
+
+── LISTING / CROSSLIST ──
+
+/crosslist removed (was replaced with enhanced individual platform commands)
+Vinted listing: via /api/vinted/list — extensive proxy work done (see below)
+Depop listing:  marked "coming soon" in dashboard — credential login not tested
+Image upload helper: uploadImageToPlatform() handles both platforms
+
+── VINTED PROXY / DATADOME WORK (April 16 session) ──
+
+Significant work done to get Vinted listing past DataDome. Key fixes:
+
+1. Global Node 18 fetch silently ignores the `dispatcher` option — proxy was never
+   actually applied. Fixed by importing undici's own fetch (undFetch) and routing all
+   Vinted calls through vFetch() wrapper that uses undFetch when PROXY_AGENT is active.
+
+2. One global PROXY_AGENT created at startup (not a new instance per request).
+   Rotating proxies caused IP changes mid-session; DataDome detects this and blocks.
+   Single shared agent = consistent exit IP for entire process lifetime.
+
+3. Chrome TLS cipher config added to ProxyAgent to mimic real browser TLS fingerprint.
+
+4. getVintedBase() and getVintedSession() split into two separate functions to fix crash.
+
+5. Manual token validation: /api/vinted/validate-token endpoint added.
+   Dashboard shows manual token input UI; Depop shows "coming soon" message instead.
+
+6. Geo-redirect fix: Vinted may redirect to .fr/.de etc. via geo; session bootstrap
+   now follows redirect and locks the correct base domain.
+
+7. Token expiry detection narrowed to exact Vinted message_code values:
+   "unauthenticated" or "invalid_auth_token" only.
+   (Previously matched too broadly — locale mismatches and scope errors were
+    wrongly flagged as expired tokens, confusing users with reconnect prompts.)
+
+8. ByteString crash fixed: header values now sanitised before passing to undici.
+
+9. Detailed DataDome logging added to distinguish:
+   "proxy active but IP flagged" vs "no proxy set at all"
+   Bot logs proxy status on startup.
+
+Status: All code fixes are deployed to Railway. Whether Vinted listing actually
+works end-to-end depends on the quality of the residential proxy in PROXY_URL.
+DataDome is still the blocker if the proxy IP is flagged.
+
+── OTHER BOT FEATURES ──
+
+Token encryption: AES-256-GCM, key derived from SUPABASE_KEY
+  encryptToken(token) / decryptToken(encrypted) in bot/index.js
+Rate limiting: in-memory Map per Discord ID, enforced in executeCommand()
+requireAuth(): validates Supabase JWT on every API request
+All bot responses: ephemeral
+PayPal webhook: fires role assign/revoke via /webhook/paypal endpoint
+Inventory API: /api/inventory (GET/POST/PUT/DELETE) — syncs dashboard tracker with /tracker
+
+
+KNOWN REMAINING ISSUES
+------------------------
+- Vinted listing: all proxy code is deployed; DataDome may still block if PROXY_URL
+  IP is flagged. User must test with a fresh residential proxy IP.
+- Depop marked "coming soon" in the dashboard — no listing flow implemented yet
+- Duplicate /api/inventory route definitions exist in bot/index.js (~lines 1793 and ~2891)
+  — the second one is dead code and should be removed
+- /pricedrop, /trends, /sold — stubs exist but not fully implemented
+- /flip, /analytics, /earlydeals — Elite stubs, not implemented
+- Session channel 24hr auto-delete cron: written but not fully tested end-to-end
+- Photo enhancer is Elite-only (initEnhancerAccess checks tier === 'elite')
+
+
+GIT HISTORY (most recent commits)
+------------------------------------
+4ac68d4 — Stop false-positive token-expired errors; show real Vinted errors instead
+21b2115 — Sanitise header values in vFetch to prevent ByteString crash
+9119157 — Fix false token-expired error; mark Depop as coming soon
+6547e2c — Fix manual token validation blocking valid tokens via DataDome
+c6dac2c — Fix token detection + Chrome headers consistency for DataDome
+95600cf — Fix getVintedBase() crash: split into getVintedBase() + getVintedSession()
+f9f3939 — Fix Vinted geo-redirect + add manual token validation
+ff05cde — Fix Vinted listing: session cookie bootstrap + expired token detection
+d6e3ab2 — Add Chrome TLS cipher config to ProxyAgent + detailed DataDome logging
+1827acf — Fix Vinted proxy: use undici fetch + shared PROXY_AGENT to beat DataDome
+12d8899 — Fix /supportsetup await crash; add bgInstructions to photo enhancer; create Supabase tables
+150f778 — Overhaul photo enhancer with real AI generation via gpt-image-1
+fbb0d5e — Add /supportsetup one-time self-destructing command for support embed
+16cd14e — Fix support channel detection; add /ticket setup to post embed from Discord
+c4721dc — Implement URL-based price drop tracking: scrape product pages, track all size variants
+9d39e4f — Implement full ticket system: thread creation, /ticket close, support embed, admin config
+0a613cb — Overhaul photo enhancer: display styles, client-side bg removal, AI instructions; /authenticate with photo
+6bc5dcb — Place session channels in the same category as #use-vendora
+9b8e63b — Fix /session open: skip VENDORA category if bot lacks ManageChannels inside it
+c138652 — Fix /session open: guild.id for @everyone overwrites, fetchMe(), GuildMessages intent
+5aa4ab3 — Add live Discord channel list to admin panel; fix Post to Channel with dropdown
+7a9a39d — Add /api/inventory endpoints to sync dashboard tracker with Discord /tracker
+1910843 — Route all platform search and seller lookups through residential proxy
+d3474bb — Add VV logo favicon across all pages
+3a02e89 — Remove /crosslist command; upgrade /price, /scan, /margins, /competitor
+4302547 — Overhaul /research: multi-source deep dive with images, news, two-embed report
+
+All pushed commits auto-deploy: Railway (bot) + Netlify (frontend).
+
+
+WHAT TO BUILD NEXT
+-------------------
+Priority order:
+
+1. Test Vinted listing end-to-end with a real proxy IP:
+   - Set PROXY_URL on Railway → trigger a Vinted list via dashboard
+   - Check Railway logs: "✓ Proxy active" should appear at boot
+   - If DataDome 403 persists, try a different residential IP
+
+2. Fix photo enhancer end-to-end:
+   - Test WASM BG removal (first load downloads ~20MB model to IndexedDB)
+   - Test AI Generate button (gpt-image-1 via /api/photo/ai-generate)
+   - Test AI Settings (GPT-4o via /api/photo/instruct); errors now surface to user
+
+3. Implement remaining Elite bot commands:
+   /pricedrop — URL tracking is built; test end-to-end alert flow
+   /trends    — stub exists, needs implementation
+   /sold      — stub exists, needs implementation
+   /flip      — Elite deal finder, not started
+   /analytics — Elite sales analytics, not started
+   /earlydeals — not started
+
+4. Depop listing flow — currently "coming soon"; implement credential/token login
+   using same pattern as Vinted manual token UI
+
+5. Clean up duplicate /api/inventory routes in bot/index.js (~line 2891)
+
+6. Session channel auto-delete: test 24hr cron + 1hr warning DM end-to-end
+
+7. Supabase schema expansion:
+   Current tables: profiles, coupons, settings, platform_connections, listings, crosslist_jobs
+   Needed: orders/transactions history, usage logs
+
+8. Annual billing UI (currently only monthly PayPal subscriptions are wired)
+
+
+BRAND CONSTANTS
+----------------
+Primary:    #e8217a (pink/magenta)
+Background: #090909 (near black)
+Surfaces:   #0f0f0f / #141414
+Fonts:      Syne (headings, uppercase) + DM Sans (body)
+Logo:       VV interlocked mark
+Elite:      #e8a121 (gold accent)
+Success:    #4ade80 (green)
+Purple AI:  #9b1fcd / #c084fc (used for AI Generate buttons/status)
+
+
+ARCHITECTURE RULES (never break these)
+-----------------------------------------
+- All bot responses are ephemeral
+- Every command verifies Discord ID against Supabase profiles before execution
+- Rate limits enforced per Discord ID in-memory
+- Branded embeds, never raw Discord errors
+- One Discord ID = one subscription (no sharing)
+- Auth is Discord OAuth only — no passwords
+- Token encryption: AES-256-GCM derived from SUPABASE_KEY
+  (encryptToken/decryptToken functions in bot/index.js)
+- PayPal webhook fires role assign/revoke
+- Owner Discord ID hardcoded for admin access: 731207920007643167
+- Photo enhancer is Elite-only (gate check in initEnhancerAccess)
+- AI photo generate endpoint requires auth (requireAuth middleware)
+
+ADDITIONAL RULE 
+-----------------------------------------
+- EVERY UPDATE OR ALTERATION MADE TO THE VENDORA BOT OR SITE THAT WOULD DIFFER FROM INFORMATION IN THIS .txt FILE MUST BE UPDATED HERE
+
+==============================================================
+END OF HANDOFF

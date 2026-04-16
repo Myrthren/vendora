@@ -664,6 +664,11 @@
       Photo Enhancer
       <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(232,161,33,0.15);color:var(--gold);letter-spacing:.05em;">ELITE</span>
     </div>
+    <div class="nav-item" onclick="showSection('credits', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M14.31 8l5.74 9.94M9.69 8h11.48M7.38 12l5.74-9.94M9.69 16L3.95 6.06M14.31 16H2.83M16.62 12l-5.74 9.94"/></svg>
+      Credits
+      <span id="nav-credits-badge" style="margin-left:auto;font-size:10px;font-weight:700;color:var(--gold);display:none;"></span>
+    </div>
 
     <span class="nav-section-label" style="margin-top:8px;">Support</span>
     <div class="nav-item" onclick="showSection('support', this)">
@@ -700,6 +705,10 @@
   <div class="topbar">
     <div class="topbar-title" id="topbar-title">Account</div>
     <div class="topbar-right">
+      <a href="vendora-credits.html" id="topbar-credits" style="display:none;align-items:center;gap:6px;background:rgba(232,161,33,0.1);border:1px solid rgba(232,161,33,0.2);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;color:var(--gold);text-decoration:none;transition:background .15s;" onmouseover="this.style.background='rgba(232,161,33,0.18)'" onmouseout="this.style.background='rgba(232,161,33,0.1)'">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <span id="topbar-credits-val">—</span> credits
+      </a>
       <div class="topbar-discord-tag" id="topbar-id">ID: —</div>
       <div class="topbar-status">
         <span class="status-dot"></span> Active
@@ -1659,7 +1668,7 @@
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
         <div class="page-title">AI Photo Enhancer <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(232,161,33,0.14);color:var(--gold);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;letter-spacing:.04em;">ELITE</span></div>
-        <div class="page-sub">Remove backgrounds, apply clean studio backdrops, and enhance your listing photos for maximum buyer appeal.</div>
+        <div class="page-sub">Upload any product photo and the AI replaces the background, adjusts the lighting, and smooths the edges — output looks like a real studio shot.</div>
       </div>
 
       <!-- Elite gate -->
@@ -1667,232 +1676,111 @@
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px;text-align:center;">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(232,161,33,0.6)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text);">Elite Required</div>
-          <div style="font-size:13px;color:var(--muted2);max-width:320px;">AI Photo Enhancer is available on Vendora Elite. Upgrade to remove backgrounds and create pro-quality listing photos instantly.</div>
+          <div style="font-size:13px;color:var(--muted2);max-width:320px;">AI Photo Enhancer is available on Vendora Elite. Upgrade to create pro-quality listing photos instantly.</div>
           <button class="btn btn-primary btn-sm" onclick="showSection('subscription', document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Elite</button>
         </div>
       </div>
 
-      <!-- Enhancer tool -->
+      <!-- Tool -->
       <div id="enhancer-tool">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
 
-          <!-- Left: Upload + Controls -->
-          <div style="display:flex;flex-direction:column;gap:16px;">
+          <!-- Left: Controls -->
+          <div style="display:flex;flex-direction:column;gap:14px;">
 
             <!-- Upload -->
-            <div class="card" style="padding:20px;">
-              <div class="card-title" style="margin-bottom:14px;">Upload Photo</div>
-              <div id="enhancer-drop-zone"
-                onclick="document.getElementById('enhancer-file-input').click()"
-                ondragover="event.preventDefault();this.style.borderColor='rgba(232,33,122,0.5)'"
-                ondragleave="this.style.borderColor='rgba(255,255,255,0.1)'"
-                ondrop="enhancerHandleDrop(event)"
-                style="border:2px dashed rgba(255,255,255,0.1);border-radius:10px;padding:32px 20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:border-color .18s,background .18s;min-height:140px;"
-                onmouseover="this.style.background='rgba(232,33,122,0.03)';this.style.borderColor='rgba(232,33,122,0.3)'"
-                onmouseout="this.style.background='';this.style.borderColor='rgba(255,255,255,0.1)'">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                <span style="font-size:12px;color:var(--muted);">Drop image here or click to browse</span>
-                <span style="font-size:11px;color:rgba(255,255,255,0.2);">JPG, PNG, WEBP — max 10MB</span>
+            <div class="card" style="padding:0;overflow:hidden;">
+              <div id="enh-drop-zone"
+                onclick="document.getElementById('enh-file-input').click()"
+                ondragover="event.preventDefault();this.classList.add('drag-over')"
+                ondragleave="this.classList.remove('drag-over')"
+                ondrop="enhDrop(event)"
+                style="padding:32px 20px;text-align:center;cursor:pointer;border-radius:inherit;transition:background .15s;">
+                <div id="enh-upload-icon" style="margin-bottom:12px;">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                </div>
+                <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">Drop photo or click to upload</div>
+                <div style="font-size:11px;color:var(--muted);">JPG, PNG, WEBP — max 10MB</div>
               </div>
-              <input type="file" id="enhancer-file-input" accept="image/*" style="display:none;" onchange="enhancerLoadFile(event)">
-            </div>
-
-            <!-- Adjustments -->
-            <div class="card" style="padding:20px;">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-                <div class="card-title" style="margin:0;">Adjustments</div>
-                <div style="display:flex;gap:0;border:1px solid var(--border-dim);border-radius:8px;overflow:hidden;">
-                  <button id="adj-tab-item" onclick="enhancerSwitchTab('item')" style="padding:5px 14px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;border:none;cursor:pointer;background:var(--pink);color:#fff;transition:background .15s;">Item</button>
-                  <button id="adj-tab-bg" onclick="enhancerSwitchTab('bg')" style="padding:5px 14px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;border:none;cursor:pointer;background:var(--bg3);color:var(--muted2);transition:background .15s;">Background</button>
-                </div>
+              <input type="file" id="enh-file-input" accept="image/*" style="display:none;" onchange="enhFileSelected(this)">
+              <!-- Thumbnail preview strip -->
+              <div id="enh-thumb-wrap" style="display:none;padding:14px 14px 0;border-top:1px solid var(--border-dim);">
+                <img id="enh-thumb" style="width:100%;max-height:200px;object-fit:contain;border-radius:6px;background:var(--surface2);">
               </div>
-
-              <!-- Item tab -->
-              <div id="adj-panel-item" style="display:flex;flex-direction:column;gap:14px;">
-                <div>
-                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Brightness</label><span style="font-size:12px;color:var(--text);" id="adj-brightness-val">100%</span></div>
-                  <input type="range" id="adj-brightness" min="0" max="200" value="100" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-brightness-val').textContent=this.value+'%';enhancerComposite()">
-                </div>
-                <div>
-                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Contrast</label><span style="font-size:12px;color:var(--text);" id="adj-contrast-val">100%</span></div>
-                  <input type="range" id="adj-contrast" min="0" max="200" value="100" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-contrast-val').textContent=this.value+'%';enhancerComposite()">
-                </div>
-                <div>
-                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Saturation</label><span style="font-size:12px;color:var(--text);" id="adj-saturation-val">100%</span></div>
-                  <input type="range" id="adj-saturation" min="0" max="200" value="100" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-saturation-val').textContent=this.value+'%';enhancerComposite()">
-                </div>
-                <div>
-                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Sharpness</label><span style="font-size:12px;color:var(--text);" id="adj-sharpness-val">0</span></div>
-                  <input type="range" id="adj-sharpness" min="0" max="5" value="0" step="0.5" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-sharpness-val').textContent=this.value;enhancerComposite()">
-                </div>
-                <div>
-                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Warmth</label><span style="font-size:12px;color:var(--text);" id="adj-warmth-val">0</span></div>
-                  <input type="range" id="adj-warmth" min="-60" max="60" value="0" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-warmth-val').textContent=this.value;enhancerComposite()">
-                </div>
-                <div>
-                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Item Scale</label><span style="font-size:12px;color:var(--text);" id="adj-scale-val">82%</span></div>
-                  <input type="range" id="adj-scale" min="40" max="100" value="82" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-scale-val').textContent=this.value+'%';enhancerComposite()">
-                </div>
-                <div style="display:flex;gap:8px;">
-                  <button class="btn btn-primary btn-sm" onclick="enhancerAutoEnhance()" style="flex:1;">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                    Auto
-                  </button>
-                  <button class="btn btn-ghost btn-sm" onclick="enhancerResetSliders()" style="flex:1;">Reset</button>
-                </div>
-              </div>
-
-              <!-- Background tab -->
-              <div id="adj-panel-bg" style="display:none;flex-direction:column;gap:14px;">
-                <div>
-                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Bg Brightness</label><span style="font-size:12px;color:var(--text);" id="adj-bg-brightness-val">100%</span></div>
-                  <input type="range" id="adj-bg-brightness" min="20" max="180" value="100" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-bg-brightness-val').textContent=this.value+'%';enhancerComposite()">
-                </div>
-                <div>
-                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Shadow</label><span style="font-size:12px;color:var(--text);" id="adj-shadow-val">18%</span></div>
-                  <input type="range" id="adj-shadow" min="0" max="60" value="18" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-shadow-val').textContent=this.value+'%';enhancerComposite()">
-                </div>
-                <div>
-                  <div style="margin-bottom:8px;"><label style="font-size:12px;color:var(--muted2);">Shadow Style</label></div>
-                  <div style="display:flex;gap:6px;">
-                    <button id="shadow-type-floor" onclick="enhancerSetShadowType('floor')" style="flex:1;padding:6px 4px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;border:1px solid var(--pink);border-radius:6px;cursor:pointer;background:rgba(232,33,122,0.12);color:var(--pink);transition:all .15s;">Floor</button>
-                    <button id="shadow-type-drop" onclick="enhancerSetShadowType('drop')" style="flex:1;padding:6px 4px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;border:1px solid var(--border-dim);border-radius:6px;cursor:pointer;background:rgba(255,255,255,0.03);color:var(--muted2);transition:all .15s;">Drop</button>
-                    <button id="shadow-type-none" onclick="enhancerSetShadowType('none')" style="flex:1;padding:6px 4px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;border:1px solid var(--border-dim);border-radius:6px;cursor:pointer;background:rgba(255,255,255,0.03);color:var(--muted2);transition:all .15s;">None</button>
-                  </div>
-                </div>
-                <div>
-                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label style="font-size:12px;color:var(--muted2);">Vignette</label><span style="font-size:12px;color:var(--text);" id="adj-vignette-val">0%</span></div>
-                  <input type="range" id="adj-vignette" min="0" max="80" value="0" style="width:100%;accent-color:var(--pink);" oninput="document.getElementById('adj-vignette-val').textContent=this.value+'%';enhancerComposite()">
-                </div>
+              <!-- Analyzing indicator -->
+              <div id="enh-analyzing" style="display:none;padding:12px 14px;border-top:1px solid var(--border-dim);font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px;">
+                <div class="spinner" style="width:14px;height:14px;"></div> Identifying item…
               </div>
             </div>
 
-            <!-- AI Photo Enhancer -->
-            <div class="card" style="padding:20px;">
-              <div class="card-title" style="margin-bottom:4px;">AI Photo Enhancer</div>
-              <div style="font-size:11px;color:var(--muted);margin-bottom:16px;">Describe the look you want — OpenAI will generate a professional product photo</div>
-
-              <!-- Background instructions -->
-              <div style="margin-bottom:14px;">
-                <label style="font-size:11px;color:var(--muted2);display:block;margin-bottom:6px;font-weight:600;letter-spacing:0.03em;">BACKGROUND</label>
-                <input type="text" id="enhancer-bg-instructions" class="form-select" style="padding:9px 12px;font-size:12px;" placeholder="e.g. white studio, marble surface, dark concrete, blurred outdoor...">
-                <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;">
-                  <button onclick="document.getElementById('enhancer-bg-instructions').value='pure white studio'" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">White studio</button>
-                  <button onclick="document.getElementById('enhancer-bg-instructions').value='white Carrara marble surface'" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Marble</button>
-                  <button onclick="document.getElementById('enhancer-bg-instructions').value='dark charcoal studio with soft spotlight'" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Dark studio</button>
-                  <button onclick="document.getElementById('enhancer-bg-instructions').value='natural warm oak wood surface'" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Wood</button>
-                  <button onclick="document.getElementById('enhancer-bg-instructions').value='raw urban concrete'" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Concrete</button>
-                  <button onclick="document.getElementById('enhancer-bg-instructions').value='warm cream off-white backdrop'" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Cream</button>
-                </div>
+            <!-- Detected item -->
+            <div id="enh-detected-card" class="card" style="display:none;padding:14px 16px;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--pink);">✦ DETECTED</div>
+                <div id="enh-item-name" style="font-size:13px;font-weight:600;color:var(--text);flex:1;"></div>
+                <button onclick="document.getElementById('enh-file-input').click()" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--muted);text-decoration:underline;padding:0;">Change</button>
               </div>
-
-              <!-- Instructions -->
-              <label style="font-size:11px;color:var(--muted2);display:block;margin-bottom:6px;font-weight:600;letter-spacing:0.03em;">INSTRUCTIONS</label>
-              <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">
-                <button onclick="enhancerQuickPrompt('bright and crisp, flat lay, vivid colours')" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Flat lay</button>
-                <button onclick="enhancerQuickPrompt('ghost mannequin float effect, drop shadow, centred')" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Ghost float</button>
-                <button onclick="enhancerQuickPrompt('high contrast, bold and punchy, moody lighting')" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">High contrast</button>
-                <button onclick="enhancerQuickPrompt('warm golden tones, soft shadow, natural light feel')" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Warm tones</button>
-                <button onclick="enhancerQuickPrompt('clean product shot, soft floor shadow, breathing room, crisp edges')" style="font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.04);color:var(--muted2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s;" onmouseover="this.style.borderColor='rgba(232,33,122,0.4)'" onmouseout="this.style.borderColor='var(--border-dim)'">Clean shot</button>
-              </div>
-              <textarea id="enhancer-instructions" rows="3" class="form-select" style="height:auto;padding:10px 12px;font-size:12px;resize:vertical;margin-bottom:10px;" placeholder="e.g. flat lay, bright and crisp, vivid colours&#10;e.g. ghost float, high contrast, moody lighting&#10;e.g. upright product shot, warm tones, soft shadow"></textarea>
-              <div style="display:flex;gap:8px;margin-bottom:4px;">
-                <button class="btn btn-ghost btn-sm" onclick="enhancerApplyInstructions()" id="enhancer-instruct-btn" style="flex:1;">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-                  Apply Settings
-                </button>
-                <button class="btn btn-primary btn-sm" onclick="enhancerAiGenerate(true)" id="enhancer-ai-instruct-btn" style="flex:1;background:linear-gradient(135deg,#e8217a,#9b1fcd);">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
-                  ✨ AI Generate
-                </button>
-              </div>
-              <div style="font-size:10px;color:rgba(255,255,255,0.22);text-align:center;margin-bottom:8px;">Apply Settings adjusts sliders · AI Generate creates a new photo via OpenAI</div>
-              <div id="enhancer-instruct-result" style="display:none;margin-top:6px;padding:10px 12px;border-radius:8px;font-size:12px;background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.15);color:var(--muted2);line-height:1.6;"></div>
             </div>
+
+            <!-- Smart Adjustments -->
+            <div id="enh-mods-card" class="card" style="display:none;">
+              <div class="card-title" style="margin-bottom:12px;">Smart Adjustments</div>
+              <div id="enh-mod-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+            </div>
+
+            <!-- Background -->
+            <div class="card">
+              <div class="card-title" style="margin-bottom:12px;">Background</div>
+              <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;" id="enh-bg-grid">
+                <!-- swatches injected by JS -->
+              </div>
+              <!-- Custom BG upload -->
+              <div id="enh-custom-bg-row" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-dim);">
+                <label style="font-size:11px;font-weight:600;color:var(--muted2);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.07em;">Custom Background</label>
+                <input type="file" id="enh-custom-bg-input" accept="image/*" style="font-size:12px;color:var(--text);width:100%;" onchange="enhCustomBgSelected(this)">
+              </div>
+            </div>
+
+            <!-- Lighting -->
+            <div class="card">
+              <div class="card-title" style="margin-bottom:12px;">Lighting</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;" id="enh-lighting-btns">
+                <!-- injected by JS -->
+              </div>
+            </div>
+
+            <!-- Generate button -->
+            <button id="enh-gen-btn" class="btn btn-primary" onclick="enhGenerate()" style="width:100%;padding:14px;font-size:14px;font-weight:700;letter-spacing:.04em;" disabled>
+              ✨ Generate Photo
+            </button>
 
           </div>
 
-          <!-- Right: Preview + Actions -->
-          <div style="display:flex;flex-direction:column;gap:16px;">
-            <div class="card" style="padding:20px;">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-                <div class="card-title" style="margin:0;">Preview</div>
-                <div style="display:flex;gap:8px;align-items:center;">
-                  <div id="enhancer-ba-toggle" style="display:none;border:1px solid var(--border-dim);border-radius:6px;overflow:hidden;">
-                    <button onclick="enhancerShowMode('after')" id="ba-after-btn" style="padding:5px 10px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;border:none;cursor:pointer;background:var(--pink);color:#fff;transition:background .15s;">After</button>
-                    <button onclick="enhancerShowMode('before')" id="ba-before-btn" style="padding:5px 10px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;border:none;cursor:pointer;background:var(--bg3);color:var(--muted2);transition:background .15s;">Before</button>
-                  </div>
-                  <button class="btn btn-ghost btn-sm" id="enhancer-reset-btn" onclick="enhancerReset()" style="display:none;">Reset</button>
-                  <button class="btn btn-ghost btn-sm" id="enhancer-remove-bg-btn" onclick="enhancerRemoveBg()" style="display:none;">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                    Remove BG
-                  </button>
-                  <button class="btn btn-primary btn-sm" id="enhancer-ai-btn" onclick="enhancerAiGenerate()" style="display:none;background:linear-gradient(135deg,#e8217a,#9b1fcd);">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
-                    AI Enhance
-                  </button>
-                </div>
-              </div>
-
-              <!-- Preview canvas area -->
-              <div id="enhancer-placeholder" style="aspect-ratio:1;border-radius:10px;border:1px dashed rgba(255,255,255,0.08);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted);">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                <span style="font-size:12px;color:rgba(255,255,255,0.18);">Upload a photo to get started</span>
-              </div>
-              <canvas id="enhancer-canvas" style="display:none;width:100%;border-radius:10px;"></canvas>
-              <canvas id="enhancer-original-canvas" style="display:none;width:100%;border-radius:10px;"></canvas>
-
-              <!-- Status bar -->
-              <div id="enhancer-status" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;font-size:12px;background:rgba(74,222,128,0.07);border:1px solid rgba(74,222,128,0.15);color:var(--green);"></div>
-
-              <!-- Remove bg loading -->
-              <div id="enhancer-loading" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;font-size:12px;background:rgba(232,33,122,0.06);border:1px solid rgba(232,33,122,0.15);color:var(--pink);align-items:center;gap:8px;">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="animation:spin 1s linear infinite;flex-shrink:0;"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
-                <span id="enhancer-loading-msg">Removing background…</span>
+          <!-- Right: Result -->
+          <div class="card" style="display:flex;flex-direction:column;gap:0;padding:0;overflow:hidden;min-height:440px;">
+            <!-- Placeholder -->
+            <div id="enh-result-placeholder" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px 20px;text-align:center;">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              <div style="font-size:13px;color:var(--muted2);">Your enhanced photo will appear here</div>
+            </div>
+            <!-- Generating overlay -->
+            <div id="enh-generating" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:40px 20px;text-align:center;">
+              <div class="spinner" style="width:32px;height:32px;border-width:3px;"></div>
+              <div style="font-size:13px;color:var(--text);font-weight:600;">Generating your photo…</div>
+              <div style="font-size:11px;color:var(--muted);">This takes 15–30 seconds</div>
+            </div>
+            <!-- Result image -->
+            <div id="enh-result-wrap" style="display:none;flex:1;flex-direction:column;">
+              <img id="enh-result-img" style="width:100%;aspect-ratio:1;object-fit:contain;background:var(--surface2);">
+              <div style="padding:14px;display:flex;gap:10px;border-top:1px solid var(--border-dim);">
+                <button class="btn btn-pink btn-sm" style="flex:1;" onclick="enhDownload()">⬇ Download</button>
+                <button class="btn btn-sm" style="flex:1;background:var(--surface3);color:var(--text);" onclick="enhGenerate()">↻ Regenerate</button>
               </div>
             </div>
-
-            <!-- Download -->
-            <div class="card" style="padding:20px;">
-              <div class="card-title" style="margin-bottom:14px;">Export</div>
-              <div style="display:flex;flex-direction:column;gap:10px;">
-                <div style="display:flex;align-items:center;gap:12px;">
-                  <label style="font-size:12px;color:var(--muted2);white-space:nowrap;">Format</label>
-                  <select id="enhancer-format" style="flex:1;background:var(--bg3);border:1px solid var(--border-dim);color:var(--text);border-radius:8px;padding:8px 12px;font-size:13px;font-family:'DM Sans',sans-serif;">
-                    <option value="image/png">PNG (lossless, transparent)</option>
-                    <option value="image/jpeg">JPEG (smaller file)</option>
-                    <option value="image/webp">WEBP (best compression)</option>
-                  </select>
-                </div>
-                <div style="display:flex;align-items:center;gap:12px;">
-                  <label style="font-size:12px;color:var(--muted2);white-space:nowrap;">Size</label>
-                  <select id="enhancer-size" style="flex:1;background:var(--bg3);border:1px solid var(--border-dim);color:var(--text);border-radius:8px;padding:8px 12px;font-size:13px;font-family:'DM Sans',sans-serif;">
-                    <option value="1">Original</option>
-                    <option value="0.75">75% (Smaller)</option>
-                    <option value="0.5">50% (Thumbnail)</option>
-                    <option value="2">2x (High-res)</option>
-                  </select>
-                </div>
-                <button class="btn btn-primary" id="enhancer-download-btn" onclick="enhancerDownload()" style="display:none;margin-top:4px;justify-content:center;">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  Download Enhanced Photo
-                </button>
-                <div id="enhancer-download-placeholder" style="padding:12px;border-radius:8px;border:1px dashed rgba(255,255,255,0.06);text-align:center;font-size:12px;color:rgba(255,255,255,0.2);">Upload a photo first</div>
-              </div>
-            </div>
-
-            <!-- Tips -->
-            <div class="card" style="padding:18px;background:rgba(232,161,33,0.04);border-color:rgba(232,161,33,0.12);">
-              <div style="font-size:12px;color:var(--gold);font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:7px;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                Pro Tips
-              </div>
-              <ul style="font-size:12px;color:var(--muted2);line-height:1.7;padding-left:14px;margin:0;">
-                <li>Use <strong style="color:var(--text);">White</strong> or <strong style="color:var(--text);">Light Grey</strong> backgrounds for Depop & Vinted — they convert best</li>
-                <li>Add a subtle <strong style="color:var(--text);">Shadow Depth</strong> for a professional studio look</li>
-                <li>Slight <strong style="color:var(--text);">+110% Contrast</strong> makes items pop on dark feeds</li>
-                <li>Export as <strong style="color:var(--text);">WEBP</strong> for faster page loads on cross-listed items</li>
-              </ul>
+            <!-- Error -->
+            <div id="enh-result-error" style="display:none;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:40px 20px;text-align:center;">
+              <div style="font-size:13px;color:#f87171;" id="enh-error-msg"></div>
+              <button class="btn btn-sm" onclick="enhGenerate()" style="background:var(--surface3);color:var(--text);">Try Again</button>
             </div>
           </div>
 
@@ -1979,6 +1867,82 @@
       </div>
     </div>
 
+    <!-- ── CREDITS ── -->
+    <div class="section" id="section-credits">
+      <div class="page-header">
+        <div class="page-eyebrow">Account</div>
+        <div class="page-title">Credits</div>
+        <div class="page-sub">Credits power the AI Photo Enhancer. Each PhotoRoom enhancement costs 80 credits.</div>
+      </div>
+
+      <!-- Balance card -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+        <div class="card" style="background:linear-gradient(135deg,rgba(232,161,33,0.08),rgba(232,161,33,0.03));border-color:rgba(232,161,33,0.18);">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--gold);font-weight:700;margin-bottom:8px;">Your Balance</div>
+          <div style="display:flex;align-items:baseline;gap:8px;">
+            <span id="credits-balance-big" style="font-size:36px;font-weight:800;font-family:'Syne',sans-serif;color:var(--gold);">—</span>
+            <span style="font-size:13px;color:var(--muted2);">credits</span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;">1 PhotoRoom enhancement = 80 credits</div>
+        </div>
+        <div class="card" style="display:flex;flex-direction:column;justify-content:center;gap:10px;">
+          <div style="font-size:13px;font-weight:600;color:var(--text);">Need more credits?</div>
+          <div style="font-size:12px;color:var(--muted2);line-height:1.5;">Buy credit packs starting from £3.99. Credits never expire.</div>
+          <a href="vendora-credits.html" class="btn btn-primary btn-sm" style="display:inline-flex;text-decoration:none;width:fit-content;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            Buy Credits
+          </a>
+        </div>
+      </div>
+
+      <!-- Packages preview -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-title" style="margin-bottom:16px;">Credit Packages</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+          <div style="background:var(--surface3);border:1px solid var(--border-dim);border-radius:10px;padding:16px;text-align:center;">
+            <div style="font-size:20px;font-weight:800;color:var(--text);font-family:'Syne',sans-serif;">500</div>
+            <div style="font-size:11px;color:var(--muted);margin:2px 0 8px;">credits</div>
+            <div style="font-size:16px;font-weight:700;color:var(--pink);">£3.99</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px;">6 enhancements</div>
+          </div>
+          <div style="background:var(--surface3);border:2px solid var(--pink);border-radius:10px;padding:16px;text-align:center;position:relative;">
+            <div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:var(--pink);color:#fff;font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.05em;white-space:nowrap;">POPULAR</div>
+            <div style="font-size:20px;font-weight:800;color:var(--text);font-family:'Syne',sans-serif;">1,000</div>
+            <div style="font-size:11px;color:var(--muted);margin:2px 0 8px;">credits</div>
+            <div style="font-size:16px;font-weight:700;color:var(--pink);">£7.99</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px;">12 enhancements</div>
+          </div>
+          <div style="background:var(--surface3);border:2px solid var(--gold);border-radius:10px;padding:16px;text-align:center;position:relative;">
+            <div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:var(--gold);color:#000;font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.05em;white-space:nowrap;">BEST VALUE</div>
+            <div style="font-size:20px;font-weight:800;color:var(--text);font-family:'Syne',sans-serif;">2,500</div>
+            <div style="font-size:11px;color:var(--muted);margin:2px 0 8px;">credits</div>
+            <div style="font-size:16px;font-weight:700;color:var(--gold);">£16.99</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px;">31 enhancements</div>
+          </div>
+          <div style="background:var(--surface3);border:1px solid var(--border-dim);border-radius:10px;padding:16px;text-align:center;">
+            <div style="font-size:20px;font-weight:800;color:var(--text);font-family:'Syne',sans-serif;">5,000</div>
+            <div style="font-size:11px;color:var(--muted);margin:2px 0 8px;">credits</div>
+            <div style="font-size:16px;font-weight:700;color:var(--text);">£29.99</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px;">62 enhancements</div>
+          </div>
+        </div>
+        <div style="text-align:center;margin-top:16px;">
+          <a href="vendora-credits.html" class="btn btn-primary" style="display:inline-flex;text-decoration:none;">Purchase Credits</a>
+        </div>
+      </div>
+
+      <!-- Redeem code -->
+      <div class="card">
+        <div class="card-title">Redeem a Code</div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:14px;line-height:1.5;">Have a credit code from a promotion or giveaway? Enter it below to claim your credits.</div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <input id="redeem-code-input" type="text" class="form-select" style="flex:1;height:auto;padding:10px 14px;font-family:monospace;text-transform:uppercase;letter-spacing:.08em;" placeholder="ENTER-CODE-HERE" oninput="this.value=this.value.toUpperCase()">
+          <button class="btn btn-primary" id="redeem-code-btn" onclick="redeemCreditCode()" style="white-space:nowrap;">Redeem</button>
+        </div>
+        <div id="redeem-code-msg" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;font-size:12px;"></div>
+      </div>
+    </div>
+
     <!-- ── ADMIN ── -->
     <div class="section" id="section-admin">
       <div class="page-header">
@@ -2029,6 +1993,7 @@
           <div class="admin-tab" onclick="showAdminTab('announce', this)">Announcements</div>
           <div class="admin-tab" onclick="showAdminTab('pricing', this)">Pricing</div>
           <div class="admin-tab" onclick="showAdminTab('coupons', this)">Coupons</div>
+          <div class="admin-tab" onclick="showAdminTab('credits', this)">Credits</div>
           <div class="admin-tab" onclick="showAdminTab('testtools', this)">Test Tools</div>
         </div>
 
@@ -2323,6 +2288,90 @@
           </div>
         </div>
 
+        <!-- Credits -->
+        <div class="admin-panel" id="admin-credits">
+          <!-- Adjust user credits -->
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-title">Adjust User Credits</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 100px auto;gap:10px;align-items:end;">
+              <div>
+                <label class="form-label">Discord ID or User ID</label>
+                <input id="cr-adjust-userid" class="form-select" style="height:auto;padding:9px 14px;" placeholder="User UUID or lookup below">
+              </div>
+              <div>
+                <label class="form-label">Amount</label>
+                <input id="cr-adjust-amount" class="form-select" type="number" style="height:auto;padding:9px 14px;" placeholder="e.g. 500">
+              </div>
+              <div>
+                <label class="form-label">Mode</label>
+                <select id="cr-adjust-mode" class="form-select">
+                  <option value="set">Set</option>
+                  <option value="add">Add</option>
+                  <option value="subtract">Subtract</option>
+                </select>
+              </div>
+              <div>
+                <button class="btn btn-pink btn-sm" onclick="adminAdjustCredits()">Apply</button>
+              </div>
+            </div>
+            <div id="cr-adjust-msg" style="display:none;margin-top:10px;font-size:12px;padding:8px 12px;border-radius:7px;"></div>
+            <div style="margin-top:12px;font-size:11px;color:var(--muted);">To find a user's UUID: click their name in the Users tab. The UUID is shown in the Actions cell. Your own UUID is in the URL if you open Supabase Auth.</div>
+          </div>
+
+          <!-- Create credit code -->
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-title">Create Credit Code</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:end;">
+              <div>
+                <label class="form-label">Code</label>
+                <input id="cr-code-code" class="form-select" style="height:auto;padding:9px 14px;font-family:monospace;text-transform:uppercase;" placeholder="e.g. LAUNCH100" oninput="this.value=this.value.toUpperCase()">
+              </div>
+              <div>
+                <label class="form-label">Credits</label>
+                <input id="cr-code-amount" class="form-select" type="number" style="height:auto;padding:9px 14px;" placeholder="e.g. 500">
+              </div>
+              <div>
+                <label class="form-label">Max Uses <span style="color:var(--muted);">(-1 = unlimited)</span></label>
+                <input id="cr-code-maxuses" class="form-select" type="number" style="height:auto;padding:9px 14px;" value="1" min="-1">
+              </div>
+              <div>
+                <label class="form-label">Expires</label>
+                <input id="cr-code-expires" class="form-select" type="datetime-local" style="height:auto;padding:9px 14px;">
+              </div>
+              <div>
+                <button class="btn btn-pink btn-sm" onclick="adminCreateCreditCode()">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Create
+                </button>
+              </div>
+            </div>
+            <div id="cr-code-create-msg" style="display:none;margin-top:10px;font-size:12px;padding:8px 12px;border-radius:7px;"></div>
+          </div>
+
+          <!-- Existing codes -->
+          <div class="card" style="padding:0;overflow:hidden;">
+            <div style="padding:18px 20px;border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
+              <div class="card-title" style="margin:0;">Active Credit Codes</div>
+              <button class="btn btn-ghost btn-sm" onclick="adminLoadCreditCodes()">Refresh</button>
+            </div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Credits</th>
+                  <th>Uses / Max</th>
+                  <th>Expires</th>
+                  <th>Created</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="admin-codes-tbody">
+                <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- Test Tools -->
         <div class="admin-panel" id="admin-testtools">
           <div class="card">
@@ -2456,6 +2505,7 @@
     loadInventory();
     loadWatchlist();
     ptRefresh();
+    loadCreditsBalance(session);
 
     if (isOwner) {
       document.getElementById('admin-label').style.display         = '';
@@ -2996,6 +3046,7 @@
     if (id === 'bot')      adminLoadConfig();
     if (id === 'pricing')  adminLoadPricing();
     if (id === 'announce') loadDiscordChannels();
+    if (id === 'credits')  adminLoadCreditCodes();
   }
 
   // ── Admin: Bot Config ────────────────────────────────────────────────────────
@@ -4032,6 +4083,8 @@
     const gate = document.getElementById('enhancer-gate');
     const tool = document.getElementById('enhancer-tool');
     const nav  = document.getElementById('enhancer-nav-item');
+    // Always build the background grid + lighting buttons
+    enhInitUI();
     if (tier === 'elite') {
       if (gate) gate.style.display = 'none';
       if (tool) tool.style.display = '';
@@ -4815,6 +4868,414 @@
       if (aiBtn)   aiBtn.disabled   = false;
       if (instrBtn) instrBtn.disabled = false;
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CREDITS SYSTEM
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  async function loadCreditsBalance(session) {
+    try {
+      const tok = session?.access_token;
+      if (!tok) return;
+      const r = await fetch(`${BOT_API}/api/credits/balance`, { headers: { Authorization: `Bearer ${tok}` } });
+      const j = await r.json();
+      if (!r.ok) return;
+      updateCreditsDisplay(j.credits);
+    } catch (e) { console.warn('[credits] load failed:', e.message); }
+  }
+
+  function updateCreditsDisplay(bal) {
+    const fmt = bal >= 1000 ? (bal / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(bal);
+    const topbar = document.getElementById('topbar-credits');
+    const topbarVal = document.getElementById('topbar-credits-val');
+    const bigBal = document.getElementById('credits-balance-big');
+    const navBadge = document.getElementById('nav-credits-badge');
+    if (topbar)    topbar.style.display    = 'flex';
+    if (topbarVal) topbarVal.textContent   = fmt;
+    if (bigBal)    bigBal.textContent      = bal.toLocaleString();
+    if (navBadge)  { navBadge.textContent  = fmt; navBadge.style.display = ''; }
+    _user.credits = bal;
+  }
+
+  async function redeemCreditCode() {
+    const input = document.getElementById('redeem-code-input');
+    const btn   = document.getElementById('redeem-code-btn');
+    const msg   = document.getElementById('redeem-code-msg');
+    const code  = input?.value?.trim().toUpperCase();
+    if (!code) return;
+    btn.disabled = true; btn.textContent = 'Redeeming…';
+    const showMsg = (text, ok) => {
+      msg.textContent = text;
+      msg.style.background  = ok ? 'rgba(74,222,128,0.07)' : 'rgba(248,113,113,0.07)';
+      msg.style.borderColor = ok ? 'rgba(74,222,128,0.2)'  : 'rgba(248,113,113,0.2)';
+      msg.style.color       = ok ? 'var(--green)' : '#f87171';
+      msg.style.border      = '1px solid';
+      msg.style.display     = '';
+    };
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { showMsg('Session expired — please refresh.', false); return; }
+      const r = await fetch(`${BOT_API}/api/credits/redeem`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ code }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) { showMsg(j.error || 'Redemption failed.', false); return; }
+      showMsg(`✓ ${j.credits_added.toLocaleString()} credits added! New balance: ${j.new_balance.toLocaleString()}`, true);
+      updateCreditsDisplay(j.new_balance);
+      if (input) input.value = '';
+    } catch (e) { showMsg('Network error: ' + e.message, false); }
+    finally { btn.disabled = false; btn.textContent = 'Redeem'; }
+  }
+
+  // ── Admin: Adjust credits ──────────────────────────────────────────────────
+  async function adminAdjustCredits() {
+    const userId = document.getElementById('cr-adjust-userid')?.value?.trim();
+    const amount = parseFloat(document.getElementById('cr-adjust-amount')?.value);
+    const mode   = document.getElementById('cr-adjust-mode')?.value || 'set';
+    const msg    = document.getElementById('cr-adjust-msg');
+    if (!userId || isNaN(amount)) { alert('Enter user ID and amount.'); return; }
+    const showMsg = (text, ok) => {
+      msg.textContent = text;
+      msg.style.background  = ok ? 'rgba(74,222,128,0.07)' : 'rgba(248,113,113,0.07)';
+      msg.style.color       = ok ? 'var(--green)' : '#f87171';
+      msg.style.border      = ok ? '1px solid rgba(74,222,128,0.2)' : '1px solid rgba(248,113,113,0.2)';
+      msg.style.display     = '';
+    };
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const r = await fetch(`${BOT_API}/api/admin/credits/adjust`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ user_id: userId, amount, mode }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) { showMsg(j.error || 'Failed.', false); return; }
+      showMsg(`✓ Done. New balance: ${j.new_balance.toLocaleString()} credits`, true);
+    } catch (e) { showMsg('Error: ' + e.message, false); }
+  }
+
+  // ── Admin: Create credit code ──────────────────────────────────────────────
+  async function adminCreateCreditCode() {
+    const code    = document.getElementById('cr-code-code')?.value?.trim().toUpperCase();
+    const amount  = parseInt(document.getElementById('cr-code-amount')?.value);
+    const maxUses = parseInt(document.getElementById('cr-code-maxuses')?.value ?? '1');
+    const expires = document.getElementById('cr-code-expires')?.value || null;
+    const msg     = document.getElementById('cr-code-create-msg');
+    if (!code || !amount) { alert('Enter code and credits amount.'); return; }
+    const showMsg = (text, ok) => {
+      msg.textContent = text;
+      msg.style.background  = ok ? 'rgba(74,222,128,0.07)' : 'rgba(248,113,113,0.07)';
+      msg.style.color       = ok ? 'var(--green)' : '#f87171';
+      msg.style.border      = ok ? '1px solid rgba(74,222,128,0.2)' : '1px solid rgba(248,113,113,0.2)';
+      msg.style.display     = '';
+    };
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const r = await fetch(`${BOT_API}/api/admin/codes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ code, credits_amount: amount, max_uses: maxUses, expires_at: expires ? new Date(expires).toISOString() : null }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) { showMsg(j.error || 'Failed.', false); return; }
+      showMsg(`✓ Code "${code}" created (${amount} credits, max ${maxUses} uses)`, true);
+      document.getElementById('cr-code-code').value    = '';
+      document.getElementById('cr-code-amount').value  = '';
+      document.getElementById('cr-code-expires').value = '';
+      adminLoadCreditCodes();
+    } catch (e) { showMsg('Error: ' + e.message, false); }
+  }
+
+  // ── Admin: Load credit codes table ────────────────────────────────────────
+  async function adminLoadCreditCodes() {
+    const tbody = document.getElementById('admin-codes-tbody');
+    if (!tbody) return;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const r = await fetch(`${BOT_API}/api/admin/codes`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const j = await r.json();
+      if (!r.ok || !j.ok) { tbody.innerHTML = `<tr><td colspan="6" style="padding:20px;color:#f87171;text-align:center;">${j.error||'Failed'}</td></tr>`; return; }
+      if (!j.codes.length) { tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;color:var(--muted);text-align:center;">No codes yet.</td></tr>'; return; }
+      tbody.innerHTML = j.codes.map(c => `
+        <tr>
+          <td><code style="font-size:12px;color:var(--pink);">${c.code}</code></td>
+          <td style="color:var(--gold);font-weight:600;">${c.credits_amount.toLocaleString()}</td>
+          <td>${c.uses_count} / ${c.max_uses < 0 ? '∞' : c.max_uses}</td>
+          <td style="font-size:11px;">${c.expires_at ? new Date(c.expires_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+          <td style="font-size:11px;color:var(--muted);">${new Date(c.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</td>
+          <td><button class="btn btn-ghost btn-sm" style="color:#f87171;border-color:rgba(248,113,113,0.2);" onclick="adminDeleteCreditCode('${c.code}')">Delete</button></td>
+        </tr>`).join('');
+    } catch (e) { tbody.innerHTML = `<tr><td colspan="6" style="padding:20px;color:#f87171;text-align:center;">${e.message}</td></tr>`; }
+  }
+
+  async function adminDeleteCreditCode(code) {
+    if (!confirm(`Delete code "${code}"?`)) return;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      await fetch(`${BOT_API}/api/admin/codes/${encodeURIComponent(code)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` } });
+      adminLoadCreditCodes();
+    } catch (e) { alert('Delete failed: ' + e.message); }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NEW PHOTO ENHANCER (PhotoRoom-powered)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const PHOTOROOM_COST = 80;
+  let _enhFile = null; // raw File object
+  let _enhAnalysis = null; // { itemType, category, modifications[] }
+  let _enhBg = 'white-studio';
+  let _enhLighting = 'studio';
+  let _enhResultB64 = null;
+
+  const ENH_BACKGROUNDS = [
+    { id:'white-studio', label:'White Studio',  css:'radial-gradient(ellipse at 40% 35%,#fff 0%,#f0f0f0 60%,#e0e0e0 100%)' },
+    { id:'soft-grey',    label:'Soft Grey',     css:'radial-gradient(ellipse at 40% 35%,#ebebeb 0%,#d5d5d5 60%,#c0c0c0 100%)' },
+    { id:'cream',        label:'Cream',         css:'radial-gradient(ellipse at 40% 35%,#fdf9f2 0%,#f3e8d4 60%,#e6d8be 100%)' },
+    { id:'sage',         label:'Sage',          css:'radial-gradient(ellipse at 40% 35%,#eaf0e4 0%,#cfdcc8 60%,#b5c5aa 100%)' },
+    { id:'blush',        label:'Blush',         css:'radial-gradient(ellipse at 40% 35%,#fdf0f0 0%,#f0d4d4 60%,#e0bcbc 100%)' },
+    { id:'marble',       label:'Marble',        css:'linear-gradient(125deg,#e8e4e0 0%,#f5f2ef 30%,#ddd8d4 55%,#f0ede8 80%,#e4e0dc 100%)' },
+    { id:'wood',         label:'Oak Wood',      css:'linear-gradient(180deg,#caa572 0%,#d6ae7c 45%,#c09a62 100%)' },
+    { id:'concrete',     label:'Concrete',      css:'radial-gradient(ellipse at 50% 50%,#6a6a6a 0%,#585858 50%,#484848 100%)' },
+    { id:'linen',        label:'Linen',         css:'repeating-linear-gradient(0deg,#f0e8d8 0px,#e8deca 2px,#f0e8d8 4px)' },
+    { id:'studio-dark',  label:'Dark Studio',   css:'radial-gradient(ellipse at 40% 35%,#383838 0%,#202020 60%,#111 100%)' },
+    { id:'black',        label:'Black',         css:'#111' },
+    { id:'navy',         label:'Navy',          css:'radial-gradient(ellipse at 40% 35%,#1e3055 0%,#0e1e3a 60%,#060e20 100%)' },
+    { id:'gradient-pink',label:'Dark Rose',     css:'linear-gradient(135deg,#1a0010,#3d0020,#6b0033)' },
+    { id:'gradient-blue',label:'Midnight',      css:'linear-gradient(135deg,#0a0e1a,#0d1b3e,#0a2a5c)' },
+    { id:'custom',       label:'Custom Image',  css:'repeating-conic-gradient(#444 0% 25%,#222 0% 50%) 0 0/12px 12px' },
+  ];
+
+  const ENH_LIGHTINGS = [
+    { id:'studio',   label:'Studio',   icon:'☁' },
+    { id:'soft',     label:'Soft',     icon:'🌤' },
+    { id:'dramatic', label:'Dramatic', icon:'⚡' },
+    { id:'natural',  label:'Natural',  icon:'🌿' },
+    { id:'sharp',    label:'Sharp',    icon:'🔆' },
+  ];
+
+  function enhInitUI() {
+    // Build background swatches
+    const grid = document.getElementById('enh-bg-grid');
+    if (grid) {
+      grid.innerHTML = ENH_BACKGROUNDS.map(b => `
+        <div onclick="enhSetBg('${b.id}',this)" data-bg="${b.id}" title="${b.label}"
+          style="aspect-ratio:1;border-radius:8px;border:2px solid ${b.id==='white-studio'?'var(--pink)':'transparent'};background:${b.css};cursor:pointer;transition:border-color .15s;">
+        </div>`).join('');
+    }
+    // Build lighting buttons
+    const lbtns = document.getElementById('enh-lighting-btns');
+    if (lbtns) {
+      lbtns.innerHTML = ENH_LIGHTINGS.map(l => `
+        <button onclick="enhSetLighting('${l.id}',this)" data-lit="${l.id}"
+          style="padding:7px 12px;border-radius:8px;border:${l.id==='studio'?'2px solid var(--pink)':'1px solid var(--border-dim)'};background:${l.id==='studio'?'rgba(232,33,122,0.08)':'rgba(255,255,255,0.03)'};cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif;color:${l.id==='studio'?'var(--pink)':'var(--muted2)'};transition:all .15s;">
+          ${l.icon} ${l.label}
+        </button>`).join('');
+    }
+  }
+
+  function enhSetBg(id, el) {
+    _enhBg = id;
+    document.querySelectorAll('#enh-bg-grid > div').forEach(d => d.style.borderColor = 'transparent');
+    if (el) el.style.borderColor = 'var(--pink)';
+    const customRow = document.getElementById('enh-custom-bg-row');
+    if (customRow) customRow.style.display = id === 'custom' ? '' : 'none';
+  }
+
+  function enhSetLighting(id, el) {
+    _enhLighting = id;
+    document.querySelectorAll('#enh-lighting-btns button').forEach(b => {
+      b.style.border = '1px solid var(--border-dim)';
+      b.style.background = 'rgba(255,255,255,0.03)';
+      b.style.color = 'var(--muted2)';
+    });
+    if (el) { el.style.border = '2px solid var(--pink)'; el.style.background = 'rgba(232,33,122,0.08)'; el.style.color = 'var(--pink)'; }
+  }
+
+  function enhDrop(e) {
+    e.preventDefault();
+    document.getElementById('enh-drop-zone')?.classList.remove('drag-over');
+    const file = e.dataTransfer?.files?.[0];
+    if (file && file.type.startsWith('image/')) enhLoadFile(file);
+  }
+
+  function enhFileSelected(input) {
+    const file = input?.files?.[0];
+    if (file) enhLoadFile(file);
+  }
+
+  function enhCustomBgSelected(input) {
+    // Custom BG is sent along as a separate file to PhotoRoom
+    // We just store it for now (not yet supported in basic PhotoRoom call)
+  }
+
+  async function enhLoadFile(file) {
+    if (file.size > 10 * 1024 * 1024) { alert('Image too large. Max 10MB.'); return; }
+    _enhFile = file;
+    _enhAnalysis = null;
+    _enhResultB64 = null;
+
+    // Show thumbnail
+    const thumb = document.getElementById('enh-thumb');
+    const thumbWrap = document.getElementById('enh-thumb-wrap');
+    const reader = new FileReader();
+    reader.onload = e => { if (thumb) thumb.src = e.target.result; };
+    reader.readAsDataURL(file);
+    if (thumbWrap) thumbWrap.style.display = '';
+
+    // Show placeholder, hide result
+    enhShowResult('placeholder');
+
+    // Disable gen button until analysis done
+    const genBtn = document.getElementById('enh-gen-btn');
+    if (genBtn) { genBtn.disabled = true; genBtn.textContent = '✨ Analysing item…'; }
+
+    // Run GPT-4o analysis
+    try {
+      const analyzing = document.getElementById('enh-analyzing');
+      if (analyzing) analyzing.style.display = 'flex';
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) {
+        const thumb2 = document.createElement('canvas');
+        const img = new Image();
+        img.onload = async () => {
+          const s = Math.min(1, 800 / Math.max(img.naturalWidth, img.naturalHeight));
+          thumb2.width = Math.round(img.naturalWidth * s);
+          thumb2.height = Math.round(img.naturalHeight * s);
+          thumb2.getContext('2d').drawImage(img, 0, 0, thumb2.width, thumb2.height);
+          const b64 = thumb2.toDataURL('image/jpeg', 0.75).split(',')[1];
+          try {
+            const r = await fetch(`${BOT_API}/api/photo/analyze`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+              body: JSON.stringify({ image: b64 }),
+            });
+            const j = await r.json();
+            if (r.ok && j.ok) {
+              _enhAnalysis = j;
+              // Show detected item
+              const detCard = document.getElementById('enh-detected-card');
+              const detName = document.getElementById('enh-item-name');
+              if (detCard) detCard.style.display = '';
+              if (detName) detName.textContent = j.itemType || 'Item detected';
+              // Show modifications
+              if (j.modifications?.length) {
+                const modsCard = document.getElementById('enh-mods-card');
+                const modList  = document.getElementById('enh-mod-list');
+                if (modsCard) modsCard.style.display = '';
+                if (modList) {
+                  modList.innerHTML = j.modifications.map(m => `
+                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 10px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.02);transition:background .15s;" onmouseover="this.style.background='rgba(232,33,122,0.04)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
+                      <input type="checkbox" id="mod-${m.id}" checked style="accent-color:var(--pink);width:14px;height:14px;cursor:pointer;">
+                      <div>
+                        <div style="font-size:12px;font-weight:600;color:var(--text);">${m.label}</div>
+                      </div>
+                    </label>`).join('');
+                }
+              }
+            }
+          } catch {}
+          if (analyzing) analyzing.style.display = 'none';
+          if (genBtn) { genBtn.disabled = false; genBtn.textContent = `✨ Generate Photo  ·  ${PHOTOROOM_COST} credits`; }
+        };
+        const url = URL.createObjectURL(_enhFile);
+        img.src = url;
+      } else {
+        if (analyzing) analyzing.style.display = 'none';
+        if (genBtn) { genBtn.disabled = false; genBtn.textContent = `✨ Generate Photo  ·  ${PHOTOROOM_COST} credits`; }
+      }
+    } catch (e) {
+      const analyzing = document.getElementById('enh-analyzing');
+      if (analyzing) analyzing.style.display = 'none';
+      if (genBtn) { genBtn.disabled = false; genBtn.textContent = `✨ Generate Photo  ·  ${PHOTOROOM_COST} credits`; }
+    }
+  }
+
+  async function enhGenerate() {
+    if (!_enhFile) return;
+    const genBtn = document.getElementById('enh-gen-btn');
+
+    // Check credits
+    const bal = _user.credits ?? 0;
+    if (bal < PHOTOROOM_COST) {
+      enhShowResult('error', `Not enough credits (you have ${bal}, need ${PHOTOROOM_COST}). <a href="vendora-credits.html" style="color:var(--pink);">Buy more →</a>`);
+      return;
+    }
+
+    if (genBtn) { genBtn.disabled = true; }
+    enhShowResult('generating');
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) throw new Error('Session expired');
+
+      // Convert file to base64 PNG
+      const b64 = await new Promise((resolve, reject) => {
+        const canvas = document.createElement('canvas');
+        const img = new Image();
+        img.onload = () => {
+          // Cap at 2000px on longest side for upload size
+          const maxDim = 2000;
+          let w = img.naturalWidth, h = img.naturalHeight;
+          if (Math.max(w, h) > maxDim) {
+            if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+            else       { w = Math.round(w * maxDim / h); h = maxDim; }
+          }
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/png').split(',')[1]);
+        };
+        img.onerror = reject;
+        img.src = URL.createObjectURL(_enhFile);
+      });
+
+      // Collect selected modifications
+      const mods = (_enhAnalysis?.modifications || [])
+        .filter(m => document.getElementById('mod-' + m.id)?.checked)
+        .map(m => m.prompt);
+
+      const r = await fetch(`${BOT_API}/api/photo/photoroom`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ image: b64, background: _enhBg, lighting: _enhLighting }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error(j.error || 'Generation failed');
+
+      _enhResultB64 = `data:image/png;base64,${j.image}`;
+      const resultImg = document.getElementById('enh-result-img');
+      if (resultImg) resultImg.src = _enhResultB64;
+      enhShowResult('result');
+
+      // Update credit balance
+      if (typeof j.new_balance === 'number') updateCreditsDisplay(j.new_balance);
+
+    } catch (e) {
+      enhShowResult('error', e.message);
+    } finally {
+      if (genBtn) { genBtn.disabled = false; genBtn.textContent = `✨ Generate Photo  ·  ${PHOTOROOM_COST} credits`; }
+    }
+  }
+
+  function enhShowResult(state, errorMsg = '') {
+    document.getElementById('enh-result-placeholder').style.display = state === 'placeholder' ? '' : 'none';
+    document.getElementById('enh-generating').style.display         = state === 'generating'  ? 'flex' : 'none';
+    document.getElementById('enh-result-wrap').style.display        = state === 'result'      ? 'flex' : 'none';
+    const errDiv = document.getElementById('enh-result-error');
+    const errMsg = document.getElementById('enh-error-msg');
+    if (errDiv) errDiv.style.display = state === 'error' ? 'flex' : 'none';
+    if (errMsg) errMsg.innerHTML     = errorMsg;
+  }
+
+  function enhDownload() {
+    if (!_enhResultB64) return;
+    const a = document.createElement('a');
+    a.href = _enhResultB64;
+    a.download = 'vendora-enhanced.png';
+    a.click();
   }
 
   function enhancerLocalInstructParse(text) {

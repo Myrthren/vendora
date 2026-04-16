@@ -29,11 +29,15 @@ const GUILD_ID       = process.env.DISCORD_GUILD_ID;
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 const SUPABASE_URL   = process.env.SUPABASE_URL || 'https://fqfanqtybvnurhzkoxwr.supabase.co';
 const SUPABASE_KEY   = process.env.SUPABASE_SERVICE_KEY;
-const ANTHROPIC_KEY   = process.env.ANTHROPIC_API_KEY;
-const OPENAI_KEY      = process.env.OPENAI_API_KEY;
-const BRAVE_KEY       = process.env.BRAVE_SEARCH_API_KEY;
-const REMOVE_BG_KEY   = process.env.REMOVE_BG_API_KEY;
-const PROXY_URL       = process.env.PROXY_URL; // optional residential proxy e.g. http://user:pass@host:port
+const ANTHROPIC_KEY    = process.env.ANTHROPIC_API_KEY;
+const OPENAI_KEY       = process.env.OPENAI_API_KEY;
+const BRAVE_KEY        = process.env.BRAVE_SEARCH_API_KEY;
+const REMOVE_BG_KEY    = process.env.REMOVE_BG_API_KEY;
+const PHOTOROOM_KEY    = process.env.PHOTOROOM_API_KEY;
+const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
+const PAYPAL_SECRET    = process.env.PAYPAL_CLIENT_SECRET;
+const PAYPAL_MODE      = process.env.PAYPAL_MODE || 'live'; // 'sandbox' or 'live'
+const PROXY_URL        = process.env.PROXY_URL; // optional residential proxy e.g. http://user:pass@host:port
 
 // Create ONE shared proxy agent — reusing it keeps the same exit IP across a full Vinted session.
 // Chrome-like TLS cipher configuration to avoid JA3 fingerprint detection by DataDome.
@@ -71,8 +75,11 @@ console.log('[boot] Config — GUILD_ID:', GUILD_ID, '| PORT:', PORT);
 if (!TOKEN)         console.warn('[warn] DISCORD_BOT_TOKEN not set');
 if (!GUILD_ID)      console.warn('[warn] DISCORD_GUILD_ID not set');
 if (!SUPABASE_KEY)  console.warn('[warn] SUPABASE_SERVICE_KEY not set');
-if (!ANTHROPIC_KEY) console.warn('[warn] ANTHROPIC_API_KEY not set — AI commands will fail');
-if (!OPENAI_KEY)    console.warn('[warn] OPENAI_API_KEY not set — AI photo enhancement will fail');
+if (!ANTHROPIC_KEY)    console.warn('[warn] ANTHROPIC_API_KEY not set — AI commands will fail');
+if (!OPENAI_KEY)       console.warn('[warn] OPENAI_API_KEY not set — AI photo enhancement will fail');
+if (!PHOTOROOM_KEY)    console.warn('[warn] PHOTOROOM_API_KEY not set — PhotoRoom enhancement will fail');
+if (!PAYPAL_CLIENT_ID) console.warn('[warn] PAYPAL_CLIENT_ID not set — credit purchases will fail');
+if (!PAYPAL_SECRET)    console.warn('[warn] PAYPAL_CLIENT_SECRET not set — credit purchases will fail');
 
 // ── Anthropic ─────────────────────────────────────────────────────────────────
 const ai = ANTHROPIC_KEY ? new Anthropic({ apiKey: ANTHROPIC_KEY }) : null;
@@ -3401,13 +3408,12 @@ app.post('/api/listing/upload-images', async (req, res) => {
   res.json({ ok: true, result });
 });
 
-// ── Photo enhancer — AI instructions via GPT-4o vision ───────────────────────
-app.post('/api/photo/instruct', async (req, res) => {
+// ── Photo enhancer — analyse item via GPT-4o vision ──────────────────────────
+app.post('/api/photo/analyze', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
-  const { image, instructions } = req.body || {};
-  if (!image || !instructions) return res.status(400).json({ error: 'image and instructions required' });
-  if (!OPENAI_KEY) return res.status(503).json({ error: 'AI not configured — OPENAI_API_KEY missing' });
-
+  const { image } = req.body || {};
+  if (!image) return res.status(400).json({ error: 'image required' });
+  if (!OPENAI_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY not configured on server' });
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -3416,59 +3422,54 @@ app.post('/api/photo/instruct', async (req, res) => {
         model: 'gpt-4o',
         max_tokens: 400,
         response_format: { type: 'json_object' },
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${image}`, detail: 'low' } },
-            { type: 'text', text: `You are a professional product photo editor for a clothing resale platform. The user wants: "${instructions}"\n\nAnalyse the clothing item and respond with ONLY valid JSON:\n{"brightness":<0-200>,"contrast":<0-200>,"saturation":<0-200>,"sharpness":<0-5>,"shadow":<0-60>,"vignette":<0-80>,"warmth":<-60 to 60>,"scale":<40-100>,"bgBrightness":<20-180>,"shadowType":<one of: "floor","drop","none">,"removeBg":<true/false>,"message":"<one sentence>"}` }
-          ]
-        }]
+        messages: [{ role: 'user', content: [
+          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${image}`, detail: 'low' } },
+          { type: 'text', text: `Identify the product in this image for a resale listing. Return ONLY valid JSON with no markdown:\n{\n  "itemType": "descriptive name e.g. White Crew-Neck T-Shirt or Nike Air Max 90",\n  "category": "one of: clothing, shoes, electronics, bags, jewellery, books, other",\n  "modifications": [\n    {"id":"m1","label":"Short action e.g. Remove wrinkles","prompt":"detailed editing instruction for AI image model"},\n    {"id":"m2","label":"...","prompt":"..."},\n    {"id":"m3","label":"...","prompt":"..."},\n    {"id":"m4","label":"...","prompt":"..."}\n  ]\n}\nReturn exactly 4 modifications specific to this exact item. Examples by category:\n- clothing: Remove wrinkles, Smooth fabric creases, Add natural shape, Enhance colour vibrancy\n- shoes: Clean laces, Remove scuff marks, Align symmetrically, Brighten sole\n- electronics: Remove screen reflections, Remove surface scratches, Straighten alignment, Enhance finish\n- bags: Shape and structure, Polish hardware, Remove scuffs, Enhance texture\n- jewellery: Enhance sparkle, Clean metal finish, Remove tarnish, Improve clarity\n- other: Remove dust marks, Brighten item, Clean edges, Enhance colours` }
+        ]}]
       }),
       signal: AbortSignal.timeout(30000),
     });
-
-    if (!response.ok) {
-      const err = await response.text();
-      return res.status(502).json({ error: 'OpenAI error: ' + err.slice(0, 200) });
-    }
-
+    if (!response.ok) { const e = await response.text(); return res.status(502).json({ error: 'OpenAI error: ' + e.slice(0,200) }); }
     const data = await response.json();
-    const raw = data.choices?.[0]?.message?.content?.trim() || '';
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return res.status(502).json({ error: 'AI returned unexpected format' });
-
-    const settings = JSON.parse(jsonMatch[0]);
-    const clamp = (v, min, max, def) => (typeof v === 'number' && !isNaN(v)) ? Math.min(max, Math.max(min, v)) : def;
-    settings.brightness   = clamp(settings.brightness,   0,   200, 100);
-    settings.contrast     = clamp(settings.contrast,     0,   200, 100);
-    settings.saturation   = clamp(settings.saturation,   0,   200, 100);
-    settings.sharpness    = clamp(settings.sharpness,    0,     5,   0);
-    settings.shadow       = clamp(settings.shadow,       0,    60,   0);
-    settings.vignette     = clamp(settings.vignette,     0,    80,   0);
-    settings.warmth       = clamp(settings.warmth,     -60,    60,   0);
-    settings.scale        = clamp(settings.scale,       40,   100,  82);
-    settings.bgBrightness = clamp(settings.bgBrightness, 20,  180, 100);
-
-    res.json({ ok: true, settings, message: settings.message || 'Settings applied.' });
-  } catch (e) {
-    console.error('[photo/instruct]', e.message);
-    res.status(500).json({ error: e.message });
-  }
+    const raw = data.choices?.[0]?.message?.content?.trim() || '{}';
+    const result = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] || '{}');
+    res.json({ ok: true, itemType: result.itemType || 'Product', category: result.category || 'other', modifications: result.modifications || [] });
+  } catch (e) { console.error('[photo/analyze]', e.message); res.status(500).json({ error: e.message }); }
 });
 
-// ── Photo enhancer — AI image generation via gpt-image-1 ─────────────────────
-app.post('/api/photo/ai-generate', async (req, res) => {
+// ── Photo enhancer — generate enhanced product photo via gpt-image-1 ─────────
+app.post('/api/photo/generate', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
-  const { image, bgInstructions = '', instructions = '' } = req.body || {};
+  const { image, background = 'white-studio', lighting = 'studio', modifications = [], itemType = '' } = req.body || {};
   if (!image) return res.status(400).json({ error: 'image (base64 PNG) required' });
-  if (!OPENAI_KEY) return res.status(503).json({ error: 'AI not configured — OPENAI_API_KEY missing on server' });
+  if (!OPENAI_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY not configured on server' });
 
-  const bgPart = bgInstructions.trim()
-    ? `Background: ${bgInstructions.trim()}.`
-    : 'Background: pure white studio backdrop with soft even lighting.';
+  const BG = {
+    'white-studio': 'a pure seamless white studio backdrop with white sweep',
+    'black':        'a pure deep black studio backdrop',
+    'marble':       'a luxurious white and grey Carrara marble surface and background',
+    'wood':         'a warm natural oak wood grain surface with neutral background',
+    'concrete':     'an industrial grey concrete texture surface and background',
+    'stone':        'a natural grey stone texture surface',
+    'sage':         'a muted sage green seamless paper backdrop',
+    'cream':        'a warm cream off-white seamless backdrop',
+    'navy':         'a deep navy blue seamless backdrop',
+    'gradient-pink':'a soft pink-to-white gradient studio backdrop',
+  };
+  const LIGHT = {
+    'studio':   'professional even studio lighting with soft fill and minimal shadows',
+    'soft':     'diffused soft-box lighting, flattering with very soft shadows',
+    'dramatic': 'strong directional side lighting with deep dramatic shadows',
+    'natural':  'warm golden natural daylight streaming from one side',
+    'sharp':    'crisp high-contrast harsh studio lighting with defined shadows',
+  };
 
-  let prompt = `Professional product photography for a fashion resale listing. Upright centred product shot, garment positioned at centre of frame. ${bgPart} Soft studio lighting that renders colours accurately and makes the garment look appealing. The clothing should appear clean, pressed, and in excellent condition. High-quality photorealistic image suitable for eBay, Depop, or Vinted listings. No watermarks, no text overlays, no price tags, no visible mannequin faces or hands.`;
-  if (instructions.trim()) prompt += ` Additional requirements: ${instructions.trim()}`;
+  const bgDesc    = BG[background]    || BG['white-studio'];
+  const lightDesc = LIGHT[lighting]   || LIGHT['studio'];
+  const modDesc   = modifications.length ? `Apply these product enhancements: ${modifications.join('; ')}.` : '';
+  const itemDesc  = itemType ? `The product is a ${itemType}.` : '';
+
+  const prompt = `Professional product photography for an online resale listing. ${itemDesc} Place the product on ${bgDesc}. Lighting: ${lightDesc}. ${modDesc} Product perfectly centred and upright. No mannequins, no hands, no people, no watermarks, no text, no price tags. Photorealistic studio quality, suitable for eBay, Depop, Vinted.`.replace(/\s+/g,' ').trim();
 
   try {
     const imgBuffer = Buffer.from(image, 'base64');
@@ -3479,31 +3480,24 @@ app.post('/api/photo/ai-generate', async (req, res) => {
     form.append('quality', 'high');
     form.append('n', '1');
     form.append('image', new Blob([imgBuffer], { type: 'image/png' }), 'image.png');
-
     const aiRes = await fetch('https://api.openai.com/v1/images/edits', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${OPENAI_KEY}` },
       body: form,
       signal: AbortSignal.timeout(120000),
     });
-
     if (!aiRes.ok) {
       const errText = await aiRes.text();
-      console.error('[photo/ai-generate] OpenAI error:', errText.slice(0, 300));
+      console.error('[photo/generate] OpenAI error:', errText.slice(0,300));
       let errMsg = 'AI generation failed.';
       try { errMsg = JSON.parse(errText)?.error?.message || errMsg; } catch {}
       return res.status(502).json({ error: errMsg });
     }
-
     const data = await aiRes.json();
     const b64 = data.data?.[0]?.b64_json;
     if (!b64) return res.status(502).json({ error: 'No image returned from OpenAI' });
-
-    res.json({ ok: true, image: b64, mimeType: 'image/png' });
-  } catch (e) {
-    console.error('[photo/ai-generate]', e.message);
-    res.status(500).json({ error: e.message });
-  }
+    res.json({ ok: true, image: b64 });
+  } catch (e) { console.error('[photo/generate]', e.message); res.status(500).json({ error: e.message }); }
 });
 
 // ── Photo enhancer — remove.bg background removal ────────────────────────────
@@ -3553,6 +3547,282 @@ app.post('/api/photo/enhance', async (req, res) => {
     console.error('[photo] enhance error:', e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── Credits helpers ───────────────────────────────────────────────────────────
+const SB_HDR = () => ({ apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' });
+
+async function getCredits(userId) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=credits`, { headers: SB_HDR() });
+  const [row] = await r.json();
+  return typeof row?.credits === 'number' ? row.credits : 0;
+}
+
+async function setCredits(userId, amount) {
+  await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
+    method: 'PATCH', headers: SB_HDR(), body: JSON.stringify({ credits: Math.max(0, Math.round(amount)) }),
+  });
+}
+
+async function deductCredits(userId, amount) {
+  const bal = await getCredits(userId);
+  if (bal < amount) throw Object.assign(new Error(`Insufficient credits — you have ${bal}, need ${amount}.`), { code: 'INSUFFICIENT_CREDITS', balance: bal });
+  await setCredits(userId, bal - amount);
+  return bal - amount;
+}
+
+async function addCredits(userId, amount) {
+  const bal = await getCredits(userId);
+  await setCredits(userId, bal + amount);
+  return bal + amount;
+}
+
+// ── Credits — get balance ──────────────────────────────────────────────────────
+app.get('/api/credits/balance', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  try {
+    const bal = await getCredits(user.id);
+    res.json({ ok: true, credits: bal });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Credits — PayPal helpers ───────────────────────────────────────────────────
+const PAYPAL_BASE = () => PAYPAL_MODE === 'sandbox'
+  ? 'https://api-m.sandbox.paypal.com'
+  : 'https://api-m.paypal.com';
+
+let _ppToken = null; let _ppTokenExp = 0;
+async function getPayPalToken() {
+  if (_ppToken && Date.now() < _ppTokenExp) return _ppToken;
+  const r = await fetch(`${PAYPAL_BASE()}/v1/oauth2/token`, {
+    method: 'POST',
+    headers: { Authorization: `Basic ${Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`).toString('base64')}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'grant_type=client_credentials',
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!r.ok) throw new Error('PayPal auth failed: ' + (await r.text()).slice(0,200));
+  const d = await r.json();
+  _ppToken = d.access_token;
+  _ppTokenExp = Date.now() + (d.expires_in - 60) * 1000;
+  return _ppToken;
+}
+
+const CREDIT_PACKAGES = {
+  credits_500:  { credits: 500,  price: '3.99',  label: '500 Credits'   },
+  credits_1000: { credits: 1000, price: '7.99',  label: '1,000 Credits' },
+  credits_2500: { credits: 2500, price: '16.99', label: '2,500 Credits' },
+  credits_5000: { credits: 5000, price: '29.99', label: '5,000 Credits' },
+};
+
+// ── Credits — create PayPal order ─────────────────────────────────────────────
+app.post('/api/credits/create-order', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const { package: pkg } = req.body || {};
+  const pack = CREDIT_PACKAGES[pkg];
+  if (!pack) return res.status(400).json({ error: 'Invalid package' });
+  if (!PAYPAL_CLIENT_ID || !PAYPAL_SECRET) return res.status(503).json({ error: 'Payments not configured' });
+  try {
+    const token = await getPayPalToken();
+    const r = await fetch(`${PAYPAL_BASE()}/v2/checkout/orders`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'PayPal-Request-Id': `${user.id}-${pkg}-${Date.now()}` },
+      body: JSON.stringify({
+        intent: 'CAPTURE',
+        purchase_units: [{ amount: { currency_code: 'GBP', value: pack.price }, description: `Vendora ${pack.label}`, custom_id: `${user.id}|${pkg}` }],
+        application_context: { brand_name: 'Vendora', user_action: 'PAY_NOW' },
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!r.ok) return res.status(502).json({ error: 'PayPal order creation failed: ' + (await r.text()).slice(0,200) });
+    const d = await r.json();
+    res.json({ ok: true, orderID: d.id });
+  } catch (e) { console.error('[credits/create-order]', e.message); res.status(500).json({ error: e.message }); }
+});
+
+// ── Credits — capture PayPal order + credit account ───────────────────────────
+app.post('/api/credits/capture-order', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const { orderID } = req.body || {};
+  if (!orderID) return res.status(400).json({ error: 'orderID required' });
+  try {
+    const token = await getPayPalToken();
+    const r = await fetch(`${PAYPAL_BASE()}/v2/checkout/orders/${orderID}/capture`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(30000),
+    });
+    const d = await r.json();
+    if (!r.ok || d.status !== 'COMPLETED') return res.status(502).json({ error: 'Payment not completed: ' + JSON.stringify(d).slice(0,200) });
+    // Extract package from custom_id: "userId|pkg"
+    const customId = d.purchase_units?.[0]?.payments?.captures?.[0]?.custom_id || '';
+    const [, pkg] = customId.split('|');
+    const pack = CREDIT_PACKAGES[pkg];
+    if (!pack) return res.status(400).json({ error: 'Could not determine package from order' });
+    const newBal = await addCredits(user.id, pack.credits);
+    console.log(`[credits] +${pack.credits} → user ${user.id} (order ${orderID}), new balance: ${newBal}`);
+    res.json({ ok: true, credits_added: pack.credits, new_balance: newBal });
+  } catch (e) { console.error('[credits/capture-order]', e.message); res.status(500).json({ error: e.message }); }
+});
+
+// ── Credits — redeem a credit code ────────────────────────────────────────────
+app.post('/api/credits/redeem', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const { code } = req.body || {};
+  if (!code) return res.status(400).json({ error: 'code required' });
+  const upperCode = code.trim().toUpperCase();
+  try {
+    // Fetch code
+    const cr = await fetch(`${SUPABASE_URL}/rest/v1/credit_codes?code=eq.${encodeURIComponent(upperCode)}&active=eq.true&select=*`, { headers: SB_HDR() });
+    const [codeRow] = await cr.json();
+    if (!codeRow) return res.status(404).json({ error: 'Code not found or already deactivated.' });
+    // Check expiry
+    if (codeRow.expires_at && new Date(codeRow.expires_at) < new Date()) return res.status(400).json({ error: 'This code has expired.' });
+    // Check max uses
+    if (codeRow.max_uses > 0 && codeRow.uses_count >= codeRow.max_uses) return res.status(400).json({ error: 'This code has reached its usage limit.' });
+    // Check not already redeemed by this user
+    const rr = await fetch(`${SUPABASE_URL}/rest/v1/code_redemptions?code=eq.${encodeURIComponent(upperCode)}&user_id=eq.${encodeURIComponent(user.id)}`, { headers: SB_HDR() });
+    const redemptions = await rr.json();
+    if (redemptions.length > 0) return res.status(400).json({ error: 'You have already redeemed this code.' });
+    // Record redemption
+    await fetch(`${SUPABASE_URL}/rest/v1/code_redemptions`, { method: 'POST', headers: SB_HDR(), body: JSON.stringify({ code: upperCode, user_id: user.id }) });
+    // Increment uses_count
+    await fetch(`${SUPABASE_URL}/rest/v1/credit_codes?code=eq.${encodeURIComponent(upperCode)}`, { method: 'PATCH', headers: SB_HDR(), body: JSON.stringify({ uses_count: codeRow.uses_count + 1 }) });
+    // Add credits
+    const newBal = await addCredits(user.id, codeRow.credits_amount);
+    res.json({ ok: true, credits_added: codeRow.credits_amount, new_balance: newBal });
+  } catch (e) { console.error('[credits/redeem]', e.message); res.status(500).json({ error: e.message }); }
+});
+
+// ── PhotoRoom — AI product photo (costs 80 credits) ───────────────────────────
+const PHOTOROOM_CREDIT_COST = 80;
+const PHOTOROOM_BG_MAP = {
+  'white-studio': { color: '#FFFFFF' },
+  'soft-grey':    { color: '#E0E0E0' },
+  'cream':        { color: '#FAF0E0' },
+  'sage':         { color: '#C8D4C0' },
+  'blush':        { color: '#F5DADA' },
+  'black':        { color: '#111111' },
+  'navy':         { color: '#0D1B2A' },
+  'marble':       { prompt: 'luxurious white Carrara marble surface with subtle grey veining, professional product photography' },
+  'wood':         { prompt: 'natural warm oak wood surface, fine grain, professional product photography' },
+  'concrete':     { prompt: 'urban raw grey concrete surface texture, professional product photography' },
+  'linen':        { prompt: 'textured cream linen fabric surface, professional product photography' },
+  'studio-dark':  { color: '#252525' },
+  'gradient-pink':{ color: '#2A0018' },
+  'gradient-blue':{ color: '#0A0E1A' },
+};
+
+app.post('/api/photo/photoroom', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const { image, background = 'white-studio', lighting = 'studio' } = req.body || {};
+  if (!image) return res.status(400).json({ error: 'image (base64) required' });
+  if (!PHOTOROOM_KEY) return res.status(503).json({ error: 'PhotoRoom not configured — PHOTOROOM_API_KEY missing' });
+
+  // Check + deduct credits
+  try {
+    await deductCredits(user.id, PHOTOROOM_CREDIT_COST);
+  } catch (e) {
+    if (e.code === 'INSUFFICIENT_CREDITS') return res.status(402).json({ error: e.message, balance: e.balance });
+    return res.status(500).json({ error: e.message });
+  }
+
+  try {
+    const imgBuffer = Buffer.from(image, 'base64');
+    const form = new FormData();
+    form.append('imageFile', new Blob([imgBuffer], { type: 'image/png' }), 'image.png');
+    form.append('outputSize', '1000x1000');
+    form.append('padding', '0.08');
+
+    const bgConfig = PHOTOROOM_BG_MAP[background] || { color: '#FFFFFF' };
+    if (bgConfig.color) {
+      form.append('background.color', bgConfig.color);
+    } else if (bgConfig.prompt) {
+      form.append('background.prompt', bgConfig.prompt);
+    }
+
+    // Lighting → shadow hint
+    const shadowMap = { studio: '0.4', soft: '0.2', dramatic: '0.7', natural: '0.35', sharp: '0.6' };
+    form.append('shadow.mode', 'ai.soft');
+
+    const prRes = await fetch('https://image-api.photoroom.com/v2/edit', {
+      method: 'POST',
+      headers: { 'x-api-key': PHOTOROOM_KEY, 'Accept': 'image/png' },
+      body: form,
+      signal: AbortSignal.timeout(60000),
+    });
+
+    if (!prRes.ok) {
+      const errText = await prRes.text();
+      console.error('[photo/photoroom] PhotoRoom error:', prRes.status, errText.slice(0,300));
+      // Refund credits on API failure
+      await addCredits(user.id, PHOTOROOM_CREDIT_COST);
+      return res.status(502).json({ error: `PhotoRoom API error (${prRes.status}). Credits refunded.` });
+    }
+
+    const imgArrayBuffer = await prRes.arrayBuffer();
+    const resultB64 = Buffer.from(imgArrayBuffer).toString('base64');
+    const newBal = await getCredits(user.id);
+    res.json({ ok: true, image: resultB64, mimeType: 'image/png', new_balance: newBal });
+  } catch (e) {
+    console.error('[photo/photoroom]', e.message);
+    // Refund credits on unexpected error
+    try { await addCredits(user.id, PHOTOROOM_CREDIT_COST); } catch {}
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Admin — get/set user credits ──────────────────────────────────────────────
+app.post('/api/admin/credits/adjust', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = user.user_metadata?.provider_id || user.identities?.find(i=>i.provider==='discord')?.id || '';
+  if (discordId !== OWNER_ID) return res.status(403).json({ error: 'Owner only' });
+  const { user_id, amount, mode = 'set' } = req.body || {}; // mode: 'set' | 'add' | 'subtract'
+  if (!user_id || typeof amount !== 'number') return res.status(400).json({ error: 'user_id and amount required' });
+  try {
+    let newBal;
+    if (mode === 'set') { await setCredits(user_id, amount); newBal = Math.max(0, Math.round(amount)); }
+    else if (mode === 'add') { newBal = await addCredits(user_id, amount); }
+    else if (mode === 'subtract') { newBal = await deductCredits(user_id, amount); }
+    else return res.status(400).json({ error: 'Invalid mode' });
+    res.json({ ok: true, new_balance: newBal });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ── Admin — credit codes CRUD ──────────────────────────────────────────────────
+app.get('/api/admin/codes', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = user.user_metadata?.provider_id || user.identities?.find(i=>i.provider==='discord')?.id || '';
+  if (discordId !== OWNER_ID) return res.status(403).json({ error: 'Owner only' });
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/credit_codes?order=created_at.desc&select=*`, { headers: SB_HDR() });
+    res.json({ ok: true, codes: await r.json() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/codes', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = user.user_metadata?.provider_id || user.identities?.find(i=>i.provider==='discord')?.id || '';
+  if (discordId !== OWNER_ID) return res.status(403).json({ error: 'Owner only' });
+  const { code, credits_amount, max_uses = 1, expires_at = null } = req.body || {};
+  if (!code || !credits_amount) return res.status(400).json({ error: 'code and credits_amount required' });
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/credit_codes`, {
+      method: 'POST', headers: SB_HDR(),
+      body: JSON.stringify({ code: code.trim().toUpperCase(), credits_amount: Math.round(credits_amount), max_uses: Math.round(max_uses), expires_at: expires_at || null, active: true }),
+    });
+    if (!r.ok) { const e = await r.json(); return res.status(400).json({ error: e.message || JSON.stringify(e) }); }
+    res.json({ ok: true, code: await r.json() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/codes/:code', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = user.user_metadata?.provider_id || user.identities?.find(i=>i.provider==='discord')?.id || '';
+  if (discordId !== OWNER_ID) return res.status(403).json({ error: 'Owner only' });
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/credit_codes?code=eq.${encodeURIComponent(req.params.code)}`, { method: 'DELETE', headers: SB_HDR() });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Usage stats ───────────────────────────────────────────────────────────────
