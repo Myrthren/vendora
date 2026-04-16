@@ -2773,10 +2773,11 @@ async function vFetch(url, opts = {}) {
 // ── Vinted geo-base detection ─────────────────────────────────────────────────
 // The proxy may be geolocated to a non-UK country. Vinted redirects
 // www.vinted.co.uk → www.vinted.fr (or another locale) based on the proxy IP.
-// We detect the actual domain from the redirect, cache it for 10 minutes,
-// and use it for ALL subsequent Vinted API calls.
+// We detect the actual domain once and cache it for 10 minutes.
 let _vintedBase = 'https://www.vinted.co.uk';
 let _vintedBaseExpiry = 0;
+
+// Returns just the base URL string (cached 10 min). Fast — no extra HTTP call if cached.
 async function getVintedBase() {
   if (Date.now() < _vintedBaseExpiry) return _vintedBase;
   try {
@@ -2789,13 +2790,35 @@ async function getVintedBase() {
     if (detected !== _vintedBase) console.log(`[vinted] Geo base: ${_vintedBase} → ${detected}`);
     _vintedBase = detected;
     _vintedBaseExpiry = Date.now() + 10 * 60 * 1000; // cache for 10 min
-    // Return cookies too so callers can reuse them
-    const setCookies = r.headers.getSetCookie?.() || [];
-    return { base: _vintedBase, cookies: setCookies.map(c => c.split(';')[0]).join('; ') };
   } catch (e) {
     console.warn('[vinted] getVintedBase failed, using default:', e.message);
-    return { base: _vintedBase, cookies: '' };
   }
+  return _vintedBase;
+}
+
+// Returns { base, cookies } — always fetches fresh DataDome session cookies.
+// DataDome cookies are short-lived so they must never be cached.
+async function getVintedSession() {
+  const base = await getVintedBase();
+  let cookies = '';
+  try {
+    const r = await vFetch(`${base}/`, {
+      redirect: 'follow',
+      headers: {
+        'User-Agent': VINTED_UA,
+        'Accept': 'text/html,application/xhtml+xml,*/*',
+        'Accept-Language': 'en-GB,en;q=0.9',
+        'Upgrade-Insecure-Requests': '1',
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+    const setCookies = r.headers.getSetCookie?.() || [];
+    cookies = setCookies.map(c => c.split(';')[0]).join('; ');
+    console.log(`[vinted] session cookies: ${setCookies.length} (datadome: ${setCookies.some(c => /datadome/i.test(c))})`);
+  } catch (e) {
+    console.warn('[vinted] session cookie fetch failed (continuing without cookies):', e.message);
+  }
+  return { base, cookies };
 }
 
 const VINTED_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148';
@@ -2818,11 +2841,8 @@ async function vintedLogin(usernameOrEmail, password) {
       'Referer': 'https://www.vinted.co.uk/',
     };
 
-    // Step 1: Detect geo base + get session cookies + CSRF token.
-    // getVintedBase() follows the geo-redirect (e.g. .co.uk → .fr) and returns
-    // the real domain our proxy maps to. We must use THAT domain for the login
-    // POST, otherwise we hit a 404 on the wrong locale's URL paths.
-    const { base: vintedBase, cookies: bootstrapCookies } = await getVintedBase();
+    // Step 1: Detect geo base + get fresh DataDome session cookies + CSRF token.
+    const { base: vintedBase, cookies: bootstrapCookies } = await getVintedSession();
     let cookieStr = bootstrapCookies;
     let csrfToken = '';
     // Extract CSRF from cookies returned by getVintedBase
@@ -2897,7 +2917,7 @@ async function vintedUploadImage(accessToken, base64Data, mimeType = 'image/jpeg
       Buffer.from(base64Data, 'base64'),
       Buffer.from(`\r\n--${boundary}--\r\n`),
     ]);
-    const { base: vintedBase } = await getVintedBase();
+    const vintedBase = await getVintedBase();
     const res = await vFetch(`${vintedBase}/api/v2/photos`, {
       method: 'POST',
       headers: {
@@ -2924,11 +2944,9 @@ async function vintedCreateListing(accessToken, listingData) {
   } = listingData;
   const condMap = { 'New with tags': 6, 'Like New': 2, 'Very Good': 3, 'Good': 4, 'Acceptable': 5 };
   try {
-    // ── Step 1: Detect geo base + session cookies ─────────────────────────────
-    // getVintedBase() detects whether the proxy redirects to a different locale
-    // (e.g. .co.uk → .fr) and returns that real base URL + DataDome cookies.
-    // We MUST post to the same domain the cookies were issued for.
-    const { base: vintedBase, cookies: sessionCookieStr } = await getVintedBase();
+    // ── Step 1: Detect geo base + fresh DataDome session cookies ─────────────
+    // Must post to same domain the cookies were issued for.
+    const { base: vintedBase, cookies: sessionCookieStr } = await getVintedSession();
     console.log(`[vinted-list] base=${vintedBase} cookies=${sessionCookieStr.split(';').length}`);
 
     // ── Step 2: Build the listing body ────────────────────────────────────────
@@ -2984,7 +3002,7 @@ async function vintedCreateListing(accessToken, listingData) {
 // Returns { valid: true, username, user_id } | { valid: false, error } | { valid: null, warning }
 async function validateVintedToken(token) {
   try {
-    const { base: vintedBase } = await getVintedBase();
+    const vintedBase = await getVintedBase();
     const r = await vFetch(`${vintedBase}/api/v2/users/me`, {
       headers: VINTED_HEADERS(token),
       signal: AbortSignal.timeout(10000),
@@ -3014,7 +3032,7 @@ async function validateVintedToken(token) {
 
 async function vintedDeleteListing(accessToken, listingId) {
   try {
-    const { base: vintedBase } = await getVintedBase();
+    const vintedBase = await getVintedBase();
     const res = await vFetch(`${vintedBase}/api/v2/items/${listingId}`, {
       method: 'DELETE',
       headers: VINTED_HEADERS(accessToken),
