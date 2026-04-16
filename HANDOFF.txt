@@ -1,5 +1,5 @@
 VENDORA — SESSION HANDOFF
-Generated: 2026-04-16
+Generated: 2026-04-17
 ==============================================================
 
 PROJECT OVERVIEW
@@ -24,8 +24,9 @@ Working directory: C:\Users\USER\OneDrive\Documents\Downloads\Vendora - PC Work\
 Key files:
   index.html              — Landing page
   vendora-login.html      — Discord OAuth login
-  vendora-dashboard.html  — Full user dashboard (~5095 lines)
-  bot/index.js            — Discord bot + Express API (~4209 lines)
+  vendora-dashboard.html  — Full user dashboard (~5400 lines)
+  vendora-credits.html    — Buy-credits page with PayPal one-time checkout
+  bot/index.js            — Discord bot + Express API (~4300+ lines)
   favicon.png             — VV logo favicon (added to all HTML pages)
 
 Bot URL: https://vendora-production-8a47.up.railway.app
@@ -72,6 +73,17 @@ Anthropic:
   Used by:       /authenticate, /grade, /research, /price, /scan, /margins,
                  /competitor, /negotiate — all AI Discord commands
 
+PhotoRoom:
+  Railway env:   PHOTOROOM_API_KEY  ← USER HAS ADDED THIS
+  Used by:       /api/photo/photoroom — the primary photo enhancer
+                 (gpt-image-1 is still available as legacy AI Generate)
+
+PayPal (one-time credit purchases):
+  Railway env:   PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_MODE  ← USER HAS ADDED
+  Client ID also hard-coded in vendora-credits.html (public)
+  Used by:       /api/credits/create-order + /api/credits/capture-order
+                 (separate from the subscription flow which stays on subscription plans)
+
 
 RAILWAY ENVIRONMENT VARIABLES (all set)
 -----------------------------------------
@@ -80,7 +92,11 @@ DISCORD_GUILD_ID        — server ID
 SUPABASE_URL            — https://fqfanqtybvnurhzkoxwr.supabase.co
 SUPABASE_SERVICE_KEY    — supabase service role key
 ANTHROPIC_API_KEY       — Claude for Discord AI commands
-OPENAI_API_KEY          — GPT-4o + gpt-image-1 for photo enhancer
+OPENAI_API_KEY          — GPT-4o + gpt-image-1 for photo enhancer (legacy path)
+PHOTOROOM_API_KEY       — PhotoRoom API for the primary photo enhancer
+PAYPAL_CLIENT_ID        — PayPal REST client ID (one-time credit purchases)
+PAYPAL_CLIENT_SECRET    — PayPal REST secret
+PAYPAL_MODE             — "live" or "sandbox" (defaults to "live")
 REMOVE_BG_API_KEY       — remove.bg (server fallback for BG removal)
 WEBHOOK_SECRET          — PayPal webhook verification
 PROXY_URL               — residential proxy for Vinted scraping (may not be set yet)
@@ -103,6 +119,16 @@ PENDING ACTIONS (user must do these)
    - listings              — tracks listed items
    - crosslist_jobs        — tracks crosslisting job status
    Run SELECT * FROM platform_connections LIMIT 1 in Supabase SQL editor to verify.
+
+4. Credits schema added (April 17) — USER HAS RUN THIS:
+   - ALTER TABLE profiles ADD COLUMN credits INTEGER NOT NULL DEFAULT 0;
+   - credit_codes        — redeemable codes (code, credits_amount, max_uses,
+                           uses_count, expires_at, active)
+   - code_redemptions    — tracks which user redeemed which code (UNIQUE per user/code)
+
+5. Regenerate the Supabase Management API token — the one previously in this file
+   (sbp_bd7f85…) returns 401 Unauthorized and has been revoked/expired. Generate a
+   new one at https://supabase.com/dashboard/account/tokens and paste it below.
 
 
 WHAT WAS BUILT (cumulative across all sessions)
@@ -158,9 +184,74 @@ Admin panel → Bot Settings → Ticket Settings:
   - Role IDs input (comma-separated) for who can close tickets
   - "Post Support Embed" button → calls /api/admin/post-support-embed
 
+── CREDITS SYSTEM (April 17 session) ──
+
+Credits replace the per-command rate limits for paid AI generation.
+80 credits = one PhotoRoom photo enhancement.
+
+Database:
+  profiles.credits                INTEGER NOT NULL DEFAULT 0
+  credit_codes                    redeemable codes (admin-managed)
+  code_redemptions                UNIQUE (code, user_id) — prevents double-redeem
+
+Helpers (bot/index.js):
+  getCredits(userId)              SELECT profiles.credits WHERE id = userId (UUID)
+  setCredits(userId, amount)      PATCH profiles SET credits = max(0, round(amount))
+  addCredits(userId, amount)      get + set, returns new balance
+  deductCredits(userId, amount)   throws { code:'INSUFFICIENT_CREDITS', balance } if low
+
+Endpoints:
+  GET  /api/credits/balance               → { credits: N }
+  POST /api/credits/create-order          → creates PayPal order, custom_id = "uid|pkg"
+  POST /api/credits/capture-order         → captures payment, credits user, returns newBalance
+  POST /api/credits/redeem                → redeems a credit code, records redemption
+  POST /api/photo/photoroom               → deducts 80 cr, calls PhotoRoom, refunds on fail
+  POST /api/admin/credits/adjust          → owner-only; accepts Discord ID OR Supabase UUID,
+                                            resolves Discord ID via profiles.discord_id
+                                            lookup, then set/add/subtract
+  GET  /api/admin/codes                   → owner-only, lists all credit codes
+  POST /api/admin/codes                   → owner-only, creates a credit code
+  DELETE /api/admin/codes/:code           → owner-only, deletes a code
+
+Credit packages (CREDIT_PACKAGES in bot/index.js, mirrored in vendora-credits.html):
+  credits_500   500 credits  £3.99
+  credits_1000  1,000 credits £7.99   (Most Popular)
+  credits_2500  2,500 credits £16.99  (Best Value — gold trim)
+  credits_5000  5,000 credits £29.99
+
+Frontend:
+  vendora-credits.html     Standalone purchase page with PayPal SDK modal flow.
+                           Client ID hard-coded (public).
+  vendora-dashboard.html   - Topbar credits pill (⚡ N credits) links to credits page
+                           - Nav item "Credits" with badge
+                           - Credits section (big balance + package previews + redeem code)
+                           - Admin tab "Credits":
+                              · Adjust User Credits (Discord ID / UUID + amount + set/add/subtract)
+                              · Create Credit Code (code, credits_amount, max_uses, expires_at)
+                              · Active codes table with delete buttons
+                           - loadCreditsBalance() called from init() on dashboard boot;
+                             updateCreditsDisplay() refreshes topbar + nav badge + big number
+  PhotoRoom enhancer UI:   - 14 backgrounds (solid colours + AI prompt scenes)
+                           - 5 lighting presets (studio, soft, dramatic, natural, sharp)
+                           - Credit cost shown; button disabled on upload, enabled after load
+                           - No auto-background-removal on upload (user's explicit request)
+
+Safety:
+  Credits are deducted BEFORE the PhotoRoom call; refunded via addCredits() if the
+  PhotoRoom request fails or returns non-OK. Users are never charged for failed gens.
+
+
 ── PHOTO ENHANCER (vendora-dashboard.html) — Elite only ──
 
-Full client-side + AI pipeline:
+AS OF APRIL 17: The primary flow is the NEW PhotoRoom-powered enhancer (see CREDITS
+SYSTEM section above). Users pick a background + lighting preset, click Generate,
+the server deducts 80 credits and calls PhotoRoom.
+
+The older pipeline below still exists in the codebase (enhancer* functions, AI
+Generate via gpt-image-1, WASM BG removal, canvas compositing) and may be re-enabled
+or removed. Auto-BG-removal on upload has been disabled for the new flow.
+
+Full client-side + AI pipeline (LEGACY — kept for reference):
 
 1. Upload photo → auto-triggers WASM background removal
    - Primary: @imgly/background-removal@1.4.5 via CDN (client-side, free, ~20MB model cached in IndexedDB)
@@ -297,6 +388,8 @@ KNOWN REMAINING ISSUES
 
 GIT HISTORY (most recent commits)
 ------------------------------------
+eb902da — Fix admin credit adjust: accept Discord ID, resolve to profile UUID
+644a75c — Add PhotoRoom photo enhancer, credits system, and buy-credits page
 4ac68d4 — Stop false-positive token-expired errors; show real Vinted errors instead
 21b2115 — Sanitise header values in vFetch to prevent ByteString crash
 9119157 — Fix false token-expired error; mark Depop as coming soon
@@ -330,6 +423,12 @@ All pushed commits auto-deploy: Railway (bot) + Netlify (frontend).
 WHAT TO BUILD NEXT
 -------------------
 Priority order:
+
+0. Smoke-test the credits system end-to-end:
+   - Buy a credit pack via vendora-credits.html → confirm PayPal capture credits profile
+   - Redeem a test credit code → confirm balance rises and re-use is blocked
+   - Upload a photo to the new enhancer → confirm 80 cr deducted on success, refunded on fail
+   - Admin: adjust another user's credits via Discord ID → confirm balance updates
 
 1. Test Vinted listing end-to-end with a real proxy IP:
    - Set PROXY_URL on Railway → trigger a Vinted list via dashboard
