@@ -3779,10 +3779,22 @@ app.post('/api/admin/credits/adjust', async (req, res) => {
   const { user_id, amount, mode = 'set' } = req.body || {}; // mode: 'set' | 'add' | 'subtract'
   if (!user_id || typeof amount !== 'number') return res.status(400).json({ error: 'user_id and amount required' });
   try {
+    // Accept Discord ID (numeric string) or Supabase UUID — resolve to the profiles.id UUID
+    let profileId = user_id;
+    if (/^\d+$/.test(user_id.trim())) {
+      // Looks like a Discord ID — look up the profile row by discord_id
+      const lookup = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?discord_id=eq.${encodeURIComponent(user_id.trim())}&select=id`,
+        { headers: SB_HDR() }
+      );
+      const [row] = await lookup.json();
+      if (!row?.id) return res.status(404).json({ error: `No profile found for Discord ID ${user_id}` });
+      profileId = row.id;
+    }
     let newBal;
-    if (mode === 'set') { await setCredits(user_id, amount); newBal = Math.max(0, Math.round(amount)); }
-    else if (mode === 'add') { newBal = await addCredits(user_id, amount); }
-    else if (mode === 'subtract') { newBal = await deductCredits(user_id, amount); }
+    if (mode === 'set') { await setCredits(profileId, amount); newBal = Math.max(0, Math.round(amount)); }
+    else if (mode === 'add') { newBal = await addCredits(profileId, amount); }
+    else if (mode === 'subtract') { newBal = await deductCredits(profileId, amount); }
     else return res.status(400).json({ error: 'Invalid mode' });
     res.json({ ok: true, new_balance: newBal });
   } catch (e) { res.status(400).json({ error: e.message }); }
