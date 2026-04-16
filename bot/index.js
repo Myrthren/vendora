@@ -2770,6 +2770,34 @@ async function vFetch(url, opts = {}) {
   return fetch(url, opts); // fallback to global fetch (no proxy)
 }
 
+// ── Vinted geo-base detection ─────────────────────────────────────────────────
+// The proxy may be geolocated to a non-UK country. Vinted redirects
+// www.vinted.co.uk → www.vinted.fr (or another locale) based on the proxy IP.
+// We detect the actual domain from the redirect, cache it for 10 minutes,
+// and use it for ALL subsequent Vinted API calls.
+let _vintedBase = 'https://www.vinted.co.uk';
+let _vintedBaseExpiry = 0;
+async function getVintedBase() {
+  if (Date.now() < _vintedBaseExpiry) return _vintedBase;
+  try {
+    const r = await vFetch('https://www.vinted.co.uk/', {
+      redirect: 'follow',
+      headers: { 'User-Agent': VINTED_UA, 'Accept': 'text/html,*/*', 'Accept-Language': 'en-GB,en;q=0.9' },
+      signal: AbortSignal.timeout(8000),
+    });
+    const detected = new URL(r.url || 'https://www.vinted.co.uk').origin;
+    if (detected !== _vintedBase) console.log(`[vinted] Geo base: ${_vintedBase} → ${detected}`);
+    _vintedBase = detected;
+    _vintedBaseExpiry = Date.now() + 10 * 60 * 1000; // cache for 10 min
+    // Return cookies too so callers can reuse them
+    const setCookies = r.headers.getSetCookie?.() || [];
+    return { base: _vintedBase, cookies: setCookies.map(c => c.split(';')[0]).join('; ') };
+  } catch (e) {
+    console.warn('[vinted] getVintedBase failed, using default:', e.message);
+    return { base: _vintedBase, cookies: '' };
+  }
+}
+
 const VINTED_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148';
 const VINTED_HEADERS = (token) => ({
   'Content-Type': 'application/json',
@@ -2790,35 +2818,31 @@ async function vintedLogin(usernameOrEmail, password) {
       'Referer': 'https://www.vinted.co.uk/',
     };
 
-    // Step 1: Bootstrap a Vinted session to get cookies + real CSRF token.
-    // Without this, Vinted returns an HTML challenge page instead of JSON.
-    let cookieStr = '';
+    // Step 1: Detect geo base + get session cookies + CSRF token.
+    // getVintedBase() follows the geo-redirect (e.g. .co.uk → .fr) and returns
+    // the real domain our proxy maps to. We must use THAT domain for the login
+    // POST, otherwise we hit a 404 on the wrong locale's URL paths.
+    const { base: vintedBase, cookies: bootstrapCookies } = await getVintedBase();
+    let cookieStr = bootstrapCookies;
     let csrfToken = '';
-    try {
-      const initRes = await vFetch('https://www.vinted.co.uk/', {
-        headers: { ...BASE_HEADERS, 'Accept': 'text/html,application/xhtml+xml,*/*' },
-        signal: AbortSignal.timeout(10000),
-        redirect: 'follow',
-      });
-      const setCookies = initRes.headers.getSetCookie?.() || [];
-      cookieStr = setCookies.map(c => c.split(';')[0]).join('; ');
-      const csrfCookie = setCookies.find(c => /csrf[-_]?token/i.test(c));
-      if (csrfCookie) csrfToken = csrfCookie.split('=').slice(1).join('=').split(';')[0];
-      console.log(`[vinted-login] bootstrap cookies: ${setCookies.length} found, csrf: ${!!csrfToken}`);
-    } catch (e) {
-      console.warn('[vinted-login] bootstrap failed (continuing anyway):', e.message);
-    }
+    // Extract CSRF from cookies returned by getVintedBase
+    cookieStr.split('; ').forEach(pair => {
+      if (/csrf[-_]?token/i.test(pair)) csrfToken = pair.split('=').slice(1).join('=');
+    });
+    console.log(`[vinted-login] base=${vintedBase} cookies=${cookieStr.split(';').length} csrf=${!!csrfToken}`);
 
-    // Step 2: POST credentials with session cookies + CSRF
+    // Step 2: POST credentials with session cookies + CSRF to the detected base domain
     const loginHeaders = {
       ...BASE_HEADERS,
       'Content-Type': 'application/json',
       'Accept': 'application/json, text/plain, */*',
+      'Referer': `${vintedBase}/`,
+      'Origin': vintedBase,
       ...(cookieStr && { 'Cookie': cookieStr }),
       ...(csrfToken && { 'X-CSRF-Token': csrfToken }),
     };
 
-    const res = await vFetch('https://www.vinted.co.uk/api/v2/sessions', {
+    const res = await vFetch(`${vintedBase}/api/v2/sessions`, {
       method: 'POST',
       headers: loginHeaders,
       body: JSON.stringify({ login: usernameOrEmail, password, remember: true }),
@@ -2873,7 +2897,8 @@ async function vintedUploadImage(accessToken, base64Data, mimeType = 'image/jpeg
       Buffer.from(base64Data, 'base64'),
       Buffer.from(`\r\n--${boundary}--\r\n`),
     ]);
-    const res = await vFetch('https://www.vinted.co.uk/api/v2/photos', {
+    const { base: vintedBase } = await getVintedBase();
+    const res = await vFetch(`${vintedBase}/api/v2/photos`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -2899,30 +2924,12 @@ async function vintedCreateListing(accessToken, listingData) {
   } = listingData;
   const condMap = { 'New with tags': 6, 'Like New': 2, 'Very Good': 3, 'Good': 4, 'Acceptable': 5 };
   try {
-    // ── Step 1: Bootstrap a DataDome session cookie ──────────────────────────
-    // DataDome requires real browser session cookies to be present on API calls.
-    // Without them the listing endpoint always returns a 403 captcha redirect,
-    // even with a valid Bearer token and residential proxy IP.
-    let sessionCookieStr = '';
-    try {
-      const bootstrap = await vFetch('https://www.vinted.co.uk/', {
-        headers: {
-          'User-Agent': VINTED_UA,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-GB,en;q=0.9',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'Connection': 'keep-alive',
-          'Upgrade-Insecure-Requests': '1',
-        },
-        redirect: 'follow',
-        signal: AbortSignal.timeout(10000),
-      });
-      const setCookies = bootstrap.headers.getSetCookie?.() || [];
-      sessionCookieStr = setCookies.map(c => c.split(';')[0]).join('; ');
-      console.log(`[vinted-list] bootstrap cookies: ${setCookies.length} set, datadome: ${setCookies.some(c => c.toLowerCase().includes('datadome'))}`);
-    } catch (e) {
-      console.warn('[vinted-list] session bootstrap failed (continuing):', e.message);
-    }
+    // ── Step 1: Detect geo base + session cookies ─────────────────────────────
+    // getVintedBase() detects whether the proxy redirects to a different locale
+    // (e.g. .co.uk → .fr) and returns that real base URL + DataDome cookies.
+    // We MUST post to the same domain the cookies were issued for.
+    const { base: vintedBase, cookies: sessionCookieStr } = await getVintedBase();
+    console.log(`[vinted-list] base=${vintedBase} cookies=${sessionCookieStr.split(';').length}`);
 
     // ── Step 2: Build the listing body ────────────────────────────────────────
     const brandLine = [brand && `Brand: ${brand}`, size && `Size: ${size}`].filter(Boolean).join(' · ');
@@ -2939,13 +2946,15 @@ async function vintedCreateListing(accessToken, listingData) {
     };
     if (photo_ids.length) body.photos = photo_ids.map(id => ({ id }));
 
-    // ── Step 3: POST the listing with session cookies ─────────────────────────
+    // ── Step 3: POST to the CORRECT geo domain with session cookies ───────────
     const listingHeaders = {
       ...VINTED_HEADERS(accessToken),
+      'Origin': vintedBase,
+      'Referer': `${vintedBase}/`,
       ...(sessionCookieStr && { 'Cookie': sessionCookieStr }),
     };
 
-    const res = await vFetch('https://www.vinted.co.uk/api/v2/items', {
+    const res = await vFetch(`${vintedBase}/api/v2/items`, {
       method: 'POST',
       headers: listingHeaders,
       body: JSON.stringify(body),
@@ -2953,27 +2962,60 @@ async function vintedCreateListing(accessToken, listingData) {
     });
     if (!res.ok) {
       const err = await res.text();
-      console.error(`[vinted-list] HTTP ${res.status} (proxy=${!!PROXY_AGENT}, cookies=${!!sessionCookieStr}):`, err.slice(0, 400));
+      console.error(`[vinted-list] HTTP ${res.status} base=${vintedBase} proxy=${!!PROXY_AGENT}:`, err.slice(0, 400));
 
-      // Expired / invalid token
-      if (err.includes('invalid_auth') || err.includes('Invalid authentification') || res.status === 401) {
-        return { error: 'Your Vinted session has expired. Please reconnect your Vinted account in the dashboard.' };
+      // Expired / invalid token — clear error prompting reconnect
+      if (err.includes('invalid_auth') || err.includes('Invalid authentification') || err.includes('access_denied') || res.status === 401) {
+        return { error: 'Your Vinted session has expired. Reconnect your Vinted account in the dashboard.' };
       }
-      // DataDome challenge
+      // DataDome challenge still triggering — log details
       if (err.includes('captcha-delivery.com') || err.includes('datadome')) {
-        return { error: 'Vinted bot-protection triggered. Check Railway logs — the session cookie and proxy details are logged above.' };
+        return { error: `Vinted bot-protection triggered on ${vintedBase}. Check Railway logs for details.` };
       }
       return { error: `Vinted: ${err.slice(0, 200)}` };
     }
     const data = await res.json();
     const item = data.item || data;
-    return { ok: true, listing_id: String(item.id || ''), url: item.url || `https://www.vinted.co.uk/items/${item.id}` };
+    return { ok: true, listing_id: String(item.id || ''), url: item.url || `${vintedBase}/items/${item.id}` };
   } catch (e) { return { error: e.message }; }
+}
+
+// Validate a Vinted access token by calling /api/v2/users/me.
+// Returns { valid: true, username, user_id } | { valid: false, error } | { valid: null, warning }
+async function validateVintedToken(token) {
+  try {
+    const { base: vintedBase } = await getVintedBase();
+    const r = await vFetch(`${vintedBase}/api/v2/users/me`, {
+      headers: VINTED_HEADERS(token),
+      signal: AbortSignal.timeout(10000),
+    });
+    const text = await r.text();
+    let data;
+    try { data = JSON.parse(text); } catch {
+      // HTML = DataDome blocked the validation request
+      if (text.includes('captcha-delivery.com') || text.includes('datadome') || text.startsWith('<!')) {
+        return { valid: null, warning: 'Could not validate token server-side (bot-protection on this endpoint). Token saved — it will fail with a clear error if incorrect when you list.' };
+      }
+      return { valid: false, error: 'Unexpected response from Vinted — token may be invalid.' };
+    }
+    if (!r.ok) {
+      const code = data?.message_code || data?.error || '';
+      if (r.status === 401 || r.status === 403 || code.includes('unauthenticated') || code.includes('invalid_auth') || code.includes('access_denied')) {
+        return { valid: false, error: 'Token is invalid or expired. Make sure you copied the full `access_token` value from your Vinted browser cookies.' };
+      }
+      return { valid: false, error: `Vinted returned ${r.status} — token may be wrong.` };
+    }
+    const u = data.user || data;
+    return { valid: true, username: u.login || u.username || '', user_id: String(u.id || '') };
+  } catch (e) {
+    return { valid: null, warning: `Could not reach Vinted to validate token (${e.message}). Token saved — test by attempting a listing.` };
+  }
 }
 
 async function vintedDeleteListing(accessToken, listingId) {
   try {
-    const res = await vFetch(`https://www.vinted.co.uk/api/v2/items/${listingId}`, {
+    const { base: vintedBase } = await getVintedBase();
+    const res = await vFetch(`${vintedBase}/api/v2/items/${listingId}`, {
       method: 'DELETE',
       headers: VINTED_HEADERS(accessToken),
       signal: AbortSignal.timeout(10000),
@@ -3067,13 +3109,27 @@ app.post('/api/platform/connect', async (req, res) => {
       if (manual_token.length < 20) {
         return res.status(400).json({ error: 'Token looks too short — make sure you copied the full access_token value from your browser cookies.' });
       }
+      // Validate the token against Vinted's /api/v2/users/me before saving
+      const validation = await validateVintedToken(manual_token);
+      if (validation.valid === false) {
+        return res.status(400).json({ error: validation.error });
+      }
+      // valid=true → use username from Vinted's response; valid=null → DataDome blocked, save with warning
+      const confirmedUsername = validation.valid === true ? (validation.username || manualUsername) : manualUsername;
+      const confirmedUserId   = validation.valid === true ? (validation.user_id   || '')            : '';
       result = {
         access_token:      manual_token,
         refresh_token:     '',
-        platform_user_id:  '',
-        platform_username: manualUsername,
+        platform_user_id:  confirmedUserId,
+        platform_username: confirmedUsername,
+        validation_warning: validation.warning || null,
       };
-      console.log(`[manual-token] vinted saved without server validation for @${manualUsername}`);
+      console.log(`[manual-token] vinted token validated=${validation.valid} for @${confirmedUsername}`);
+      // If validation was bypassed (DataDome), include the warning in the response
+      if (validation.warning) {
+        // We'll save and respond with a warning flag — dashboard can show it
+        res.locals.validationWarning = validation.warning;
+      }
     } else if (platform === 'depop') {
       if (manual_token.length < 10) {
         return res.status(400).json({ error: 'Token looks too short — make sure you copied the full token value.' });
@@ -3115,7 +3171,12 @@ app.post('/api/platform/connect', async (req, res) => {
   }
 
   console.log(`[platform] ${platform} connected for user ${user.id} (@${result.platform_username}) mode:${manual_token ? 'manual' : 'credentials'}`);
-  res.json({ ok: true, platform, username: result.platform_username });
+  res.json({
+    ok: true,
+    platform,
+    username: result.platform_username,
+    ...(res.locals.validationWarning && { warning: res.locals.validationWarning }),
+  });
 });
 
 // Disconnect a platform account
