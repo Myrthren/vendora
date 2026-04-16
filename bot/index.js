@@ -2899,7 +2899,32 @@ async function vintedCreateListing(accessToken, listingData) {
   } = listingData;
   const condMap = { 'New with tags': 6, 'Like New': 2, 'Very Good': 3, 'Good': 4, 'Acceptable': 5 };
   try {
-    // Build description: prepend brand/size info
+    // ── Step 1: Bootstrap a DataDome session cookie ──────────────────────────
+    // DataDome requires real browser session cookies to be present on API calls.
+    // Without them the listing endpoint always returns a 403 captcha redirect,
+    // even with a valid Bearer token and residential proxy IP.
+    let sessionCookieStr = '';
+    try {
+      const bootstrap = await vFetch('https://www.vinted.co.uk/', {
+        headers: {
+          'User-Agent': VINTED_UA,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-GB,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1',
+        },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(10000),
+      });
+      const setCookies = bootstrap.headers.getSetCookie?.() || [];
+      sessionCookieStr = setCookies.map(c => c.split(';')[0]).join('; ');
+      console.log(`[vinted-list] bootstrap cookies: ${setCookies.length} set, datadome: ${setCookies.some(c => c.toLowerCase().includes('datadome'))}`);
+    } catch (e) {
+      console.warn('[vinted-list] session bootstrap failed (continuing):', e.message);
+    }
+
+    // ── Step 2: Build the listing body ────────────────────────────────────────
     const brandLine = [brand && `Brand: ${brand}`, size && `Size: ${size}`].filter(Boolean).join(' · ');
     const fullDesc  = brandLine ? `${brandLine}\n\n${description}`.trim() : description;
 
@@ -2914,21 +2939,29 @@ async function vintedCreateListing(accessToken, listingData) {
     };
     if (photo_ids.length) body.photos = photo_ids.map(id => ({ id }));
 
+    // ── Step 3: POST the listing with session cookies ─────────────────────────
+    const listingHeaders = {
+      ...VINTED_HEADERS(accessToken),
+      ...(sessionCookieStr && { 'Cookie': sessionCookieStr }),
+    };
+
     const res = await vFetch('https://www.vinted.co.uk/api/v2/items', {
       method: 'POST',
-      headers: VINTED_HEADERS(accessToken),
+      headers: listingHeaders,
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {
       const err = await res.text();
-      // Log the response so Railway logs reveal what Vinted actually returned
-      console.error(`[vinted-list] HTTP ${res.status} (proxy=${!!PROXY_AGENT}):`, err.slice(0, 400));
+      console.error(`[vinted-list] HTTP ${res.status} (proxy=${!!PROXY_AGENT}, cookies=${!!sessionCookieStr}):`, err.slice(0, 400));
+
+      // Expired / invalid token
+      if (err.includes('invalid_auth') || err.includes('Invalid authentification') || res.status === 401) {
+        return { error: 'Your Vinted session has expired. Please reconnect your Vinted account in the dashboard.' };
+      }
+      // DataDome challenge
       if (err.includes('captcha-delivery.com') || err.includes('datadome')) {
-        const proxyNote = PROXY_AGENT
-          ? 'Proxy active but fingerprint still flagged — check Railway logs for the raw response.'
-          : 'Add a residential PROXY_URL to Railway env vars to bypass DataDome.';
-        return { error: `Vinted bot-protection triggered. ${proxyNote}` };
+        return { error: 'Vinted bot-protection triggered. Check Railway logs — the session cookie and proxy details are logged above.' };
       }
       return { error: `Vinted: ${err.slice(0, 200)}` };
     }
@@ -2949,7 +2982,7 @@ async function vintedDeleteListing(accessToken, listingId) {
   } catch (e) { return { error: e.message }; }
 }
 
-// ── Shared: upload images to one platform — returns platform-specific IDs ─────
+// ── Shared: upload images to one platform — returns { ids } or { authError } ──
 async function uploadImagesToPlatform(token, platform, images = []) {
   // images: [{ base64, mimeType }]
   const ids = [];
@@ -2957,7 +2990,14 @@ async function uploadImagesToPlatform(token, platform, images = []) {
     let r;
     if (platform === 'depop')  r = await depopUploadImage(token, img.base64, img.mimeType);
     if (platform === 'vinted') r = await vintedUploadImage(token, img.base64, img.mimeType);
-    if (!r || r.error) { console.warn(`[image] ${platform} upload failed:`, r?.error); continue; }
+    if (!r || r.error) {
+      console.warn(`[image] ${platform} upload failed:`, r?.error);
+      // Propagate auth errors immediately — no point continuing with an expired token
+      if (r?.error && (r.error.includes('Invalid authentification') || r.error.includes('invalid_auth') || r.error.includes('Unauthorized'))) {
+        return { authError: 'Your Vinted session has expired. Please reconnect your Vinted account in the dashboard.' };
+      }
+      continue;
+    }
     ids.push(platform === 'depop' ? r.image_id : r.photo_id);
   }
   return ids;
@@ -2966,11 +3006,14 @@ async function uploadImagesToPlatform(token, platform, images = []) {
 // ── Shared: post listing to one platform ─────────────────────────────────────
 async function postToPlatform(userId, platform, listingData) {
   const conn = await getPlatformConn(userId, platform);
-  if (!conn?.access_token) return { error: 'Not connected' };
+  if (!conn?.access_token) return { error: 'Not connected — link your account in the dashboard first.' };
   const token = decryptToken(conn.access_token);
+  if (!token) return { error: 'Could not decrypt stored token — reconnect your account in the dashboard.' };
 
-  // Upload any images first
-  const imageIds = await uploadImagesToPlatform(token, platform, listingData.images || []);
+  // Upload any images first — returns array of IDs, or { authError } if token is expired
+  const uploadResult = await uploadImagesToPlatform(token, platform, listingData.images || []);
+  if (uploadResult?.authError) return { error: uploadResult.authError };
+  const imageIds = Array.isArray(uploadResult) ? uploadResult : [];
   const data = { ...listingData };
   if (platform === 'depop')  data.image_ids = imageIds;
   if (platform === 'vinted') data.photo_ids  = imageIds;
