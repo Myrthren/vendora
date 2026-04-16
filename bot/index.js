@@ -2998,15 +2998,16 @@ async function vintedCreateListing(accessToken, listingData) {
       const err = await res.text();
       console.error(`[vinted-list] HTTP ${res.status} base=${vintedBase} proxy=${!!PROXY_AGENT}:`, err.slice(0, 400));
 
-      // Expired / invalid token — only trigger on genuine auth errors, not permission errors
-      if (err.includes('invalid_auth') || err.includes('Invalid authentification') || res.status === 401) {
-        return { error: 'Your Vinted session token has expired or is invalid. Reconnect your Vinted account in the dashboard.' };
-      }
-      // DataDome challenge still triggering — log details
+      // DataDome challenge
       if (err.includes('captcha-delivery.com') || err.includes('datadome')) {
         return { error: `Vinted bot-protection triggered on ${vintedBase}. Check Railway logs for details.` };
       }
-      return { error: `Vinted: ${err.slice(0, 200)}` };
+      // Explicit Vinted auth failure (message_code in response body, not just HTTP status)
+      if (err.includes('"unauthenticated"') || err.includes('"invalid_auth_token"')) {
+        return { error: 'Your Vinted session token has expired. Reconnect your Vinted account in the dashboard.' };
+      }
+      // Everything else — show the real error so the user knows what's happening
+      return { error: `Vinted error (${res.status}): ${err.slice(0, 200)}` };
     }
     const data = await res.json();
     const item = data.item || data;
@@ -3075,8 +3076,8 @@ async function uploadImagesToPlatform(token, platform, images = []) {
     if (!r || r.error) {
       console.warn(`[image] ${platform} upload failed:`, r?.error);
       // Propagate auth errors immediately — no point continuing with an expired token
-      if (r?.error && (r.error.includes('Invalid authentification') || r.error.includes('invalid_auth') || r.error.includes('Unauthorized'))) {
-        return { authError: 'Your Vinted session token has expired or is invalid. Reconnect your Vinted account in the dashboard.' };
+      if (r?.error && (r.error.includes('"unauthenticated"') || r.error.includes('"invalid_auth_token"'))) {
+        return { authError: 'Your Vinted session token has expired. Reconnect your Vinted account in the dashboard.' };
       }
       continue;
     }
