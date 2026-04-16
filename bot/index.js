@@ -2763,7 +2763,17 @@ function vintedProxyOpts(extraOpts = {}) {
 
 // vFetch — undici's own fetch with the shared proxy agent wired in.
 // Must be used for all Vinted API calls so `dispatcher` is actually honoured.
+// Also sanitises header values to Latin-1 (undici requires ByteStrings — any
+// char > 255 in a header value throws "Cannot convert argument to a ByteString").
+// This protects against DataDome cookies or user-pasted tokens with stray Unicode.
 async function vFetch(url, opts = {}) {
+  if (opts.headers) {
+    const clean = {};
+    for (const [k, v] of Object.entries(opts.headers)) {
+      clean[k] = typeof v === 'string' ? v.replace(/[^\x00-\xFF]/g, '') : v;
+    }
+    opts = { ...opts, headers: clean };
+  }
   if (PROXY_AGENT && undFetch) {
     return undFetch(url, { ...opts, dispatcher: PROXY_AGENT });
   }
