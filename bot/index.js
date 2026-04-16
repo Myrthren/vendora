@@ -2821,15 +2821,23 @@ async function getVintedSession() {
   return { base, cookies };
 }
 
-const VINTED_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148';
-const VINTED_HEADERS = (token) => ({
+// Desktop Chrome UA — must match our Chrome TLS cipher config.
+// Using iPhone UA with Chrome ciphers is an inconsistency DataDome flags.
+const VINTED_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+const VINTED_HEADERS = (token, base = 'https://www.vinted.co.uk') => ({
   'Content-Type': 'application/json',
   'Authorization': `Bearer ${token}`,
   'User-Agent': VINTED_UA,
   'Accept': 'application/json, text/plain, */*',
   'Accept-Language': 'en-GB,en;q=0.9',
-  'Origin': 'https://www.vinted.co.uk',
-  'Referer': 'https://www.vinted.co.uk/',
+  'Origin': base,
+  'Referer': `${base}/`,
+  'sec-ch-ua': '"Google Chrome";v="124", "Chromium";v="124", "Not-A.Brand";v="99"',
+  'sec-ch-ua-mobile': '?0',
+  'sec-ch-ua-platform': '"Windows"',
+  'sec-fetch-dest': 'empty',
+  'sec-fetch-mode': 'cors',
+  'sec-fetch-site': 'same-origin',
 });
 
 async function vintedLogin(usernameOrEmail, password) {
@@ -2966,9 +2974,7 @@ async function vintedCreateListing(accessToken, listingData) {
 
     // ── Step 3: POST to the CORRECT geo domain with session cookies ───────────
     const listingHeaders = {
-      ...VINTED_HEADERS(accessToken),
-      'Origin': vintedBase,
-      'Referer': `${vintedBase}/`,
+      ...VINTED_HEADERS(accessToken, vintedBase),
       ...(sessionCookieStr && { 'Cookie': sessionCookieStr }),
     };
 
@@ -2983,8 +2989,9 @@ async function vintedCreateListing(accessToken, listingData) {
       console.error(`[vinted-list] HTTP ${res.status} base=${vintedBase} proxy=${!!PROXY_AGENT}:`, err.slice(0, 400));
 
       // Expired / invalid token — clear error prompting reconnect
-      if (err.includes('invalid_auth') || err.includes('Invalid authentification') || err.includes('access_denied') || res.status === 401) {
-        return { error: 'Your Vinted session has expired. Reconnect your Vinted account in the dashboard.' };
+      if (err.includes('invalid_auth') || err.includes('Invalid authentification') ||
+          err.includes('access_denied') || err.includes('Accès refus') || res.status === 401) {
+        return { error: 'Your Vinted session token has expired or is invalid. Reconnect your Vinted account in the dashboard.' };
       }
       // DataDome challenge still triggering — log details
       if (err.includes('captcha-delivery.com') || err.includes('datadome')) {
@@ -3035,7 +3042,7 @@ async function vintedDeleteListing(accessToken, listingId) {
     const vintedBase = await getVintedBase();
     const res = await vFetch(`${vintedBase}/api/v2/items/${listingId}`, {
       method: 'DELETE',
-      headers: VINTED_HEADERS(accessToken),
+      headers: VINTED_HEADERS(accessToken, vintedBase),
       signal: AbortSignal.timeout(10000),
     });
     return { ok: res.ok || res.status === 204 };
@@ -3053,8 +3060,12 @@ async function uploadImagesToPlatform(token, platform, images = []) {
     if (!r || r.error) {
       console.warn(`[image] ${platform} upload failed:`, r?.error);
       // Propagate auth errors immediately — no point continuing with an expired token
-      if (r?.error && (r.error.includes('Invalid authentification') || r.error.includes('invalid_auth') || r.error.includes('Unauthorized'))) {
-        return { authError: 'Your Vinted session has expired. Please reconnect your Vinted account in the dashboard.' };
+      if (r?.error && (
+        r.error.includes('Invalid authentification') || r.error.includes('invalid_auth') ||
+        r.error.includes('Unauthorized') || r.error.includes('access_denied') ||
+        r.error.includes('Accès refus')
+      )) {
+        return { authError: 'Your Vinted session token has expired or is invalid. Reconnect your Vinted account in the dashboard.' };
       }
       continue;
     }
