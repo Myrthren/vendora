@@ -16,8 +16,10 @@ const cron     = require('node-cron');
 const crypto   = require('crypto');
 
 // Residential proxy support for Vinted (DataDome blocks datacenter IPs)
-let ProxyAgent;
-try { ({ ProxyAgent } = require('undici')); } catch { /* undici not available */ }
+// We import undici's OWN fetch — Node's global fetch silently ignores `dispatcher`.
+let ProxyAgent, undFetch;
+try { ({ ProxyAgent, fetch: undFetch } = require('undici')); }
+catch (e) { console.warn('[proxy] undici unavailable — proxy will be disabled:', e.message); }
 
 console.log('[boot] Modules loaded');
 
@@ -32,6 +34,22 @@ const OPENAI_KEY      = process.env.OPENAI_API_KEY;
 const BRAVE_KEY       = process.env.BRAVE_SEARCH_API_KEY;
 const REMOVE_BG_KEY   = process.env.REMOVE_BG_API_KEY;
 const PROXY_URL       = process.env.PROXY_URL; // optional residential proxy e.g. http://user:pass@host:port
+
+// Create ONE shared proxy agent — reusing it keeps the same exit IP across a full Vinted session.
+// Rotating proxy pools assign a new IP per-connection; a fresh ProxyAgent per request would give
+// a different IP on every call, which DataDome detects and blocks.
+let PROXY_AGENT = null;
+if (PROXY_URL && ProxyAgent) {
+  try {
+    PROXY_AGENT = new ProxyAgent(PROXY_URL);
+    console.log('[proxy] Proxy agent ready — Vinted requests will route through residential proxy');
+  } catch (e) {
+    console.error('[proxy] Failed to create ProxyAgent:', e.message);
+  }
+} else if (PROXY_URL && !ProxyAgent) {
+  console.warn('[proxy] PROXY_URL is set but undici ProxyAgent failed to load — proxy DISABLED');
+}
+
 const PORT            = process.env.PORT || 3000;
 const OWNER_ID       = '731207920007643167';
 const DASHBOARD_URL  = 'https://vendora-vv.netlify.app/vendora-dashboard';
@@ -2724,14 +2742,20 @@ async function depopDeleteListing(accessToken, listingId) {
 
 // ── Vinted API ────────────────────────────────────────────────────────────────
 
-// Returns fetch options with a residential proxy dispatcher if PROXY_URL is set.
-// Vinted uses DataDome bot-protection which blocks datacenter IPs (Railway).
-// Set PROXY_URL in Railway env vars: http://user:pass@residential-proxy-host:port
+// vintedProxyOpts — kept for legacy non-Vinted calls (search helpers, pricedrop).
+// NOTE: global fetch silently ignores `dispatcher` — use vFetch() for Vinted API calls.
 function vintedProxyOpts(extraOpts = {}) {
-  if (PROXY_URL && ProxyAgent) {
-    return { ...extraOpts, dispatcher: new ProxyAgent(PROXY_URL) };
-  }
+  if (PROXY_AGENT) return { ...extraOpts, dispatcher: PROXY_AGENT };
   return extraOpts;
+}
+
+// vFetch — undici's own fetch with the shared proxy agent wired in.
+// Must be used for all Vinted API calls so `dispatcher` is actually honoured.
+async function vFetch(url, opts = {}) {
+  if (PROXY_AGENT && undFetch) {
+    return undFetch(url, { ...opts, dispatcher: PROXY_AGENT });
+  }
+  return fetch(url, opts); // fallback to global fetch (no proxy)
 }
 
 const VINTED_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148';
@@ -2759,11 +2783,10 @@ async function vintedLogin(usernameOrEmail, password) {
     let cookieStr = '';
     let csrfToken = '';
     try {
-      const initRes = await fetch('https://www.vinted.co.uk/', {
+      const initRes = await vFetch('https://www.vinted.co.uk/', {
         headers: { ...BASE_HEADERS, 'Accept': 'text/html,application/xhtml+xml,*/*' },
         signal: AbortSignal.timeout(10000),
         redirect: 'follow',
-        ...vintedProxyOpts(),
       });
       const setCookies = initRes.headers.getSetCookie?.() || [];
       cookieStr = setCookies.map(c => c.split(';')[0]).join('; ');
@@ -2783,12 +2806,11 @@ async function vintedLogin(usernameOrEmail, password) {
       ...(csrfToken && { 'X-CSRF-Token': csrfToken }),
     };
 
-    const res = await fetch('https://www.vinted.co.uk/api/v2/sessions', {
+    const res = await vFetch('https://www.vinted.co.uk/api/v2/sessions', {
       method: 'POST',
       headers: loginHeaders,
       body: JSON.stringify({ login: usernameOrEmail, password, remember: true }),
       signal: AbortSignal.timeout(15000),
-      ...vintedProxyOpts(),
     });
 
     const rawText = await res.text();
@@ -2796,8 +2818,11 @@ async function vintedLogin(usernameOrEmail, password) {
 
     let data;
     try { data = JSON.parse(rawText); } catch {
-      // Still HTML — Vinted bot protection active on this IP
-      return { error: 'Vinted is blocking the connection from our server. This is a Cloudflare/bot-protection issue — not your credentials. Try again in a few minutes.' };
+      // HTML response = DataDome challenge page (bot-protection on this IP)
+      const proxyNote = PROXY_AGENT
+        ? 'Proxy is active but this exit IP may be flagged — try a different proxy or wait a few minutes.'
+        : 'No proxy set — add a residential PROXY_URL to Railway env vars.';
+      return { error: `Vinted bot-protection on login. ${proxyNote}` };
     }
 
     if (!res.ok) {
@@ -2835,7 +2860,7 @@ async function vintedUploadImage(accessToken, base64Data, mimeType = 'image/jpeg
       Buffer.from(base64Data, 'base64'),
       Buffer.from(`\r\n--${boundary}--\r\n`),
     ]);
-    const res = await fetch('https://www.vinted.co.uk/api/v2/photos', {
+    const res = await vFetch('https://www.vinted.co.uk/api/v2/photos', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -2846,7 +2871,6 @@ async function vintedUploadImage(accessToken, base64Data, mimeType = 'image/jpeg
       },
       body,
       signal: AbortSignal.timeout(20000),
-      ...vintedProxyOpts(),
     });
     if (!res.ok) { const e = await res.text(); return { error: `Vinted image upload failed: ${e.slice(0, 80)}` }; }
     const data = await res.json();
@@ -2877,18 +2901,20 @@ async function vintedCreateListing(accessToken, listingData) {
     };
     if (photo_ids.length) body.photos = photo_ids.map(id => ({ id }));
 
-    const res = await fetch('https://www.vinted.co.uk/api/v2/items', {
+    const res = await vFetch('https://www.vinted.co.uk/api/v2/items', {
       method: 'POST',
       headers: VINTED_HEADERS(accessToken),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(15000),
-      ...vintedProxyOpts(),
     });
     if (!res.ok) {
       const err = await res.text();
-      // Surface DataDome captcha as a clear message instead of raw JSON
+      // DataDome captcha block — proxy is active but this IP is flagged or session mismatch
       if (err.includes('captcha-delivery.com') || err.includes('datadome')) {
-        return { error: 'Vinted blocked by bot-protection (DataDome). Add a residential PROXY_URL to Railway env vars to fix this.' };
+        const proxyNote = PROXY_AGENT
+          ? 'Proxy is active but this IP may be flagged by DataDome. Try a different proxy or wait a few minutes.'
+          : 'Add a residential PROXY_URL to Railway env vars to bypass DataDome.';
+        return { error: `Vinted bot-protection triggered. ${proxyNote}` };
       }
       return { error: `Vinted: ${err.slice(0, 200)}` };
     }
@@ -2900,11 +2926,10 @@ async function vintedCreateListing(accessToken, listingData) {
 
 async function vintedDeleteListing(accessToken, listingId) {
   try {
-    const res = await fetch(`https://www.vinted.co.uk/api/v2/items/${listingId}`, {
+    const res = await vFetch(`https://www.vinted.co.uk/api/v2/items/${listingId}`, {
       method: 'DELETE',
       headers: VINTED_HEADERS(accessToken),
       signal: AbortSignal.timeout(10000),
-      ...vintedProxyOpts(),
     });
     return { ok: res.ok || res.status === 204 };
   } catch (e) { return { error: e.message }; }
