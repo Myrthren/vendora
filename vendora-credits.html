@@ -78,17 +78,9 @@
   }
 
   .brand-mark {
-    width: 34px; height: 34px;
-    background: var(--pink);
-    border-radius: 50%;
+    width: 30px; height: 30px;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
-    box-shadow: 0 0 16px rgba(232,33,122,0.35);
-  }
-
-  .brand-mark svg {
-    width: 18px; height: 18px;
-    fill: white;
   }
 
   .brand-name {
@@ -517,11 +509,7 @@
   <div class="topnav-left">
     <a href="vendora-dashboard.html" class="brand-link">
       <div class="brand-mark">
-        <!-- VV mark -->
-        <svg viewBox="0 0 24 18" xmlns="http://www.w3.org/2000/svg">
-          <path d="M0 0 L4.5 12 L9 0 M4 0 L8.5 12 L13 0" stroke="white" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
-          <path d="M11 0 L15.5 12 L20 0 M15 0 L19.5 12 L24 0" stroke="white" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" fill="none" opacity="0.65"/>
-        </svg>
+        <img src="favicon.png" alt="Vendora" style="width:26px;height:26px;object-fit:contain;display:block;">
       </div>
       <span class="brand-name">Vendora</span>
     </a>
@@ -680,12 +668,14 @@
       const res = await fetch(`${BOT_API}/api/credits/balance`, {
         headers: { 'Authorization': `Bearer ${currentSession.access_token}` }
       });
-      if (res.ok) {
-        const data = await res.json();
-        updateBalanceDisplay(data.credits ?? 0);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        console.error('[credits-balance] HTTP', res.status, data);
+        return;
       }
+      updateBalanceDisplay(data.credits ?? 0);
     } catch (e) {
-      // Silently fail — balance stays as "—"
+      console.error('[credits-balance] fetch failed:', e);
     }
   }
 

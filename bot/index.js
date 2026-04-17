@@ -315,6 +315,43 @@ async function sendOwnerDM(guild, content) {
   }
 }
 
+// Send a Vendora-branded embed DM to a user when credits are added (purchase / code / admin grant)
+async function sendCreditsDM(discordId, creditsAdded, newBalance, source = 'purchase') {
+  if (!discordId || !creditsAdded) return;
+  try {
+    const guild  = await client.guilds.fetch(GUILD_ID);
+    const member = await guild.members.fetch(discordId).catch(() => null);
+    if (!member) { console.log(`[credits-dm] ${discordId} not in server`); return; }
+
+    const sourceLine = {
+      purchase: 'Payment received — credits are now available in your account.',
+      code:     'Your redemption code has been applied.',
+      admin:    'Credits have been granted to your account by the Vendora team.',
+    }[source] || 'Credits added to your account.';
+
+    const title = {
+      purchase: 'Credits Purchased',
+      code:     'Code Redeemed',
+      admin:    'Credits Granted',
+    }[source] || 'Credits Added';
+
+    await sendDM(member, { embeds: [
+      new EmbedBuilder()
+        .setColor('#e8217a')
+        .setTitle(`⚡ ${title}`)
+        .setDescription(sourceLine)
+        .addFields(
+          { name: 'Credits Added',  value: `**+${creditsAdded.toLocaleString()}**`, inline: true },
+          { name: 'New Balance',    value: `**${newBalance.toLocaleString()}**`,    inline: true },
+        )
+        .setFooter({ text: 'Vendora — The Reseller\'s Edge' })
+        .setTimestamp()
+    ]});
+  } catch (e) {
+    console.log('[credits-dm] Error:', e.message);
+  }
+}
+
 // ── AI helper ─────────────────────────────────────────────────────────────────
 async function callAI(system, user, model = 'claude-haiku-4-5-20251001', maxTokens = 800) {
   if (!ai) return null;
@@ -2323,13 +2360,24 @@ app.post('/webhook', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { type, record } = req.body || {};
+  const { type, record, old_record } = req.body || {};
   console.log('[webhook] type:', type, '| discord_id:', record?.discord_id, '| tier:', record?.tier, '| status:', record?.subscription_status);
 
   if (!record || !['INSERT', 'UPDATE'].includes(type)) return res.json({ ok: true, note: 'ignored' });
 
   const { discord_id, tier, subscription_status, username } = record;
   if (!discord_id) return res.json({ ok: true, note: 'no discord_id' });
+
+  // Gate: only fire the subscription DM/role flow when tier OR subscription_status actually changed.
+  // This prevents credit adjustments (or any other PATCH on profiles) from re-triggering subscription DMs.
+  if (type === 'UPDATE' && old_record) {
+    const tierChanged   = old_record.tier !== record.tier;
+    const statusChanged = old_record.subscription_status !== record.subscription_status;
+    if (!tierChanged && !statusChanged) {
+      console.log('[webhook] No tier/status change — ignoring update');
+      return res.json({ ok: true, note: 'no_subscription_change' });
+    }
+  }
 
   try {
     const guild  = await client.guilds.fetch(GUILD_ID);
@@ -3660,6 +3708,9 @@ app.post('/api/credits/capture-order', async (req, res) => {
     if (!pack) return res.status(400).json({ error: 'Could not determine package from order' });
     const newBal = await addCredits(user.id, pack.credits);
     console.log(`[credits] +${pack.credits} → user ${user.id} (order ${orderID}), new balance: ${newBal}`);
+    // Send Vendora-branded DM confirmation
+    const discordId = user.user_metadata?.provider_id || user.identities?.find(i=>i.provider==='discord')?.id;
+    sendCreditsDM(discordId, pack.credits, newBal, 'purchase');
     res.json({ ok: true, credits_added: pack.credits, new_balance: newBal });
   } catch (e) { console.error('[credits/capture-order]', e.message); res.status(500).json({ error: e.message }); }
 });
@@ -3689,6 +3740,9 @@ app.post('/api/credits/redeem', async (req, res) => {
     await fetch(`${SUPABASE_URL}/rest/v1/credit_codes?code=eq.${encodeURIComponent(upperCode)}`, { method: 'PATCH', headers: SB_HDR(), body: JSON.stringify({ uses_count: codeRow.uses_count + 1 }) });
     // Add credits
     const newBal = await addCredits(user.id, codeRow.credits_amount);
+    // DM confirmation
+    const discordId = user.user_metadata?.provider_id || user.identities?.find(i=>i.provider==='discord')?.id;
+    sendCreditsDM(discordId, codeRow.credits_amount, newBal, 'code');
     res.json({ ok: true, credits_added: codeRow.credits_amount, new_balance: newBal });
   } catch (e) { console.error('[credits/redeem]', e.message); res.status(500).json({ error: e.message }); }
 });
@@ -3781,21 +3835,40 @@ app.post('/api/admin/credits/adjust', async (req, res) => {
   try {
     // Accept Discord ID (numeric string) or Supabase UUID — resolve to the profiles.id UUID
     let profileId = user_id;
+    let targetDiscordId = null;
     if (/^\d+$/.test(user_id.trim())) {
       // Looks like a Discord ID — look up the profile row by discord_id
+      targetDiscordId = user_id.trim();
       const lookup = await fetch(
-        `${SUPABASE_URL}/rest/v1/profiles?discord_id=eq.${encodeURIComponent(user_id.trim())}&select=id`,
+        `${SUPABASE_URL}/rest/v1/profiles?discord_id=eq.${encodeURIComponent(targetDiscordId)}&select=id`,
         { headers: SB_HDR() }
       );
       const [row] = await lookup.json();
       if (!row?.id) return res.status(404).json({ error: `No profile found for Discord ID ${user_id}` });
       profileId = row.id;
+    } else {
+      // UUID — look up discord_id for the DM
+      const lookup = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(profileId)}&select=discord_id`,
+        { headers: SB_HDR() }
+      );
+      const [row] = await lookup.json();
+      targetDiscordId = row?.discord_id || null;
     }
+
+    const prevBal = await getCredits(profileId);
     let newBal;
     if (mode === 'set') { await setCredits(profileId, amount); newBal = Math.max(0, Math.round(amount)); }
     else if (mode === 'add') { newBal = await addCredits(profileId, amount); }
     else if (mode === 'subtract') { newBal = await deductCredits(profileId, amount); }
     else return res.status(400).json({ error: 'Invalid mode' });
+
+    // DM when credits were effectively granted (i.e. balance went up)
+    const delta = newBal - prevBal;
+    if (delta > 0 && targetDiscordId) {
+      sendCreditsDM(targetDiscordId, delta, newBal, 'admin');
+    }
+
     res.json({ ok: true, new_balance: newBal });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });

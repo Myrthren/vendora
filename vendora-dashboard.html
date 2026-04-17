@@ -732,7 +732,7 @@
           <div class="account-name" id="account-name">Loading...</div>
           <div class="account-id" id="account-id">ID: —</div>
           <div class="account-badges">
-            <span class="badge badge-tier-pro" id="account-tier-badge">Pro</span>
+            <span class="badge" id="account-tier-badge" style="display:none;">—</span>
             <span class="badge badge-server">In Server</span>
             <span class="badge badge-owner-tag" id="account-owner-badge" style="display:none;">Owner</span>
           </div>
@@ -766,7 +766,7 @@
           </div>
           <div class="info-row">
             <span class="info-row-label">Account Created</span>
-            <span class="info-row-val">9 April 2025</span>
+            <span class="info-row-val" id="detail-created">—</span>
           </div>
         </div>
       </div>
@@ -2469,6 +2469,32 @@
     document.getElementById('account-id').textContent   = 'ID: ' + discordId;
     document.getElementById('detail-name').textContent  = username;
     document.getElementById('detail-id').textContent    = discordId;
+
+    // Tier badge (profile hero)
+    const tierBadgeEl = document.getElementById('account-tier-badge');
+    if (tierBadgeEl) {
+      if (tier && tier !== 'none') {
+        tierBadgeEl.textContent = td.label;
+        tierBadgeEl.className = `badge badge-tier-${tier}`;
+        tierBadgeEl.style.display = '';
+        tierBadgeEl.style.color = td.color;
+      } else {
+        tierBadgeEl.textContent = 'Free';
+        tierBadgeEl.className = 'badge';
+        tierBadgeEl.style.display = '';
+      }
+    }
+
+    // Owner badge
+    const ownerBadgeEl = document.getElementById('account-owner-badge');
+    if (ownerBadgeEl) ownerBadgeEl.style.display = isOwner ? '' : 'none';
+
+    // Account created date — full "day month year"
+    const createdEl = document.getElementById('detail-created');
+    if (createdEl && u.created_at) {
+      createdEl.textContent = new Date(u.created_at)
+        .toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
+    }
 
     if (avatarUrl) {
       ['sidebar-avi','account-avi'].forEach(id => {
