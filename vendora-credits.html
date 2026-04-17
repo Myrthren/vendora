@@ -685,6 +685,12 @@
 
   // ─── MODAL ────────────────────────────────────────────────
   function openModal(pkgKey, pkgName, creditsLabel, price) {
+    console.log('[credits] openModal', pkgKey, price);
+    if (!currentSession) {
+      alert('Please sign in to purchase credits.');
+      window.location.href = 'vendora-login.html';
+      return;
+    }
     currentPackage = { key: pkgKey, name: pkgName, credits: creditsLabel, price };
 
     // Reset modal state
@@ -703,7 +709,12 @@
     document.getElementById('modal-overlay').classList.add('open');
     document.body.style.overflow = 'hidden';
 
-    loadPayPalSDK().then(() => renderPayPalButton(pkgKey));
+    loadPayPalSDK()
+      .then(() => renderPayPalButton(pkgKey))
+      .catch(err => {
+        console.error('[credits] PayPal SDK failed', err);
+        showModalError('Could not load PayPal. Check your ad blocker / network and try again.');
+      });
   }
 
   function closeModal() {
