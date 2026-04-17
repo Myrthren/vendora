@@ -1,5 +1,5 @@
 VENDORA — SESSION HANDOFF
-Generated: 2026-04-17
+Generated: 2026-04-17 (updated late-session: credits DM + profile fixes + Vinted browser rewrite)
 ==============================================================
 
 PROJECT OVERVIEW
@@ -27,6 +27,7 @@ Key files:
   vendora-dashboard.html  — Full user dashboard (~5400 lines)
   vendora-credits.html    — Buy-credits page with PayPal one-time checkout
   bot/index.js            — Discord bot + Express API (~4300+ lines)
+  bot/vinted-browser.js   — Playwright+stealth Vinted flow (DataDome bypass)
   favicon.png             — VV logo favicon (added to all HTML pages)
 
 Bot URL: https://vendora-production-8a47.up.railway.app
@@ -325,7 +326,46 @@ Vinted listing: via /api/vinted/list — extensive proxy work done (see below)
 Depop listing:  marked "coming soon" in dashboard — credential login not tested
 Image upload helper: uploadImageToPlatform() handles both platforms
 
-── VINTED PROXY / DATADOME WORK (April 16 session) ──
+── VINTED BROWSER REWRITE (April 17 late-session) ──
+
+DataDome was still flagging the undici-based API calls even with the proxy on.
+Full switch to Playwright + puppeteer-extra-plugin-stealth, routed through
+the same residential PROXY_URL.
+
+New module: bot/vinted-browser.js
+  - Single persistent browserContext (headless Chromium) reused across calls
+  - Proxy parsed from PROXY_URL and passed to chromium.launch({ proxy })
+  - UA locked to desktop Chrome 124 + en-GB locale + Europe/London timezone
+  - navigator.webdriver overridden via addInitScript
+  - vintedBrowserLogin(u,p)           : fills the real /login form,
+                                        DataDome solves during page nav
+  - vintedBrowserUploadPhoto(t,b64)    : page.evaluate fetch('/api/v2/photos')
+  - vintedBrowserCreateListing(t,d)    : page.evaluate fetch('/api/v2/items')
+  - vintedBrowserValidateToken(t)      : injects access_token_web cookie,
+                                        hits /users/me inside page context
+
+bot/index.js wiring:
+  vintedLogin / vintedUploadImage / vintedCreateListing / validateVintedToken
+  all now delegate to the browser module when it loads successfully. The old
+  vFetch flow is preserved as legacy<Function>() fallback if playwright isn't
+  available or the browser call errors.
+
+bot/package.json deps added:
+  playwright ^1.47.0
+  playwright-extra ^4.3.6
+  puppeteer-extra-plugin-stealth ^2.11.2
+Added postinstall:
+  "playwright install --with-deps chromium || playwright install chromium || true"
+  (Railway's build step pulls the Chromium binary — first deploy is slower)
+
+Operational notes:
+  - Cookie used for auth = `access_token_web` (not `access_token` as before)
+  - If the residential IP is flagged, login will detect the DataDome iframe
+    and return a clear error → try a different proxy region (UK/FR recommended)
+  - On DataDome challenge during /api/v2/items, error message tells the user
+    to rotate the proxy IP
+
+── VINTED PROXY / DATADOME WORK (April 16 session — legacy fallback path) ──
 
 Significant work done to get Vinted listing past DataDome. Key fixes:
 
@@ -358,9 +398,49 @@ Significant work done to get Vinted listing past DataDome. Key fixes:
    "proxy active but IP flagged" vs "no proxy set at all"
    Bot logs proxy status on startup.
 
-Status: All code fixes are deployed to Railway. Whether Vinted listing actually
-works end-to-end depends on the quality of the residential proxy in PROXY_URL.
-DataDome is still the blocker if the proxy IP is flagged.
+Status: The legacy vFetch path remains as a fallback but is NO LONGER the
+primary route. All Vinted traffic now goes through the Playwright browser
+flow. DataDome solved-cookie is persisted inside the browser context for
+the process lifetime.
+
+── CREDITS DM + WEBHOOK GATE (April 17 late-session) ──
+
+Fixed: adding credits via the admin tool was firing a subscription DM
+because the Supabase DB webhook fires on every profile UPDATE.
+
+bot/index.js /webhook:
+  Now inspects { type, record, old_record } and short-circuits UPDATEs that
+  don't change `tier` or `subscription_status`. Only real plan changes fire
+  the subscription DM / role assignment.
+
+New helper: sendCreditsDM(discordId, creditsAdded, newBalance, source)
+  source ∈ { 'purchase', 'code', 'admin' } — each has its own title and body.
+  Vendora-branded embed (#e8217a, ⚡ icon, footer "The Reseller's Edge").
+
+Wired into:
+  POST /api/credits/capture-order   — fires 'purchase' DM after successful capture
+  POST /api/credits/redeem          — fires 'code' DM on successful redemption
+  POST /api/admin/credits/adjust    — fires 'admin' DM on positive delta only
+                                      (also now resolves Discord ID from UUID
+                                       for the DM lookup)
+
+── DASHBOARD PROFILE FIXES (April 17 late-session) ──
+
+  - Tier badge in the profile hero was hardcoded to "Pro". Now populated
+    dynamically from the user's actual tier (id="account-tier-badge",
+    hidden until init() sets it).
+  - "Account created" date was hardcoded "9 April 2025". Now populated
+    from u.created_at via toLocaleDateString('en-GB', day/month/year)
+    (id="detail-created").
+
+── CREDITS PAGE FIXES (April 17 late-session) ──
+
+  - Brand mark (top-left logo) was an inline SVG that didn't match the rest
+    of the site. Swapped for favicon.png.
+  - loadCreditBalance() now logs HTTP errors to console instead of silently
+    leaving the balance at "—".
+  - openModal() logs to console, redirects to login if no session, and surfaces
+    PayPal SDK load failures inside the modal instead of silent hang.
 
 ── OTHER BOT FEATURES ──
 
@@ -375,8 +455,11 @@ Inventory API: /api/inventory (GET/POST/PUT/DELETE) — syncs dashboard tracker 
 
 KNOWN REMAINING ISSUES
 ------------------------
-- Vinted listing: all proxy code is deployed; DataDome may still block if PROXY_URL
-  IP is flagged. User must test with a fresh residential proxy IP.
+- Vinted listing: Playwright browser flow is live. Still depends on a clean
+  residential proxy IP — DataDome will challenge a flagged IP at login time
+  (clear error returned so user can rotate the proxy region).
+- Railway cold start is slower on first deploy after the playwright dep bump
+  while Chromium downloads (~170MB). Subsequent deploys use the cached layer.
 - Depop marked "coming soon" in the dashboard — no listing flow implemented yet
 - Duplicate /api/inventory route definitions exist in bot/index.js (~lines 1793 and ~2891)
   — the second one is dead code and should be removed
@@ -388,6 +471,10 @@ KNOWN REMAINING ISSUES
 
 GIT HISTORY (most recent commits)
 ------------------------------------
+af15993 — Credits modal: log to console, guard missing session, surface SDK errors
+69e3d12 — Rewrite Vinted login/upload/list via Playwright + stealth (DataDome bypass)
+10bce53 — Credits DM flow, profile tier badge/join-date dynamic, credits page logo
+87ce436 — Update HANDOFF with PhotoRoom/PayPal/credits env vars + pending actions
 eb902da — Fix admin credit adjust: accept Discord ID, resolve to profile UUID
 644a75c — Add PhotoRoom photo enhancer, credits system, and buy-credits page
 4ac68d4 — Stop false-positive token-expired errors; show real Vinted errors instead
@@ -430,10 +517,16 @@ Priority order:
    - Upload a photo to the new enhancer → confirm 80 cr deducted on success, refunded on fail
    - Admin: adjust another user's credits via Discord ID → confirm balance updates
 
-1. Test Vinted listing end-to-end with a real proxy IP:
-   - Set PROXY_URL on Railway → trigger a Vinted list via dashboard
-   - Check Railway logs: "✓ Proxy active" should appear at boot
-   - If DataDome 403 persists, try a different residential IP
+1. Test Vinted listing end-to-end with the new Playwright flow:
+   - Confirm PROXY_URL is set on Railway
+   - First deploy downloads Chromium during postinstall — slow boot expected
+   - Watch Railway logs for:
+       "[vinted] browser flow loaded"
+       "[vinted-browser] launching chromium (stealth=true, proxy=true)"
+       "[vinted-login] using browser flow"
+   - If DataDome captcha iframe is detected, login returns a clear error →
+     rotate to a different residential proxy region (UK/FR)
+   - Legacy vFetch path still runs as fallback if browser flow errors
 
 2. Fix photo enhancer end-to-end:
    - Test WASM BG removal (first load downloads ~20MB model to IndexedDB)
