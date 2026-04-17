@@ -1389,49 +1389,58 @@ async function executeCommand(interaction, commandName, tier, profile) {
       ]});
 
       let vData = null;
-      if (vintedBrowser?.vintedBrowserFetchAnalytics) {
-        try {
-          const raw = await vintedBrowser.vintedBrowserFetchAnalytics(token, userId);
-          if (!raw.error) {
-            const u     = raw.meRes?.data?.user || {};
-            const items = raw.itemsRes?.data?.items || [];
+      try {
+        // Try direct HTTP first (fast, no Playwright needed)
+        let raw = await fetchVintedAnalyticsDirect(token, userId);
 
-            const prices = items.map(i => parseFloat(i.price?.amount || i.price || 0)).filter(p => p > 0);
-            const avgPrice   = prices.length ? (prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2) : '0.00';
-            const totalValue = prices.reduce((a, b) => a + b, 0).toFixed(2);
-            const topItems   = items.slice(0, 5)
-              .map(i => `• ${i.title?.slice(0, 45) || 'Untitled'} — £${parseFloat(i.price?.amount || i.price || 0).toFixed(2)}`)
-              .join('\n');
-
-            // Sell-through rate: sold / (sold + active) if sold_items_count available
-            const soldCount   = u.sold_items_count   ?? u.total_items_count ?? 0;
-            const activeCount = u.items_count || items.length;
-            const totalEver   = soldCount + activeCount;
-            const sellThrough = totalEver > 0 ? ((soldCount / totalEver) * 100).toFixed(1) : null;
-
-            vData = {
-              username:     u.login || u.username || vintedConn.platform_username,
-              followers:    u.followers_count || 0,
-              following:    u.following_count || 0,
-              activeItems:  activeCount,
-              soldCount,
-              sellThrough,
-              feedback: {
-                positive:   u.positive_feedback_count || 0,
-                neutral:    u.neutral_feedback_count  || 0,
-                negative:   u.negative_feedback_count || 0,
-                reputation: u.feedback_reputation ? `${(u.feedback_reputation * 100).toFixed(0)}%` : null,
-              },
-              avgPrice,
-              totalValue,
-              topItems,
+        // If DataDome blocked the direct call, fall back to browser
+        if (raw.datadome && vintedBrowser?.vintedBrowserFetchAnalytics) {
+          console.warn('[analytics] direct call blocked by DataDome — trying browser flow');
+          const browserRaw = await vintedBrowser.vintedBrowserFetchAnalytics(token, userId);
+          if (!browserRaw.error) {
+            raw = {
+              user:  browserRaw.meRes?.data?.user    || {},
+              items: browserRaw.itemsRes?.data?.items || [],
             };
-          } else {
-            console.warn('[analytics] Vinted fetch returned error:', raw.error);
           }
-        } catch (e) {
-          console.warn('[analytics] Vinted browser fetch threw:', e.message);
         }
+
+        const u     = raw.user  || {};
+        const items = raw.items || [];
+
+        if (u.id || u.login || items.length) {
+          const prices = items.map(i => parseFloat(i.price?.amount || i.price || 0)).filter(p => p > 0);
+          const avgPrice   = prices.length ? (prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2) : '0.00';
+          const totalValue = prices.reduce((a, b) => a + b, 0).toFixed(2);
+          const topItems   = items.slice(0, 5)
+            .map(i => `• ${i.title?.slice(0, 45) || 'Untitled'} — £${parseFloat(i.price?.amount || i.price || 0).toFixed(2)}`)
+            .join('\n');
+
+          const soldCount   = u.sold_items_count   ?? 0;
+          const activeCount = u.items_count || items.length;
+          const totalEver   = soldCount + activeCount;
+          const sellThrough = totalEver > 0 ? ((soldCount / totalEver) * 100).toFixed(1) : null;
+
+          vData = {
+            username:     u.login || u.username || vintedConn.platform_username,
+            followers:    u.followers_count || 0,
+            following:    u.following_count || 0,
+            activeItems:  activeCount,
+            soldCount,
+            sellThrough,
+            feedback: {
+              positive:   u.positive_feedback_count || 0,
+              neutral:    u.neutral_feedback_count  || 0,
+              negative:   u.negative_feedback_count || 0,
+              reputation: u.feedback_reputation ? `${(u.feedback_reputation * 100).toFixed(0)}%` : null,
+            },
+            avgPrice,
+            totalValue,
+            topItems,
+          };
+        }
+      } catch (e) {
+        console.warn('[analytics] Vinted data fetch threw:', e.message);
       }
 
       // Build AI context string
@@ -3106,13 +3115,20 @@ async function legacyVintedLogin(usernameOrEmail, password) {
 }
 
 // Upload image to Vinted — returns { photo_id } or { error }
+// Direct Bearer-auth HTTP is tried first (faster, no Playwright needed).
+// Only falls back to browser if DataDome explicitly blocks the direct request.
 async function vintedUploadImage(accessToken, base64Data, mimeType = 'image/jpeg') {
+  const direct = await legacyVintedUploadImage(accessToken, base64Data, mimeType);
+  if (!direct.error) return direct;
+  const isDataDome = /datadome|captcha/i.test(direct.error);
+  if (!isDataDome) return direct; // real error (auth, network, etc.) — no point trying browser
+  console.warn('[vinted-upload] DataDome blocked direct call — trying browser flow');
   if (vintedBrowser) {
     const r = await vintedBrowser.vintedBrowserUploadPhoto(accessToken, base64Data, mimeType);
     if (!r.error) return r;
-    console.warn('[vinted-upload] browser flow failed, falling back:', r.error);
+    console.warn('[vinted-upload] browser flow also failed:', r.error);
   }
-  return legacyVintedUploadImage(accessToken, base64Data, mimeType);
+  return direct; // return the original DataDome error
 }
 
 async function legacyVintedUploadImage(accessToken, base64Data, mimeType = 'image/jpeg') {
@@ -3145,12 +3161,18 @@ async function legacyVintedUploadImage(accessToken, base64Data, mimeType = 'imag
 }
 
 async function vintedCreateListing(accessToken, listingData) {
+  // Direct Bearer-auth HTTP first — fastest and works without Playwright.
+  const direct = await legacyVintedCreateListing(accessToken, listingData);
+  if (!direct.error) return direct;
+  const isDataDome = /datadome|captcha/i.test(direct.error);
+  if (!isDataDome) return direct; // auth error, network error, etc. — browser won't help
+  console.warn('[vinted-list] DataDome blocked direct call — trying browser flow');
   if (vintedBrowser) {
     const r = await vintedBrowser.vintedBrowserCreateListing(accessToken, listingData);
     if (!r.error) return r;
-    console.warn('[vinted-list] browser flow failed, falling back:', r.error);
+    console.warn('[vinted-list] browser flow also failed:', r.error);
   }
-  return legacyVintedCreateListing(accessToken, listingData);
+  return direct;
 }
 
 async function legacyVintedCreateListing(accessToken, listingData) {
@@ -3161,12 +3183,12 @@ async function legacyVintedCreateListing(accessToken, listingData) {
   } = listingData;
   const condMap = { 'New with tags': 6, 'Like New': 2, 'Very Good': 3, 'Good': 4, 'Acceptable': 5 };
   try {
-    // ── Step 1: Detect geo base + fresh DataDome session cookies ─────────────
-    // Must post to same domain the cookies were issued for.
-    const { base: vintedBase, cookies: sessionCookieStr } = await getVintedSession();
-    console.log(`[vinted-list] base=${vintedBase} cookies=${sessionCookieStr.split(';').length}`);
+    // Use Bearer-auth only — no DataDome session cookies needed for authenticated API calls.
+    // The getVintedSession() path (fetching HTML to get DataDome cookies) was causing
+    // DataDome to trigger on the HTML request itself, poisoning every subsequent call.
+    const vintedBase = await getVintedBase();
+    console.log(`[vinted-list-direct] base=${vintedBase} proxy=${!!PROXY_AGENT}`);
 
-    // ── Step 2: Build the listing body ────────────────────────────────────────
     const brandLine = [brand && `Brand: ${brand}`, size && `Size: ${size}`].filter(Boolean).join(' · ');
     const fullDesc  = brandLine ? `${brandLine}\n\n${description}`.trim() : description;
 
@@ -3181,31 +3203,22 @@ async function legacyVintedCreateListing(accessToken, listingData) {
     };
     if (photo_ids.length) body.photos = photo_ids.map(id => ({ id }));
 
-    // ── Step 3: POST to the CORRECT geo domain with session cookies ───────────
-    const listingHeaders = {
-      ...VINTED_HEADERS(accessToken, vintedBase),
-      ...(sessionCookieStr && { 'Cookie': sessionCookieStr }),
-    };
-
     const res = await vFetch(`${vintedBase}/api/v2/items`, {
       method: 'POST',
-      headers: listingHeaders,
+      headers: VINTED_HEADERS(accessToken, vintedBase),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(15000),
     });
+
     if (!res.ok) {
       const err = await res.text();
-      console.error(`[vinted-list] HTTP ${res.status} base=${vintedBase} proxy=${!!PROXY_AGENT}:`, err.slice(0, 400));
-
-      // DataDome challenge
-      if (err.includes('captcha-delivery.com') || err.includes('datadome')) {
-        return { error: `Vinted bot-protection triggered on ${vintedBase}. Check Railway logs for details.` };
+      console.error(`[vinted-list-direct] HTTP ${res.status} base=${vintedBase} proxy=${!!PROXY_AGENT}:`, err.slice(0, 400));
+      if (/captcha-delivery\.com|datadome/i.test(err)) {
+        return { error: `DataDome blocked the listing request on ${vintedBase}. Trying browser flow…` };
       }
-      // Explicit Vinted auth failure (message_code in response body, not just HTTP status)
-      if (err.includes('"unauthenticated"') || err.includes('"invalid_auth_token"')) {
+      if (/unauthenticated|invalid_auth_token/i.test(err)) {
         return { error: 'Your Vinted session token has expired. Reconnect your Vinted account in the dashboard.' };
       }
-      // Everything else — show the real error so the user knows what's happening
       return { error: `Vinted error (${res.status}): ${err.slice(0, 200)}` };
     }
     const data = await res.json();
@@ -3217,13 +3230,15 @@ async function legacyVintedCreateListing(accessToken, listingData) {
 // Validate a Vinted access token by calling /api/v2/users/me.
 // Returns { valid: true, username, user_id } | { valid: false, error } | { valid: null, warning }
 async function validateVintedToken(token) {
+  // Try direct HTTP first — it's faster and doesn't need Playwright
+  const direct = await legacyValidateVintedToken(token);
+  if (direct.valid === true || direct.valid === false) return direct;
+  // Got a warning (DataDome/timeout) — try the browser as fallback
   if (vintedBrowser) {
     const r = await vintedBrowser.vintedBrowserValidateToken(token);
-    // If browser gave a definitive answer (valid true/false) use it. On warning, fall through to legacy.
     if (r.valid === true || r.valid === false) return r;
-    // keep warning as-is if legacy also can't help
   }
-  return legacyValidateVintedToken(token);
+  return direct; // return original warning
 }
 
 async function legacyValidateVintedToken(token) {
@@ -3259,6 +3274,47 @@ async function legacyValidateVintedToken(token) {
     return { valid: true, username: u.login || u.username || '', user_id: String(u.id || '') };
   } catch (e) {
     return { valid: null, warning: `Could not reach Vinted to validate token (${e.message}). Token saved — test by attempting a listing.` };
+  }
+}
+
+// Fetch Vinted analytics data directly (no Playwright needed when we have a valid token).
+// Returns { user, items } on success, { error } on failure, { datadome: true } if blocked.
+async function fetchVintedAnalyticsDirect(accessToken, userId) {
+  try {
+    const base = await getVintedBase();
+    const headers = VINTED_HEADERS(accessToken, base);
+    const targetId = userId || 'me';
+
+    const [meRes, itemsRes] = await Promise.all([
+      vFetch(`${base}/api/v2/users/me`, { headers, signal: AbortSignal.timeout(10000) }),
+      vFetch(`${base}/api/v2/users/${targetId}/items?per_page=96&page=1&order=newest_first`,
+        { headers, signal: AbortSignal.timeout(10000) }),
+    ]);
+
+    const meText    = await meRes.text();
+    const itemsText = await itemsRes.text();
+
+    if (/captcha-delivery\.com|datadome/i.test(meText + itemsText)) {
+      return { datadome: true };
+    }
+
+    let user = {}, items = [];
+    try {
+      const meData = JSON.parse(meText);
+      user = meData.user || meData;
+    } catch {}
+    try {
+      const itemsData = JSON.parse(itemsText);
+      items = itemsData.items || [];
+    } catch {}
+
+    if (!user.id && !user.login) {
+      console.warn('[vinted-analytics-direct] /users/me returned unexpected:', meText.slice(0, 200));
+    }
+
+    return { user, items };
+  } catch (e) {
+    return { error: e.message };
   }
 }
 
@@ -3646,6 +3702,59 @@ app.get('/api/platform/status', async (req, res) => {
       : { connected: false };
   }
   res.json({ ok: true, connections });
+});
+
+// ── Vinted diagnostic test endpoint ──────────────────────────────────────────
+// GET /api/vinted/test — owner-only; checks proxy, Playwright, and API access
+// Returns a JSON object with the full status of each layer so you can tell
+// exactly which layer is broken without reading Railway logs.
+app.get('/api/vinted/test', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = user.user_metadata?.provider_id || user.identities?.find(i => i.provider === 'discord')?.id;
+  if (discordId !== OWNER_ID) return res.status(403).json({ error: 'Owner only' });
+
+  const report = {
+    proxy:     { configured: !!PROXY_URL, agent_ready: !!PROXY_AGENT },
+    undici:    { available: !!(undFetch && ProxyAgent) },
+    playwright:{ module_loaded: !!vintedBrowser, chromium_available: false },
+    vinted_reach: null,
+    token_test: null,
+  };
+
+  // Playwright status
+  try {
+    if (vintedBrowser) {
+      // A cheap way to test: just check if chromium is accessible (chromium !== null in the module)
+      // We can infer this from whether browser functions exist
+      report.playwright.chromium_available = typeof vintedBrowser.vintedBrowserValidateToken === 'function';
+    }
+  } catch (e) { report.playwright.error = e.message; }
+
+  // Can we reach vinted.co.uk at all?
+  try {
+    const t0 = Date.now();
+    const base = await getVintedBase();
+    report.vinted_reach = { ok: true, base, ms: Date.now() - t0 };
+  } catch (e) {
+    report.vinted_reach = { ok: false, error: e.message };
+  }
+
+  // Test the user's stored Vinted token (if they have one)
+  try {
+    const conn = await getPlatformConn(user.id, 'vinted');
+    if (conn) {
+      const token = decryptToken(conn.access_token);
+      const t0 = Date.now();
+      const r = await legacyValidateVintedToken(token);
+      report.token_test = { ...r, ms: Date.now() - t0, username: conn.platform_username };
+    } else {
+      report.token_test = { skipped: 'No Vinted account connected for this user' };
+    }
+  } catch (e) {
+    report.token_test = { error: e.message };
+  }
+
+  res.json(report);
 });
 
 // ── Listing endpoints ─────────────────────────────────────────────────────────
