@@ -4,13 +4,17 @@
   "description": "Vendora Discord bot — role assignment and DM notifications",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "postinstall": "playwright install --with-deps chromium || playwright install chromium || true"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "discord.js": "^14.15.3",
     "express": "^4.19.2",
     "node-cron": "^3.0.3",
+    "playwright": "^1.47.0",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "undici": "^6.0.0"
   },
   "engines": {

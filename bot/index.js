@@ -21,6 +21,14 @@ let ProxyAgent, undFetch;
 try { ({ ProxyAgent, fetch: undFetch } = require('undici')); }
 catch (e) { console.warn('[proxy] undici unavailable — proxy will be disabled:', e.message); }
 
+// Vinted browser flow (Playwright + stealth) — bypasses DataDome by running
+// inside a real Chromium through the residential proxy. Optional dep:
+// if playwright isn't installed, functions return { error } and we fall back
+// to the legacy vFetch path (which will fail on bot-protected endpoints).
+let vintedBrowser = null;
+try { vintedBrowser = require('./vinted-browser'); console.log('[vinted] browser flow loaded'); }
+catch (e) { console.warn('[vinted] browser flow disabled:', e.message); }
+
 console.log('[boot] Modules loaded');
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -2906,6 +2914,16 @@ const VINTED_HEADERS = (token, base = 'https://www.vinted.co.uk') => ({
 });
 
 async function vintedLogin(usernameOrEmail, password) {
+  if (vintedBrowser) {
+    console.log('[vinted-login] using browser flow');
+    const r = await vintedBrowser.vintedBrowserLogin(usernameOrEmail, password);
+    if (!r.error) return r;
+    console.warn('[vinted-login] browser flow failed, falling back to legacy:', r.error);
+  }
+  return legacyVintedLogin(usernameOrEmail, password);
+}
+
+async function legacyVintedLogin(usernameOrEmail, password) {
   try {
     const BASE_HEADERS = {
       'User-Agent': VINTED_UA,
@@ -2981,6 +2999,15 @@ async function vintedLogin(usernameOrEmail, password) {
 
 // Upload image to Vinted — returns { photo_id } or { error }
 async function vintedUploadImage(accessToken, base64Data, mimeType = 'image/jpeg') {
+  if (vintedBrowser) {
+    const r = await vintedBrowser.vintedBrowserUploadPhoto(accessToken, base64Data, mimeType);
+    if (!r.error) return r;
+    console.warn('[vinted-upload] browser flow failed, falling back:', r.error);
+  }
+  return legacyVintedUploadImage(accessToken, base64Data, mimeType);
+}
+
+async function legacyVintedUploadImage(accessToken, base64Data, mimeType = 'image/jpeg') {
   try {
     const boundary = `----FormBoundary${Date.now()}`;
     const body = Buffer.concat([
@@ -3010,6 +3037,15 @@ async function vintedUploadImage(accessToken, base64Data, mimeType = 'image/jpeg
 }
 
 async function vintedCreateListing(accessToken, listingData) {
+  if (vintedBrowser) {
+    const r = await vintedBrowser.vintedBrowserCreateListing(accessToken, listingData);
+    if (!r.error) return r;
+    console.warn('[vinted-list] browser flow failed, falling back:', r.error);
+  }
+  return legacyVintedCreateListing(accessToken, listingData);
+}
+
+async function legacyVintedCreateListing(accessToken, listingData) {
   const {
     title, description = '', price, condition, photo_ids = [],
     brand = '', size = '',
@@ -3073,6 +3109,16 @@ async function vintedCreateListing(accessToken, listingData) {
 // Validate a Vinted access token by calling /api/v2/users/me.
 // Returns { valid: true, username, user_id } | { valid: false, error } | { valid: null, warning }
 async function validateVintedToken(token) {
+  if (vintedBrowser) {
+    const r = await vintedBrowser.vintedBrowserValidateToken(token);
+    // If browser gave a definitive answer (valid true/false) use it. On warning, fall through to legacy.
+    if (r.valid === true || r.valid === false) return r;
+    // keep warning as-is if legacy also can't help
+  }
+  return legacyValidateVintedToken(token);
+}
+
+async function legacyValidateVintedToken(token) {
   try {
     const vintedBase = await getVintedBase();
     const r = await vFetch(`${vintedBase}/api/v2/users/me`, {
