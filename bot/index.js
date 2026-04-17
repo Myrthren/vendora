@@ -662,7 +662,16 @@ const commands = [
   // ── Elite ──
   new SlashCommandBuilder().setName('flip').setDescription('Full auto-flipping suggestion — source, list, price, profit [Elite]')
     .addStringOption(o => o.setName('item').setDescription('Item to flip').setRequired(true)),
-  new SlashCommandBuilder().setName('analytics').setDescription('Full sales analytics summary [Elite]'),
+  new SlashCommandBuilder().setName('analytics').setDescription('Live sales analytics for a connected platform [Elite]')
+    .addStringOption(o => o
+      .setName('platform')
+      .setDescription('Which platform to analyse')
+      .setRequired(true)
+      .addChoices(
+        { name: 'Vinted', value: 'vinted' },
+        { name: 'All connected', value: 'all' }
+      )
+    ),
   new SlashCommandBuilder().setName('earlydeals').setDescription('Access current early deal alerts [Elite]'),
   new SlashCommandBuilder().setName('negotiate').setDescription('Advanced AI negotiation assistant [Elite]')
     .addStringOption(o => o.setName('offer').setDescription('Describe the negotiation scenario').setRequired(true)),
@@ -1325,61 +1334,160 @@ async function executeCommand(interaction, commandName, tier, profile) {
   if (commandName === 'analytics') {
     if (!ai) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
 
-    // Fetch real account data
-    const discordId = user.id;
-    let realCtx = '';
+    const platform = opts.getString('platform') || 'all';
+    const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 
-    // Get listing data from Supabase
-    try {
-      const [listingsRes, profileRes] = await Promise.all([
-        fetch(`${SUPABASE_URL}/rest/v1/listings?user_id=eq.${profile?.id || 'none'}&status=eq.active&select=*`, {
-          headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
-        }).catch(() => null),
-        fetch(`${SUPABASE_URL}/rest/v1/profiles?discord_id=eq.${discordId}&select=*`, {
-          headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
-        }).catch(() => null),
-      ]);
-
-      const listings = listingsRes?.ok ? (await listingsRes.json()) : [];
-      const profData  = profileRes?.ok  ? (await profileRes.json())?.[0] : null;
-
-      const activeCount = listings.length;
-      const platforms   = [...new Set((listings.flatMap(l => l.platforms || [])))];
-      const cmdToday    = profData?.commands_used_today || {};
-      const totalCmds   = Object.values(cmdToday).reduce((a, b) => a + (b?.count || 0), 0);
-      const tier        = profile?.tier || 'unknown';
-      const since       = profData?.created_at ? new Date(profData.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : 'unknown';
-
-      // Watchlist + inventory counts
-      const [wlRes, invRes] = await Promise.all([
-        fetch(`${SUPABASE_URL}/rest/v1/watchlist?discord_id=eq.${discordId}&select=id`, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }).catch(() => null),
-        fetch(`${SUPABASE_URL}/rest/v1/inventory?discord_id=eq.${discordId}&select=id`, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }).catch(() => null),
-      ]);
-      const wlCount  = wlRes?.ok  ? (await wlRes.json()).length  : 0;
-      const invCount = invRes?.ok ? (await invRes.json()).length : 0;
-
-      realCtx = `REAL ACCOUNT DATA for Discord user ${discordId}:\n` +
-        `- Subscription: ${tier} (since ${since})\n` +
-        `- Active listings on Vendora: ${activeCount}${platforms.length ? ` (on ${platforms.join(', ')})` : ''}\n` +
-        `- Watchlist items: ${wlCount}\n` +
-        `- Inventory tracker items: ${invCount}\n` +
-        `- Bot commands used today: ${totalCmds}\n\n` +
-        `Note: full cross-platform sales data requires platform API integration. Provide insights from the available data.`;
-    } catch (e) {
-      realCtx = 'Could not retrieve full account data. Provide general analytics advice.';
+    // ── Platform not connected early-exit ────────────────────────────────────
+    if (platform !== 'all') {
+      const conn = await getPlatformConn(profile.id, platform);
+      if (!conn) {
+        return interaction.editReply({ embeds: [
+          baseEmbed('#e8217a')
+            .setTitle(`${cap(platform)} Not Connected`)
+            .setDescription(
+              `You haven't connected your **${cap(platform)}** account yet.\n\n` +
+              `Head to the **[Vendora dashboard](${DASHBOARD_URL})** → **My Platforms** and click **Connect Vinted**.\n\n` +
+              `Once connected, Vendora pulls your live listings, sold count, feedback score and more for a real analytics report.`
+            )
+            .setFooter({ text: 'Vendora — The Reseller\'s Edge' })
+        ]});
+      }
     }
 
-    const text = await callAI(
-      `You are Vendora's analytics system for a UK reseller on the ${profile?.tier || 'Pro'} plan.\n\n${realCtx}\n\nProvide a concise analytics summary with: their current reselling footprint from the data, what these numbers suggest about their activity level, 3 specific actionable insights to improve their results, and what features they should be using more given their tier.`,
-      'Generate my analytics summary.',
-      'claude-haiku-4-5-20251001', 700
-    );
-    if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
-    return interaction.editReply({ embeds: [
-      baseEmbed('#e8a121').setTitle('Analytics Summary — Elite')
-        .setDescription(text.slice(0, 4000))
-        .setFooter({ text: 'Based on your Vendora account data' })
-    ]});
+    // ── Check which platforms are connected ──────────────────────────────────
+    const [vintedConn] = await Promise.all([
+      getPlatformConn(profile.id, 'vinted'),
+    ]);
+
+    const connectedPlatforms = [
+      vintedConn && 'vinted',
+    ].filter(Boolean);
+
+    if (!connectedPlatforms.length) {
+      return interaction.editReply({ embeds: [
+        baseEmbed('#e8217a')
+          .setTitle('No Platforms Connected')
+          .setDescription(
+            'Connect at least one reselling platform to get live analytics.\n\n' +
+            '**Currently supported:** Vinted\n\n' +
+            `Go to the **[Vendora dashboard](${DASHBOARD_URL})** → **My Platforms** to connect.`
+          )
+          .setFooter({ text: 'Vendora — The Reseller\'s Edge' })
+      ]});
+    }
+
+    // ── Vinted analytics ─────────────────────────────────────────────────────
+    if ((platform === 'vinted' || platform === 'all') && vintedConn) {
+      const token  = decryptToken(vintedConn.access_token);
+      const userId = vintedConn.platform_user_id || '';
+
+      // Tell the user we're fetching (can take a few seconds)
+      await interaction.editReply({ embeds: [
+        baseEmbed('#09b1ba')
+          .setTitle('Fetching Vinted Data…')
+          .setDescription('Pulling live data from Vinted — this takes a few seconds.')
+      ]});
+
+      let vData = null;
+      if (vintedBrowser?.vintedBrowserFetchAnalytics) {
+        try {
+          const raw = await vintedBrowser.vintedBrowserFetchAnalytics(token, userId);
+          if (!raw.error) {
+            const u     = raw.meRes?.data?.user || {};
+            const items = raw.itemsRes?.data?.items || [];
+
+            const prices = items.map(i => parseFloat(i.price?.amount || i.price || 0)).filter(p => p > 0);
+            const avgPrice   = prices.length ? (prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2) : '0.00';
+            const totalValue = prices.reduce((a, b) => a + b, 0).toFixed(2);
+            const topItems   = items.slice(0, 5)
+              .map(i => `• ${i.title?.slice(0, 45) || 'Untitled'} — £${parseFloat(i.price?.amount || i.price || 0).toFixed(2)}`)
+              .join('\n');
+
+            // Sell-through rate: sold / (sold + active) if sold_items_count available
+            const soldCount   = u.sold_items_count   ?? u.total_items_count ?? 0;
+            const activeCount = u.items_count || items.length;
+            const totalEver   = soldCount + activeCount;
+            const sellThrough = totalEver > 0 ? ((soldCount / totalEver) * 100).toFixed(1) : null;
+
+            vData = {
+              username:     u.login || u.username || vintedConn.platform_username,
+              followers:    u.followers_count || 0,
+              following:    u.following_count || 0,
+              activeItems:  activeCount,
+              soldCount,
+              sellThrough,
+              feedback: {
+                positive:   u.positive_feedback_count || 0,
+                neutral:    u.neutral_feedback_count  || 0,
+                negative:   u.negative_feedback_count || 0,
+                reputation: u.feedback_reputation ? `${(u.feedback_reputation * 100).toFixed(0)}%` : null,
+              },
+              avgPrice,
+              totalValue,
+              topItems,
+            };
+          } else {
+            console.warn('[analytics] Vinted fetch returned error:', raw.error);
+          }
+        } catch (e) {
+          console.warn('[analytics] Vinted browser fetch threw:', e.message);
+        }
+      }
+
+      // Build AI context string
+      let aiCtx;
+      if (vData) {
+        aiCtx =
+          `LIVE VINTED ACCOUNT DATA for @${vData.username}:\n` +
+          `- Active listings: ${vData.activeItems}\n` +
+          `- Sold items (all time): ${vData.soldCount}\n` +
+          (vData.sellThrough ? `- Sell-through rate: ${vData.sellThrough}% (sold ÷ total listed)\n` : '') +
+          `- Followers: ${vData.followers} | Following: ${vData.following}\n` +
+          `- Feedback: ${vData.feedback.positive} positive, ${vData.feedback.neutral} neutral, ${vData.feedback.negative} negative` +
+          (vData.feedback.reputation ? ` (${vData.feedback.reputation} reputation)` : '') + '\n' +
+          `- Average active listing price: £${vData.avgPrice}\n` +
+          `- Total active inventory value: £${vData.totalValue}\n` +
+          (vData.topItems ? `\nSample of recent listings:\n${vData.topItems}` : '') + '\n\n' +
+          `User subscription tier: ${profile?.tier || 'elite'}`;
+      } else {
+        aiCtx =
+          `Platform: Vinted | Username: @${vintedConn.platform_username}\n` +
+          `Subscription tier: ${profile?.tier || 'elite'}\n` +
+          `Note: Live Vinted data unavailable (DataDome may be blocking) — provide general advice.`;
+      }
+
+      const text = await callAI(
+        `You are Vendora's analytics engine for a UK reseller. Analyse this Vinted account and provide:\n` +
+        `1. **Account Overview** — key stats in plain language\n` +
+        `2. **Sell-Through Rate** — what it means and whether it's healthy (if data available)\n` +
+        `3. **Pricing Insights** — based on their average price point\n` +
+        `4. **3 Specific Actions** — things they can do THIS WEEK to improve results\n` +
+        `Keep it direct, practical, UK-focused. Use £ not $. Bold the section headers.`,
+        aiCtx,
+        'claude-haiku-4-5-20251001', 750
+      );
+      if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
+
+      const fields = vData ? [
+        { name: '📦 Active Listings', value: String(vData.activeItems), inline: true },
+        { name: '✅ Sold (all time)',  value: String(vData.soldCount),   inline: true },
+        { name: '📈 Sell-through',    value: vData.sellThrough ? `${vData.sellThrough}%` : 'N/A', inline: true },
+        { name: '💰 Avg. Price',      value: `£${vData.avgPrice}`,       inline: true },
+        { name: '💼 Inv. Value',       value: `£${vData.totalValue}`,     inline: true },
+        { name: '👥 Followers',        value: String(vData.followers),    inline: true },
+        { name: '⭐ Feedback',
+          value: `${vData.feedback.positive}✅ ${vData.feedback.negative}❌` + (vData.feedback.reputation ? ` · ${vData.feedback.reputation}` : ''),
+          inline: false },
+      ] : [];
+
+      return interaction.editReply({ embeds: [
+        baseEmbed('#e8a121')
+          .setTitle(`📊 Vinted Analytics — @${vData?.username || vintedConn.platform_username}`)
+          .setDescription(text.slice(0, 4000))
+          .addFields(fields)
+          .setFooter({ text: vData ? 'Live data from Vinted · Vendora Analytics' : 'Live data unavailable · Based on Vendora account data' })
+      ]});
+    }
   }
 
   // ── AI commands ──────────────────────────────────────────────────────────────
@@ -3326,6 +3434,204 @@ app.delete('/api/platform/:platform/disconnect', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   await deletePlatformConn(user.id, req.params.platform);
   res.json({ ok: true });
+});
+
+// ── Vinted OAuth-style connect popup ─────────────────────────────────────────
+// Served as a popup window on PC / new tab on mobile.
+// Auth token is passed as ?auth=<supabase_jwt> so the page can call
+// /api/platform/connect without needing a separate login step.
+// On success the page posts { type:'vinted-connected', username } back to
+// window.opener and calls window.close().
+app.get('/api/vinted/connect-popup', (req, res) => {
+  const { auth } = req.query;
+  // auth may be undefined (if user opened the URL directly) — the page handles this gracefully
+  const authJson = JSON.stringify(auth || '');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Connect Vinted · Vendora</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#090909;color:#f0f0f0;font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .card{background:#0f0f0f;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:32px;width:100%;max-width:400px}
+  .logo{display:flex;align-items:center;gap:10px;margin-bottom:28px}
+  .logo-mark{width:32px;height:32px;background:linear-gradient(135deg,#e8217a,#c41860);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;letter-spacing:-.5px;color:#fff}
+  .logo-text{font-size:16px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#f0f0f0}
+  h2{font-size:18px;font-weight:700;margin-bottom:6px}
+  .sub{font-size:13px;color:#666;margin-bottom:24px;line-height:1.5}
+  .platform-badge{display:flex;align-items:center;gap:8px;background:rgba(9,177,186,.08);border:1px solid rgba(9,177,186,.2);border-radius:8px;padding:8px 12px;margin-bottom:24px}
+  .plat-dot{width:8px;height:8px;border-radius:50%;background:#09b1ba;flex-shrink:0}
+  .plat-label{font-size:12px;font-weight:600;color:#09b1ba}
+  label{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#888;margin-bottom:6px}
+  input{width:100%;background:#141414;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:11px 14px;font-size:14px;color:#f0f0f0;font-family:inherit;outline:none;transition:border .15s}
+  input:focus{border-color:rgba(9,177,186,.5)}
+  .field{margin-bottom:14px}
+  .btn{width:100%;padding:12px;border-radius:10px;border:none;cursor:pointer;font-size:14px;font-weight:600;font-family:inherit;transition:opacity .15s,background .15s;letter-spacing:.03em}
+  .btn-primary{background:linear-gradient(135deg,#09b1ba,#077d84);color:#fff}
+  .btn-primary:hover{opacity:.9}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed}
+  .divider{display:flex;align-items:center;gap:10px;margin:16px 0}
+  .divider-line{flex:1;height:1px;background:rgba(255,255,255,.07)}
+  .divider-text{font-size:11px;color:#555}
+  .tab-row{display:flex;gap:0;border:1px solid rgba(255,255,255,.08);border-radius:8px;overflow:hidden;margin-bottom:20px}
+  .tab{flex:1;padding:8px;font-size:12px;font-weight:500;font-family:inherit;border:none;cursor:pointer;transition:background .15s}
+  .tab.active{background:#e8217a;color:#fff}
+  .tab.inactive{background:transparent;color:#666}
+  .msg{margin-top:14px;padding:10px 14px;border-radius:8px;font-size:13px;display:none;line-height:1.5}
+  .msg.success{background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.2);color:#4ade80}
+  .msg.error{background:rgba(232,33,122,.1);border:1px solid rgba(232,33,122,.2);color:#f07;letter-spacing:.01em}
+  .msg.info{background:rgba(9,177,186,.08);border:1px solid rgba(9,177,186,.2);color:#09b1ba}
+  .token-hint{background:rgba(232,161,33,.07);border:1px solid rgba(232,161,33,.2);border-radius:8px;padding:12px 14px;font-size:12px;color:rgba(232,161,33,.9);line-height:1.7;margin-bottom:14px}
+  .token-hint a{color:#e8a121}
+  code{background:rgba(255,255,255,.07);padding:1px 6px;border-radius:4px;font-size:11px}
+  #tab-creds{display:block}
+  #tab-token{display:none}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <div class="logo-mark">VV</div>
+    <div class="logo-text">Vendora</div>
+  </div>
+  <h2>Connect Vinted</h2>
+  <p class="sub">Link your Vinted account to enable auto-listing and live analytics.</p>
+  <div class="platform-badge">
+    <div class="plat-dot"></div>
+    <span class="plat-label">Vinted</span>
+  </div>
+
+  <div class="tab-row">
+    <button class="tab active" id="btn-tab-creds" onclick="switchTab('creds')">Email / Password</button>
+    <button class="tab inactive" id="btn-tab-token" onclick="switchTab('token')">Manual Token</button>
+  </div>
+
+  <!-- Credentials form -->
+  <div id="tab-creds">
+    <div class="field">
+      <label>Vinted Username or Email</label>
+      <input id="vc-user" type="text" placeholder="username or email" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input id="vc-pass" type="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" id="vc-btn" onclick="connectCreds()">Connect Vinted Account</button>
+  </div>
+
+  <!-- Manual token form -->
+  <div id="tab-token">
+    <div class="token-hint">
+      <strong>Why manual?</strong> Vinted's bot-protection can block automated login from servers.<br>
+      <strong>Steps:</strong> Open <a href="https://www.vinted.co.uk" target="_blank">vinted.co.uk</a> → log in → press <strong>F12</strong> → Application → Cookies → <code>www.vinted.co.uk</code> → copy the value of <code>access_token_web</code>
+    </div>
+    <div class="field">
+      <label>Your Vinted Username</label>
+      <input id="vt-user" type="text" placeholder="your_username" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>access_token_web value</label>
+      <input id="vt-tok" type="password" placeholder="paste full token here" autocomplete="off">
+    </div>
+    <button class="btn btn-primary" id="vt-btn" onclick="connectToken()">Save Token</button>
+  </div>
+
+  <div class="msg" id="msg"></div>
+</div>
+
+<script>
+const AUTH_TOKEN = ${authJson};
+
+function switchTab(tab) {
+  document.getElementById('tab-creds').style.display = tab === 'creds' ? 'block' : 'none';
+  document.getElementById('tab-token').style.display = tab === 'token' ? 'block' : 'none';
+  document.getElementById('btn-tab-creds').className = 'tab ' + (tab === 'creds' ? 'active' : 'inactive');
+  document.getElementById('btn-tab-token').className = 'tab ' + (tab === 'token' ? 'active' : 'inactive');
+}
+
+function showMsg(type, text) {
+  const el = document.getElementById('msg');
+  el.className = 'msg ' + type;
+  el.textContent = text;
+  el.style.display = 'block';
+}
+
+async function connectCreds() {
+  if (!AUTH_TOKEN) return showMsg('error', 'Session expired — please close this window and try again from the dashboard.');
+  const u = document.getElementById('vc-user').value.trim();
+  const p = document.getElementById('vc-pass').value;
+  if (!u || !p) return showMsg('error', 'Please fill in both fields.');
+  const btn = document.getElementById('vc-btn');
+  btn.disabled = true; btn.textContent = 'Connecting — may take 15–30s…';
+  showMsg('info', 'Logging into Vinted — please wait…');
+  try {
+    const res = await fetch('/api/platform/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
+      body: JSON.stringify({ platform: 'vinted', credentials: { username: u, password: p } }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      if (json.error && json.error.toLowerCase().includes('blocking')) {
+        showMsg('error', json.error + ' — try the Manual Token tab instead.');
+        switchTab('token');
+      } else {
+        showMsg('error', json.error || 'Connection failed. Check your credentials and try again.');
+      }
+    } else {
+      showMsg('success', 'Connected as @' + json.username + '! This window will close…');
+      setTimeout(() => {
+        if (window.opener) {
+          window.opener.postMessage({ type: 'vinted-connected', username: json.username }, '*');
+          window.close();
+        }
+      }, 1200);
+    }
+  } catch (e) {
+    showMsg('error', 'Request failed: ' + (e.message || 'network error'));
+  }
+  btn.disabled = false; btn.textContent = 'Connect Vinted Account';
+}
+
+async function connectToken() {
+  if (!AUTH_TOKEN) return showMsg('error', 'Session expired — please close this window and try again from the dashboard.');
+  const u = document.getElementById('vt-user').value.trim();
+  const t = document.getElementById('vt-tok').value.trim();
+  if (!u || !t) return showMsg('error', 'Please fill in both fields.');
+  const btn = document.getElementById('vt-btn');
+  btn.disabled = true; btn.textContent = 'Validating…';
+  showMsg('info', 'Validating token against Vinted…');
+  try {
+    const res = await fetch('/api/platform/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
+      body: JSON.stringify({ platform: 'vinted', manual_token: t, username: u }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      showMsg('error', json.error || 'Failed to save token.');
+    } else {
+      const warnText = json.warning ? ' (note: ' + json.warning + ')' : '';
+      showMsg('success', 'Connected as @' + json.username + warnText + ' — closing window…');
+      setTimeout(() => {
+        if (window.opener) {
+          window.opener.postMessage({ type: 'vinted-connected', username: json.username }, '*');
+          window.close();
+        }
+      }, 1500);
+    }
+  } catch (e) {
+    showMsg('error', 'Request failed: ' + (e.message || 'network error'));
+  }
+  btn.disabled = false; btn.textContent = 'Save Token';
+}
+</script>
+</body>
+</html>`);
 });
 
 // Get connection status for all platforms

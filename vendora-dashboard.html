@@ -1058,46 +1058,10 @@
           <button id="plat-disconnect-btn-vinted" class="btn btn-danger btn-sm" style="display:none;" onclick="disconnectPlatform('vinted')">Disconnect</button>
         </div>
         <div id="plat-form-vinted">
-          <!-- Login tab switcher -->
-          <div style="display:flex;gap:0;margin-bottom:14px;border:1px solid var(--border-dim);border-radius:8px;overflow:hidden;width:fit-content;">
-            <button id="vinted-tab-creds" onclick="vintedTab('creds')" style="padding:7px 16px;font-size:12px;font-weight:500;font-family:'DM Sans',sans-serif;border:none;cursor:pointer;transition:background .15s;background:var(--pink);color:#fff;">Email / Password</button>
-            <button id="vinted-tab-token" onclick="vintedTab('token')" style="padding:7px 16px;font-size:12px;font-weight:500;font-family:'DM Sans',sans-serif;border:none;cursor:pointer;transition:background .15s;background:var(--bg3);color:var(--muted2);">Manual Token</button>
-          </div>
-
-          <!-- Credentials form -->
-          <div id="vinted-form-creds">
-            <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;">
-              <div>
-                <label class="form-label">Vinted Username or Email</label>
-                <input id="vinted-email" type="text" class="form-select" style="height:auto;padding:9px 14px;" placeholder="username or email">
-              </div>
-              <div>
-                <label class="form-label">Password</label>
-                <input id="vinted-password" type="password" class="form-select" style="height:auto;padding:9px 14px;" placeholder="••••••••">
-              </div>
-              <button id="plat-connect-btn-vinted" class="btn btn-pink btn-sm" onclick="connectPlatform('vinted')">Connect</button>
-            </div>
-          </div>
-
-          <!-- Manual token form (shown when Cloudflare blocks credential login) -->
-          <div id="vinted-form-token" style="display:none;">
-            <div style="background:rgba(232,161,33,0.08);border:1px solid rgba(232,161,33,0.2);border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:12px;color:rgba(232,161,33,0.9);line-height:1.6;">
-              <strong>Why manual?</strong> Vinted's bot-protection blocks our server from logging in automatically. Your token comes from your real browser so it bypasses this.<br>
-              <strong>Steps:</strong> Open <a href="https://www.vinted.co.uk" target="_blank" style="color:var(--gold);">vinted.co.uk</a> → log in → press <strong>F12</strong> → Application tab → Cookies → <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">www.vinted.co.uk</code> → find <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">access_token</code> → copy the value.
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;">
-              <div>
-                <label class="form-label">Your Vinted Username</label>
-                <input id="vinted-manual-username" type="text" class="form-select" style="height:auto;padding:9px 14px;" placeholder="your_username">
-              </div>
-              <div>
-                <label class="form-label">Session Token (access_token cookie)</label>
-                <input id="vinted-manual-token" type="password" class="form-select" style="height:auto;padding:9px 14px;" placeholder="paste token here">
-              </div>
-              <button id="plat-connect-btn-vinted-manual" class="btn btn-pink btn-sm" onclick="connectPlatformManual('vinted')">Connect</button>
-            </div>
-          </div>
-
+          <!-- Popup-based connect button (opens OAuth-style popup on PC, new tab on mobile) -->
+          <button id="plat-connect-btn-vinted" class="btn btn-pink" style="width:100%;padding:11px 0;font-size:14px;font-weight:600;border-radius:10px;letter-spacing:.03em;" onclick="connectPlatform('vinted')">
+            🔗 &nbsp;Connect Vinted Account
+          </button>
           <div id="vinted-connect-msg" style="display:none;margin-top:10px;"></div>
         </div>
       </div>
@@ -3721,101 +3685,74 @@
   }
 
   // ── Connect / Disconnect platform ────────────────────────────────────────────
+  // Popup-based connect: opens a dedicated login window (like OAuth flows).
+  // PC → popup window (480×640); mobile → new tab (window.open falls back naturally).
+  // On success the popup posts { type:'vinted-connected', username } back here.
+  let _connectPopup = null;
+
   async function connectPlatform(platform) {
-    const emailOrUser = document.getElementById(`${platform}-email`)?.value?.trim()
-                     || document.getElementById(`${platform}-username`)?.value?.trim();
-    const password    = document.getElementById(`${platform}-password`)?.value;
-    const msgEl       = document.getElementById(`${platform}-connect-msg`);
-    const btn         = document.getElementById(`plat-connect-btn-${platform}`);
-
-    if (!emailOrUser || !password) {
-      showMsg(msgEl, 'error', 'Please fill in all fields.');
-      return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = 'Connecting...';
-    showMsg(msgEl, 'info', 'Connecting — this may take a moment…');
+    const msgEl = document.getElementById(`${platform}-connect-msg`);
+    const btn   = document.getElementById(`plat-connect-btn-${platform}`);
 
     try {
       const { data: { session } } = await sb.auth.getSession();
       if (!session) { window.location.href = 'vendora-login.html'; return; }
 
-      const body = platform === 'depop'
-        ? { platform, credentials: { email: emailOrUser, password } }
-        : { platform, credentials: { username: emailOrUser, password } };
+      // Build popup URL — pass JWT so the popup can call /api/platform/connect
+      const popupUrl = `${BOT_API}/api/vinted/connect-popup?auth=${encodeURIComponent(session.access_token)}`;
 
-      const res = await fetch(`${BOT_API}/api/platform/connect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify(body),
-      });
-
-      const json = await res.json();
-
-      if (!res.ok) {
-        const errMsg = json.error || 'Connection failed. Check your credentials.';
-        showMsg(msgEl, 'error', errMsg);
-        // If Cloudflare blocked it, auto-switch to manual token tab
-        if (platform === 'vinted' && errMsg.toLowerCase().includes('blocking')) {
-          setTimeout(() => vintedTab('token'), 800);
-        }
+      // Try to open as a popup; on mobile this naturally opens a new tab
+      const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        _connectPopup = window.open(popupUrl, '_blank');
       } else {
-        showMsg(msgEl, 'success', `Connected as ${json.username || emailOrUser}!`);
-        document.getElementById(`${platform}-email`)  && (document.getElementById(`${platform}-email`).value  = '');
-        document.getElementById(`${platform}-username`) && (document.getElementById(`${platform}-username`).value = '');
-        document.getElementById(`${platform}-password`).value = '';
-        loadPlatformStatus();
+        const w = 480, h = 640;
+        const left = Math.round(window.screenX + (window.outerWidth  - w) / 2);
+        const top  = Math.round(window.screenY + (window.outerHeight - h) / 2);
+        _connectPopup = window.open(popupUrl, 'vendora-vinted-connect',
+          `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`);
       }
+
+      if (!_connectPopup) {
+        // Popup was blocked — fall back to new tab
+        _connectPopup = window.open(popupUrl, '_blank');
+      }
+
+      if (btn) { btn.disabled = true; btn.textContent = 'Waiting for Vinted…'; }
+      showMsg(msgEl, 'info', 'A window opened — complete sign-in there. Come back when done.');
+
     } catch (e) {
-      showMsg(msgEl, 'error', `Request failed: ${e.message || 'network error'}`);
+      showMsg(msgEl, 'error', `Could not open connect window: ${e.message}`);
     }
-
-    btn.disabled = false;
-    btn.textContent = 'Connect';
   }
 
-  function vintedTab(tab) {
-    const creds = document.getElementById('vinted-form-creds');
-    const token = document.getElementById('vinted-form-token');
-    const btnC  = document.getElementById('vinted-tab-creds');
-    const btnT  = document.getElementById('vinted-tab-token');
-    if (!creds || !token) return;
-    const isToken = tab === 'token';
-    creds.style.display = isToken ? 'none' : '';
-    token.style.display = isToken ? '' : 'none';
-    btnC.style.background = isToken ? 'var(--bg3)' : 'var(--pink)';
-    btnC.style.color = isToken ? 'var(--muted2)' : '#fff';
-    btnT.style.background = isToken ? 'var(--pink)' : 'var(--bg3)';
-    btnT.style.color = isToken ? '#fff' : 'var(--muted2)';
-  }
+  // Listen for the popup success message
+  window.addEventListener('message', function(event) {
+    if (!event.data || event.data.type !== 'vinted-connected') return;
+    const btn   = document.getElementById('plat-connect-btn-vinted');
+    const msgEl = document.getElementById('vinted-connect-msg');
+    if (btn) { btn.disabled = false; btn.textContent = '🔗 \u00a0Connect Vinted Account'; }
+    showMsg(msgEl, 'success', `Connected as @${event.data.username || ''}!`);
+    loadPlatformStatus();
+    if (_connectPopup && !_connectPopup.closed) { try { _connectPopup.close(); } catch {} }
+    _connectPopup = null;
+  });
 
-  async function connectPlatformManual(platform) {
-    const tokenVal  = document.getElementById(`${platform}-manual-token`)?.value?.trim();
-    const username  = document.getElementById(`${platform}-manual-username`)?.value?.trim();
-    const msgEl     = document.getElementById(`${platform}-connect-msg`);
-    const btn       = document.getElementById(`plat-connect-btn-${platform}-manual`);
-    if (!tokenVal || !username) { showMsg(msgEl, 'error', 'Please fill in both fields.'); return; }
-    btn.disabled = true; btn.textContent = 'Saving...';
-    try {
-      const { data: { session } } = await sb.auth.getSession();
-      if (!session) { window.location.href = 'vendora-login.html'; return; }
-      const res = await fetch(`${BOT_API}/api/platform/connect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ platform, manual_token: tokenVal, username }),
-      });
-      const json = await res.json();
-      if (!res.ok) { showMsg(msgEl, 'error', json.error || 'Failed to save token.'); }
-      else {
-        showMsg(msgEl, 'success', `Connected as @${json.username}!`);
-        document.getElementById(`${platform}-manual-token`).value = '';
-        document.getElementById(`${platform}-manual-username`).value = '';
-        loadPlatformStatus();
+  // Re-enable button if user closes the popup without connecting
+  setInterval(() => {
+    if (_connectPopup && _connectPopup.closed) {
+      const btn = document.getElementById('plat-connect-btn-vinted');
+      if (btn && btn.disabled) {
+        btn.disabled = false; btn.textContent = '🔗 \u00a0Connect Vinted Account';
+        const msgEl = document.getElementById('vinted-connect-msg');
+        const el = msgEl;
+        if (el && el.style.display !== 'none' && el.textContent.includes('Waiting')) {
+          el.style.display = 'none';
+        }
       }
-    } catch (e) { showMsg(msgEl, 'error', `Request failed: ${e.message || 'network error'}`); }
-    btn.disabled = false; btn.textContent = 'Connect';
-  }
+      _connectPopup = null;
+    }
+  }, 1000);
 
   async function disconnectPlatform(platform) {
     if (!confirm(`Disconnect your ${platform.charAt(0).toUpperCase() + platform.slice(1)} account? Active listings will no longer auto-relist.`)) return;

@@ -121,6 +121,22 @@ async function cookieValue(ctx, name, domainMatch = 'vinted') {
   return c?.value || '';
 }
 
+// Set the auth cookie for both .vinted.co.uk and the geo-resolved domain
+async function setAuthCookie(ctx, token) {
+  const domains = ['.vinted.co.uk', '.vinted.fr', '.vinted.de', '.vinted.es', '.vinted.pl', '.vinted.be', '.vinted.nl'];
+  for (const d of domains) {
+    await ctx.addCookies([{
+      name: 'access_token_web',
+      value: token,
+      domain: d,
+      path: '/',
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax',
+    }]).catch(() => {});
+  }
+}
+
 // ─── public: login ───────────────────────────────────────────────────────────
 async function vintedBrowserLogin(username, password) {
   if (!chromium) return { error: 'Browser automation not available — playwright not installed.' };
@@ -206,15 +222,7 @@ async function vintedBrowserValidateToken(token) {
   let page;
   try {
     const ctx = await ensureBrowser();
-    await ctx.addCookies([{
-      name: 'access_token_web',
-      value: token,
-      domain: '.vinted.co.uk',
-      path: '/',
-      httpOnly: true,
-      secure: true,
-      sameSite: 'Lax',
-    }]);
+    await setAuthCookie(ctx, token);
     page = await ctx.newPage();
     const base = await resolveVintedBase(page);
     const res = await page.evaluate(async (base) => {
@@ -246,16 +254,7 @@ async function vintedBrowserUploadPhoto(accessToken, base64, mimeType = 'image/j
   let page;
   try {
     const ctx = await ensureBrowser();
-    // Ensure the access_token_web cookie is set (idempotent)
-    await ctx.addCookies([{
-      name: 'access_token_web',
-      value: accessToken,
-      domain: '.vinted.co.uk',
-      path: '/',
-      httpOnly: true,
-      secure: true,
-      sameSite: 'Lax',
-    }]).catch(() => {});
+    await setAuthCookie(ctx, accessToken);
     page = await ctx.newPage();
     const base = await resolveVintedBase(page);
 
@@ -317,15 +316,7 @@ async function vintedBrowserCreateListing(accessToken, listingData) {
   let page;
   try {
     const ctx = await ensureBrowser();
-    await ctx.addCookies([{
-      name: 'access_token_web',
-      value: accessToken,
-      domain: '.vinted.co.uk',
-      path: '/',
-      httpOnly: true,
-      secure: true,
-      sameSite: 'Lax',
-    }]).catch(() => {});
+    await setAuthCookie(ctx, accessToken);
     page = await ctx.newPage();
     const base = await resolveVintedBase(page);
 
@@ -370,10 +361,83 @@ async function vintedBrowserCreateListing(accessToken, listingData) {
   }
 }
 
+// ─── public: fetch analytics ─────────────────────────────────────────────────
+// Uses the stored access_token to pull profile stats + active listings from
+// Vinted's API from inside the browser context (bypasses DataDome).
+// Returns { meRes, itemsRes } where both are { ok, status, data } objects.
+async function vintedBrowserFetchAnalytics(accessToken, userId) {
+  if (!chromium) return { error: 'Browser unavailable' };
+  let page;
+  try {
+    const ctx = await ensureBrowser();
+
+    // Set cookie for the .co.uk domain first, then we'll resolve the real base
+    await ctx.addCookies([{
+      name: 'access_token_web',
+      value: accessToken,
+      domain: '.vinted.co.uk',
+      path: '/',
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax',
+    }]).catch(() => {});
+
+    page = await ctx.newPage();
+    const base = await resolveVintedBase(page);
+
+    // Re-set cookie for the resolved domain (may differ from .co.uk)
+    try {
+      const resolvedHost = new URL(base).hostname;
+      const cookieDomain = '.' + resolvedHost;
+      if (cookieDomain !== '.www.vinted.co.uk') {
+        await ctx.addCookies([{
+          name: 'access_token_web',
+          value: accessToken,
+          domain: cookieDomain,
+          path: '/',
+          httpOnly: true,
+          secure: true,
+          sameSite: 'Lax',
+        }]).catch(() => {});
+      }
+    } catch {}
+
+    const result = await page.evaluate(async ({ base, uid }) => {
+      async function apiFetch(url) {
+        try {
+          const r = await fetch(url, {
+            credentials: 'include',
+            headers: { Accept: 'application/json' },
+          });
+          const t = await r.text();
+          try { return { ok: r.ok, status: r.status, data: JSON.parse(t) }; }
+          catch { return { ok: false, status: r.status, html: t.slice(0, 300) }; }
+        } catch (e) { return { error: e.message }; }
+      }
+
+      const targetId = uid || 'me';
+      const [meRes, itemsRes] = await Promise.all([
+        apiFetch(`${base}/api/v2/users/me`),
+        apiFetch(`${base}/api/v2/users/${targetId}/items?per_page=96&page=1&order=newest_first`),
+      ]);
+
+      return { meRes, itemsRes, base };
+    }, { base, uid: userId || '' });
+
+    return result;
+  } catch (e) {
+    console.error('[vinted-browser-analytics] error:', e);
+    return { error: e.message };
+  } finally {
+    try { if (page) await page.close(); } catch {}
+  }
+}
+
 module.exports = {
   vintedBrowserLogin,
   vintedBrowserUploadPhoto,
   vintedBrowserCreateListing,
   vintedBrowserValidateToken,
+  vintedBrowserFetchAnalytics,
   closeVintedBrowser,
 };
