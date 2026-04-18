@@ -645,13 +645,7 @@
   const PAYPAL_CLIENT_ID = 'Ad69aCRO915AbyIBrcdwElMCyPEnbzRbByPb5vr2tD6RlOG8JNC8S34-8GCgNHG4PaDm2FVdWbFnx_m8';
 
   // ─── SUPABASE ─────────────────────────────────────────────
-  if (!window.supabase || !window.supabase.createClient) {
-    alert('Failed to load Supabase SDK. Check your ad-blocker / network, then reload.');
-    throw new Error('Supabase SDK missing');
-  }
-  // Use `sb` instead of `supabase` to avoid clashing with the UMD global
-  // (which some browser extensions / SES lockdown treat as non-redeclarable).
-  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   let currentSession = null;
   let currentPackage = null;
