@@ -2335,8 +2335,35 @@ const app = express();
 // CORS must come BEFORE express.json() so that errors from body parsing
 // (e.g. 413 Payload Too Large) still include CORS headers and the browser
 // can read the error response instead of throwing a network error.
+// Allow-list of dashboard origins. Add new hosts here as deployments change.
+const CORS_ALLOWED_ORIGINS = new Set([
+  'https://vendora-vv.netlify.app',
+  'https://vendora.site',
+  'https://www.vendora.site',
+  'http://vendora.site',
+  'http://www.vendora.site',
+  'https://vendora.app',
+  'https://www.vendora.app',
+  'https://vendora.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5500',
+  'null', // file:// origins
+]);
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', 'https://vendora-vv.netlify.app');
+  const origin = req.headers.origin;
+  // Echo back the origin if it's in the allow-list, otherwise fall back to the
+  // primary Netlify host. We echo (not "*") so Authorization headers are accepted.
+  if (origin && CORS_ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else if (origin && /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) {
+    // Preview deployments on Vercel
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', 'https://vendora-vv.netlify.app');
+  }
+  res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, PATCH, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
@@ -3168,11 +3195,17 @@ async function vintedCreateListing(accessToken, listingData) {
   if (!isDataDome) return direct; // auth error, network error, etc. — browser won't help
   console.warn('[vinted-list] DataDome blocked direct call — trying browser flow');
   if (vintedBrowser) {
-    const r = await vintedBrowser.vintedBrowserCreateListing(accessToken, listingData);
-    if (!r.error) return r;
-    console.warn('[vinted-list] browser flow also failed:', r.error);
+    try {
+      const r = await vintedBrowser.vintedBrowserCreateListing(accessToken, listingData);
+      if (!r.error) return r;
+      console.warn('[vinted-list] browser flow also failed:', r.error);
+      return { error: `Vinted is blocking automated listings right now (DataDome protection). Direct API and browser fallback both failed. Details: ${r.error}` };
+    } catch (e) {
+      console.warn('[vinted-list] browser flow threw:', e.message);
+      return { error: `Vinted blocked the request (DataDome) and the browser fallback crashed: ${e.message}. Try again in a few minutes, or reconnect your Vinted account.` };
+    }
   }
-  return direct;
+  return { error: 'Vinted blocked the request (DataDome protection) and no browser fallback is available on this server. Contact support or try again later.' };
 }
 
 async function legacyVintedCreateListing(accessToken, listingData) {
@@ -3214,7 +3247,7 @@ async function legacyVintedCreateListing(accessToken, listingData) {
       const err = await res.text();
       console.error(`[vinted-list-direct] HTTP ${res.status} base=${vintedBase} proxy=${!!PROXY_AGENT}:`, err.slice(0, 400));
       if (/captcha-delivery\.com|datadome/i.test(err)) {
-        return { error: `DataDome blocked the listing request on ${vintedBase}. Trying browser flow…` };
+        return { error: `DataDome blocked the direct listing call on ${vintedBase}.` };
       }
       if (/unauthenticated|invalid_auth_token/i.test(err)) {
         return { error: 'Your Vinted session token has expired. Reconnect your Vinted account in the dashboard.' };

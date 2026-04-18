@@ -645,7 +645,13 @@
   const PAYPAL_CLIENT_ID = 'Ad69aCRO915AbyIBrcdwElMCyPEnbzRbByPb5vr2tD6RlOG8JNC8S34-8GCgNHG4PaDm2FVdWbFnx_m8';
 
   // ─── SUPABASE ─────────────────────────────────────────────
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  if (!window.supabase || !window.supabase.createClient) {
+    alert('Failed to load Supabase SDK. Check your ad-blocker / network, then reload.');
+    throw new Error('Supabase SDK missing');
+  }
+  // Use `sb` instead of `supabase` to avoid clashing with the UMD global
+  // (which some browser extensions / SES lockdown treat as non-redeclarable).
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   let currentSession = null;
   let currentPackage = null;
@@ -653,17 +659,25 @@
   let paypalSdkLoaded = false;
 
   async function init() {
-    const { data: { session }, error } = await supabase.auth.getSession();
-    if (!session) {
-      window.location.href = 'vendora-login.html';
-      return;
+    try {
+      const { data: { session }, error } = await sb.auth.getSession();
+      if (error) console.error('[credits-init] getSession error:', error);
+      if (!session) {
+        window.location.href = 'vendora-login.html';
+        return;
+      }
+      currentSession = session;
+      loadCreditBalance();
+    } catch (e) {
+      console.error('[credits-init] failed:', e);
+      document.getElementById('balance-num').textContent = '!';
+      document.getElementById('balance-num').title = 'Failed to load — check console';
     }
-    currentSession = session;
-    loadCreditBalance();
   }
 
   // ─── BALANCE ──────────────────────────────────────────────
   async function loadCreditBalance() {
+    const el = document.getElementById('balance-num');
     try {
       const res = await fetch(`${BOT_API}/api/credits/balance`, {
         headers: { 'Authorization': `Bearer ${currentSession.access_token}` }
@@ -671,16 +685,23 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         console.error('[credits-balance] HTTP', res.status, data);
+        el.textContent = '!';
+        el.title = `Balance load failed: HTTP ${res.status} ${data.error || ''}`;
         return;
       }
       updateBalanceDisplay(data.credits ?? 0);
     } catch (e) {
       console.error('[credits-balance] fetch failed:', e);
+      el.textContent = '!';
+      el.title = `Balance load failed: ${e.message}`;
     }
   }
 
   function updateBalanceDisplay(amount) {
-    document.getElementById('balance-num').textContent = amount.toLocaleString();
+    const n = Number(amount) || 0;
+    const el = document.getElementById('balance-num');
+    el.textContent = n.toLocaleString();
+    el.title = '';
   }
 
   // ─── MODAL ────────────────────────────────────────────────
@@ -799,9 +820,10 @@
             document.getElementById('modal-main-content').style.display = 'none';
             document.getElementById('modal-success').classList.add('show');
 
-            // Update balance
-            if (result.newBalance != null) {
-              updateBalanceDisplay(result.newBalance);
+            // Update balance (backend returns new_balance)
+            const nb = result.new_balance ?? result.newBalance;
+            if (nb != null) {
+              updateBalanceDisplay(nb);
             } else {
               loadCreditBalance();
             }
@@ -870,10 +892,12 @@
       const data = await res.json();
 
       if (res.ok) {
-        const added = data.creditsAdded ? `+${data.creditsAdded.toLocaleString()} credits added!` : 'Code redeemed successfully!';
+        const creditsAdded = data.credits_added ?? data.creditsAdded;
+        const added = creditsAdded ? `+${creditsAdded.toLocaleString()} credits added!` : 'Code redeemed successfully!';
         showRedeemMsg(`✓ ${added}`, 'success');
         input.value = '';
-        if (data.newBalance != null) updateBalanceDisplay(data.newBalance);
+        const nb = data.new_balance ?? data.newBalance;
+        if (nb != null) updateBalanceDisplay(nb);
         else loadCreditBalance();
       } else {
         showRedeemMsg(data.error || 'Invalid or expired code.', 'error');
