@@ -1,8 +1,32 @@
 [phases.setup]
-nixPkgs = ["nodejs_20"]
+nixPkgs = [
+  "nodejs_20",
+  "glib",
+  "nss",
+  "nspr",
+  "atk",
+  "cups",
+  "libdrm",
+  "pango",
+  "cairo",
+  "expat",
+  "dbus",
+  "at-spi2-atk",
+  "at-spi2-core",
+  "libxkbcommon",
+  "xorg.libX11",
+  "xorg.libXcomposite",
+  "xorg.libXdamage",
+  "xorg.libXext",
+  "xorg.libXfixes",
+  "xorg.libXrandr",
+  "mesa",
+  "alsa-lib",
+  "xorg.libxcb"
+]
 
 [phases.install]
-cmds = ["npm install"]
+cmds = ["npm install", "npx playwright install chromium || true"]
 
 [start]
 cmd = "node index.js"
