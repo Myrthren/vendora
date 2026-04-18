@@ -1,5 +1,80 @@
 VENDORA — SESSION HANDOFF
-Generated: 2026-04-17 (updated late-session: credits DM + profile fixes + Vinted browser rewrite)
+Generated: 2026-04-18 (updated: credits page rebuild, CORS allow-list, Playwright system libs on Railway)
+==============================================================
+
+2026-04-18 SESSION CHANGES (read this before anything else)
+-----------------------------------------------------------
+
+1. vendora-credits.html — FULL REBUILD
+   Previous version had a top-level `const supabase = window.supabase.createClient(...)`
+   that clashed with the UMD SDK's own global `supabase` identifier, throwing
+   `SyntaxError: Identifier 'supabase' has already been declared` (line 638:9)
+   whenever a browser extension ran the page under SES lockdown
+   (seen as "SES Removing unpermitted intrinsics" in console — MetaMask / lockdown-install.js).
+   That single error killed the whole script → balance stuck on "—" and every Buy Now
+   button threw "openModal is not defined".
+
+   Fix: entire page rewritten:
+   - All JS wrapped in an IIFE `(function(){ ... }())` — nothing leaks to global scope
+   - `var` used throughout (no `const` redeclaration collisions under SES)
+   - `supabase.createClient(...)` called directly, result stored in `sb` (matches dashboard)
+   - Inline `onclick="..."` replaced with `addEventListener` wiring after DOM ready
+   - Field-name mismatch fixed: backend returns `new_balance` / `credits_added`
+     (snake_case), frontend was reading `newBalance` / `creditsAdded` (camelCase) —
+     capture-order success and redeem flow both silently dropped the new balance
+   - Packages now defined once as a map (PACKAGES object) rather than duplicating
+     label/price in every onclick attribute
+
+2. bot/index.js — CORS ALLOW-LIST (lines ~2338)
+   Was hardcoded to ONLY `https://vendora-vv.netlify.app`. When the site eventually
+   moves to vendora.site (or any other domain) every browser fetch to the bot API
+   would fail silently. Now uses an allow-list + regex fallback:
+     - vendora-vv.netlify.app (existing)
+     - vendora.site / www.vendora.site (http + https) — NEW DOMAIN PLANNED
+     - vendora.app / www.vendora.app
+     - vendora.vercel.app + any *.vercel.app preview build
+     - localhost:3000, localhost:5173, 127.0.0.1:3000, 127.0.0.1:5500
+     - file:// origins (Origin: null)
+   Echoes the origin back rather than using "*" so Authorization header is accepted.
+   Adds `Vary: Origin` header so caches don't poison cross-origin responses.
+
+3. bot/index.js — Vinted listing error flow (vintedCreateListing ~line 3163)
+   Old flow returned the misleading message "DataDome blocked the listing request
+   on vinted.co.uk. Trying browser flow…" when the direct HTTP call failed, even
+   though the browser fallback had ALREADY been attempted (or would fail next).
+   Users saw this as the FINAL error, which looked like a pending retry.
+   Fix: clearer terminal errors:
+     - Both paths failed → "Vinted is blocking automated listings right now
+       (DataDome protection). Direct API and browser fallback both failed. Details: ..."
+     - Browser fallback crashed → "Vinted blocked the request (DataDome) and the
+       browser fallback crashed: <reason>. Try again or reconnect."
+     - No vintedBrowser loaded → "DataDome protection and no browser fallback
+       available on this server."
+
+4. bot/nixpacks.toml — CHROMIUM SYSTEM LIBS (critical Railway fix)
+   Playwright browser fallback was failing on Railway with:
+     "libglib-2.0.so.0: cannot open shared object file: No such file or directory"
+   The Nixpacks Node buildpack doesn't install Chromium's runtime system deps
+   and `playwright install --with-deps` silently no-ops on Nix.
+   Fix: nixpacks.toml now installs all required Nix packages in the setup phase:
+     glib, nss, nspr, atk, cups, libdrm, pango, cairo, expat, dbus,
+     at-spi2-atk, at-spi2-core, libxkbcommon, xorg.libX11, xorg.libXcomposite,
+     xorg.libXdamage, xorg.libXext, xorg.libXfixes, xorg.libXrandr,
+     mesa, alsa-lib, xorg.libxcb
+   Also runs `npx playwright install chromium || true` in the install phase
+   (alongside `npm install`) to cache Chromium binaries for runtime.
+
+FILES TOUCHED THIS SESSION:
+  vendora-credits.html   (full rewrite — 904 → 272 lines, functionally identical UI)
+  bot/index.js           (CORS block + Vinted error message fix)
+  bot/nixpacks.toml      (Chromium system libs + playwright install)
+  HANDOFF.txt            (this file)
+
+GIT COMMITS (main branch, auto-deploys to Netlify + Railway):
+  1593508 — Fix credits page SyntaxError + CORS whitelist + Vinted error clarity
+  d317d15 — Fix supabase init to match dashboard pattern
+  53844a2 — Rebuild credits page + fix Playwright system libs on Railway
+
 ==============================================================
 
 PROJECT OVERVIEW
@@ -146,6 +221,15 @@ WHAT WAS BUILT (cumulative across all sessions)
 /grade         — Condition grading from photo attachment [Elite]
 /authenticate  — Authenticity check from photo + item/price/source context [Elite]
                  Accepts: photo attachment, item name, price paid, source (required fields)
+/analytics     — Live platform analytics [Elite]
+                 Options: platform = vinted | all
+                 If not connected → tells user to connect with dashboard link
+                 If connected → fetches live data via Playwright browser context:
+                   /api/v2/users/me (profile: followers, sold count, feedback, items)
+                   /api/v2/users/{id}/items (active listings: prices, titles)
+                 Generates Claude report: overview, sell-through rate, pricing insights,
+                 3 specific actions. Embed includes stat fields (active, sold, sell-through,
+                 avg price, inv. value, followers, feedback).
 /pricedrop     — URL-based price drop tracker (see below)
 /tracker       — Inventory tracker (syncs with dashboard)
 /session open  — Opens private session channel in #use-vendora category
@@ -326,6 +410,25 @@ Vinted listing: via /api/vinted/list — extensive proxy work done (see below)
 Depop listing:  marked "coming soon" in dashboard — credential login not tested
 Image upload helper: uploadImageToPlatform() handles both platforms
 
+── VINTED CONNECT POPUP (April 17 session) ──
+
+The Vinted connect section in the dashboard was simplified to a single button.
+Clicking it opens an OAuth-style popup window (480×640 on PC, new tab on mobile).
+
+Popup URL: GET /api/vinted/connect-popup?auth=<supabase_jwt>
+  - Served by Express in bot/index.js
+  - Vendora-branded HTML page with two tabs: Email/Password and Manual Token
+  - Credential tab: POSTs to /api/platform/connect (Playwright login)
+  - Manual token tab: saves access_token_web cookie value with validation
+  - On success: window.opener.postMessage({type:'vinted-connected', username}, '*')
+    then window.close()
+
+Dashboard flow:
+  - connectPlatform('vinted') → gets session JWT → window.open(popup URL)
+  - window.addEventListener('message') catches {type:'vinted-connected'}
+    → updates UI, calls loadPlatformStatus()
+  - setInterval() re-enables the button if popup is closed without connecting
+
 ── VINTED BROWSER REWRITE (April 17 late-session) ──
 
 DataDome was still flagging the undici-based API calls even with the proxy on.
@@ -360,6 +463,11 @@ Added postinstall:
 
 Operational notes:
   - Cookie used for auth = `access_token_web` (not `access_token` as before)
+  - setAuthCookie() helper sets the cookie across ALL Vinted locale domains
+    (.co.uk, .fr, .de, .es, .pl, .be, .nl) — fixes geo-redirect auth failures
+    that were causing 401s when the proxy routed to a non-UK Vinted domain
+  - vintedBrowserFetchAnalytics(accessToken, userId) added — hits /users/me
+    + /users/{id}/items from inside page context for /analytics command
   - If the residential IP is flagged, login will detect the DataDome iframe
     and return a clear error → try a different proxy region (UK/FR recommended)
   - On DataDome challenge during /api/v2/items, error message tells the user
@@ -471,6 +579,7 @@ KNOWN REMAINING ISSUES
 
 GIT HISTORY (most recent commits)
 ------------------------------------
+fdca4c1 — Add /analytics platform picker, Vinted OAuth popup connect, analytics live data
 af15993 — Credits modal: log to console, guard missing session, surface SDK errors
 69e3d12 — Rewrite Vinted login/upload/list via Playwright + stealth (DataDome bypass)
 10bce53 — Credits DM flow, profile tier badge/join-date dynamic, credits page logo
@@ -511,7 +620,13 @@ WHAT TO BUILD NEXT
 -------------------
 Priority order:
 
-0. Smoke-test the credits system end-to-end:
+0. Test /analytics:
+   - Connect Vinted via the new popup button → confirm {type:'vinted-connected'} postMessage lands
+   - Run /analytics platform:Vinted in Discord → confirm live data embed (sold count, avg price etc.)
+   - Run /analytics with a disconnected platform → confirm the "not connected" embed with dashboard link
+   - On mobile: confirm popup opens as new tab and still fires the postMessage on connect
+
+1-old. Smoke-test the credits system end-to-end:
    - Buy a credit pack via vendora-credits.html → confirm PayPal capture credits profile
    - Redeem a test credit code → confirm balance rises and re-use is blocked
    - Upload a photo to the new enhancer → confirm 80 cr deducted on success, refunded on fail
