@@ -272,6 +272,18 @@ async function getProfileByDiscordId(discordId) {
   } catch { return null; }
 }
 
+async function getProfileByUserId(uuid) {
+  if (!SUPABASE_KEY) return null;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?id=eq.${uuid}&select=*`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    const data = await res.json();
+    return data[0] || null;
+  } catch { return null; }
+}
+
 async function updateProfile(filterKey, filterVal, data) {
   if (!SUPABASE_KEY) return { error: 'no key' };
   try {
@@ -5207,6 +5219,424 @@ cron.schedule('0 */6 * * *', async () => {
   } catch (e) {
     console.error('[cron:watchlist] Fatal error:', e.message);
   }
+});
+
+// ── Monthly credits grant ──────────────────────────────────────────────────────
+// Called by dashboard on login — idempotent per calendar month
+const MONTHLY_CREDITS = { pro: 500, elite: 1500 };
+
+app.post('/api/credits/monthly-grant', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  try {
+    const profile = await getProfileByUserId(user.id);
+    if (!profile) return res.status(404).json({ error: 'profile not found' });
+    const tier = profile.tier;
+    const grant = MONTHLY_CREDITS[tier];
+    if (!grant) return res.json({ ok: true, granted: 0, reason: 'no grant for tier' });
+
+    const now     = new Date();
+    const monthKey = `monthly_credits_${now.getFullYear()}_${now.getMonth() + 1}`;
+    const already  = await getSetting(`${monthKey}_${user.id}`);
+    if (already) return res.json({ ok: true, granted: 0, reason: 'already granted this month' });
+
+    const newBal = await addCredits(user.id, grant);
+    await saveSetting(`${monthKey}_${user.id}`, true);
+
+    const discordId = user.user_metadata?.provider_id
+      || user.identities?.find(i => i.provider === 'discord')?.id || '';
+    if (discordId) sendCreditsDM(discordId, grant, newBal, 'admin').catch(() => {});
+
+    console.log(`[monthly-credits] Granted ${grant} to ${user.id} (${tier}), new balance: ${newBal}`);
+    res.json({ ok: true, granted: grant, newBalance: newBal });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Listing Optimiser ──────────────────────────────────────────────────────────
+app.post('/api/listing/optimise', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const profile = await getProfileByUserId(user.id);
+  if (!profile || TIER_RANK[profile.tier] < TIER_RANK.basic) return res.status(403).json({ error: 'Subscription required.' });
+
+  const { url } = req.body || {};
+  if (!url?.startsWith('http')) return res.status(400).json({ error: 'Valid URL required.' });
+
+  try {
+    // Scrape the listing page
+    const pageRes = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+      signal: AbortSignal.timeout(12000),
+    });
+    const html = await pageRes.text();
+
+    // Extract key text (title, description, price via simple regex patterns)
+    const titleMatch  = html.match(/<title[^>]*>([^<]{3,120})<\/title>/i);
+    const descMatch   = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']{10,400})["']/i)
+                     || html.match(/<meta[^>]+content=["']([^"']{10,400})["'][^>]+name=["']description["']/i);
+    const priceMatch  = html.match(/£\s*(\d+(?:\.\d{2})?)/);
+
+    const pageTitle   = (titleMatch?.[1] || '').replace(/\s*[-|].*/,'').trim().slice(0,120);
+    const pageDesc    = (descMatch?.[1] || '').slice(0,600);
+    const pagePrice   = priceMatch?.[1] ? `£${priceMatch[1]}` : 'unknown';
+
+    const prompt = `You are a reselling expert. Analyse this product listing and give specific, actionable improvement suggestions.
+
+Listing URL: ${url}
+Detected Title: ${pageTitle || 'Not found'}
+Detected Description: ${pageDesc || 'Not found'}
+Detected Price: ${pagePrice}
+
+Return a JSON object with this exact shape:
+{
+  "score": <number 0-100 rating the current listing quality>,
+  "title": "<detected listing title or best guess>",
+  "meta": "<platform and price, e.g. Vinted · £45>",
+  "suggestions": [
+    { "category": "Title", "heading": "<short improvement label>", "detail": "<specific suggestion>" },
+    { "category": "Description", "heading": "...", "detail": "..." },
+    { "category": "Pricing", "heading": "...", "detail": "..." },
+    { "category": "Photos", "heading": "...", "detail": "..." },
+    { "category": "Keywords", "heading": "...", "detail": "..." }
+  ]
+}
+
+Categories must be one of: Title, Description, Pricing, Photos, Keywords, General.
+Give 4-7 suggestions. Be specific to this exact listing, not generic advice.
+Return ONLY the JSON, no markdown.`;
+
+    const aiRes = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1200,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const raw = aiRes.content[0].text.trim().replace(/^```json?\s*/,'').replace(/\s*```$/,'');
+    const data = JSON.parse(raw);
+    res.json({ ok: true, ...data });
+  } catch (e) {
+    console.error('[listing-optimise]', e.message);
+    res.status(500).json({ error: 'Failed to analyse listing. The page may be protected or unreachable.' });
+  }
+});
+
+// ── Auto-Draft ─────────────────────────────────────────────────────────────────
+app.post('/api/listing/draft', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const profile = await getProfileByUserId(user.id);
+  if (!profile || TIER_RANK[profile.tier] < TIER_RANK.basic) return res.status(403).json({ error: 'Subscription required.' });
+
+  const { name, condition, size, details, platform, price } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'Item name required.' });
+
+  const platformNote = platform === 'vinted'  ? 'Vinted (max 500 chars in description, conversational tone)'
+                     : platform === 'depop'   ? 'Depop (casual, emoji-friendly, youth audience)'
+                     : platform === 'ebay'    ? 'eBay (detailed, keyword-rich, formal)'
+                     : 'all platforms (universal, professional)';
+
+  const prompt = `You are a professional reselling listing copywriter. Write a complete, optimised listing.
+
+Item: ${name}
+Condition: ${condition}
+${size ? `Size/Spec: ${size}` : ''}
+${details ? `Details: ${details}` : ''}
+${price ? `Seller's asking price: £${price}` : ''}
+Target platform: ${platformNote}
+
+Return ONLY a JSON object with this exact shape:
+{
+  "title": "<optimised listing title, max 80 chars, keyword-rich>",
+  "description": "<full listing description, well-formatted, platform-appropriate>",
+  "price": "<suggested price as a number e.g. 45.00, or use seller's price if provided>",
+  "keywords": ["keyword1","keyword2","keyword3","keyword4","keyword5","keyword6"]
+}
+
+No markdown, just the JSON.`;
+
+  try {
+    const aiRes = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const raw  = aiRes.content[0].text.trim().replace(/^```json?\s*/,'').replace(/\s*```$/,'');
+    const data = JSON.parse(raw);
+    res.json({ ok: true, ...data });
+  } catch (e) {
+    console.error('[listing-draft]', e.message);
+    res.status(500).json({ error: 'Failed to generate draft.' });
+  }
+});
+
+// ── Seller Intelligence ────────────────────────────────────────────────────────
+app.post('/api/seller/analyse', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const profile = await getProfileByUserId(user.id);
+  if (!profile || TIER_RANK[profile.tier] < TIER_RANK.basic) return res.status(403).json({ error: 'Subscription required.' });
+
+  const { url } = req.body || {};
+  if (!url?.startsWith('http')) return res.status(400).json({ error: 'Valid URL required.' });
+
+  try {
+    const pageRes = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+      signal: AbortSignal.timeout(12000),
+    });
+    const html  = await pageRes.text();
+    const title = (html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] || '').slice(0, 100);
+    const text  = html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').slice(0, 3000);
+
+    // Brave search for additional intel
+    const sellerName = title.split(/[-|@]/)[0].trim();
+    const braveData  = await braveSearch(`${sellerName} reseller feedback rating`, 4).catch(() => null);
+    const webContext = braveData?.web?.results?.map(r => `${r.title}: ${r.description}`).join('\n') || '';
+
+    const prompt = `You are a reselling competitive intelligence analyst. Analyse this seller profile.
+
+Seller URL: ${url}
+Page content: ${text}
+${webContext ? `Web context:\n${webContext}` : ''}
+
+Return ONLY a JSON object:
+{
+  "sellerName": "<seller username>",
+  "meta": "<platform · number of listings or followers if detectable>",
+  "report": "<3-4 paragraph analysis: pricing behaviour, category focus, sell-through patterns, strengths and weaknesses>",
+  "stats": [
+    { "label": "Category Focus", "value": "<main category>", "color": null },
+    { "label": "Pricing Style", "value": "<e.g. Premium / Discount / Mid>", "color": null },
+    { "label": "Est. Activity", "value": "<e.g. High / Medium / Low>", "color": "var(--green)" }
+  ],
+  "strategy": "<specific 2-3 actionable recommendations for competing with or sourcing from this seller>"
+}
+
+No markdown, just JSON.`;
+
+    const aiRes = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1200,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const raw  = aiRes.content[0].text.trim().replace(/^```json?\s*/,'').replace(/\s*```$/,'');
+    const data = JSON.parse(raw);
+    res.json({ ok: true, ...data });
+  } catch (e) {
+    console.error('[seller-analyse]', e.message);
+    res.status(500).json({ error: 'Failed to analyse seller. The page may be protected.' });
+  }
+});
+
+// ── Flip Score ─────────────────────────────────────────────────────────────────
+app.post('/api/flip/score', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const profile = await getProfileByUserId(user.id);
+  if (!profile || TIER_RANK[profile.tier] < TIER_RANK.pro) return res.status(403).json({ error: 'Pro subscription required.' });
+
+  const { url } = req.body || {};
+  if (!url?.startsWith('http')) return res.status(400).json({ error: 'Valid URL required.' });
+
+  try {
+    const [pageRes, soldData] = await Promise.allSettled([
+      fetch(url, { headers:{ 'User-Agent':'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) }),
+      braveSearch(`site:ebay.co.uk sold "${new URL(url).pathname.split('/').pop()}"`, 5),
+    ]);
+
+    const html      = pageRes.status === 'fulfilled' ? await pageRes.value.text() : '';
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const priceMatch = html.match(/£\s*(\d+(?:\.\d{2})?)/);
+    const pageTitle  = (titleMatch?.[1] || '').replace(/\s*[-|].*/,'').trim().slice(0,120);
+    const listPrice  = priceMatch?.[1] ? parseFloat(priceMatch[1]) : null;
+    const soldCtx    = soldData.status === 'fulfilled' && soldData.value?.web?.results
+      ? soldData.value.web.results.map(r=>`${r.title}: ${r.description}`).join('\n') : '';
+
+    const prompt = `You are a professional reseller. Score this flip opportunity.
+
+Listing URL: ${url}
+Detected title: ${pageTitle || 'unknown'}
+Detected asking price: ${listPrice ? `£${listPrice}` : 'unknown'}
+Sold price context from web: ${soldCtx || 'limited data available'}
+
+Return ONLY a JSON object:
+{
+  "score": <integer 0-100>,
+  "verdict": "<one of: Strong Buy / Good Flip / Marginal / Avoid>",
+  "analysis": "<3-4 sentences: demand assessment, competition level, price vs market, risk factors>",
+  "breakdown": [
+    { "label": "Demand", "value": "<High/Med/Low>", "sub": "<one line reason>" },
+    { "label": "Competition", "value": "<High/Med/Low>", "sub": "<one line reason>" },
+    { "label": "Est. Days to Sell", "value": "<number or range>", "sub": "at list price" },
+    { "label": "Est. Profit", "value": "<£X or range>", "sub": "after fees" }
+  ]
+}
+
+No markdown, just JSON.`;
+
+    const aiRes = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 800,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const raw  = aiRes.content[0].text.trim().replace(/^```json?\s*/,'').replace(/\s*```$/,'');
+    const data = JSON.parse(raw);
+    res.json({ ok: true, ...data });
+  } catch (e) {
+    console.error('[flip-score]', e.message);
+    res.status(500).json({ error: 'Failed to score this flip.' });
+  }
+});
+
+// ── Price Elasticity ───────────────────────────────────────────────────────────
+app.post('/api/price/elasticity', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const profile = await getProfileByUserId(user.id);
+  if (!profile || TIER_RANK[profile.tier] < TIER_RANK.pro) return res.status(403).json({ error: 'Pro subscription required.' });
+
+  const { item, condition } = req.body || {};
+  if (!item) return res.status(400).json({ error: 'Item name required.' });
+
+  try {
+    const [soldRes, priceRes] = await Promise.allSettled([
+      braveSearch(`${item} sold price UK resale${condition && condition !== 'any' ? ` ${condition}` : ''}`, 6),
+      braveSearch(`${item} eBay sold listings UK 2024 2025`, 4),
+    ]);
+
+    const webCtx = [soldRes, priceRes]
+      .filter(r => r.status === 'fulfilled' && r.value?.web?.results)
+      .flatMap(r => r.value.web.results.map(x => `${x.title}: ${x.description}`))
+      .join('\n');
+
+    const prompt = `You are a reselling market analyst with access to sold price data.
+
+Item: ${item}
+Condition: ${condition || 'any'}
+Market data from web:
+${webCtx || 'Limited data — use general reselling knowledge for this item category.'}
+
+Generate a price elasticity curve for reselling this item in the UK. Model at least 6 price points.
+
+Return ONLY a JSON object:
+{
+  "item": "<item name, corrected if needed>",
+  "insight": "<2-3 sentences identifying the sweet spot and explaining the key tradeoffs>",
+  "curve": [
+    { "price": "30", "days": "1-2", "profit": "£8", "roi": "27", "sweet_spot": false, "verdict": "Too cheap" },
+    { "price": "40", "days": "3-5", "profit": "£16", "roi": "40", "sweet_spot": false, "verdict": "Fast flip" },
+    { "price": "50", "days": "7-10", "profit": "£24", "roi": "48", "sweet_spot": true, "verdict": null },
+    ...
+  ]
+}
+
+Profit should account for ~12% platform fees and £3-5 postage. ROI is (profit/buy_price)*100 assuming buy price is 20-30% below market.
+No markdown, just JSON.`;
+
+    const aiRes = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const raw  = aiRes.content[0].text.trim().replace(/^```json?\s*/,'').replace(/\s*```$/,'');
+    const data = JSON.parse(raw);
+    res.json({ ok: true, ...data });
+  } catch (e) {
+    console.error('[price-elasticity]', e.message);
+    res.status(500).json({ error: 'Failed to model price curve.' });
+  }
+});
+
+// ── Resell Calendar ────────────────────────────────────────────────────────────
+app.get('/api/resell/calendar', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const profile = await getProfileByUserId(user.id);
+  if (!profile || TIER_RANK[profile.tier] < TIER_RANK.pro) return res.status(403).json({ error: 'Pro subscription required.' });
+
+  const category = req.query.category || 'all';
+  const catQuery = category === 'all' ? 'sneakers streetwear luxury' : category;
+
+  try {
+    const [drops, events, seasonal] = await Promise.allSettled([
+      braveSearch(`upcoming ${catQuery} drops release dates UK 2025`, 6),
+      braveNewsSearch(`${catQuery} resell hype upcoming drop collab 2025`, 5),
+      braveSearch(`${catQuery} seasonal demand resale market UK 2025`, 4),
+    ]);
+
+    const webCtx = [drops, events, seasonal]
+      .filter(r => r.status === 'fulfilled')
+      .flatMap(r => {
+        const d = r.value;
+        const news = d?.results || d?.web?.results || [];
+        return news.map(x => `${x.title}: ${x.description || x.url || ''}`);
+      })
+      .join('\n');
+
+    const now       = new Date();
+    const monthName = now.toLocaleString('en-GB', { month: 'short' }).toUpperCase();
+    const day       = now.getDate();
+
+    const prompt = `You are a reselling market intelligence analyst. Generate a resell calendar of upcoming events based on the live web data below.
+
+Category filter: ${category}
+Today: ${now.toLocaleDateString('en-GB')}
+Live web data:
+${webCtx || 'Use your general knowledge of the reselling market for upcoming events.'}
+
+Generate 6-10 calendar events relevant to UK resellers. Include:
+- Confirmed sneaker/collab drops with dates
+- Platform sale events (Vinted, Depop promotions)
+- Seasonal demand windows (back-to-school, Christmas, etc.)
+- Hype events (fashion weeks, sports events affecting prices)
+
+Return ONLY a JSON object:
+{
+  "events": [
+    {
+      "month": "APR",
+      "day": "19",
+      "title": "Nike x Sacai Zoom Cortez Drop",
+      "category": "Sneakers",
+      "urgency": "high",
+      "description": "Limited global release. Expect 3-5x resale immediately after launch.",
+      "action": "Source now — list day-of-release for peak price"
+    }
+  ]
+}
+
+urgency must be: high, medium, or low.
+Sort by date ascending. Use real upcoming dates where you have data; estimate month for seasonal events.
+No markdown, just JSON.`;
+
+    const aiRes = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1800,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const raw  = aiRes.content[0].text.trim().replace(/^```json?\s*/,'').replace(/\s*```$/,'');
+    const data = JSON.parse(raw);
+    res.json({ ok: true, ...data });
+  } catch (e) {
+    console.error('[resell-calendar]', e.message);
+    res.status(500).json({ error: 'Failed to load calendar.' });
+  }
+});
+
+// ── Avatar refresh ─────────────────────────────────────────────────────────────
+app.get('/api/user/avatar', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  try {
+    const discordId = user.user_metadata?.provider_id
+      || user.identities?.find(i => i.provider === 'discord')?.id || '';
+    if (!discordId) return res.status(400).json({ error: 'No Discord ID' });
+
+    const discordUser = await client.users.fetch(discordId, { force: true }).catch(() => null);
+    if (!discordUser) return res.json({ ok: true, avatarUrl: null });
+
+    const avatarUrl = discordUser.displayAvatarURL({ size: 256, extension: 'png' });
+
+    // Update Supabase profile
+    await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+      body: JSON.stringify({ avatar_url: avatarUrl }),
+    });
+
+    res.json({ ok: true, avatarUrl });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────

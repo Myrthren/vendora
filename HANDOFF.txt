@@ -1,8 +1,116 @@
 VENDORA — SESSION HANDOFF
-Generated: 2026-04-18 (updated: credits page rebuild, CORS allow-list, Playwright system libs on Railway)
+Generated: 2026-04-18 (updated: major dashboard overhaul — new tools, sidebar, platform pages, monthly credits)
 ==============================================================
 
-2026-04-18 SESSION CHANGES (read this before anything else)
+2026-04-18 SESSION CHANGES #2 (read this before anything else)
+---------------------------------------------------------------
+
+1. SIDEBAR — Coming Soon labels + new tools
+   - Cross-List renamed → Auto-List (section ID still section-crosslist, title updated)
+   - Auto-List, Listings, Inventory marked Coming Soon (pointer-events:none, opacity 0.42, "Soon" badge)
+   - Auto-Buy added as a new Coming Soon nav item (section-autobuy)
+   - New active tool nav items added: Listing Optimiser, Auto-Draft, Seller Intel (Basic+);
+     Flip Score, Price Elasticity, Resell Calendar (Pro+)
+   - Photo Enhancer badge changed from ELITE → "credits"
+
+2. PHOTO ENHANCER — now available to all paid tiers (Basic+)
+   - initEnhancerAccess() changed from tier==='elite' to tier !== 'none'
+   - Gate message updated: "Subscription Required" instead of "Elite Required"
+   - Page title badge changed from ELITE to "80 credits / enhance"
+   - AI Scene background group added: Street Scene, Minimal Room, Nature, Luxury, Beach, Industrial
+     Each has an aiPrompt field passed to PhotoRoom for scene generation
+   - Background grid now renders with group headers (Studio / Texture / AI Scene / Custom)
+   - AI Scene swatches show an "AI" label in the corner
+
+3. PLATFORMS PAGE
+   - Depop moved from its own standalone card → grouped into the Coming Soon card
+   - Vinted connect button redesigned: teal gradient border button with chain-link icon,
+     hover glow, matches brand better than the plain pink btn-pink style it had before
+
+4. WATCHLIST — full rewrite for URL-based product tracking
+   - Input changed from text to type="url" with live platform detection as user types
+   - Supported platforms detected: Vinted UK/FR/DE, Depop, eBay UK/COM/DE, Facebook, StockX
+   - Table columns: Platform | Product | Price | Sizes/Variants | Added | Actions
+   - product_meta JSON field displayed if returned from bot (title, price, variants)
+   - URL validation on add: must start with https://
+   - Bot watchlist POST endpoint unchanged — cron job already scrapes URLs
+
+5. SUBSCRIPTION PAGE — plan cards updated
+   - Basic: feature list added (Photo Enhancer, Listing Optimiser, Auto-Draft, Seller Intel, Watchlist)
+   - Pro: "500 credits/mo" highlighted in gold + Flip Score, Price Elasticity, Resell Calendar
+   - Elite: "1,500 credits/mo" highlighted in gold + Unlimited commands + Priority support
+
+6. MONTHLY CREDITS
+   New bot endpoint: POST /api/credits/monthly-grant
+   - Idempotent per calendar month per user (keyed by settings table: monthly_credits_YYYY_M_uuid)
+   - Pro: 500 credits/month, Elite: 1500 credits/month
+   - Called from dashboard init() for pro/elite tiers; fires credits DM via sendCreditsDM()
+   - Sends 'admin' DM type with granted amount and new balance
+
+7. AVATAR SYNC
+   New bot endpoint: GET /api/user/avatar
+   - Uses client.users.fetch(discordId, {force:true}) to get fresh Discord avatar URL
+   - PATCHes profiles.avatar_url in Supabase
+   - Called silently from dashboard init(); updates sidebar + account avatars if URL changes
+
+8. NEW TOOL SECTIONS (all in vendora-dashboard.html, bot endpoints in bot/index.js)
+
+   LISTING OPTIMISER — POST /api/listing/optimise (Basic+)
+   - Paste any Vinted/Depop/eBay URL
+   - Bot scrapes page (title, description, price via HTML regex)
+   - Claude returns: score/100, listing title, meta, 4-7 suggestions with categories
+     (Title, Description, Pricing, Photos, Keywords, General)
+   - Each suggestion: category badge + heading + detail
+
+   AUTO-DRAFT — POST /api/listing/draft (Basic+)
+   - Inputs: item name, condition, size, key details, target platform, optional price
+   - Claude writes: optimised title (≤80 chars), full description, price suggestion, 6 keywords
+   - All output fields individually copyable
+   - Platform note changes prompt style (Vinted = conversational, eBay = keyword-rich, Depop = casual)
+
+   SELLER INTELLIGENCE — POST /api/seller/analyse (Basic+)
+   - Paste Vinted or eBay seller profile URL
+   - Bot scrapes profile page + Brave search for additional context
+   - Claude returns: seller name, meta, 3-4 paragraph report, 3 stat cards,
+     recommended strategy (2-3 actionable points)
+
+   FLIP SCORE — POST /api/flip/score (Pro+)
+   - Paste any listing URL
+   - Bot scrapes listing + Brave searches for sold price context
+   - Claude returns: score/100, verdict (Strong Buy/Good Flip/Marginal/Avoid),
+     AI analysis paragraph, 4 breakdown stats (Demand, Competition, Days to Sell, Est. Profit)
+   - Score ring colour: green ≥75, amber ≥50, red <50
+
+   PRICE ELASTICITY — POST /api/price/elasticity (Pro+)
+   - Input: item name + condition (any/new/used)
+   - Brave searches for sold price context (2 queries)
+   - Claude models 6+ price points as a curve: price → days, profit, ROI%, verdict
+   - Table with Sweet Spot highlighted in green
+   - Insight paragraph explaining the optimal pricing position
+
+   RESELL CALENDAR — GET /api/resell/calendar?category= (Pro+)
+   - Categories: all, sneakers, streetwear, luxury, electronics
+   - Brave searches: upcoming drops + news + seasonal demand (3 parallel queries)
+   - Claude generates 6-10 calendar events with: month/day, title, category, urgency
+     (high/medium/low), description, action recommendation
+   - Auto-loads on section open (first visit only); manual Refresh button available
+   - Called from init() for pro/elite users so calendar is ready on first click
+
+   AUTO-BUY — Coming Soon placeholder section (section-autobuy)
+   - Feature preview with keyword rules, price ceiling, multi-platform monitoring badges
+
+9. BOT — new helper function
+   getProfileByUserId(uuid) — queries profiles by Supabase UUID (id column)
+   Mirrors existing getProfileByDiscordId() but uses id=eq.{uuid} filter.
+   Used by all new tool endpoints.
+
+FILES TOUCHED THIS SESSION:
+  vendora-dashboard.html   (sidebar, platforms, watchlist, enhancer, plan cards, all new sections + JS)
+  bot/index.js             (getProfileByUserId, monthly-grant, listing/optimise, listing/draft,
+                            seller/analyse, flip/score, price/elasticity, resell/calendar, user/avatar)
+  HANDOFF.txt              (this file)
+
+2026-04-18 SESSION CHANGES (previous — credits page, CORS, Railway)
 -----------------------------------------------------------
 
 1. vendora-credits.html — FULL REBUILD
@@ -113,7 +221,7 @@ INFRASTRUCTURE KEYS & IDs
 --------------------------
 Supabase:
   URL:                  https://fqfanqtybvnurhzkoxwr.supabase.co
-  Management API token: sbp_bd7f8563e41b302a4887d5bdd601d2acc84173cf
+  Management API token: sbp_64158f5a44afd1bcd59afcecf376c744e790a01d    <- aka access token
   Owner user ID:        8b9c8343-ea69-4e09-8188-16431729b6d5
 
 Railway:
@@ -180,15 +288,6 @@ PROXY_URL               — residential proxy for Vinted scraping (may not be se
 
 PENDING ACTIONS (user must do these)
 --------------------------------------
-1. PROXY_URL — Add a quality residential proxy to Railway env vars if not already set.
-   Format: PROXY_URL=http://username:password@host:port
-   All proxy infrastructure is now correctly wired (undici vFetch, single PROXY_AGENT).
-   If the proxy IP is flagged by DataDome, try a different IP/provider.
-   Recommended: Webshare.io residential (or similar).
-
-2. Run /supportsetup in Discord (owner only) if not already done.
-   Posts the support embed to #❓｜support and permanently deletes the command.
-   Only needs to be done once.
 
 3. Confirm Supabase tables were created. Three new tables added (April 16):
    - platform_connections  — stores encrypted Vinted/Depop tokens per user
@@ -201,10 +300,6 @@ PENDING ACTIONS (user must do these)
    - credit_codes        — redeemable codes (code, credits_amount, max_uses,
                            uses_count, expires_at, active)
    - code_redemptions    — tracks which user redeemed which code (UNIQUE per user/code)
-
-5. Regenerate the Supabase Management API token — the one previously in this file
-   (sbp_bd7f85…) returns 401 Unauthorized and has been revoked/expired. Generate a
-   new one at https://supabase.com/dashboard/account/tokens and paste it below.
 
 
 WHAT WAS BUILT (cumulative across all sessions)
@@ -699,7 +794,7 @@ ARCHITECTURE RULES (never break these)
 
 ADDITIONAL RULE 
 -----------------------------------------
-- EVERY UPDATE OR ALTERATION MADE TO THE VENDORA BOT OR SITE THAT WOULD DIFFER FROM INFORMATION IN THIS .txt FILE MUST BE UPDATED HERE
+- EVERY UPDATE OR ALTERATION MADE TO THE VENDORA BOT OR SITE THAT WOULD DIFFER FROM INFORMATION IN THIS .txt FILE MUST BE UPDATED HERE after every change you make
 
 ==============================================================
 END OF HANDOFF

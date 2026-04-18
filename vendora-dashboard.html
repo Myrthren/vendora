@@ -636,21 +636,30 @@
     </div>
 
     <span class="nav-section-label" style="margin-top:8px;">Tools</span>
-    <div class="nav-item" id="crosslist-nav-item" onclick="showSection('crosslist', this)">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="7" y1="10" x2="17" y2="10"/><line x1="7" y1="7" x2="12" y2="7"/></svg>
-      Cross-List
-      <span class="nav-item-badge" style="background:rgba(232,33,122,0.18);color:var(--pink);font-size:9px;padding:2px 6px;border-radius:4px;margin-left:auto;">Pro</span>
-    </div>
-    <div class="nav-item" id="listings-nav-item" onclick="showSection('listings', this)">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-      Listings
-      <span class="nav-item-badge" style="background:rgba(232,33,122,0.18);color:var(--pink);font-size:9px;padding:2px 6px;border-radius:4px;margin-left:auto;">Pro</span>
-    </div>
 
-    <div class="nav-item" id="inventory-nav-item" onclick="showSection('inventory', this)">
+    <!-- Coming Soon tools — disabled -->
+    <div class="nav-item" style="opacity:0.42;cursor:default;pointer-events:none;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 10h16M4 14h8M4 18h8"/><path d="M16 14l2 2 4-4"/></svg>
+      Auto-List
+      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.07);color:var(--muted);letter-spacing:.04em;">Soon</span>
+    </div>
+    <div class="nav-item" style="opacity:0.42;cursor:default;pointer-events:none;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Listings
+      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.07);color:var(--muted);letter-spacing:.04em;">Soon</span>
+    </div>
+    <div class="nav-item" style="opacity:0.42;cursor:default;pointer-events:none;">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
       Inventory
+      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.07);color:var(--muted);letter-spacing:.04em;">Soon</span>
     </div>
+    <div class="nav-item" style="opacity:0.42;cursor:default;pointer-events:none;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Auto-Buy
+      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.07);color:var(--muted);letter-spacing:.04em;">Soon</span>
+    </div>
+
+    <!-- Active tools -->
     <div class="nav-item" id="watchlist-nav-item" onclick="showSection('watchlist', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
       Watchlist
@@ -662,7 +671,37 @@
     <div class="nav-item" id="enhancer-nav-item" onclick="showSection('enhancer', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
       Photo Enhancer
-      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(232,161,33,0.15);color:var(--gold);letter-spacing:.05em;">ELITE</span>
+      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(232,161,33,0.15);color:var(--gold);letter-spacing:.04em;">credits</span>
+    </div>
+    <div class="nav-item" id="optimiser-nav-item" onclick="showSection('listing-optimiser', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+      Listing Optimiser
+      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(96,165,250,0.15);color:#60a5fa;letter-spacing:.04em;">Basic+</span>
+    </div>
+    <div class="nav-item" id="auto-draft-nav-item" onclick="showSection('auto-draft', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      Auto-Draft
+      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(96,165,250,0.15);color:#60a5fa;letter-spacing:.04em;">Basic+</span>
+    </div>
+    <div class="nav-item" id="seller-intel-nav-item" onclick="showSection('seller-intelligence', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      Seller Intel
+      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(96,165,250,0.15);color:#60a5fa;letter-spacing:.04em;">Basic+</span>
+    </div>
+    <div class="nav-item" id="flip-score-nav-item" onclick="showSection('flip-score', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+      Flip Score
+      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(232,33,122,0.18);color:var(--pink);letter-spacing:.04em;">Pro+</span>
+    </div>
+    <div class="nav-item" id="price-elasticity-nav-item" onclick="showSection('price-elasticity', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Price Elasticity
+      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(232,33,122,0.18);color:var(--pink);letter-spacing:.04em;">Pro+</span>
+    </div>
+    <div class="nav-item" id="resell-calendar-nav-item" onclick="showSection('resell-calendar', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Resell Calendar
+      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(232,33,122,0.18);color:var(--pink);letter-spacing:.04em;">Pro+</span>
     </div>
     <div class="nav-item" onclick="showSection('credits', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M14.31 8l5.74 9.94M9.69 8h11.48M7.38 12l5.74-9.94M9.69 16L3.95 6.06M14.31 16H2.83M16.62 12l-5.74 9.94"/></svg>
@@ -882,6 +921,7 @@
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted2);margin-bottom:6px;">Basic</div>
             <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--muted2);" id="plan-price-basic">£9.99<span id="plan-period-basic" style="font-size:12px;font-weight:400;">/mo</span></div>
             <div id="plan-saving-basic" style="font-size:11px;color:var(--green);margin-top:2px;display:none;">Save £19.89/yr</div>
+            <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5;">Photo Enhancer · Listing Optimiser · Auto-Draft · Seller Intel · Watchlist</div>
             <button class="btn btn-ghost btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('basic')">Get Basic</button>
           </div>
           <div class="upgrade-card" data-tier="pro" style="flex:1;padding:20px;background:rgba(232,33,122,0.06);border:1px solid rgba(232,33,122,0.2);border-radius:10px;position:relative;">
@@ -889,6 +929,7 @@
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--pink);margin-bottom:6px;">Pro</div>
             <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);" id="plan-price-pro">£24.99<span id="plan-period-pro" style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
             <div id="plan-saving-pro" style="font-size:11px;color:var(--green);margin-top:2px;display:none;">Save £49.89/yr</div>
+            <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5;">Everything in Basic · <span style="color:var(--gold);font-weight:600;">500 credits/mo</span> · Flip Score · Price Elasticity · Resell Calendar</div>
             <button class="btn btn-pink btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('pro')">Get Pro</button>
           </div>
           <div class="upgrade-card" data-tier="elite" style="flex:1;padding:20px;background:rgba(232,161,33,0.04);border:1px solid rgba(232,161,33,0.18);border-radius:10px;position:relative;">
@@ -896,6 +937,7 @@
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--gold);margin-bottom:6px;">Elite</div>
             <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);" id="plan-price-elite">£49.99<span id="plan-period-elite" style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
             <div id="plan-saving-elite" style="font-size:11px;color:var(--green);margin-top:2px;display:none;">Save £99.89/yr</div>
+            <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5;">Everything in Pro · <span style="color:var(--gold);font-weight:600;">1,500 credits/mo</span> · Unlimited commands · Priority support</div>
             <button class="btn btn-gold btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('elite')">Get Elite</button>
           </div>
         </div>
@@ -1029,47 +1071,39 @@
         <div class="page-sub">Link your reselling accounts so Vendora can list, cross-list, and auto-relist on your behalf.</div>
       </div>
 
-      <!-- Depop — Coming Soon -->
-      <div class="card" style="margin-bottom:16px;opacity:0.6;pointer-events:none;">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <div style="display:flex;align-items:center;gap:12px;">
-            <div class="plat-icon" style="background:rgba(255,35,0,0.1);color:#ff2300;">DP</div>
-            <div>
-              <div style="font-weight:600;font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px;">
-                Depop
-                <span style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.07);color:var(--muted);">Coming Soon</span>
-              </div>
-              <div style="font-size:12px;color:var(--muted);margin-top:2px;">Depop integration is currently in development</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- Vinted -->
       <div class="card" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-          <div style="display:flex;align-items:center;gap:12px;">
-            <div class="plat-icon" style="background:rgba(9,177,186,0.1);color:#09b1ba;">VT</div>
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div class="plat-icon" style="background:rgba(9,177,186,0.12);color:#09b1ba;font-weight:700;">VT</div>
             <div>
-              <div style="font-weight:600;font-size:14px;color:var(--text);">Vinted</div>
+              <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:2px;">Vinted</div>
               <div id="plat-status-vinted" class="plat-status-row disconnected">○ Not connected</div>
             </div>
           </div>
           <button id="plat-disconnect-btn-vinted" class="btn btn-danger btn-sm" style="display:none;" onclick="disconnectPlatform('vinted')">Disconnect</button>
         </div>
         <div id="plat-form-vinted">
-          <!-- Popup-based connect button (opens OAuth-style popup on PC, new tab on mobile) -->
-          <button id="plat-connect-btn-vinted" class="btn btn-pink" style="width:100%;padding:11px 0;font-size:14px;font-weight:600;border-radius:10px;letter-spacing:.03em;" onclick="connectPlatform('vinted')">
-            🔗 &nbsp;Connect Vinted Account
+          <button id="plat-connect-btn-vinted" onclick="connectPlatform('vinted')" style="width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:13px 20px;background:linear-gradient(135deg,rgba(9,177,186,0.15),rgba(9,177,186,0.08));border:1px solid rgba(9,177,186,0.35);border-radius:10px;color:#09b1ba;font-size:14px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .2s;letter-spacing:.02em;" onmouseover="this.style.background='linear-gradient(135deg,rgba(9,177,186,0.25),rgba(9,177,186,0.14))';this.style.borderColor='rgba(9,177,186,0.6)'" onmouseout="this.style.background='linear-gradient(135deg,rgba(9,177,186,0.15),rgba(9,177,186,0.08))';this.style.borderColor='rgba(9,177,186,0.35)'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+            Connect Vinted Account
           </button>
           <div id="vinted-connect-msg" style="display:none;margin-top:10px;"></div>
         </div>
       </div>
 
-      <!-- Coming Soon -->
+      <!-- Coming Soon platforms -->
       <div class="card">
         <div class="card-title">Coming Soon</div>
         <div class="platform-connect-list">
+          <div class="platform-connect" style="opacity:.5;cursor:not-allowed;">
+            <div class="plat-icon" style="background:rgba(255,35,0,0.1);color:#ff2300;">DP</div>
+            <div class="plat-details">
+              <div class="plat-name-row">Depop</div>
+              <div class="plat-status-row">Integration in development</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" disabled>Soon</button>
+          </div>
           <div class="platform-connect" style="opacity:.5;cursor:not-allowed;">
             <div class="plat-icon" style="background:rgba(229,50,56,0.1);color:#e53238;">EB</div>
             <div class="plat-details">
@@ -1378,17 +1412,21 @@
     <div class="section" id="section-watchlist">
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
-        <div class="page-title">Price Watchlist</div>
-        <div class="page-sub">Watch items for price drops. Add via the dashboard or with <code style="font-family:monospace;font-size:11px;color:var(--pink);background:rgba(232,33,122,0.1);padding:1px 6px;border-radius:4px;">/pricedrop</code> in Discord.</div>
+        <div class="page-title">Smart Watchlist</div>
+        <div class="page-sub">Paste a product link from Vinted, Depop, or eBay. Vendora tracks the price, sizes, and variants — and alerts you on Discord the moment anything changes.</div>
       </div>
 
-      <div class="card" style="margin-bottom:20px;">
-        <div class="card-title" style="margin-bottom:14px;">Watch an Item</div>
-        <div style="display:flex;gap:10px;">
-          <input id="wl-new-item" type="text" class="form-select" style="height:auto;padding:10px 14px;flex:1;" placeholder="e.g. Stone Island Shadow Project Jacket">
-          <button id="wl-add-btn" class="btn btn-pink" onclick="addWatchlistItem()">
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title" style="margin-bottom:6px;">Track a Product</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5;">Paste a direct listing URL below. Works with Vinted, eBay, Depop, Shopify stores, and most resale platforms.</div>
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="flex:1;">
+            <input id="wl-new-item" type="url" class="form-select" style="height:auto;padding:10px 14px;width:100%;" placeholder="https://www.vinted.co.uk/items/...">
+            <div id="wl-platform-detect" style="margin-top:6px;font-size:11px;color:var(--muted);display:none;"></div>
+          </div>
+          <button id="wl-add-btn" class="btn btn-pink" style="white-space:nowrap;" onclick="addWatchlistItem()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Watch
+            Track
           </button>
         </div>
         <div id="wl-add-msg" style="display:none;margin-top:10px;font-size:12px;"></div>
@@ -1396,20 +1434,22 @@
 
       <div class="card" style="padding:0;overflow:hidden;">
         <div style="padding:16px 20px;border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
-          <div class="card-title" style="margin:0;">Watching</div>
+          <div class="card-title" style="margin:0;">Currently Tracking</div>
           <button class="btn btn-ghost btn-sm" onclick="loadWatchlist()">Refresh</button>
         </div>
         <table class="data-table">
           <thead>
             <tr>
-              <th>#</th>
-              <th>Item</th>
+              <th>Platform</th>
+              <th>Product</th>
+              <th>Price</th>
+              <th>Sizes / Variants</th>
               <th>Added</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody id="watchlist-tbody">
-            <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Loading...</td></tr>
+            <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Loading...</td></tr>
           </tbody>
         </table>
       </div>
@@ -1419,7 +1459,7 @@
     <div class="section" id="section-crosslist">
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
-        <div class="page-title">Cross-List</div>
+        <div class="page-title">Auto-List</div>
         <div class="page-sub">Generate platform-optimised listings for Depop, Vinted, and eBay in one click.</div>
       </div>
 
@@ -1631,17 +1671,17 @@
     <div class="section" id="section-enhancer">
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
-        <div class="page-title">AI Photo Enhancer <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(232,161,33,0.14);color:var(--gold);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;letter-spacing:.04em;">ELITE</span></div>
+        <div class="page-title">AI Photo Enhancer <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(232,161,33,0.14);color:var(--gold);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;letter-spacing:.04em;">80 credits / enhance</span></div>
         <div class="page-sub">Upload any product photo and the AI replaces the background, adjusts the lighting, and smooths the edges — output looks like a real studio shot.</div>
       </div>
 
-      <!-- Elite gate -->
+      <!-- Subscription gate -->
       <div id="enhancer-gate" style="display:none;">
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px;text-align:center;">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(232,161,33,0.6)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text);">Elite Required</div>
-          <div style="font-size:13px;color:var(--muted2);max-width:320px;">AI Photo Enhancer is available on Vendora Elite. Upgrade to create pro-quality listing photos instantly.</div>
-          <button class="btn btn-primary btn-sm" onclick="showSection('subscription', document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Elite</button>
+          <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text);">Subscription Required</div>
+          <div style="font-size:13px;color:var(--muted2);max-width:320px;">AI Photo Enhancer is available on all Vendora plans. Subscribe to start creating pro-quality listing photos. Each enhance costs 80 credits.</div>
+          <button class="btn btn-primary btn-sm" onclick="showSection('subscription', document.querySelector('.nav-item[onclick*=subscription]'))">View Plans</button>
         </div>
       </div>
 
@@ -1748,6 +1788,339 @@
             </div>
           </div>
 
+        </div>
+      </div>
+    </div>
+
+    <!-- ── LISTING OPTIMISER ── -->
+    <div class="section" id="section-listing-optimiser">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">Listing Optimiser <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(96,165,250,0.14);color:#60a5fa;vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Basic+</span></div>
+        <div class="page-sub">Paste a link to any Vinted, Depop or eBay listing and get AI-powered suggestions to maximise views, engagement and sales.</div>
+      </div>
+      <div id="lopt-gate" style="display:none;"><div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px;text-align:center;"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">Subscription Required</div><div style="font-size:13px;color:var(--muted2);max-width:300px;">Available on all Vendora plans.</div><button class="btn btn-primary btn-sm" onclick="showSection('subscription',document.querySelector('.nav-item[onclick*=subscription]'))">View Plans</button></div></div>
+      <div id="lopt-tool">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title" style="margin-bottom:14px;">Listing URL</div>
+          <div style="display:flex;gap:10px;">
+            <input id="lopt-url" type="url" class="form-select" style="height:auto;padding:10px 14px;flex:1;" placeholder="https://www.vinted.co.uk/items/... or depop.com/... or ebay.co.uk/itm/...">
+            <button id="lopt-btn" class="btn btn-primary" onclick="loptAnalyse()" style="white-space:nowrap;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              Analyse
+            </button>
+          </div>
+          <div id="lopt-msg" style="display:none;margin-top:10px;font-size:12px;"></div>
+        </div>
+        <div id="lopt-results" style="display:none;">
+          <div class="card" style="margin-bottom:16px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+              <div id="lopt-score-ring" style="width:56px;height:56px;border-radius:50%;border:3px solid var(--pink);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <span id="lopt-score-val" style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--pink);">—</span>
+              </div>
+              <div>
+                <div style="font-size:14px;font-weight:700;color:var(--text);" id="lopt-listing-title">—</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px;" id="lopt-listing-meta">—</div>
+              </div>
+            </div>
+            <div id="lopt-suggestions" style="display:flex;flex-direction:column;gap:10px;"></div>
+          </div>
+        </div>
+        <div id="lopt-loading" style="display:none;padding:60px 20px;text-align:center;">
+          <div class="spinner" style="width:28px;height:28px;margin:0 auto 12px;"></div>
+          <div style="font-size:13px;color:var(--muted);">Analysing listing…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── AUTO-DRAFT ── -->
+    <div class="section" id="section-auto-draft">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">Auto-Draft <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(96,165,250,0.14);color:#60a5fa;vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Basic+</span></div>
+        <div class="page-sub">Describe your item and get a complete, platform-ready listing — title, description, price suggestion, condition, and keywords — in one click.</div>
+      </div>
+      <div id="draft-gate" style="display:none;"><div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px;text-align:center;"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">Subscription Required</div><div style="font-size:13px;color:var(--muted2);max-width:300px;">Available on all Vendora plans.</div><button class="btn btn-primary btn-sm" onclick="showSection('subscription',document.querySelector('.nav-item[onclick*=subscription]'))">View Plans</button></div></div>
+      <div id="draft-tool">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+          <div style="display:flex;flex-direction:column;gap:14px;">
+            <div class="card">
+              <div class="card-title" style="margin-bottom:14px;">Item Details</div>
+              <div style="display:flex;flex-direction:column;gap:12px;">
+                <div>
+                  <label class="form-label">Item Name *</label>
+                  <input id="draft-name" type="text" class="form-select" style="height:auto;padding:10px 14px;" placeholder="e.g. Nike Air Max 90 Triple White">
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                  <div>
+                    <label class="form-label">Condition *</label>
+                    <select id="draft-condition" class="form-select">
+                      <option value="">Select…</option>
+                      <option>New with tags</option>
+                      <option>Like new</option>
+                      <option>Very good</option>
+                      <option>Good</option>
+                      <option>Fair</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="form-label">Size / Spec</label>
+                    <input id="draft-size" type="text" class="form-select" style="height:auto;padding:10px 14px;" placeholder="e.g. UK9, L, 500ml">
+                  </div>
+                </div>
+                <div>
+                  <label class="form-label">Key Details <span style="color:var(--muted);font-weight:300;text-transform:none;">(colour, brand, material, flaws…)</span></label>
+                  <textarea id="draft-details" rows="3" class="form-select" style="height:auto;padding:10px 14px;resize:vertical;" placeholder="e.g. All-white colourway, barely worn, no box, small crease on left toe box"></textarea>
+                </div>
+                <div>
+                  <label class="form-label">Target Platform</label>
+                  <select id="draft-platform" class="form-select">
+                    <option value="all">All platforms</option>
+                    <option value="vinted">Vinted</option>
+                    <option value="depop">Depop</option>
+                    <option value="ebay">eBay</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="form-label">Your Asking Price (£) <span style="color:var(--muted);font-weight:300;text-transform:none;">optional</span></label>
+                  <input id="draft-price" type="number" min="0" step="0.01" class="form-select" style="height:auto;padding:10px 14px;" placeholder="Leave blank for AI suggestion">
+                </div>
+              </div>
+            </div>
+            <button id="draft-btn" class="btn btn-primary" onclick="draftGenerate()" style="width:100%;padding:13px;font-size:14px;font-weight:700;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              Generate Draft
+            </button>
+            <div id="draft-msg" style="display:none;font-size:12px;"></div>
+          </div>
+          <div id="draft-results-wrap" style="display:flex;flex-direction:column;gap:14px;">
+            <div id="draft-placeholder" class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:60px 20px;text-align:center;">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              <div style="font-size:13px;color:var(--muted2);">Your draft will appear here</div>
+            </div>
+            <div id="draft-loading" style="display:none;padding:60px 20px;text-align:center;">
+              <div class="spinner" style="width:28px;height:28px;margin:0 auto 12px;"></div>
+              <div style="font-size:13px;color:var(--muted);">Writing your listing…</div>
+            </div>
+            <div id="draft-results" style="display:none;flex-direction:column;gap:14px;">
+              <div class="card">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                  <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--pink);">Title</div>
+                  <button onclick="draftCopy('draft-out-title',this)" class="btn btn-ghost btn-sm" style="font-size:11px;">Copy</button>
+                </div>
+                <div id="draft-out-title" style="font-size:14px;font-weight:600;color:var(--text);line-height:1.4;"></div>
+              </div>
+              <div class="card">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                  <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--pink);">Description</div>
+                  <button onclick="draftCopy('draft-out-desc',this)" class="btn btn-ghost btn-sm" style="font-size:11px;">Copy</button>
+                </div>
+                <div id="draft-out-desc" style="font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap;"></div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+                <div class="card">
+                  <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--pink);margin-bottom:6px;">Suggested Price</div>
+                  <div id="draft-out-price" style="font-size:22px;font-weight:800;font-family:'Syne',sans-serif;color:var(--green);"></div>
+                </div>
+                <div class="card">
+                  <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--pink);margin-bottom:6px;">Keywords</div>
+                  <div id="draft-out-tags" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SELLER INTELLIGENCE ── -->
+    <div class="section" id="section-seller-intelligence">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">Seller Intelligence <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(96,165,250,0.14);color:#60a5fa;vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Basic+</span></div>
+        <div class="page-sub">Paste any Vinted or eBay seller profile URL. Get a full breakdown of their pricing patterns, sell-through rate, and where they leave money on the table.</div>
+      </div>
+      <div id="sintel-gate" style="display:none;"><div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px;text-align:center;"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">Subscription Required</div><div style="font-size:13px;color:var(--muted2);max-width:300px;">Available on all Vendora plans.</div><button class="btn btn-primary btn-sm" onclick="showSection('subscription',document.querySelector('.nav-item[onclick*=subscription]'))">View Plans</button></div></div>
+      <div id="sintel-tool">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title" style="margin-bottom:14px;">Seller Profile URL</div>
+          <div style="display:flex;gap:10px;">
+            <input id="sintel-url" type="url" class="form-select" style="height:auto;padding:10px 14px;flex:1;" placeholder="https://www.vinted.co.uk/member/... or ebay.co.uk/usr/...">
+            <button id="sintel-btn" class="btn btn-primary" onclick="sintelAnalyse()" style="white-space:nowrap;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              Analyse
+            </button>
+          </div>
+          <div id="sintel-msg" style="display:none;margin-top:10px;font-size:12px;"></div>
+        </div>
+        <div id="sintel-loading" style="display:none;padding:60px 20px;text-align:center;">
+          <div class="spinner" style="width:28px;height:28px;margin:0 auto 12px;"></div>
+          <div style="font-size:13px;color:var(--muted);">Analysing seller profile…</div>
+        </div>
+        <div id="sintel-results" style="display:none;flex-direction:column;gap:14px;">
+          <div class="card">
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+              <div style="width:48px;height:48px;border-radius:50%;background:rgba(232,33,122,0.12);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--pink);" id="sintel-avatar-init">—</div>
+              <div>
+                <div style="font-size:15px;font-weight:700;color:var(--text);" id="sintel-name">—</div>
+                <div style="font-size:12px;color:var(--muted);" id="sintel-meta">—</div>
+              </div>
+            </div>
+            <div id="sintel-report" style="font-size:13px;color:var(--text);line-height:1.7;"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;" id="sintel-stats"></div>
+          <div class="card" id="sintel-strategy-card" style="display:none;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--pink);margin-bottom:10px;">Recommended Strategy</div>
+            <div id="sintel-strategy" style="font-size:13px;color:var(--text);line-height:1.7;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── FLIP SCORE ── -->
+    <div class="section" id="section-flip-score">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">Flip Score <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(232,33,122,0.14);color:var(--pink);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Pro+</span></div>
+        <div class="page-sub">Paste any listing URL. Get an AI-generated score out of 100 covering demand, competition, estimated days-to-sell, and projected profit — before you spend a penny.</div>
+      </div>
+      <div id="fscore-gate" style="display:none;"><div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px;text-align:center;"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">Pro Required</div><div style="font-size:13px;color:var(--muted2);max-width:300px;">Flip Score is available on Vendora Pro and Elite.</div><button class="btn btn-primary btn-sm" onclick="showSection('subscription',document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Pro</button></div></div>
+      <div id="fscore-tool">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title" style="margin-bottom:14px;">Listing URL</div>
+          <div style="display:flex;gap:10px;">
+            <input id="fscore-url" type="url" class="form-select" style="height:auto;padding:10px 14px;flex:1;" placeholder="https://www.vinted.co.uk/items/... or ebay.co.uk/itm/...">
+            <button id="fscore-btn" class="btn btn-primary" onclick="fscoreAnalyse()" style="white-space:nowrap;">Score This Flip</button>
+          </div>
+          <div id="fscore-msg" style="display:none;margin-top:10px;font-size:12px;"></div>
+        </div>
+        <div id="fscore-loading" style="display:none;padding:60px 20px;text-align:center;">
+          <div class="spinner" style="width:28px;height:28px;margin:0 auto 12px;"></div>
+          <div style="font-size:13px;color:var(--muted);">Scoring this flip…</div>
+        </div>
+        <div id="fscore-results" style="display:none;">
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:start;">
+            <div class="card" style="text-align:center;padding:28px 24px;min-width:160px;">
+              <div id="fscore-ring" style="width:88px;height:88px;border-radius:50%;border:4px solid var(--pink);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+                <span id="fscore-val" style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--pink);">—</span>
+              </div>
+              <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);">Flip Score</div>
+              <div id="fscore-verdict" style="font-size:12px;font-weight:600;margin-top:8px;padding:4px 10px;border-radius:6px;display:inline-block;"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;" id="fscore-stats"></div>
+              <div class="card" id="fscore-detail-card">
+                <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--pink);margin-bottom:8px;">AI Analysis</div>
+                <div id="fscore-detail" style="font-size:13px;color:var(--text);line-height:1.7;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PRICE ELASTICITY ── -->
+    <div class="section" id="section-price-elasticity">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">Price Elasticity <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(232,33,122,0.14);color:var(--pink);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Pro+</span></div>
+        <div class="page-sub">Enter an item name and get an AI-modelled price curve — showing you the tradeoff between listing price and estimated days-to-sell, so you can choose your own speed vs margin.</div>
+      </div>
+      <div id="pelast-gate" style="display:none;"><div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px;text-align:center;"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">Pro Required</div><div style="font-size:13px;color:var(--muted2);max-width:300px;">Price Elasticity is available on Vendora Pro and Elite.</div><button class="btn btn-primary btn-sm" onclick="showSection('subscription',document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Pro</button></div></div>
+      <div id="pelast-tool">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title" style="margin-bottom:14px;">Item</div>
+          <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:end;">
+            <div>
+              <label class="form-label">Item Name *</label>
+              <input id="pelast-item" type="text" class="form-select" style="height:auto;padding:10px 14px;" placeholder="e.g. Nike Dunk Low Panda">
+            </div>
+            <div>
+              <label class="form-label">Condition</label>
+              <select id="pelast-condition" class="form-select">
+                <option value="any">Any</option>
+                <option value="new">New</option>
+                <option value="used">Used</option>
+              </select>
+            </div>
+            <button id="pelast-btn" class="btn btn-primary" onclick="pelastAnalyse()" style="align-self:end;">Analyse Pricing</button>
+          </div>
+          <div id="pelast-msg" style="display:none;margin-top:10px;font-size:12px;"></div>
+        </div>
+        <div id="pelast-loading" style="display:none;padding:60px 20px;text-align:center;">
+          <div class="spinner" style="width:28px;height:28px;margin:0 auto 12px;"></div>
+          <div style="font-size:13px;color:var(--muted);">Modelling price curve…</div>
+        </div>
+        <div id="pelast-results" style="display:none;">
+          <div class="card" style="padding:0;overflow:hidden;">
+            <div style="padding:16px 20px;border-bottom:1px solid var(--border-dim);">
+              <div class="card-title" style="margin:0;" id="pelast-item-label">—</div>
+            </div>
+            <table class="data-table">
+              <thead><tr><th>List Price</th><th>Est. Days to Sell</th><th>Est. Net Profit</th><th>ROI</th><th>Verdict</th></tr></thead>
+              <tbody id="pelast-tbody"></tbody>
+            </table>
+          </div>
+          <div class="card" style="margin-top:14px;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--pink);margin-bottom:8px;">Sweet Spot</div>
+            <div id="pelast-insight" style="font-size:13px;color:var(--text);line-height:1.7;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── RESELL CALENDAR ── -->
+    <div class="section" id="section-resell-calendar">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">Resell Calendar <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(232,33,122,0.14);color:var(--pink);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Pro+</span></div>
+        <div class="page-sub">Live-sourced intel on upcoming sneaker drops, brand collabs, seasonal demand windows, and platform sale events — so you know what to stock before the market moves.</div>
+      </div>
+      <div id="rcal-gate" style="display:none;"><div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px;text-align:center;"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">Pro Required</div><div style="font-size:13px;color:var(--muted2);max-width:300px;">Resell Calendar is available on Vendora Pro and Elite.</div><button class="btn btn-primary btn-sm" onclick="showSection('subscription',document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Pro</button></div></div>
+      <div id="rcal-tool">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div style="display:flex;gap:8px;">
+            <select id="rcal-category" class="form-select" style="width:auto;">
+              <option value="all">All Categories</option>
+              <option value="sneakers">Sneakers</option>
+              <option value="streetwear">Streetwear</option>
+              <option value="luxury">Luxury</option>
+              <option value="electronics">Electronics</option>
+            </select>
+          </div>
+          <button id="rcal-btn" class="btn btn-primary btn-sm" onclick="rcalLoad()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+            Refresh
+          </button>
+        </div>
+        <div id="rcal-loading" style="display:none;padding:60px 20px;text-align:center;">
+          <div class="spinner" style="width:28px;height:28px;margin:0 auto 12px;"></div>
+          <div style="font-size:13px;color:var(--muted);">Fetching live market intel…</div>
+        </div>
+        <div id="rcal-results" style="display:flex;flex-direction:column;gap:12px;"></div>
+        <div id="rcal-empty" style="display:none;padding:60px 20px;text-align:center;">
+          <div style="font-size:13px;color:var(--muted2);">No events found. Try a different category or refresh.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── AUTO-BUY (Coming Soon) ── -->
+    <div class="section" id="section-autobuy">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">Auto-Buy <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.07);color:var(--muted);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Coming Soon</span></div>
+        <div class="page-sub">Set a maximum price and keywords — Vendora will monitor platforms 24/7 and automatically purchase matching items the moment they're listed.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:80px 20px;text-align:center;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:var(--text);">Coming Soon</div>
+        <div style="font-size:13px;color:var(--muted2);max-width:400px;line-height:1.6;">Auto-Buy is in development. Once live, you'll be able to set keyword rules and price limits — Vendora will monitor Vinted, Depop, and eBay around the clock and buy on your behalf the instant a match appears.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+          <span style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.04);color:var(--muted);border:1px solid var(--border-dim);">Keyword rules</span>
+          <span style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.04);color:var(--muted);border:1px solid var(--border-dim);">Price ceiling</span>
+          <span style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.04);color:var(--muted);border:1px solid var(--border-dim);">Multi-platform monitoring</span>
+          <span style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.04);color:var(--muted);border:1px solid var(--border-dim);">Instant purchase</span>
+          <span style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.04);color:var(--muted);border:1px solid var(--border-dim);">Condition filters</span>
         </div>
       </div>
     </div>
@@ -2489,6 +2862,13 @@
     initCrossListAccess(tier);
     initListingsAccess(tier);
     initEnhancerAccess(tier);
+    initToolAccess('lopt-gate','lopt-tool', tier, 'basic');
+    initToolAccess('draft-gate','draft-tool', tier, 'basic');
+    initToolAccess('sintel-gate','sintel-tool', tier, 'basic');
+    initToolAccess('fscore-gate','fscore-tool', tier, 'pro');
+    initToolAccess('pelast-gate','pelast-tool', tier, 'pro');
+    initToolAccess('rcal-gate','rcal-tool', tier, 'pro');
+    if (tier === 'pro' || tier === 'elite') rcalLoad();
     loadPlatformStatus();
     loadNotificationPrefs();
     loadUsageStats();
@@ -2496,6 +2876,30 @@
     loadWatchlist();
     ptRefresh();
     loadCreditsBalance(session);
+
+    // Grant monthly credits for pro/elite, then refresh balance
+    if (tier === 'pro' || tier === 'elite') {
+      fetch(`${BOT_API}/api/credits/monthly-grant`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      }).then(r => r.ok && loadCreditsBalance(session)).catch(() => {});
+    }
+
+    // Sync Discord avatar silently
+    fetch(`${BOT_API}/api/user/avatar`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    }).then(async r => {
+      if (!r.ok) return;
+      const { avatarUrl } = await r.json();
+      if (avatarUrl) {
+        ['sidebar-avi','account-avi'].forEach(id => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          Object.assign(el.style, { backgroundImage:`url(${avatarUrl})`, backgroundSize:'cover', backgroundPosition:'center' });
+          el.textContent = '';
+        });
+      }
+    }).catch(() => {});
 
     if (isOwner) {
       document.getElementById('admin-label').style.display         = '';
@@ -2832,7 +3236,7 @@
     }
   });
 
-  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', inventory:'Inventory', watchlist:'Watchlist', profit:'Profit Tracker', crosslist:'Cross-List', listings:'Listings', enhancer:'Photo Enhancer', support:'Support', admin:'Admin Panel' };
+  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', inventory:'Inventory', watchlist:'Watchlist', profit:'Profit Tracker', crosslist:'Auto-List', listings:'Listings', enhancer:'Photo Enhancer', support:'Support', admin:'Admin Panel', 'listing-optimiser':'Listing Optimiser', 'flip-score':'Flip Score', 'price-elasticity':'Price Elasticity', 'auto-draft':'Auto-Draft', 'seller-intelligence':'Seller Intelligence', 'resell-calendar':'Resell Calendar', autobuy:'Auto-Buy' };
 
   // ── Cross-list tool ──────────────────────────────────────────────────────────
   const BOT_API = 'https://vendora-production-8a47.up.railway.app';
@@ -3026,6 +3430,8 @@
     document.getElementById('section-' + id).classList.add('active');
     if (el) el.classList.add('active');
     document.getElementById('topbar-title').textContent = sectionTitles[id] || id;
+    // Auto-load calendar when switching to it and not yet loaded
+    if (id === 'resell-calendar' && !_rcalLoaded) rcalLoad();
   }
 
   function showAdminTab(id, el) {
@@ -3476,6 +3882,46 @@
   }
 
   // ── Watchlist ─────────────────────────────────────────────────────────────────
+  // ── Watchlist platform detection ──────────────────────────────────────────────
+  const WL_PLATFORMS = [
+    { host: 'vinted.co.uk',  name: 'Vinted UK',  color: '#09b1ba', abbr: 'VT' },
+    { host: 'vinted.fr',     name: 'Vinted FR',  color: '#09b1ba', abbr: 'VT' },
+    { host: 'vinted.de',     name: 'Vinted DE',  color: '#09b1ba', abbr: 'VT' },
+    { host: 'depop.com',     name: 'Depop',       color: '#ff2300', abbr: 'DP' },
+    { host: 'ebay.co.uk',    name: 'eBay UK',    color: '#e53238', abbr: 'EB' },
+    { host: 'ebay.com',      name: 'eBay',        color: '#e53238', abbr: 'EB' },
+    { host: 'ebay.de',       name: 'eBay DE',    color: '#e53238', abbr: 'EB' },
+    { host: 'facebook.com',  name: 'Facebook',   color: '#1877f2', abbr: 'FB' },
+    { host: 'stockx.com',    name: 'StockX',     color: '#07a481', abbr: 'SX' },
+  ];
+
+  function wlDetectPlatform(url) {
+    try {
+      const host = new URL(url).hostname.replace(/^www\./, '');
+      return WL_PLATFORMS.find(p => host === p.host || host.endsWith('.' + p.host)) || { name: 'Web', color: 'var(--muted2)', abbr: '🌐' };
+    } catch { return null; }
+  }
+
+  // Live platform detection as user types
+  document.addEventListener('DOMContentLoaded', () => {
+    const wlInput = document.getElementById('wl-new-item');
+    const detect  = document.getElementById('wl-platform-detect');
+    if (wlInput && detect) {
+      wlInput.addEventListener('input', () => {
+        const v = wlInput.value.trim();
+        if (!v) { detect.style.display = 'none'; return; }
+        const p = wlDetectPlatform(v);
+        if (p) {
+          detect.style.display = '';
+          detect.innerHTML = `<span style="color:${p.color};font-weight:600;">${p.name}</span> detected — Vendora will track price, sizes, and variants automatically.`;
+        } else {
+          detect.style.display = '';
+          detect.innerHTML = `<span style="color:var(--muted);">Enter a full product URL (https://...)</span>`;
+        }
+      });
+    }
+  });
+
   async function loadWatchlist() {
     const tbody = document.getElementById('watchlist-tbody');
     if (!tbody) return;
@@ -3485,26 +3931,45 @@
       const res = await fetch(`${BOT_API}/api/watchlist`, {
         headers: { 'Authorization': `Bearer ${session.access_token}` }
       });
-      if (!res.ok) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Failed to load.</td></tr>`; return; }
+      if (!res.ok) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Failed to load.</td></tr>`; return; }
       const { items } = await res.json();
       renderWatchlistTable(items);
-    } catch { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Error loading watchlist.</td></tr>`; }
+    } catch { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Error loading watchlist.</td></tr>`; }
   }
 
   function renderWatchlistTable(items) {
     const tbody = document.getElementById('watchlist-tbody');
     if (!tbody) return;
     if (!items || items.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Nothing being watched. Add an item above or use <code style="font-family:monospace;color:var(--pink);">/pricedrop</code> in Discord.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">No items tracked yet. Paste a product URL above.</td></tr>`;
       return;
     }
-    tbody.innerHTML = items.map((item, i) => `
-      <tr>
-        <td style="color:var(--muted);font-size:12px;">${i + 1}</td>
-        <td style="font-size:13px;">${item.item}</td>
-        <td style="font-size:12px;color:var(--muted2);white-space:nowrap;">${new Date(item.added_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}</td>
+    tbody.innerHTML = items.map(item => {
+      const isUrl = item.item && (item.item.startsWith('http://') || item.item.startsWith('https://'));
+      const plat  = isUrl ? wlDetectPlatform(item.item) : null;
+      const meta  = item.product_meta ? (typeof item.product_meta === 'string' ? JSON.parse(item.product_meta) : item.product_meta) : {};
+      const platCell = plat
+        ? `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.05);color:${plat.color};">${plat.abbr} ${plat.name}</span>`
+        : `<span style="font-size:11px;color:var(--muted);">—</span>`;
+      const nameCell = meta.title
+        ? `<div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:2px;">${meta.title}</div><a href="${item.item}" target="_blank" style="font-size:11px;color:var(--muted);text-decoration:none;word-break:break-all;" onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='var(--muted)'">${item.item.slice(0,60)}${item.item.length>60?'…':''}</a>`
+        : isUrl
+          ? `<a href="${item.item}" target="_blank" style="font-size:12px;color:var(--pink);text-decoration:none;word-break:break-all;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${item.item.slice(0,70)}${item.item.length>70?'…':''}</a>`
+          : `<span style="font-size:13px;">${item.item}</span>`;
+      const priceCell = meta.price ? `<span style="font-size:13px;font-weight:600;color:var(--green);">${meta.price}</span>` : `<span style="font-size:12px;color:var(--muted);">Pending</span>`;
+      const variantsCell = meta.variants && meta.variants.length
+        ? `<div style="display:flex;flex-wrap:wrap;gap:4px;">${meta.variants.slice(0,5).map(v=>`<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--muted2);">${v}</span>`).join('')}${meta.variants.length>5?`<span style="font-size:10px;color:var(--muted);">+${meta.variants.length-5}</span>`:''}</div>`
+        : `<span style="font-size:12px;color:var(--muted);">—</span>`;
+      const addedCell = `<span style="font-size:12px;color:var(--muted2);white-space:nowrap;">${new Date(item.added_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</span>`;
+      return `<tr>
+        <td>${platCell}</td>
+        <td>${nameCell}</td>
+        <td>${priceCell}</td>
+        <td>${variantsCell}</td>
+        <td>${addedCell}</td>
         <td><button class="btn btn-danger btn-sm" onclick="removeWatchlistItem('${item.id}')">Remove</button></td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   }
 
   async function addWatchlistItem() {
@@ -3512,9 +3977,12 @@
     const item  = input?.value?.trim();
     const msgEl = document.getElementById('wl-add-msg');
     const btn   = document.getElementById('wl-add-btn');
-    if (!item) { showMsg(msgEl, 'error', 'Enter an item to watch.'); return; }
+    if (!item) { showMsg(msgEl, 'error', 'Paste a product URL to track.'); return; }
 
-    btn.disabled = true;
+    const isUrl = item.startsWith('http://') || item.startsWith('https://');
+    if (!isUrl) { showMsg(msgEl, 'error', 'Please enter a full product URL (starting with https://).'); return; }
+
+    btn.disabled = true; btn.textContent = 'Adding…';
     try {
       const { data: { session } } = await sb.auth.getSession();
       const res = await fetch(`${BOT_API}/api/watchlist`, {
@@ -3523,14 +3991,20 @@
         body: JSON.stringify({ item }),
       });
       const json = await res.json();
-      if (res.ok) { input.value = ''; renderWatchlistTable(json.items); msgEl.style.display = 'none'; }
-      else showMsg(msgEl, 'error', json.error || 'Failed to add.');
+      if (res.ok) {
+        input.value = '';
+        document.getElementById('wl-platform-detect').style.display = 'none';
+        renderWatchlistTable(json.items);
+        msgEl.style.display = 'none';
+      } else {
+        showMsg(msgEl, 'error', json.error || 'Failed to add.');
+      }
     } catch { showMsg(msgEl, 'error', 'Network error.'); }
-    btn.disabled = false;
+    btn.disabled = false; btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Track`;
   }
 
   async function removeWatchlistItem(id) {
-    if (!confirm('Remove this item from your watchlist?')) return;
+    if (!confirm('Stop tracking this item?')) return;
     try {
       const { data: { session } } = await sb.auth.getSession();
       await fetch(`${BOT_API}/api/watchlist/${id}`, {
@@ -4045,16 +4519,13 @@
   function initEnhancerAccess(tier) {
     const gate = document.getElementById('enhancer-gate');
     const tool = document.getElementById('enhancer-tool');
-    const nav  = document.getElementById('enhancer-nav-item');
-    // Always build the background grid + lighting buttons
     enhInitUI();
-    if (tier === 'elite') {
+    if (tier && tier !== 'none') {
       if (gate) gate.style.display = 'none';
       if (tool) tool.style.display = '';
     } else {
       if (gate) gate.style.display = '';
       if (tool) tool.style.display = 'none';
-      if (nav)  nav.style.opacity  = '0.5';
     }
   }
 
@@ -4995,21 +5466,30 @@
   let _enhResultB64 = null;
 
   const ENH_BACKGROUNDS = [
-    { id:'white-studio', label:'White Studio',  css:'radial-gradient(ellipse at 40% 35%,#fff 0%,#f0f0f0 60%,#e0e0e0 100%)' },
-    { id:'soft-grey',    label:'Soft Grey',     css:'radial-gradient(ellipse at 40% 35%,#ebebeb 0%,#d5d5d5 60%,#c0c0c0 100%)' },
-    { id:'cream',        label:'Cream',         css:'radial-gradient(ellipse at 40% 35%,#fdf9f2 0%,#f3e8d4 60%,#e6d8be 100%)' },
-    { id:'sage',         label:'Sage',          css:'radial-gradient(ellipse at 40% 35%,#eaf0e4 0%,#cfdcc8 60%,#b5c5aa 100%)' },
-    { id:'blush',        label:'Blush',         css:'radial-gradient(ellipse at 40% 35%,#fdf0f0 0%,#f0d4d4 60%,#e0bcbc 100%)' },
-    { id:'marble',       label:'Marble',        css:'linear-gradient(125deg,#e8e4e0 0%,#f5f2ef 30%,#ddd8d4 55%,#f0ede8 80%,#e4e0dc 100%)' },
-    { id:'wood',         label:'Oak Wood',      css:'linear-gradient(180deg,#caa572 0%,#d6ae7c 45%,#c09a62 100%)' },
-    { id:'concrete',     label:'Concrete',      css:'radial-gradient(ellipse at 50% 50%,#6a6a6a 0%,#585858 50%,#484848 100%)' },
-    { id:'linen',        label:'Linen',         css:'repeating-linear-gradient(0deg,#f0e8d8 0px,#e8deca 2px,#f0e8d8 4px)' },
-    { id:'studio-dark',  label:'Dark Studio',   css:'radial-gradient(ellipse at 40% 35%,#383838 0%,#202020 60%,#111 100%)' },
-    { id:'black',        label:'Black',         css:'#111' },
-    { id:'navy',         label:'Navy',          css:'radial-gradient(ellipse at 40% 35%,#1e3055 0%,#0e1e3a 60%,#060e20 100%)' },
-    { id:'gradient-pink',label:'Dark Rose',     css:'linear-gradient(135deg,#1a0010,#3d0020,#6b0033)' },
-    { id:'gradient-blue',label:'Midnight',      css:'linear-gradient(135deg,#0a0e1a,#0d1b3e,#0a2a5c)' },
-    { id:'custom',       label:'Custom Image',  css:'repeating-conic-gradient(#444 0% 25%,#222 0% 50%) 0 0/12px 12px' },
+    // Studio solids
+    { id:'white-studio', label:'White Studio',  css:'radial-gradient(ellipse at 40% 35%,#fff 0%,#f0f0f0 60%,#e0e0e0 100%)', group:'Studio' },
+    { id:'soft-grey',    label:'Soft Grey',     css:'radial-gradient(ellipse at 40% 35%,#ebebeb 0%,#d5d5d5 60%,#c0c0c0 100%)', group:'Studio' },
+    { id:'cream',        label:'Cream',         css:'radial-gradient(ellipse at 40% 35%,#fdf9f2 0%,#f3e8d4 60%,#e6d8be 100%)', group:'Studio' },
+    { id:'sage',         label:'Sage',          css:'radial-gradient(ellipse at 40% 35%,#eaf0e4 0%,#cfdcc8 60%,#b5c5aa 100%)', group:'Studio' },
+    { id:'blush',        label:'Blush',         css:'radial-gradient(ellipse at 40% 35%,#fdf0f0 0%,#f0d4d4 60%,#e0bcbc 100%)', group:'Studio' },
+    { id:'studio-dark',  label:'Dark Studio',   css:'radial-gradient(ellipse at 40% 35%,#383838 0%,#202020 60%,#111 100%)', group:'Studio' },
+    { id:'black',        label:'Black',         css:'#111', group:'Studio' },
+    { id:'navy',         label:'Navy',          css:'radial-gradient(ellipse at 40% 35%,#1e3055 0%,#0e1e3a 60%,#060e20 100%)', group:'Studio' },
+    // Textures
+    { id:'marble',       label:'Marble',        css:'linear-gradient(125deg,#e8e4e0 0%,#f5f2ef 30%,#ddd8d4 55%,#f0ede8 80%,#e4e0dc 100%)', group:'Texture' },
+    { id:'wood',         label:'Oak Wood',      css:'linear-gradient(180deg,#caa572 0%,#d6ae7c 45%,#c09a62 100%)', group:'Texture' },
+    { id:'concrete',     label:'Concrete',      css:'radial-gradient(ellipse at 50% 50%,#6a6a6a 0%,#585858 50%,#484848 100%)', group:'Texture' },
+    { id:'linen',        label:'Linen',         css:'repeating-linear-gradient(0deg,#f0e8d8 0px,#e8deca 2px,#f0e8d8 4px)', group:'Texture' },
+    { id:'gradient-pink',label:'Dark Rose',     css:'linear-gradient(135deg,#1a0010,#3d0020,#6b0033)', group:'Texture' },
+    { id:'gradient-blue',label:'Midnight',      css:'linear-gradient(135deg,#0a0e1a,#0d1b3e,#0a2a5c)', group:'Texture' },
+    // AI Scenes — prompt sent to PhotoRoom
+    { id:'ai-street',    label:'Street Scene',  css:'linear-gradient(160deg,#2a2a3a 0%,#3a3a28 50%,#1a1a2a 100%)', group:'AI Scene', aiPrompt:'urban street scene, city background, natural daylight' },
+    { id:'ai-minimal',   label:'Minimal Room',  css:'linear-gradient(160deg,#f8f6f2 0%,#ede8df 100%)', group:'AI Scene', aiPrompt:'clean minimal interior, white walls, soft natural light' },
+    { id:'ai-nature',    label:'Nature',        css:'linear-gradient(160deg,#2d4a2d 0%,#3d6b3d 50%,#1a3a1a 100%)', group:'AI Scene', aiPrompt:'outdoor nature setting, green foliage, soft daylight' },
+    { id:'ai-luxury',    label:'Luxury',        css:'linear-gradient(160deg,#2a1f0e 0%,#3d2e15 50%,#1a1208 100%)', group:'AI Scene', aiPrompt:'luxury lifestyle background, marble surface, elegant lighting' },
+    { id:'ai-beach',     label:'Beach',         css:'linear-gradient(160deg,#7ecbf5 0%,#e8d5a0 60%,#c4a96a 100%)', group:'AI Scene', aiPrompt:'beach setting, sand and ocean, golden hour light' },
+    { id:'ai-warehouse', label:'Industrial',    css:'linear-gradient(160deg,#3a3530 0%,#4a4540 50%,#2a2520 100%)', group:'AI Scene', aiPrompt:'industrial warehouse background, brick walls, dramatic lighting' },
+    { id:'custom',       label:'Custom Image',  css:'repeating-conic-gradient(#444 0% 25%,#222 0% 50%) 0 0/12px 12px', group:'Custom' },
   ];
 
   const ENH_LIGHTINGS = [
@@ -5021,15 +5501,19 @@
   ];
 
   function enhInitUI() {
-    // Build background swatches
     const grid = document.getElementById('enh-bg-grid');
     if (grid) {
-      grid.innerHTML = ENH_BACKGROUNDS.map(b => `
-        <div onclick="enhSetBg('${b.id}',this)" data-bg="${b.id}" title="${b.label}"
-          style="aspect-ratio:1;border-radius:8px;border:2px solid ${b.id==='white-studio'?'var(--pink)':'transparent'};background:${b.css};cursor:pointer;transition:border-color .15s;">
-        </div>`).join('');
+      const groups = [...new Set(ENH_BACKGROUNDS.map(b => b.group))];
+      grid.innerHTML = groups.map(g => {
+        const bgs = ENH_BACKGROUNDS.filter(b => b.group === g);
+        return `<div style="grid-column:1/-1;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:4px;">${g}</div>` +
+          bgs.map(b => `
+            <div onclick="enhSetBg('${b.id}',this)" data-bg="${b.id}" title="${b.label}"
+              style="aspect-ratio:1;border-radius:8px;border:2px solid ${b.id==='white-studio'?'var(--pink)':'transparent'};background:${b.css};cursor:pointer;transition:border-color .15s;position:relative;overflow:hidden;">
+              ${b.group==='AI Scene'?`<span style="position:absolute;bottom:2px;left:0;right:0;text-align:center;font-size:8px;font-weight:700;color:rgba(255,255,255,0.85);text-shadow:0 1px 3px rgba(0,0,0,0.8);letter-spacing:.03em;">AI</span>`:''}
+            </div>`).join('');
+      }).join('');
     }
-    // Build lighting buttons
     const lbtns = document.getElementById('enh-lighting-btns');
     if (lbtns) {
       lbtns.innerHTML = ENH_LIGHTINGS.map(l => `
@@ -5437,6 +5921,275 @@
 
     // Show divider between sections only when both are visible
     if (divider) divider.style.display = (depopChecked && vintedChecked) ? '' : 'none';
+  }
+
+  // ── Generic tier gate helper ──────────────────────────────────────────────────
+  const TIER_RANK_CLIENT = { none:0, basic:1, pro:2, elite:3 };
+  function initToolAccess(gateId, toolId, tier, required) {
+    const gate = document.getElementById(gateId);
+    const tool = document.getElementById(toolId);
+    const ok   = TIER_RANK_CLIENT[tier] >= TIER_RANK_CLIENT[required];
+    if (gate) gate.style.display = ok ? 'none' : '';
+    if (tool) tool.style.display = ok ? ''     : 'none';
+  }
+
+  // ── Listing Optimiser ─────────────────────────────────────────────────────────
+  async function loptAnalyse() {
+    const url  = document.getElementById('lopt-url')?.value?.trim();
+    const btn  = document.getElementById('lopt-btn');
+    const msg  = document.getElementById('lopt-msg');
+    const res_ = document.getElementById('lopt-results');
+    const load = document.getElementById('lopt-loading');
+    if (!url) { showMsg(msg,'error','Paste a listing URL.'); return; }
+    if (!url.startsWith('http')) { showMsg(msg,'error','Enter a full URL starting with https://'); return; }
+    btn.disabled = true; btn.textContent = 'Analysing…';
+    if (res_) res_.style.display = 'none';
+    if (load) load.style.display = '';
+    msg.style.display = 'none';
+    try {
+      const { data:{ session } } = await sb.auth.getSession();
+      const r = await fetch(`${BOT_API}/api/listing/optimise`, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${session.access_token}` },
+        body: JSON.stringify({ url }),
+      });
+      const j = await r.json();
+      if (!r.ok) { showMsg(msg,'error', j.error || 'Failed to analyse.'); if(load) load.style.display='none'; btn.disabled=false; btn.textContent='Analyse'; return; }
+      if(load) load.style.display = 'none';
+      document.getElementById('lopt-score-val').textContent  = j.score ?? '—';
+      document.getElementById('lopt-listing-title').textContent = j.title || '—';
+      document.getElementById('lopt-listing-meta').textContent  = j.meta  || '';
+      const sugEl = document.getElementById('lopt-suggestions');
+      const CATEGORY_COLORS = { Title:'#60a5fa', Description:'#34d399', Pricing:'#f59e0b', Photos:'#a78bfa', Keywords:'#fb7185', General:'var(--pink)' };
+      if (sugEl && j.suggestions?.length) {
+        sugEl.innerHTML = j.suggestions.map(s => `
+          <div style="display:flex;gap:12px;padding:12px 14px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid var(--border-dim);">
+            <span style="flex-shrink:0;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.05);color:${CATEGORY_COLORS[s.category]||'var(--pink)'};height:fit-content;margin-top:1px;">${s.category||'Tip'}</span>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;">${s.heading}</div>
+              <div style="font-size:12px;color:var(--muted2);line-height:1.55;">${s.detail}</div>
+            </div>
+          </div>`).join('');
+      }
+      if(res_) res_.style.display = '';
+    } catch(e) { showMsg(msg,'error','Network error. Try again.'); if(load) load.style.display='none'; }
+    btn.disabled=false; btn.textContent='Analyse';
+  }
+
+  // ── Auto-Draft ────────────────────────────────────────────────────────────────
+  async function draftGenerate() {
+    const name      = document.getElementById('draft-name')?.value?.trim();
+    const condition = document.getElementById('draft-condition')?.value;
+    const size      = document.getElementById('draft-size')?.value?.trim();
+    const details   = document.getElementById('draft-details')?.value?.trim();
+    const platform  = document.getElementById('draft-platform')?.value;
+    const price     = document.getElementById('draft-price')?.value?.trim();
+    const btn  = document.getElementById('draft-btn');
+    const msg  = document.getElementById('draft-msg');
+    const load = document.getElementById('draft-loading');
+    const ph   = document.getElementById('draft-placeholder');
+    const res_ = document.getElementById('draft-results');
+    if (!name)      { showMsg(msg,'error','Enter the item name.'); return; }
+    if (!condition) { showMsg(msg,'error','Select a condition.'); return; }
+    btn.disabled=true; btn.textContent='Writing…';
+    if(ph)   ph.style.display   = 'none';
+    if(res_) res_.style.display = 'none';
+    if(load) load.style.display = '';
+    msg.style.display = 'none';
+    try {
+      const { data:{ session } } = await sb.auth.getSession();
+      const r = await fetch(`${BOT_API}/api/listing/draft`, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${session.access_token}` },
+        body: JSON.stringify({ name, condition, size, details, platform, price }),
+      });
+      const j = await r.json();
+      if (!r.ok) { showMsg(msg,'error', j.error||'Failed to generate.'); if(load) load.style.display='none'; if(ph) ph.style.display=''; btn.disabled=false; btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Generate Draft'; return; }
+      if(load) load.style.display='none';
+      document.getElementById('draft-out-title').textContent = j.title||'';
+      document.getElementById('draft-out-desc').textContent  = j.description||'';
+      document.getElementById('draft-out-price').textContent = j.price ? `£${j.price}` : '—';
+      const tagsEl = document.getElementById('draft-out-tags');
+      if(tagsEl && j.keywords?.length) tagsEl.innerHTML = j.keywords.map(k=>`<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(232,33,122,0.1);color:var(--pink);">${k}</span>`).join('');
+      if(res_) { res_.style.display='flex'; }
+    } catch(e) { showMsg(msg,'error','Network error. Try again.'); if(load) load.style.display='none'; if(ph) ph.style.display=''; }
+    btn.disabled=false; btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Generate Draft';
+  }
+
+  function draftCopy(elId, btn) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    navigator.clipboard.writeText(el.textContent || el.innerText).then(() => { btn.textContent='Copied!'; setTimeout(()=>btn.textContent='Copy',1800); });
+  }
+
+  // ── Seller Intelligence ───────────────────────────────────────────────────────
+  async function sintelAnalyse() {
+    const url  = document.getElementById('sintel-url')?.value?.trim();
+    const btn  = document.getElementById('sintel-btn');
+    const msg  = document.getElementById('sintel-msg');
+    const load = document.getElementById('sintel-loading');
+    const res_ = document.getElementById('sintel-results');
+    if (!url) { showMsg(msg,'error','Paste a seller profile URL.'); return; }
+    btn.disabled=true; btn.textContent='Analysing…';
+    if(res_) res_.style.display='none';
+    if(load) load.style.display='';
+    msg.style.display='none';
+    try {
+      const { data:{ session } } = await sb.auth.getSession();
+      const r = await fetch(`${BOT_API}/api/seller/analyse`, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${session.access_token}` },
+        body: JSON.stringify({ url }),
+      });
+      const j = await r.json();
+      if (!r.ok) { showMsg(msg,'error', j.error||'Failed to analyse.'); if(load) load.style.display='none'; btn.disabled=false; btn.textContent='Analyse'; return; }
+      if(load) load.style.display='none';
+      const nameEl = document.getElementById('sintel-name');
+      const metaEl = document.getElementById('sintel-meta');
+      const initEl = document.getElementById('sintel-avatar-init');
+      const rptEl  = document.getElementById('sintel-report');
+      const stratEl = document.getElementById('sintel-strategy');
+      const stratCard = document.getElementById('sintel-strategy-card');
+      if(nameEl) nameEl.textContent = j.sellerName || 'Unknown Seller';
+      if(metaEl) metaEl.textContent = j.meta || '';
+      if(initEl) initEl.textContent = (j.sellerName||'?')[0].toUpperCase();
+      if(rptEl)  rptEl.innerHTML    = (j.report||'').replace(/\n/g,'<br>');
+      if(stratEl && j.strategy) { stratEl.innerHTML = j.strategy.replace(/\n/g,'<br>'); if(stratCard) stratCard.style.display=''; }
+      const statsEl = document.getElementById('sintel-stats');
+      if(statsEl && j.stats?.length) {
+        statsEl.innerHTML = j.stats.map(s=>`<div class="stat-card"><div class="stat-label">${s.label}</div><div class="stat-val" style="font-size:18px;${s.color?`color:${s.color}`:''}">${s.value}</div></div>`).join('');
+      }
+      if(res_) res_.style.display='flex';
+    } catch(e) { showMsg(msg,'error','Network error. Try again.'); if(load) load.style.display='none'; }
+    btn.disabled=false; btn.textContent='Analyse';
+  }
+
+  // ── Flip Score ────────────────────────────────────────────────────────────────
+  async function fscoreAnalyse() {
+    const url  = document.getElementById('fscore-url')?.value?.trim();
+    const btn  = document.getElementById('fscore-btn');
+    const msg  = document.getElementById('fscore-msg');
+    const load = document.getElementById('fscore-loading');
+    const res_ = document.getElementById('fscore-results');
+    if (!url) { showMsg(msg,'error','Paste a listing URL.'); return; }
+    btn.disabled=true; btn.textContent='Scoring…';
+    if(res_) res_.style.display='none';
+    if(load) load.style.display='';
+    msg.style.display='none';
+    try {
+      const { data:{ session } } = await sb.auth.getSession();
+      const r = await fetch(`${BOT_API}/api/flip/score`, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${session.access_token}` },
+        body: JSON.stringify({ url }),
+      });
+      const j = await r.json();
+      if (!r.ok) { showMsg(msg,'error', j.error||'Failed to score.'); if(load) load.style.display='none'; btn.disabled=false; btn.textContent='Score This Flip'; return; }
+      if(load) load.style.display='none';
+      const score = j.score ?? 0;
+      const scoreColor = score >= 75 ? 'var(--green)' : score >= 50 ? '#f59e0b' : '#f87171';
+      const ringEl = document.getElementById('fscore-ring');
+      const valEl  = document.getElementById('fscore-val');
+      const verdictEl = document.getElementById('fscore-verdict');
+      const detailEl  = document.getElementById('fscore-detail');
+      if(ringEl)   ringEl.style.borderColor = scoreColor;
+      if(valEl)    { valEl.textContent = score; valEl.style.color = scoreColor; }
+      if(verdictEl){ verdictEl.textContent = j.verdict||''; verdictEl.style.background = score>=75?'rgba(74,222,128,0.1)':score>=50?'rgba(245,158,11,0.1)':'rgba(248,113,113,0.1)'; verdictEl.style.color = scoreColor; }
+      if(detailEl)  detailEl.innerHTML = (j.analysis||'').replace(/\n/g,'<br>');
+      const statsEl = document.getElementById('fscore-stats');
+      if(statsEl && j.breakdown?.length) {
+        statsEl.innerHTML = j.breakdown.map(b=>`<div class="stat-card"><div class="stat-label">${b.label}</div><div class="stat-val" style="font-size:17px;">${b.value}</div>${b.sub?`<div class="stat-sub">${b.sub}</div>`:''}</div>`).join('');
+      }
+      if(res_) res_.style.display='';
+    } catch(e) { showMsg(msg,'error','Network error. Try again.'); if(load) load.style.display='none'; }
+    btn.disabled=false; btn.textContent='Score This Flip';
+  }
+
+  // ── Price Elasticity ──────────────────────────────────────────────────────────
+  async function pelastAnalyse() {
+    const item  = document.getElementById('pelast-item')?.value?.trim();
+    const cond  = document.getElementById('pelast-condition')?.value;
+    const btn   = document.getElementById('pelast-btn');
+    const msg   = document.getElementById('pelast-msg');
+    const load  = document.getElementById('pelast-loading');
+    const res_  = document.getElementById('pelast-results');
+    if (!item) { showMsg(msg,'error','Enter an item name.'); return; }
+    btn.disabled=true; btn.textContent='Modelling…';
+    if(res_) res_.style.display='none';
+    if(load) load.style.display='';
+    msg.style.display='none';
+    try {
+      const { data:{ session } } = await sb.auth.getSession();
+      const r = await fetch(`${BOT_API}/api/price/elasticity`, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${session.access_token}` },
+        body: JSON.stringify({ item, condition: cond }),
+      });
+      const j = await r.json();
+      if (!r.ok) { showMsg(msg,'error', j.error||'Failed.'); if(load) load.style.display='none'; btn.disabled=false; btn.textContent='Analyse Pricing'; return; }
+      if(load) load.style.display='none';
+      const labelEl = document.getElementById('pelast-item-label');
+      if(labelEl) labelEl.textContent = j.item || item;
+      const insightEl = document.getElementById('pelast-insight');
+      if(insightEl) insightEl.innerHTML = (j.insight||'').replace(/\n/g,'<br>');
+      const tbody = document.getElementById('pelast-tbody');
+      if(tbody && j.curve?.length) {
+        tbody.innerHTML = j.curve.map(row => {
+          const roiColor = parseFloat(row.roi)>20?'var(--green)':parseFloat(row.roi)>0?'#f59e0b':'#f87171';
+          return `<tr>
+            <td style="font-weight:600;color:var(--text);">£${row.price}</td>
+            <td style="color:var(--muted2);">${row.days} days</td>
+            <td style="color:var(--green);">${row.profit}</td>
+            <td style="color:${roiColor};font-weight:600;">${row.roi}%</td>
+            <td>${row.sweet_spot?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:rgba(74,222,128,0.1);color:var(--green);font-weight:600;">Sweet Spot</span>`:`<span style="font-size:11px;color:var(--muted);">${row.verdict||'—'}</span>`}</td>
+          </tr>`;
+        }).join('');
+      }
+      if(res_) res_.style.display='';
+    } catch(e) { showMsg(msg,'error','Network error. Try again.'); if(load) load.style.display='none'; }
+    btn.disabled=false; btn.textContent='Analyse Pricing';
+  }
+
+  // ── Resell Calendar ───────────────────────────────────────────────────────────
+  let _rcalLoaded = false;
+  async function rcalLoad() {
+    const cat   = document.getElementById('rcal-category')?.value || 'all';
+    const btn   = document.getElementById('rcal-btn');
+    const load  = document.getElementById('rcal-loading');
+    const res_  = document.getElementById('rcal-results');
+    const empty = document.getElementById('rcal-empty');
+    if(btn)  btn.disabled  = true;
+    if(res_) res_.innerHTML = '';
+    if(empty) empty.style.display='none';
+    if(load) load.style.display='';
+    try {
+      const { data:{ session } } = await sb.auth.getSession();
+      const r = await fetch(`${BOT_API}/api/resell/calendar?category=${encodeURIComponent(cat)}`, {
+        headers:{ Authorization:`Bearer ${session.access_token}` },
+      });
+      const j = await r.json();
+      if(load) load.style.display='none';
+      if (!r.ok || !j.events?.length) { if(empty) empty.style.display=''; if(btn) btn.disabled=false; return; }
+      const URGENCY_COLOR = { high:'#f87171', medium:'#f59e0b', low:'var(--green)' };
+      if(res_) res_.innerHTML = j.events.map(ev => `
+        <div class="card" style="display:flex;gap:16px;align-items:flex-start;">
+          <div style="flex-shrink:0;width:52px;text-align:center;padding:8px 0;border-radius:8px;background:rgba(232,33,122,0.08);border:1px solid rgba(232,33,122,0.18);">
+            <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--pink);">${ev.month||''}</div>
+            <div style="font-size:20px;font-weight:800;font-family:'Syne',sans-serif;color:var(--text);line-height:1.1;">${ev.day||'?'}</div>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
+              <div style="font-size:14px;font-weight:700;color:var(--text);">${ev.title}</div>
+              ${ev.category?`<span style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--muted);">${ev.category}</span>`:''}
+              ${ev.urgency?`<span style="font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.05);color:${URGENCY_COLOR[ev.urgency]||'var(--muted)'};">${ev.urgency.toUpperCase()}</span>`:''}
+            </div>
+            <div style="font-size:13px;color:var(--muted2);line-height:1.55;margin-bottom:6px;">${ev.description}</div>
+            ${ev.action?`<div style="font-size:12px;font-weight:600;color:var(--pink);">→ ${ev.action}</div>`:''}
+          </div>
+        </div>`).join('');
+      _rcalLoaded = true;
+    } catch(e) { if(load) load.style.display='none'; if(empty) empty.style.display=''; }
+    if(btn) btn.disabled=false;
   }
 
 </script>
