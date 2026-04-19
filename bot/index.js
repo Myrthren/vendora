@@ -5293,12 +5293,19 @@ async function scrapeListingForOptimiser(url) {
         }
       } catch (e) { console.warn('[optimise] vinted api fail', e.message); }
 
-      // 2) browser fallback (bypasses DataDome)
+      // 2) browser fallback — navigates to the real page, solves DataDome
       if (vintedBrowser?.vintedBrowserFetchItem) {
         try {
-          const br = await vintedBrowser.vintedBrowserFetchItem(idMatch[1]);
+          const br = await vintedBrowser.vintedBrowserFetchItem(url);
           if (br?.ok && br.data) {
-            applyItem(br.data.item || br.data);
+            const it = br.data.item || br.data;
+            out.title       = it.title || out.title;
+            out.description = it.description || out.description;
+            out.price       = it.price?.amount ? `£${it.price.amount}` : out.price;
+            out.brand       = it.brand || it.brand_dto?.title || out.brand;
+            out.size        = it.size || it.size_title || out.size;
+            out.condition   = it.status || out.condition;
+            out.photos      = Array.isArray(it.photos) ? it.photos.length : (out.photos || 0);
             if (out.title) return out;
           } else {
             console.warn('[optimise] vinted browser fetch failed', br?.status || br?.error);

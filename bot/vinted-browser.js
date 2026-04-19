@@ -433,7 +433,11 @@ async function vintedBrowserFetchAnalytics(accessToken, userId) {
   }
 }
 
-// Fetch a public Vinted item from inside the browser context — bypasses DataDome.
+// Fetch a public Vinted item via the browser — bypasses DataDome.
+// Approach: navigate directly to the item URL (so DataDome solves naturally),
+// wait for the page to render, then call /api/v2/items/{id} from inside the
+// resolved page context so it carries the solved cookies + fingerprint.
+// Falls back to scraping the rendered DOM if the API call still fails.
 // Accepts either an item ID or a full Vinted URL. Returns { ok, data } | { error }.
 async function vintedBrowserFetchItem(itemIdOrUrl) {
   if (!chromium) return { error: 'Browser unavailable' };
@@ -442,31 +446,119 @@ async function vintedBrowserFetchItem(itemIdOrUrl) {
   if (m) itemId = m[1];
   if (!/^\d+$/.test(itemId)) return { error: 'Invalid item id' };
 
-  let page;
-  try {
-    const ctx = await ensureBrowser();
-    page = await ctx.newPage();
-    const base = await resolveVintedBase(page);
+  const tryBase = async (base) => {
+    let page;
+    try {
+      const ctx = await ensureBrowser();
+      page = await ctx.newPage();
 
-    const result = await page.evaluate(async ({ base, id }) => {
+      // Block heavy assets to speed up, but keep scripts (DataDome runs in JS).
+      await page.route('**/*', (route) => {
+        const t = route.request().resourceType();
+        if (t === 'image' || t === 'media' || t === 'font') return route.abort();
+        return route.continue();
+      });
+
+      const itemUrl = `${base}/items/${itemId}`;
+      const resp = await page.goto(itemUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      if (!resp) return { error: 'no response' };
+
+      // If DataDome challenge page, wait a moment for auto-solve then reload.
       try {
-        const r = await fetch(`${base}/api/v2/items/${id}`, {
-          credentials: 'include',
-          headers: { Accept: 'application/json' },
-        });
-        const t = await r.text();
-        try { return { ok: r.ok, status: r.status, data: JSON.parse(t) }; }
-        catch { return { ok: false, status: r.status, html: t.slice(0, 300) }; }
-      } catch (e) { return { error: e.message }; }
-    }, { base, id: itemId });
+        const blocked = await page.evaluate(() =>
+          document.title?.toLowerCase().includes('blocked') ||
+          !!document.querySelector('iframe[src*="datadome"], [id*="dd-challenge"]')
+        );
+        if (blocked) {
+          await page.waitForTimeout(4000);
+          await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+        }
+      } catch {}
 
-    return result;
-  } catch (e) {
-    console.error('[vinted-browser-fetch-item] error:', e.message);
-    return { error: e.message };
-  } finally {
-    try { if (page) await page.close(); } catch {}
+      // Small settle so any XHRs / hydration finish.
+      await page.waitForTimeout(1200);
+
+      // 1) Preferred: call the public item API from inside this page context.
+      const apiData = await page.evaluate(async ({ base, id }) => {
+        try {
+          const r = await fetch(`${base}/api/v2/items/${id}`, {
+            credentials: 'include',
+            headers: { Accept: 'application/json' },
+          });
+          const t = await r.text();
+          try { return { ok: r.ok, status: r.status, data: JSON.parse(t) }; }
+          catch { return { ok: false, status: r.status, htmlHead: t.slice(0, 200) }; }
+        } catch (e) { return { error: e.message }; }
+      }, { base, id: itemId });
+
+      if (apiData?.ok && apiData.data?.item) return apiData;
+
+      // 2) Fallback: scrape the rendered DOM — Vinted uses stable test-ids.
+      const domData = await page.evaluate(() => {
+        const pick = (sels) => {
+          for (const s of sels) {
+            const el = document.querySelector(s);
+            if (el) return (el.textContent || el.content || '').trim();
+          }
+          return '';
+        };
+        const pickAll = (sel) => Array.from(document.querySelectorAll(sel));
+
+        const title       = pick(['[data-testid="item-page-title"]', 'h1', 'meta[property="og:title"]']);
+        const description = pick(['[itemprop="description"]', '[data-testid="item-description"] *', 'meta[property="og:description"]']);
+        const price       = pick(['[data-testid="item-price"]', '[itemprop="price"]', 'meta[property="product:price:amount"]']);
+        const brand       = pick(['[itemprop="brand"]', '[data-testid="item-attributes-brand"] [data-testid*="value"]']);
+        const size        = pick(['[data-testid="item-attributes-size"] [data-testid*="value"]', '[itemprop="size"]']);
+        const condition   = pick(['[data-testid="item-attributes-status"] [data-testid*="value"]']);
+        const photos      = pickAll('[data-testid^="item-photo"] img, [class*="PhotoGallery"] img').length;
+        return {
+          title:       title.slice(0, 200),
+          description: description.slice(0, 2000),
+          price,
+          brand,
+          size,
+          condition,
+          photos,
+        };
+      });
+
+      if (domData?.title) {
+        return { ok: true, data: { item: {
+          title:       domData.title,
+          description: domData.description,
+          price:       domData.price ? { amount: domData.price.replace(/[^\d.]/g, '') } : undefined,
+          brand:       domData.brand,
+          size:        domData.size,
+          status:      domData.condition,
+          photos:      new Array(domData.photos || 0),
+        } } };
+      }
+
+      return { ok: false, status: apiData?.status || 0, error: 'no data extractable' };
+    } catch (e) {
+      return { error: e.message };
+    } finally {
+      try { if (page) await page.close(); } catch {}
+    }
+  };
+
+  // Try the locale the URL hints at first (if caller passed a URL), else .co.uk.
+  let primary = 'https://www.vinted.co.uk';
+  try {
+    if (typeof itemIdOrUrl === 'string' && itemIdOrUrl.startsWith('http')) {
+      primary = new URL(itemIdOrUrl).origin;
+    }
+  } catch {}
+  const first = await tryBase(primary);
+  if (first?.ok) return first;
+
+  // If that base got geo-redirected / blocked, try the default .co.uk once more.
+  if (primary !== 'https://www.vinted.co.uk') {
+    const second = await tryBase('https://www.vinted.co.uk');
+    if (second?.ok) return second;
+    return second;
   }
+  return first;
 }
 
 module.exports = {
