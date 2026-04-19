@@ -5306,7 +5306,7 @@ async function scrapeListingForOptimiser(url) {
         } catch (e) { console.warn('[optimise] vinted browser error', e.message); }
       }
     }
-    return out;
+    // Both paths blocked — fall through to generic HTML fetch for OG tags / slug.
   }
 
   // ── Depop: try product HTML — __NEXT_DATA__ carries the listing JSON ────────
@@ -5402,6 +5402,20 @@ async function scrapeListingForOptimiser(url) {
       return out;
     }
   } catch (e) { console.warn('[optimise] generic fetch fail', e.message); }
+
+  // Last-resort: extract product keywords from the URL slug so Claude + Brave
+  // have *something* to work with. Vinted/Depop slugs are descriptive.
+  if (!out.title) {
+    try {
+      const path = new URL(url).pathname;
+      const parts = path.split('/').filter(Boolean);
+      const last = parts[parts.length - 1] || '';
+      // strip leading numeric id (Vinted "12345678-nike-air-max" → "nike-air-max")
+      const slug = last.replace(/^\d+[-_]?/, '').replace(/\.(html?|php)$/, '');
+      const readable = decodeURIComponent(slug).replace(/[-_]+/g, ' ').trim();
+      if (readable.length >= 3) out.title = readable;
+    } catch {}
+  }
   return out;
 }
 
@@ -5418,18 +5432,14 @@ app.post('/api/listing/optimise', async (req, res) => {
     if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
 
     const scraped = await scrapeListingForOptimiser(url);
-    const scrapedOk = !!(scraped.title && (scraped.description || scraped.price));
-    if (!scrapedOk) {
-      return res.status(502).json({
-        error: `Could not read this ${scraped.platform !== 'unknown' ? scraped.platform : 'listing'} page — the site blocked the scrape. Try a different listing, or check the URL is correct.`
-      });
-    }
+    const richData = !!(scraped.description && scraped.price);
 
     let webCtx = '';
     try {
-      const hits = await webSearch(scraped.title.slice(0, 120), 4);
+      const q = (scraped.title || url).slice(0, 140);
+      const hits = await webSearch(q, 5);
       if (Array.isArray(hits) && hits.length) {
-        webCtx = hits.map(h => `• ${h.title}: ${h.description}`).join('\n').slice(0, 1200);
+        webCtx = hits.map(h => `• ${h.title}: ${h.description}`).join('\n').slice(0, 1500);
       }
     } catch {}
 
@@ -5437,16 +5447,18 @@ app.post('/api/listing/optimise', async (req, res) => {
 
 Listing URL: ${url}
 Platform: ${scraped.platform}
-Title: ${scraped.title}
-Description: ${(scraped.description || '').slice(0, 800) || '(none)'}
+Title: ${scraped.title || '(could not read from page — derive from URL/web context)'}
+Description: ${(scraped.description || '').slice(0, 800) || '(not available — the page was protected)'}
 Price: ${scraped.price || 'unknown'}
 Brand: ${scraped.brand || 'unknown'}
 Size: ${scraped.size || 'unknown'}
 Condition: ${scraped.condition || 'unknown'}
 Photo count: ${scraped.photos || 'unknown'}
-${webCtx ? `\nMarket context from web:\n${webCtx}` : ''}
+${webCtx ? `\nMarket context from web search:\n${webCtx}` : ''}
 
-Every suggestion MUST quote or reference the actual detected content above. Do not give generic advice that could apply to any listing.
+${richData
+  ? 'Every suggestion MUST reference specific content from the listing above. No generic advice.'
+  : 'The page could not be fully scraped. Use the title + web context to infer what the product is, then give suggestions that apply to this specific product category / brand. Be upfront where detail is missing ("without seeing the description, ensure it covers…").'}
 
 Return a JSON object with this exact shape:
 {
@@ -5600,29 +5612,25 @@ app.post('/api/flip/score', async (req, res) => {
 
   try {
     const scraped = await scrapeListingForOptimiser(url);
-    if (!scraped.title || !scraped.price) {
-      return res.status(502).json({
-        error: `Could not read this ${scraped.platform !== 'unknown' ? scraped.platform : 'listing'} page — the site blocked the scrape. Can't score without real listing data.`
-      });
-    }
 
-    const soldData = await webSearch(`${scraped.title} sold price ebay UK`, 6).catch(() => null);
+    const searchQ  = `${scraped.title || url} sold price ebay UK`;
+    const soldData = await webSearch(searchQ.slice(0, 160), 6).catch(() => null);
     const soldCtx  = Array.isArray(soldData) && soldData.length
-      ? soldData.map(r => `• ${r.title}: ${r.description}`).join('\n').slice(0, 1400)
+      ? soldData.map(r => `• ${r.title}: ${r.description}`).join('\n').slice(0, 1500)
       : '';
 
-    const prompt = `You are a professional reseller. Score this flip opportunity using the real listing data below.
+    const prompt = `You are a professional reseller. Score this flip opportunity using the data below.
 
 Listing URL: ${url}
 Platform: ${scraped.platform}
-Title: ${scraped.title}
-Asking price: ${scraped.price}
+Title: ${scraped.title || '(not readable from page — derive from URL/web context)'}
+Asking price: ${scraped.price || 'unknown (page was protected)'}
 Brand: ${scraped.brand || 'unknown'}
 Size: ${scraped.size || 'unknown'}
 Condition: ${scraped.condition || 'unknown'}
-${soldCtx ? `\nSold comp data from web:\n${soldCtx}` : '\n(No sold comp data available — base the score on reselling market knowledge for this exact brand/item.)'}
+${soldCtx ? `\nSold comp data from web search:\n${soldCtx}` : '\n(No sold comp data available — use reselling knowledge for this exact brand/item.)'}
 
-Ground every number in the data above. If a detail is unknown, say so in the breakdown sub-line rather than inventing it.
+Ground every number in the data above. If the asking price or a detail is unknown, state that clearly in the breakdown sub-line rather than inventing it.
 
 Return ONLY a JSON object:
 {
