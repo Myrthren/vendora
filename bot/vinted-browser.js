@@ -433,11 +433,48 @@ async function vintedBrowserFetchAnalytics(accessToken, userId) {
   }
 }
 
+// Fetch a public Vinted item from inside the browser context — bypasses DataDome.
+// Accepts either an item ID or a full Vinted URL. Returns { ok, data } | { error }.
+async function vintedBrowserFetchItem(itemIdOrUrl) {
+  if (!chromium) return { error: 'Browser unavailable' };
+  let itemId = String(itemIdOrUrl || '');
+  const m = itemId.match(/\/items\/(\d+)/);
+  if (m) itemId = m[1];
+  if (!/^\d+$/.test(itemId)) return { error: 'Invalid item id' };
+
+  let page;
+  try {
+    const ctx = await ensureBrowser();
+    page = await ctx.newPage();
+    const base = await resolveVintedBase(page);
+
+    const result = await page.evaluate(async ({ base, id }) => {
+      try {
+        const r = await fetch(`${base}/api/v2/items/${id}`, {
+          credentials: 'include',
+          headers: { Accept: 'application/json' },
+        });
+        const t = await r.text();
+        try { return { ok: r.ok, status: r.status, data: JSON.parse(t) }; }
+        catch { return { ok: false, status: r.status, html: t.slice(0, 300) }; }
+      } catch (e) { return { error: e.message }; }
+    }, { base, id: itemId });
+
+    return result;
+  } catch (e) {
+    console.error('[vinted-browser-fetch-item] error:', e.message);
+    return { error: e.message };
+  } finally {
+    try { if (page) await page.close(); } catch {}
+  }
+}
+
 module.exports = {
   vintedBrowserLogin,
   vintedBrowserUploadPhoto,
   vintedBrowserCreateListing,
   vintedBrowserValidateToken,
   vintedBrowserFetchAnalytics,
+  vintedBrowserFetchItem,
   closeVintedBrowser,
 };

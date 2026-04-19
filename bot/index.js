@@ -5257,11 +5257,21 @@ async function scrapeListingForOptimiser(url) {
   let host = '';
   try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { return out; }
 
-  // ── Vinted: use public item API via proxy ───────────────────────────────────
+  // ── Vinted: use public item API via proxy, fall back to Playwright browser ──
   if (host.includes('vinted.')) {
     out.platform = 'Vinted';
     const idMatch = url.match(/\/items\/(\d+)/);
     if (idMatch) {
+      const applyItem = (it) => {
+        out.title       = it.title || '';
+        out.description = it.description || '';
+        out.price       = it.price?.amount ? `£${it.price.amount}` : (it.total_item_price?.amount ? `£${it.total_item_price.amount}` : (typeof it.price === 'string' ? `£${it.price}` : ''));
+        out.brand       = it.brand || it.brand_dto?.title || '';
+        out.size        = it.size || it.size_title || '';
+        out.condition   = it.status || '';
+        out.photos      = Array.isArray(it.photos) ? it.photos.length : 0;
+      };
+      // 1) direct proxy fetch
       try {
         const base = await getVintedBase();
         const r = await vFetch(`${base}/api/v2/items/${idMatch[1]}`, {
@@ -5273,20 +5283,30 @@ async function scrapeListingForOptimiser(url) {
           },
           signal: AbortSignal.timeout(10000),
         });
-        if (r.ok) {
+        const ct = r.headers.get('content-type') || '';
+        if (r.ok && ct.includes('application/json')) {
           const j = await r.json();
-          const it = j.item || j;
-          out.title       = it.title || '';
-          out.description = it.description || '';
-          out.price       = it.price?.amount ? `£${it.price.amount}` : (it.total_item_price?.amount ? `£${it.total_item_price.amount}` : '');
-          out.brand       = it.brand || it.brand_dto?.title || '';
-          out.size        = it.size || it.size_title || '';
-          out.condition   = it.status || '';
-          out.photos      = Array.isArray(it.photos) ? it.photos.length : 0;
-          return out;
+          applyItem(j.item || j);
+          if (out.title) return out;
+        } else {
+          console.warn('[optimise] vinted direct api blocked', r.status, ct);
         }
       } catch (e) { console.warn('[optimise] vinted api fail', e.message); }
+
+      // 2) browser fallback (bypasses DataDome)
+      if (vintedBrowser?.vintedBrowserFetchItem) {
+        try {
+          const br = await vintedBrowser.vintedBrowserFetchItem(idMatch[1]);
+          if (br?.ok && br.data) {
+            applyItem(br.data.item || br.data);
+            if (out.title) return out;
+          } else {
+            console.warn('[optimise] vinted browser fetch failed', br?.status || br?.error);
+          }
+        } catch (e) { console.warn('[optimise] vinted browser error', e.message); }
+      }
     }
+    return out;
   }
 
   // ── Depop: try product HTML — __NEXT_DATA__ carries the listing JSON ────────
@@ -5398,16 +5418,16 @@ app.post('/api/listing/optimise', async (req, res) => {
     if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
 
     const scraped = await scrapeListingForOptimiser(url);
-    const scrapedOk = !!(scraped.title || scraped.description || scraped.price);
+    const scrapedOk = !!(scraped.title && (scraped.description || scraped.price));
+    if (!scrapedOk) {
+      return res.status(502).json({
+        error: `Could not read this ${scraped.platform !== 'unknown' ? scraped.platform : 'listing'} page — the site blocked the scrape. Try a different listing, or check the URL is correct.`
+      });
+    }
 
-    // Always augment with a web search so we have *something* even if scrape failed
     let webCtx = '';
-    const searchQuery = scraped.title || (() => {
-      try { return decodeURIComponent(new URL(url).pathname.split('/').filter(Boolean).pop().replace(/[-_]/g, ' ')); }
-      catch { return url; }
-    })();
     try {
-      const hits = await webSearch(searchQuery.slice(0, 120), 4);
+      const hits = await webSearch(scraped.title.slice(0, 120), 4);
       if (Array.isArray(hits) && hits.length) {
         webCtx = hits.map(h => `• ${h.title}: ${h.description}`).join('\n').slice(0, 1200);
       }
@@ -5417,15 +5437,16 @@ app.post('/api/listing/optimise', async (req, res) => {
 
 Listing URL: ${url}
 Platform: ${scraped.platform}
-Detected Title: ${scraped.title || 'Not found'}
-Detected Description: ${(scraped.description || '').slice(0, 800) || 'Not found'}
-Detected Price: ${scraped.price || 'unknown'}
-Detected Brand: ${scraped.brand || 'unknown'}
-Detected Size: ${scraped.size || 'unknown'}
-Detected Condition: ${scraped.condition || 'unknown'}
+Title: ${scraped.title}
+Description: ${(scraped.description || '').slice(0, 800) || '(none)'}
+Price: ${scraped.price || 'unknown'}
+Brand: ${scraped.brand || 'unknown'}
+Size: ${scraped.size || 'unknown'}
+Condition: ${scraped.condition || 'unknown'}
 Photo count: ${scraped.photos || 'unknown'}
 ${webCtx ? `\nMarket context from web:\n${webCtx}` : ''}
-${!scrapedOk ? '\nNOTE: The page could not be directly scraped. Infer what you can from the URL path and market context above, and be explicit in your suggestions about what the seller should clarify or add.' : ''}
+
+Every suggestion MUST quote or reference the actual detected content above. Do not give generic advice that could apply to any listing.
 
 Return a JSON object with this exact shape:
 {
@@ -5578,25 +5599,30 @@ app.post('/api/flip/score', async (req, res) => {
   if (!url?.startsWith('http')) return res.status(400).json({ error: 'Valid URL required.' });
 
   try {
-    const [pageRes, soldData] = await Promise.allSettled([
-      fetch(url, { headers:{ 'User-Agent':'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) }),
-      webSearch(`site:ebay.co.uk sold "${new URL(url).pathname.split('/').pop()}"`, 5),
-    ]);
+    const scraped = await scrapeListingForOptimiser(url);
+    if (!scraped.title || !scraped.price) {
+      return res.status(502).json({
+        error: `Could not read this ${scraped.platform !== 'unknown' ? scraped.platform : 'listing'} page — the site blocked the scrape. Can't score without real listing data.`
+      });
+    }
 
-    const html      = pageRes.status === 'fulfilled' ? await pageRes.value.text() : '';
-    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    const priceMatch = html.match(/£\s*(\d+(?:\.\d{2})?)/);
-    const pageTitle  = (titleMatch?.[1] || '').replace(/\s*[-|].*/,'').trim().slice(0,120);
-    const listPrice  = priceMatch?.[1] ? parseFloat(priceMatch[1]) : null;
-    const soldCtx    = soldData.status === 'fulfilled' && Array.isArray(soldData.value)
-      ? soldData.value.map(r=>`${r.title}: ${r.description}`).join('\n') : '';
+    const soldData = await webSearch(`${scraped.title} sold price ebay UK`, 6).catch(() => null);
+    const soldCtx  = Array.isArray(soldData) && soldData.length
+      ? soldData.map(r => `• ${r.title}: ${r.description}`).join('\n').slice(0, 1400)
+      : '';
 
-    const prompt = `You are a professional reseller. Score this flip opportunity.
+    const prompt = `You are a professional reseller. Score this flip opportunity using the real listing data below.
 
 Listing URL: ${url}
-Detected title: ${pageTitle || 'unknown'}
-Detected asking price: ${listPrice ? `£${listPrice}` : 'unknown'}
-Sold price context from web: ${soldCtx || 'limited data available'}
+Platform: ${scraped.platform}
+Title: ${scraped.title}
+Asking price: ${scraped.price}
+Brand: ${scraped.brand || 'unknown'}
+Size: ${scraped.size || 'unknown'}
+Condition: ${scraped.condition || 'unknown'}
+${soldCtx ? `\nSold comp data from web:\n${soldCtx}` : '\n(No sold comp data available — base the score on reselling market knowledge for this exact brand/item.)'}
+
+Ground every number in the data above. If a detail is unknown, say so in the breakdown sub-line rather than inventing it.
 
 Return ONLY a JSON object:
 {
