@@ -5251,6 +5251,140 @@ app.post('/api/credits/monthly-grant', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Listing scrape helper — platform-aware, with graceful fallback ────────────
+async function scrapeListingForOptimiser(url) {
+  const out = { platform: 'unknown', title: '', description: '', price: '', brand: '', size: '', condition: '', photos: 0, raw: '' };
+  let host = '';
+  try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { return out; }
+
+  // ── Vinted: use public item API via proxy ───────────────────────────────────
+  if (host.includes('vinted.')) {
+    out.platform = 'Vinted';
+    const idMatch = url.match(/\/items\/(\d+)/);
+    if (idMatch) {
+      try {
+        const base = await getVintedBase();
+        const r = await vFetch(`${base}/api/v2/items/${idMatch[1]}`, {
+          headers: {
+            'User-Agent': VINTED_UA,
+            'Accept': 'application/json',
+            'Accept-Language': 'en-GB,en;q=0.9',
+            'Referer': `${base}/`,
+          },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (r.ok) {
+          const j = await r.json();
+          const it = j.item || j;
+          out.title       = it.title || '';
+          out.description = it.description || '';
+          out.price       = it.price?.amount ? `£${it.price.amount}` : (it.total_item_price?.amount ? `£${it.total_item_price.amount}` : '');
+          out.brand       = it.brand || it.brand_dto?.title || '';
+          out.size        = it.size || it.size_title || '';
+          out.condition   = it.status || '';
+          out.photos      = Array.isArray(it.photos) ? it.photos.length : 0;
+          return out;
+        }
+      } catch (e) { console.warn('[optimise] vinted api fail', e.message); }
+    }
+  }
+
+  // ── Depop: try product HTML — __NEXT_DATA__ carries the listing JSON ────────
+  if (host.includes('depop.')) {
+    out.platform = 'Depop';
+    try {
+      const r = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-GB,en;q=0.9',
+        },
+        signal: AbortSignal.timeout(12000),
+      });
+      if (r.ok) {
+        const html = await r.text();
+        const nextMatch = html.match(/<script[^>]+id="__NEXT_DATA__"[^>]*>([\s\S]+?)<\/script>/);
+        if (nextMatch) {
+          try {
+            const j = JSON.parse(nextMatch[1]);
+            const prod = j?.props?.pageProps?.product || j?.props?.pageProps?.productDetails || null;
+            if (prod) {
+              out.title       = prod.description?.split('\n')[0]?.slice(0,100) || '';
+              out.description = prod.description || '';
+              out.price       = prod.priceAmount ? `£${prod.priceAmount}` : (prod.price?.priceAmount ? `£${prod.price.priceAmount}` : '');
+              out.brand       = prod.brandName || prod.brand?.name || '';
+              out.size        = (prod.variants?.[0]?.name) || prod.size || '';
+              out.condition   = prod.condition || '';
+              out.photos      = Array.isArray(prod.pictures) ? prod.pictures.length : (Array.isArray(prod.images) ? prod.images.length : 0);
+              return out;
+            }
+          } catch {}
+        }
+        // fallback: meta tags
+        const titleMatch = html.match(/<meta\s+property="og:title"\s+content="([^"]+)"/i);
+        const descMatch  = html.match(/<meta\s+property="og:description"\s+content="([^"]+)"/i);
+        const priceMatch = html.match(/£\s*(\d+(?:\.\d{2})?)/);
+        out.title       = titleMatch?.[1] || '';
+        out.description = descMatch?.[1] || '';
+        out.price       = priceMatch?.[1] ? `£${priceMatch[1]}` : '';
+        return out;
+      }
+    } catch (e) { console.warn('[optimise] depop fail', e.message); }
+  }
+
+  // ── eBay / generic: rich browser headers, parse OG + JSON-LD ────────────────
+  if (host.includes('ebay.')) out.platform = 'eBay';
+  try {
+    const r = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-GB,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'no-cache',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
+      },
+      signal: AbortSignal.timeout(12000),
+      redirect: 'follow',
+    });
+    if (r.ok) {
+      const html = await r.text();
+      const ogTitle = html.match(/<meta\s+property="og:title"\s+content="([^"]+)"/i)?.[1];
+      const ogDesc  = html.match(/<meta\s+property="og:description"\s+content="([^"]+)"/i)?.[1];
+      const metaDesc= html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)?.[1];
+      const titleTag= html.match(/<title[^>]*>([^<]{3,160})<\/title>/i)?.[1];
+      const priceOg = html.match(/<meta\s+property="(?:product:price:amount|og:price:amount)"\s+content="([^"]+)"/i)?.[1];
+      const pricePound = html.match(/£\s*(\d+(?:\.\d{2})?)/)?.[1];
+      out.title       = ogTitle || (titleTag || '').replace(/\s*[|-].*$/,'').trim();
+      out.description = ogDesc || metaDesc || '';
+      out.price       = priceOg ? `£${priceOg}` : (pricePound ? `£${pricePound}` : '');
+      // JSON-LD Product fallback
+      const ldMatches = [...html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]+?)<\/script>/gi)];
+      for (const m of ldMatches) {
+        try {
+          const obj = JSON.parse(m[1]);
+          const arr = Array.isArray(obj) ? obj : [obj];
+          for (const o of arr) {
+            if (o['@type'] === 'Product' || (Array.isArray(o['@type']) && o['@type'].includes('Product'))) {
+              out.title       = out.title       || o.name || '';
+              out.description = out.description || o.description || '';
+              out.brand       = out.brand       || (typeof o.brand === 'string' ? o.brand : o.brand?.name) || '';
+              const offer = Array.isArray(o.offers) ? o.offers[0] : o.offers;
+              if (offer?.price && !out.price) out.price = `£${offer.price}`;
+            }
+          }
+        } catch {}
+      }
+      return out;
+    }
+  } catch (e) { console.warn('[optimise] generic fetch fail', e.message); }
+  return out;
+}
+
 // ── Listing Optimiser ──────────────────────────────────────────────────────────
 app.post('/api/listing/optimise', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
@@ -5261,29 +5395,37 @@ app.post('/api/listing/optimise', async (req, res) => {
   if (!url?.startsWith('http')) return res.status(400).json({ error: 'Valid URL required.' });
 
   try {
-    // Scrape the listing page
-    const pageRes = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-      signal: AbortSignal.timeout(12000),
-    });
-    const html = await pageRes.text();
+    if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
 
-    // Extract key text (title, description, price via simple regex patterns)
-    const titleMatch  = html.match(/<title[^>]*>([^<]{3,120})<\/title>/i);
-    const descMatch   = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']{10,400})["']/i)
-                     || html.match(/<meta[^>]+content=["']([^"']{10,400})["'][^>]+name=["']description["']/i);
-    const priceMatch  = html.match(/£\s*(\d+(?:\.\d{2})?)/);
+    const scraped = await scrapeListingForOptimiser(url);
+    const scrapedOk = !!(scraped.title || scraped.description || scraped.price);
 
-    const pageTitle   = (titleMatch?.[1] || '').replace(/\s*[-|].*/,'').trim().slice(0,120);
-    const pageDesc    = (descMatch?.[1] || '').slice(0,600);
-    const pagePrice   = priceMatch?.[1] ? `£${priceMatch[1]}` : 'unknown';
+    // Always augment with a web search so we have *something* even if scrape failed
+    let webCtx = '';
+    const searchQuery = scraped.title || (() => {
+      try { return decodeURIComponent(new URL(url).pathname.split('/').filter(Boolean).pop().replace(/[-_]/g, ' ')); }
+      catch { return url; }
+    })();
+    try {
+      const hits = await webSearch(searchQuery.slice(0, 120), 4);
+      if (Array.isArray(hits) && hits.length) {
+        webCtx = hits.map(h => `• ${h.title}: ${h.description}`).join('\n').slice(0, 1200);
+      }
+    } catch {}
 
     const prompt = `You are a reselling expert. Analyse this product listing and give specific, actionable improvement suggestions.
 
 Listing URL: ${url}
-Detected Title: ${pageTitle || 'Not found'}
-Detected Description: ${pageDesc || 'Not found'}
-Detected Price: ${pagePrice}
+Platform: ${scraped.platform}
+Detected Title: ${scraped.title || 'Not found'}
+Detected Description: ${(scraped.description || '').slice(0, 800) || 'Not found'}
+Detected Price: ${scraped.price || 'unknown'}
+Detected Brand: ${scraped.brand || 'unknown'}
+Detected Size: ${scraped.size || 'unknown'}
+Detected Condition: ${scraped.condition || 'unknown'}
+Photo count: ${scraped.photos || 'unknown'}
+${webCtx ? `\nMarket context from web:\n${webCtx}` : ''}
+${!scrapedOk ? '\nNOTE: The page could not be directly scraped. Infer what you can from the URL path and market context above, and be explicit in your suggestions about what the seller should clarify or add.' : ''}
 
 Return a JSON object with this exact shape:
 {
@@ -5313,8 +5455,8 @@ Return ONLY the JSON, no markdown.`;
     const data = JSON.parse(raw);
     res.json({ ok: true, ...data });
   } catch (e) {
-    console.error('[listing-optimise]', e.message);
-    res.status(500).json({ error: 'Failed to analyse listing. The page may be protected or unreachable.' });
+    console.error('[listing-optimise]', e.message, e.stack?.split('\n').slice(0,3).join(' | '));
+    res.status(500).json({ error: `Failed to analyse listing: ${e.message}` });
   }
 });
 
