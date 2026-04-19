@@ -5303,8 +5303,9 @@ Categories must be one of: Title, Description, Pricing, Photos, Keywords, Genera
 Give 4-7 suggestions. Be specific to this exact listing, not generic advice.
 Return ONLY the JSON, no markdown.`;
 
-    const aiRes = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+    if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
+    const aiRes = await ai.messages.create({
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1200,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -5351,8 +5352,9 @@ Return ONLY a JSON object with this exact shape:
 No markdown, just the JSON.`;
 
   try {
-    const aiRes = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+    if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
+    const aiRes = await ai.messages.create({
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -5385,8 +5387,8 @@ app.post('/api/seller/analyse', async (req, res) => {
 
     // Brave search for additional intel
     const sellerName = title.split(/[-|@]/)[0].trim();
-    const braveData  = await braveSearch(`${sellerName} reseller feedback rating`, 4).catch(() => null);
-    const webContext = braveData?.web?.results?.map(r => `${r.title}: ${r.description}`).join('\n') || '';
+    const braveData  = await webSearch(`${sellerName} reseller feedback rating`, 4).catch(() => null);
+    const webContext = braveData?.map(r => `${r.title}: ${r.description}`).join('\n') || '';
 
     const prompt = `You are a reselling competitive intelligence analyst. Analyse this seller profile.
 
@@ -5409,8 +5411,9 @@ Return ONLY a JSON object:
 
 No markdown, just JSON.`;
 
-    const aiRes = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+    if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
+    const aiRes = await ai.messages.create({
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1200,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -5435,7 +5438,7 @@ app.post('/api/flip/score', async (req, res) => {
   try {
     const [pageRes, soldData] = await Promise.allSettled([
       fetch(url, { headers:{ 'User-Agent':'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) }),
-      braveSearch(`site:ebay.co.uk sold "${new URL(url).pathname.split('/').pop()}"`, 5),
+      webSearch(`site:ebay.co.uk sold "${new URL(url).pathname.split('/').pop()}"`, 5),
     ]);
 
     const html      = pageRes.status === 'fulfilled' ? await pageRes.value.text() : '';
@@ -5443,8 +5446,8 @@ app.post('/api/flip/score', async (req, res) => {
     const priceMatch = html.match(/£\s*(\d+(?:\.\d{2})?)/);
     const pageTitle  = (titleMatch?.[1] || '').replace(/\s*[-|].*/,'').trim().slice(0,120);
     const listPrice  = priceMatch?.[1] ? parseFloat(priceMatch[1]) : null;
-    const soldCtx    = soldData.status === 'fulfilled' && soldData.value?.web?.results
-      ? soldData.value.web.results.map(r=>`${r.title}: ${r.description}`).join('\n') : '';
+    const soldCtx    = soldData.status === 'fulfilled' && Array.isArray(soldData.value)
+      ? soldData.value.map(r=>`${r.title}: ${r.description}`).join('\n') : '';
 
     const prompt = `You are a professional reseller. Score this flip opportunity.
 
@@ -5468,8 +5471,9 @@ Return ONLY a JSON object:
 
 No markdown, just JSON.`;
 
-    const aiRes = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+    if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
+    const aiRes = await ai.messages.create({
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 800,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -5493,13 +5497,13 @@ app.post('/api/price/elasticity', async (req, res) => {
 
   try {
     const [soldRes, priceRes] = await Promise.allSettled([
-      braveSearch(`${item} sold price UK resale${condition && condition !== 'any' ? ` ${condition}` : ''}`, 6),
-      braveSearch(`${item} eBay sold listings UK 2024 2025`, 4),
+      webSearch(`${item} sold price UK resale${condition && condition !== 'any' ? ` ${condition}` : ''}`, 6),
+      webSearch(`${item} eBay sold listings UK 2024 2025`, 4),
     ]);
 
     const webCtx = [soldRes, priceRes]
-      .filter(r => r.status === 'fulfilled' && r.value?.web?.results)
-      .flatMap(r => r.value.web.results.map(x => `${x.title}: ${x.description}`))
+      .filter(r => r.status === 'fulfilled' && Array.isArray(r.value))
+      .flatMap(r => r.value.map(x => `${x.title}: ${x.description}`))
       .join('\n');
 
     const prompt = `You are a reselling market analyst with access to sold price data.
@@ -5526,8 +5530,9 @@ Return ONLY a JSON object:
 Profit should account for ~12% platform fees and £3-5 postage. ROI is (profit/buy_price)*100 assuming buy price is 20-30% below market.
 No markdown, just JSON.`;
 
-    const aiRes = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+    if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
+    const aiRes = await ai.messages.create({
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -5551,18 +5556,14 @@ app.get('/api/resell/calendar', async (req, res) => {
 
   try {
     const [drops, events, seasonal] = await Promise.allSettled([
-      braveSearch(`upcoming ${catQuery} drops release dates UK 2025`, 6),
+      webSearch(`upcoming ${catQuery} drops release dates UK 2025`, 6),
       braveNewsSearch(`${catQuery} resell hype upcoming drop collab 2025`, 5),
-      braveSearch(`${catQuery} seasonal demand resale market UK 2025`, 4),
+      webSearch(`${catQuery} seasonal demand resale market UK 2025`, 4),
     ]);
 
     const webCtx = [drops, events, seasonal]
-      .filter(r => r.status === 'fulfilled')
-      .flatMap(r => {
-        const d = r.value;
-        const news = d?.results || d?.web?.results || [];
-        return news.map(x => `${x.title}: ${x.description || x.url || ''}`);
-      })
+      .filter(r => r.status === 'fulfilled' && Array.isArray(r.value))
+      .flatMap(r => r.value.map(x => `${x.title}: ${x.description || x.url || ''}`))
       .join('\n');
 
     const now       = new Date();
@@ -5601,8 +5602,9 @@ urgency must be: high, medium, or low.
 Sort by date ascending. Use real upcoming dates where you have data; estimate month for seasonal events.
 No markdown, just JSON.`;
 
-    const aiRes = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+    if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
+    const aiRes = await ai.messages.create({
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1800,
       messages: [{ role: 'user', content: prompt }],
     });
