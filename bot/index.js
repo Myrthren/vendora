@@ -5251,7 +5251,55 @@ app.post('/api/credits/monthly-grant', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── Listing scrape helper — platform-aware, with graceful fallback ────────────
+// ── Simple listing fetch — same approach as seller-analyse ────────────────────
+// Just fetches the page HTML, strips tags, returns raw text. Let Claude extract
+// the structured fields itself — same pattern that works for Seller Intel.
+async function fetchListingText(url) {
+  const out = { platform: 'unknown', host: '', title: '', text: '' };
+  try { out.host = new URL(url).hostname.replace(/^www\./, ''); } catch { return out; }
+  if (out.host.includes('vinted.')) out.platform = 'Vinted';
+  else if (out.host.includes('depop.')) out.platform = 'Depop';
+  else if (out.host.includes('ebay.')) out.platform = 'eBay';
+
+  try {
+    const r = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-GB,en;q=0.9',
+      },
+      signal: AbortSignal.timeout(12000),
+      redirect: 'follow',
+    });
+    const html = await r.text();
+    out.title = (html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] || '').replace(/\s*[-|].*$/,'').trim().slice(0, 160);
+
+    // Keep OG / meta / JSON-LD BEFORE stripping tags — they carry price, brand, etc.
+    const ogBlock = [...html.matchAll(/<meta\s+(?:property|name)="(og:[^"]+|description|twitter:[^"]+|product:[^"]+)"\s+content="([^"]+)"/gi)]
+      .map(m => `[${m[1]}] ${m[2]}`).join('\n');
+    const ldBlock = [...html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]+?)<\/script>/gi)]
+      .map(m => m[1].trim()).join('\n').slice(0, 2500);
+
+    const bodyText = html
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 3500);
+
+    out.text = [
+      ogBlock ? `META TAGS:\n${ogBlock}` : '',
+      ldBlock ? `STRUCTURED DATA:\n${ldBlock}` : '',
+      `PAGE TEXT:\n${bodyText}`,
+    ].filter(Boolean).join('\n\n');
+  } catch (e) {
+    console.warn('[listing-fetch]', e.message);
+  }
+  return out;
+}
+
 async function scrapeListingForOptimiser(url) {
   const out = { platform: 'unknown', title: '', description: '', price: '', brand: '', size: '', condition: '', photos: 0, raw: '' };
   let host = '';
@@ -5438,42 +5486,36 @@ app.post('/api/listing/optimise', async (req, res) => {
   try {
     if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
 
-    const scraped = await scrapeListingForOptimiser(url);
-    const richData = !!(scraped.description && scraped.price);
+    const page = await fetchListingText(url);
 
     let webCtx = '';
     try {
-      const q = (scraped.title || url).slice(0, 140);
+      const q = (page.title || url).slice(0, 140);
       const hits = await webSearch(q, 5);
       if (Array.isArray(hits) && hits.length) {
         webCtx = hits.map(h => `• ${h.title}: ${h.description}`).join('\n').slice(0, 1500);
       }
     } catch {}
 
-    const prompt = `You are a reselling expert. Analyse this product listing and give specific, actionable improvement suggestions.
+    const prompt = `You are a reselling expert. Below is the raw scraped content of a product listing. Extract the actual title, price, description, brand, size, condition, and any other detail you can find in the text, then analyse the listing and give specific, actionable improvement suggestions.
 
 Listing URL: ${url}
-Platform: ${scraped.platform}
-Title: ${scraped.title || '(could not read from page — derive from URL/web context)'}
-Description: ${(scraped.description || '').slice(0, 800) || '(not available — the page was protected)'}
-Price: ${scraped.price || 'unknown'}
-Brand: ${scraped.brand || 'unknown'}
-Size: ${scraped.size || 'unknown'}
-Condition: ${scraped.condition || 'unknown'}
-Photo count: ${scraped.photos || 'unknown'}
-${webCtx ? `\nMarket context from web search:\n${webCtx}` : ''}
+Platform: ${page.platform}
+Page <title>: ${page.title || '(empty)'}
 
-${richData
-  ? 'Every suggestion MUST reference specific content from the listing above. No generic advice.'
-  : 'The page could not be fully scraped. Use the title + web context to infer what the product is, then give suggestions that apply to this specific product category / brand. Be upfront where detail is missing ("without seeing the description, ensure it covers…").'}
+SCRAPED CONTENT (meta tags, JSON-LD, and stripped body text):
+${page.text || '(page could not be fetched)'}
+${webCtx ? `\nWEB MARKET CONTEXT:\n${webCtx}` : ''}
+
+Every suggestion MUST reference the actual product from the scraped content above — its real brand, size, price, or description wording. Do not give generic advice.
 
 Return a JSON object with this exact shape:
 {
   "score": <number 0-100 rating the current listing quality>,
-  "title": "<detected listing title or best guess>",
+  "title": "<the real listing title you extracted>",
   "meta": "<platform and price, e.g. Vinted · £45>",
   "suggestions": [
-    { "category": "Title", "heading": "<short improvement label>", "detail": "<specific suggestion>" },
+    { "category": "Title", "heading": "<short improvement label>", "detail": "<specific suggestion referencing the real listing>" },
     { "category": "Description", "heading": "...", "detail": "..." },
     { "category": "Pricing", "heading": "...", "detail": "..." },
     { "category": "Photos", "heading": "...", "detail": "..." },
@@ -5482,8 +5524,7 @@ Return a JSON object with this exact shape:
 }
 
 Categories must be one of: Title, Description, Pricing, Photos, Keywords, General.
-Give 4-7 suggestions. Be specific to this exact listing, not generic advice.
-Return ONLY the JSON, no markdown.`;
+Give 4-7 suggestions. Return ONLY the JSON, no markdown.`;
 
     if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
     const aiRes = await ai.messages.create({
@@ -5618,26 +5659,25 @@ app.post('/api/flip/score', async (req, res) => {
   if (!url?.startsWith('http')) return res.status(400).json({ error: 'Valid URL required.' });
 
   try {
-    const scraped = await scrapeListingForOptimiser(url);
+    const page = await fetchListingText(url);
 
-    const searchQ  = `${scraped.title || url} sold price ebay UK`;
+    const searchQ  = `${page.title || url} sold price ebay UK`;
     const soldData = await webSearch(searchQ.slice(0, 160), 6).catch(() => null);
     const soldCtx  = Array.isArray(soldData) && soldData.length
       ? soldData.map(r => `• ${r.title}: ${r.description}`).join('\n').slice(0, 1500)
       : '';
 
-    const prompt = `You are a professional reseller. Score this flip opportunity using the data below.
+    const prompt = `You are a professional reseller. Extract the item details (brand, title, price, size, condition) from the scraped content below, then score this flip opportunity.
 
 Listing URL: ${url}
-Platform: ${scraped.platform}
-Title: ${scraped.title || '(not readable from page — derive from URL/web context)'}
-Asking price: ${scraped.price || 'unknown (page was protected)'}
-Brand: ${scraped.brand || 'unknown'}
-Size: ${scraped.size || 'unknown'}
-Condition: ${scraped.condition || 'unknown'}
-${soldCtx ? `\nSold comp data from web search:\n${soldCtx}` : '\n(No sold comp data available — use reselling knowledge for this exact brand/item.)'}
+Platform: ${page.platform}
+Page <title>: ${page.title || '(empty)'}
 
-Ground every number in the data above. If the asking price or a detail is unknown, state that clearly in the breakdown sub-line rather than inventing it.
+SCRAPED CONTENT (meta tags, JSON-LD, and stripped body text):
+${page.text || '(page could not be fetched)'}
+${soldCtx ? `\nSOLD COMP DATA FROM WEB:\n${soldCtx}` : '\n(No sold comp data available — use reselling knowledge.)'}
+
+Ground every number in the data above. If a detail genuinely isn't in the scraped content, state that in the breakdown sub-line rather than inventing it.
 
 Return ONLY a JSON object:
 {
