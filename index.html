@@ -1556,13 +1556,24 @@
     </div>
     <span class="footer-name">Vendora</span>
   </div>
-  <div class="footer-copy">© 2026 Vendora · Vendor Village</div>
+  <div class="footer-copy">© 2026 Vendora · Vendor Village <span id="app-version-tag" style="margin-left:10px;color:rgba(255,255,255,0.18);font-variant-numeric:tabular-nums;"></span></div>
   <div class="footer-links">
     <a href="vendora-tos.html">Terms</a>
     <a href="vendora-privacy.html">Privacy</a>
     <a href="https://discord.gg/ZVrDuxjQFM" target="_blank">Discord</a>
   </div>
 </footer>
+
+<script>
+// Footer version tag — fetched at runtime from /version.json
+fetch('/version.json?t=' + Date.now(), { cache: 'no-store' })
+  .then(r => r.ok ? r.json() : null)
+  .then(v => { if (v && v.version) {
+    const el = document.getElementById('app-version-tag');
+    if (el) { el.textContent = v.version; el.title = `Build ${v.short || ''} · ${v.builtAt || ''}`; }
+  }})
+  .catch(() => {});
+</script>
 
 <script>
   // Custom cursor

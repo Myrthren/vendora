@@ -727,9 +727,10 @@
     </div>
   </nav>
 
-  <div style="padding: 8px 14px; display:flex; gap:14px; border-top: 1px solid var(--border-dim);">
+  <div style="padding: 8px 14px; display:flex; gap:14px; align-items:center; border-top: 1px solid var(--border-dim);">
     <a href="vendora-tos.html" target="_blank" style="font-size:10px;color:rgba(255,255,255,0.22);text-decoration:none;letter-spacing:0.06em;" onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='rgba(255,255,255,0.22)'">Terms</a>
     <a href="vendora-privacy.html" target="_blank" style="font-size:10px;color:rgba(255,255,255,0.22);text-decoration:none;letter-spacing:0.06em;" onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='rgba(255,255,255,0.22)'">Privacy</a>
+    <span id="app-version-badge" title="Loading version…" style="margin-left:auto; font-size:10px; color:rgba(255,255,255,0.22); letter-spacing:0.06em; font-variant-numeric:tabular-nums;"></span>
   </div>
   <div class="sidebar-user">
     <div class="user-avatar" id="sidebar-avi">VV</div>
@@ -6196,6 +6197,76 @@
     if(btn) btn.disabled=false;
   }
 
+</script>
+
+<!-- ── Version checker — shows update toast when a newer build is live ─── -->
+<script>
+(function () {
+  const POLL_MS = 60000;
+  const badge   = document.getElementById('app-version-badge');
+  let loaded    = null;       // version this page was served as
+  let toastShown = false;
+
+  function fmt(v) { return v?.version ? `${v.version} · ${v.short || ''}`.trim() : ''; }
+
+  function paintBadge(v) {
+    if (!badge || !v) return;
+    badge.textContent = v.version || '';
+    badge.title = `Build ${v.short || ''} · ${v.builtAt || ''}${v.message ? '\n' + v.message : ''}`;
+  }
+
+  function showUpdateToast(latest) {
+    if (toastShown) return;
+    toastShown = true;
+    const t = document.createElement('div');
+    t.id = 'app-update-toast';
+    t.innerHTML = `
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="flex:1;">
+          <div style="font-size:11px;color:rgba(255,255,255,0.55);letter-spacing:0.08em;text-transform:uppercase;font-weight:600;margin-bottom:2px;">Update available</div>
+          <div style="font-size:14px;color:#f0f0f0;font-weight:500;">${latest.version} is live</div>
+        </div>
+        <button id="app-update-refresh" style="background:linear-gradient(135deg,#e8217a,#f72e8a);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:600;font-size:12px;letter-spacing:0.04em;cursor:pointer;text-transform:uppercase;font-family:'Syne',sans-serif;">Refresh</button>
+        <button id="app-update-dismiss" aria-label="Dismiss" style="background:transparent;color:rgba(255,255,255,0.4);border:none;font-size:18px;cursor:pointer;padding:4px 6px;line-height:1;">&times;</button>
+      </div>`;
+    Object.assign(t.style, {
+      position: 'fixed', bottom: '24px', right: '24px', zIndex: '99999',
+      background: '#141414', border: '1px solid rgba(232,33,122,0.4)',
+      borderRadius: '12px', padding: '14px 16px', minWidth: '300px',
+      boxShadow: '0 12px 40px rgba(0,0,0,0.55), 0 0 24px rgba(232,33,122,0.18)',
+      fontFamily: "'DM Sans',sans-serif",
+      animation: 'appUpdateSlideIn 0.35s ease-out',
+    });
+    if (!document.getElementById('app-update-keyframes')) {
+      const s = document.createElement('style');
+      s.id = 'app-update-keyframes';
+      s.textContent = '@keyframes appUpdateSlideIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}';
+      document.head.appendChild(s);
+    }
+    document.body.appendChild(t);
+    document.getElementById('app-update-refresh').onclick = () => location.reload();
+    document.getElementById('app-update-dismiss').onclick = () => { t.remove(); toastShown = false; };
+  }
+
+  async function check() {
+    try {
+      const r = await fetch('/version.json?t=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) return;
+      const v = await r.json();
+      if (!loaded) {
+        loaded = v;
+        paintBadge(v);
+        return;
+      }
+      if (v.sha && v.sha !== loaded.sha) showUpdateToast(v);
+    } catch {}
+  }
+
+  check();
+  setInterval(check, POLL_MS);
+  // Also re-check when the user returns to the tab
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+})();
 </script>
 
 </body>

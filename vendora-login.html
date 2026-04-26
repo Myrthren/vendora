@@ -332,5 +332,26 @@
     if (error) alert('Sign in failed: ' + error.message);
   }
 </script>
+
+<script>
+// Lightweight version check — silent badge update, no toast on the login screen.
+(async function () {
+  try {
+    const r = await fetch('/version.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return;
+    const v = await r.json();
+    const el = document.createElement('div');
+    el.title = `Build ${v.short || ''} · ${v.builtAt || ''}`;
+    Object.assign(el.style, {
+      position: 'fixed', bottom: '14px', right: '16px',
+      fontSize: '10px', color: 'rgba(255,255,255,0.22)',
+      letterSpacing: '0.06em', fontFamily: "'DM Sans',sans-serif",
+      pointerEvents: 'auto', cursor: 'help', zIndex: '99',
+    });
+    el.textContent = v.version || '';
+    document.body.appendChild(el);
+  } catch {}
+})();
+</script>
 </body>
 </html>

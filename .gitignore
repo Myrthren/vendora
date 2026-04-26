@@ -1,0 +1,7 @@
+node_modules/
+.env
+.env.local
+.DS_Store
+
+# Generated at build time by scripts/build-version.js
+version.json

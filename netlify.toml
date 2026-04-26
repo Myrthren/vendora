@@ -1,7 +1,19 @@
 [build]
   publish = "."
-  command = ""
-  ignore = "git diff --quiet HEAD^ HEAD -- index.html vendora-login.html vendora-dashboard.html"
+  command = "node scripts/build-version.js"
+
+# ── Cache control ────────────────────────────────────────────────────────────
+# HTML and version.json must always be revalidated so users get new versions
+# without a hard refresh. Static assets can cache freely.
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/version.json"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
 
 # ── Canonical host: redirect www → apex ───────────────────────────────────────
 [[redirects]]
