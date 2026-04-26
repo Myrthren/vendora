@@ -76,8 +76,8 @@ if (PROXY_URL && ProxyAgent) {
 
 const PORT            = process.env.PORT || 3000;
 const OWNER_ID       = '731207920007643167';
-const DASHBOARD_URL  = 'https://vendora-vv.netlify.app/vendora-dashboard';
-const SITE_URL       = 'https://vendora-vv.netlify.app';
+const DASHBOARD_URL  = 'https://vendora.site/vendora-dashboard';
+const SITE_URL       = 'https://vendora.site';
 
 console.log('[boot] Config — GUILD_ID:', GUILD_ID, '| PORT:', PORT);
 if (!TOKEN)         console.warn('[warn] DISCORD_BOT_TOKEN not set');
@@ -2349,11 +2349,9 @@ const app = express();
 // can read the error response instead of throwing a network error.
 // Allow-list of dashboard origins. Add new hosts here as deployments change.
 const CORS_ALLOWED_ORIGINS = new Set([
-  'https://vendora-vv.netlify.app',
   'https://vendora.site',
   'https://www.vendora.site',
-  'http://vendora.site',
-  'http://www.vendora.site',
+  'https://vendora-vv.netlify.app', // legacy Netlify host (kept during cutover)
   'https://vendora.app',
   'https://www.vendora.app',
   'https://vendora.vercel.app',
@@ -2373,7 +2371,7 @@ app.use((req, res, next) => {
     // Preview deployments on Vercel
     res.setHeader('Access-Control-Allow-Origin', origin);
   } else {
-    res.setHeader('Access-Control-Allow-Origin', 'https://vendora-vv.netlify.app');
+    res.setHeader('Access-Control-Allow-Origin', 'https://vendora.site');
   }
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, PATCH, OPTIONS');

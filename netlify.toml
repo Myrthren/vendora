@@ -3,8 +3,17 @@
   command = ""
   ignore = "git diff --quiet HEAD^ HEAD -- index.html vendora-login.html vendora-dashboard.html"
 
+# ── Canonical host: redirect www → apex ───────────────────────────────────────
+[[redirects]]
+  from = "https://www.vendora.site/*"
+  to   = "https://vendora.site/:splat"
+  status = 301
+  force  = true
+
 [[headers]]
   for = "/*"
   [headers.values]
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"

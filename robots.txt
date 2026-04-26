@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /vendora-dashboard
+Disallow: /vendora-login
+Disallow: /vendora-credits
+
+Sitemap: https://vendora.site/sitemap.xml
