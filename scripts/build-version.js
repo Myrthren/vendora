@@ -13,11 +13,11 @@ const { writeFileSync } = require('fs');
 const { join } = require('path');
 
 const MAJOR = 1;
-const MINOR = 0;
-// Total commits in repo at the moment this versioning system shipped.
-// Patch number = current commit count - this baseline.
-// Set to current commit count AFTER this commit lands, so first deploy = v1.0.0.
-const BASELINE_COMMIT_COUNT = 88;
+const MINOR = 5;
+// Bump MINOR manually for each feature release (matches changelog MAJOR.MINOR).
+// Patch = commits since this baseline — increments automatically per push.
+// Baseline reset to 90 when v1.5.0 shipped, so next deploy = v1.5.0.
+const BASELINE_COMMIT_COUNT = 90;
 
 function sh(cmd, fallback = '') {
   try { return execSync(cmd, { encoding: 'utf8' }).trim(); }

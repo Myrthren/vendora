@@ -4670,6 +4670,51 @@ app.delete('/api/watchlist/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Vinted Alerts API (powers Auto-Buy dashboard) ────────────────────────────
+app.get('/api/vinted-alerts', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = user.user_metadata?.provider_id
+    || user.identities?.find(i => i.provider === 'discord')?.id || '';
+  const profile = await getProfileByDiscordId(discordId);
+  const tier    = profile?.tier || 'none';
+  const max     = TIER_RANK[tier] >= 3 ? 10 : 5;
+  const alerts  = await dbGetVintedAlerts(discordId);
+  res.json({ alerts, max });
+});
+
+app.post('/api/vinted-alerts', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = user.user_metadata?.provider_id
+    || user.identities?.find(i => i.provider === 'discord')?.id || '';
+  const { keyword, max_price } = req.body || {};
+  if (!keyword?.trim()) return res.status(400).json({ error: 'keyword required' });
+
+  const profile = await getProfileByDiscordId(discordId);
+  const tier    = profile?.tier || 'none';
+  if (TIER_RANK[tier] < 2) return res.status(403).json({ error: 'Pro required' });
+
+  const max      = TIER_RANK[tier] >= 3 ? 10 : 5;
+  const existing = await dbGetVintedAlerts(discordId);
+  if (existing.length >= max) return res.status(400).json({ error: `Alert limit reached (${max})` });
+
+  // Baseline with Apify so only NEW items trigger alerts
+  const initial  = APIFY_TOKEN ? await apifyVintedSearch(keyword.trim(), 20) : [];
+  const seenIds  = (initial || []).map(i => i.id).filter(Boolean);
+
+  await dbAddVintedAlert(discordId, keyword.trim(), max_price || null);
+  const alerts  = await dbGetVintedAlerts(discordId);
+  const newAlert = alerts.find(a => a.keyword === keyword.trim() && (!a.seen_ids?.length));
+  if (newAlert) await dbUpdateVintedAlertSeenIds(newAlert.id, seenIds);
+
+  res.json({ ok: true, baselined: seenIds.length, alerts });
+});
+
+app.delete('/api/vinted-alerts/:id', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  await dbRemoveVintedAlert(req.params.id);
+  res.json({ ok: true });
+});
+
 // ── Support ticket ─────────────────────────────────────────────────────────────
 app.post('/api/support/ticket', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;

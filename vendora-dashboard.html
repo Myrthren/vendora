@@ -641,26 +641,22 @@
 
     <span class="nav-section-label" style="margin-top:8px;">Tools</span>
 
-    <!-- Coming Soon tools — disabled -->
-    <div class="nav-item" style="opacity:0.42;cursor:default;pointer-events:none;">
+    <!-- Tools -->
+    <div class="nav-item" id="crosslist-nav-item" onclick="showSection('crosslist', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 10h16M4 14h8M4 18h8"/><path d="M16 14l2 2 4-4"/></svg>
       Auto-List
-      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.07);color:var(--muted);letter-spacing:.04em;">Soon</span>
     </div>
-    <div class="nav-item" style="opacity:0.42;cursor:default;pointer-events:none;">
+    <div class="nav-item" id="listings-nav-item" onclick="showSection('listings', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
       Listings
-      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.07);color:var(--muted);letter-spacing:.04em;">Soon</span>
     </div>
-    <div class="nav-item" style="opacity:0.42;cursor:default;pointer-events:none;">
+    <div class="nav-item" id="inventory-nav-item" onclick="showSection('inventory', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
       Inventory
-      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.07);color:var(--muted);letter-spacing:.04em;">Soon</span>
     </div>
-    <div class="nav-item" style="opacity:0.42;cursor:default;pointer-events:none;">
+    <div class="nav-item" id="autobuy-nav-item" onclick="showSection('autobuy', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       Auto-Buy
-      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.07);color:var(--muted);letter-spacing:.04em;">Soon</span>
     </div>
 
     <!-- Active tools -->
@@ -2109,23 +2105,81 @@
       </div>
     </div>
 
-    <!-- ── AUTO-BUY (Coming Soon) ── -->
+    <!-- ── AUTO-BUY ── -->
     <div class="section" id="section-autobuy">
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
-        <div class="page-title">Auto-Buy <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.07);color:var(--muted);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Coming Soon</span></div>
-        <div class="page-sub">Set a maximum price and keywords — Vendora will monitor platforms 24/7 and automatically purchase matching items the moment they're listed.</div>
+        <div class="page-title">Auto-Buy</div>
+        <div class="page-sub">Set keyword rules and a max price — Vendora monitors Vinted every 30 minutes via Apify and alerts you the instant a match appears.</div>
       </div>
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:80px 20px;text-align:center;">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:var(--text);">Coming Soon</div>
-        <div style="font-size:13px;color:var(--muted2);max-width:400px;line-height:1.6;">Auto-Buy is in development. Once live, you'll be able to set keyword rules and price limits — Vendora will monitor Vinted, Depop, and eBay around the clock and buy on your behalf the instant a match appears.</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
-          <span style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.04);color:var(--muted);border:1px solid var(--border-dim);">Keyword rules</span>
-          <span style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.04);color:var(--muted);border:1px solid var(--border-dim);">Price ceiling</span>
-          <span style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.04);color:var(--muted);border:1px solid var(--border-dim);">Multi-platform monitoring</span>
-          <span style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.04);color:var(--muted);border:1px solid var(--border-dim);">Instant purchase</span>
-          <span style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.04);color:var(--muted);border:1px solid var(--border-dim);">Condition filters</span>
+
+      <!-- Pro gate -->
+      <div id="autobuy-gate" style="display:none;">
+        <div class="access-denied" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px 24px;gap:16px;">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">Pro Required</div>
+          <div style="font-size:13px;color:var(--muted2);max-width:320px;">Auto-Buy alerts are available on Vendora Pro and above.</div>
+          <button class="btn btn-primary btn-sm" onclick="showSection('subscription', document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Pro</button>
+        </div>
+      </div>
+
+      <div id="autobuy-tool">
+        <!-- Add rule -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title">Add Buy Alert</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:16px;font-weight:300;line-height:1.6;">
+            Vendora checks Vinted every 30 minutes. When a new listing matches your keyword and is under your price ceiling, you'll get a Discord DM with a direct link to buy.
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 140px auto;gap:12px;align-items:end;">
+            <div>
+              <label class="form-label">Keyword <span style="color:var(--muted);font-weight:300;">(be specific — e.g. "nike air max 90 white uk9")</span></label>
+              <input id="ab-keyword" class="form-select" style="height:auto;padding:9px 14px;" placeholder="e.g. stone island shadow project hoodie">
+            </div>
+            <div>
+              <label class="form-label">Max Price (£)</label>
+              <input id="ab-maxprice" class="form-select" type="number" style="height:auto;padding:9px 14px;" placeholder="e.g. 80" min="1">
+            </div>
+            <div>
+              <button class="btn btn-pink" onclick="autobuyAdd()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Alert
+              </button>
+            </div>
+          </div>
+          <div id="ab-add-msg" style="display:none;margin-top:10px;font-size:12px;padding:8px 12px;border-radius:7px;"></div>
+        </div>
+
+        <!-- Active alerts -->
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div style="padding:16px 20px;border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
+            <div class="card-title" style="margin:0;">Active Buy Alerts</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span id="ab-count-badge" style="font-size:11px;color:var(--muted);"></span>
+              <button class="btn btn-ghost btn-sm" onclick="autobuyLoad()">Refresh</button>
+            </div>
+          </div>
+          <div id="ab-list" style="padding:16px 20px;">
+            <div style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Loading...</div>
+          </div>
+        </div>
+
+        <!-- How it works -->
+        <div class="card" style="margin-top:16px;background:rgba(232,33,122,0.04);border-color:rgba(232,33,122,0.12);">
+          <div class="card-title" style="color:var(--pink);">How Auto-Buy Works</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:4px;">
+            <div style="font-size:12px;color:var(--muted2);line-height:1.6;">
+              <div style="font-weight:600;color:var(--text);margin-bottom:4px;">1. Set your rule</div>
+              Enter a keyword and max price. Vendora catalogues all existing matching Vinted listings so you only get alerted about genuinely new ones.
+            </div>
+            <div style="font-size:12px;color:var(--muted2);line-height:1.6;">
+              <div style="font-weight:600;color:var(--text);margin-bottom:4px;">2. Apify monitors Vinted</div>
+              Every 30 minutes, our Apify scraper checks Vinted using residential proxies — bypassing bot protection to see listings the same moment they go live.
+            </div>
+            <div style="font-size:12px;color:var(--muted2);line-height:1.6;">
+              <div style="font-weight:600;color:var(--text);margin-bottom:4px;">3. You get a Discord DM</div>
+              The moment a new listing matches, you're DM'd on Discord with the title, price, and a direct Vinted link — so you can buy before anyone else.
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -2882,6 +2936,7 @@
     updateUpgradeCards(tier);
     initCrossListAccess(tier);
     initListingsAccess(tier);
+    initAutobuyAccess(tier);
     initEnhancerAccess(tier);
     initToolAccess('lopt-gate','lopt-tool', tier, 'basic');
     initToolAccess('draft-gate','draft-tool', tier, 'basic');
@@ -3458,22 +3513,35 @@
   // ── Changelog data ───────────────────────────────────────────────────────────
   const CHANGELOG = [
     {
-      version: 'v1.5.0',
+      version: 'v1.5.1',
       date: '2026-05-03',
-      title: 'Apify Vinted Scraper + Vinted Monitor Alerts',
+      title: 'Tools Unlocked + Auto-Buy powered by Apify',
       type: 'feature',
       changes: [
-        'Integrated Apify Vinted Scraper actor as primary Vinted search engine — bypasses DataDome reliably via Apify residential proxies',
-        'searchVinted() now tries Apify first and falls back to direct Vinted API if unavailable',
-        'Added /vinted-alert command (Pro+) — set keyword monitors and get DM\'d when new matching Vinted listings appear',
-        '/vinted-alert add <keyword> [max_price] — creates an alert, runs an initial baseline scan',
-        '/vinted-alert list — view all active alerts',
-        '/vinted-alert remove <number> — delete an alert',
-        'Added vinted_alerts Supabase table helpers (dbAddVintedAlert, dbGetVintedAlerts, dbRemoveVintedAlert, dbUpdateVintedAlertSeenIds)',
-        'Added cron job: every 30 minutes, runs Apify searches for all saved keywords and DMs users about new listings',
+        'Enabled Auto-List, Listings, and Inventory in the dashboard sidebar (were previously marked "Soon" and disabled)',
+        'Auto-Buy section rebuilt — replaced Coming Soon placeholder with a live Apify-powered Vinted keyword monitor',
+        'Auto-Buy: set a keyword + max price, Vendora checks Vinted every 30 min and DMs you on Discord when a new match appears',
+        'Added /api/vinted-alerts GET/POST/DELETE endpoints powering the Auto-Buy dashboard UI',
+        'Auto-Buy Pro gate added (Pro+ required, 5 alerts; Elite 10 alerts)',
+        'Auto-Buy shows live alert list with keyword, max price, baseline count, last-checked time',
+        'build-version.js: MINOR bumped to 5 and baseline reset so footer now shows v1.5.x matching changelog',
+        'Changelog: per-entry "Copy for Discord" button added to every version entry',
+      ],
+      files: ['bot/index.js', 'vendora-dashboard.html', 'scripts/build-version.js'],
+    },
+    {
+      version: 'v1.5.0',
+      date: '2026-05-03',
+      title: 'Apify Vinted Scraper + /vinted-alert command + Admin Changelog',
+      type: 'feature',
+      changes: [
+        'Integrated Apify Vinted Scraper (kamilkrzyz~vinted-scraper) as primary Vinted search — bypasses DataDome via residential proxies',
+        'searchVinted() tries Apify first, falls back to direct Vinted API',
+        'New /vinted-alert command (Pro+): add, list, remove keyword monitors — get DM\'d when new Vinted listings appear',
+        'Cron job every 30 min: Apify searches all saved keywords, diffs against seen IDs, DMs users on new matches',
         'Max 5 alerts on Pro, 10 on Elite',
-        'Added APIFY_API_TOKEN env var (already set on Railway)',
-        'Admin panel: added Changelog tab with version history and Discord copy button',
+        'Added APIFY_API_TOKEN env var (set on Railway)',
+        'Admin panel: Changelog tab with full version history and Discord copy button',
       ],
       files: ['bot/index.js', 'vendora-dashboard.html'],
     },
@@ -3550,10 +3618,22 @@
     launch:         { bg: 'rgba(232,161,33,0.12)', color: 'var(--gold)',  label: 'Launch'         },
   };
 
+  function copyEntryForDiscord(idx, btnEl) {
+    const entry = CHANGELOG[idx];
+    if (!entry) return;
+    const changes = entry.changes.map(c => `• ${c}`).join('\n');
+    const text = `📦 **Vendora ${entry.version} — ${entry.title}** _(${entry.date})_\n\n${changes}`;
+    navigator.clipboard.writeText(text).then(() => {
+      const orig = btnEl.textContent;
+      btnEl.textContent = '✓ Copied!';
+      setTimeout(() => { btnEl.textContent = orig; }, 2000);
+    }).catch(() => alert('Copy failed.'));
+  }
+
   function renderChangelog() {
     const el = document.getElementById('changelog-entries');
     if (!el) return;
-    el.innerHTML = CHANGELOG.map(entry => {
+    el.innerHTML = CHANGELOG.map((entry, idx) => {
       const s = TYPE_STYLE[entry.type] || TYPE_STYLE.feature;
       const changeLines = entry.changes.map(c =>
         `<li style="margin-bottom:5px;color:rgba(240,240,240,0.8);">${c}</li>`
@@ -3566,7 +3646,11 @@
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
             <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:.05em;">${entry.version}</span>
             <span style="font-size:11px;padding:2px 8px;border-radius:20px;background:${s.bg};color:${s.color};font-weight:500;">${s.label}</span>
-            <span style="font-size:11px;color:var(--muted);margin-left:auto;">${entry.date}</span>
+            <span style="font-size:11px;color:var(--muted);">${entry.date}</span>
+            <button onclick="copyEntryForDiscord(${idx}, this)" style="margin-left:auto;background:rgba(255,255,255,0.05);border:1px solid var(--border-dim);border-radius:6px;padding:3px 10px;color:var(--muted2);font-size:11px;cursor:pointer;display:flex;align-items:center;gap:5px;font-family:'DM Sans',sans-serif;transition:border-color .15s,color .15s;" onmouseover="this.style.color='var(--text)';this.style.borderColor='rgba(255,255,255,0.15)'" onmouseout="this.style.color='var(--muted2)';this.style.borderColor='var(--border-dim)'">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              Copy for Discord
+            </button>
           </div>
           <div style="font-size:14px;font-weight:500;margin-bottom:10px;">${entry.title}</div>
           <ul style="padding-left:18px;font-size:12px;line-height:1.75;margin-bottom:12px;">${changeLines}</ul>
@@ -4258,6 +4342,100 @@
   }
 
   // ── Listings access gate ─────────────────────────────────────────────────────
+  // ── Auto-Buy ─────────────────────────────────────────────────────────────────
+  function initAutobuyAccess(tier) {
+    const rank = { none: 0, basic: 1, pro: 2, elite: 3 };
+    const gate = document.getElementById('autobuy-gate');
+    const tool = document.getElementById('autobuy-tool');
+    if (rank[tier] >= rank.pro) {
+      if (gate) gate.style.display = 'none';
+      if (tool) tool.style.display = '';
+      autobuyLoad();
+    } else {
+      if (gate) gate.style.display = '';
+      if (tool) tool.style.display = 'none';
+    }
+  }
+
+  async function autobuyLoad() {
+    const list = document.getElementById('ab-list');
+    const badge = document.getElementById('ab-count-badge');
+    if (!list) return;
+    list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Loading...</div>';
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`${BOT_API}/api/vinted-alerts`, {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+      const json = await res.json();
+      const alerts = json.alerts || [];
+      const MAX = json.max || 5;
+      if (badge) badge.textContent = `${alerts.length} / ${MAX} alerts`;
+      if (!alerts.length) {
+        list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">No active alerts. Add one above to start monitoring Vinted.</div>';
+        return;
+      }
+      list.innerHTML = alerts.map((a, i) => `
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border-dim);">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${a.keyword}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;">
+              ${a.max_price ? `Max £${a.max_price} · ` : ''}${a.seen_ids?.length || 0} listings baselined
+              ${a.last_checked ? ` · Last checked ${new Date(a.last_checked).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}` : ''}
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(74,222,128,0.12);color:var(--green);">Active</span>
+            <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(248,113,113,0.2);" onclick="autobuyRemove('${a.id}',this)">Remove</button>
+          </div>
+        </div>`).join('');
+    } catch (e) {
+      list.innerHTML = `<div style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Failed to load alerts: ${e.message}</div>`;
+    }
+  }
+
+  async function autobuyAdd() {
+    const keyword  = document.getElementById('ab-keyword')?.value?.trim();
+    const maxPrice = parseFloat(document.getElementById('ab-maxprice')?.value) || null;
+    const msg      = document.getElementById('ab-add-msg');
+    if (!keyword) { showMsg(msg, 'Enter a keyword first.', 'error'); return; }
+    const btn = document.querySelector('#section-autobuy .btn-pink');
+    if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/vinted-alerts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ keyword, max_price: maxPrice })
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed');
+      showMsg(msg, `✓ Alert added — ${json.baselined || 0} existing listings baselined. You'll be DM'd on Discord when new matches appear.`, 'success');
+      document.getElementById('ab-keyword').value = '';
+      document.getElementById('ab-maxprice').value = '';
+      await autobuyLoad();
+    } catch (e) {
+      showMsg(msg, e.message, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Alert'; }
+    }
+  }
+
+  async function autobuyRemove(id, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      await fetch(`${BOT_API}/api/vinted-alerts/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+      await autobuyLoad();
+    } catch (e) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Remove'; }
+    }
+  }
+
   function initListingsAccess(tier) {
     const gate = document.getElementById('listings-gate');
     const tool = document.getElementById('listings-tool');
