@@ -3820,9 +3820,9 @@ app.get('/api/vinted/connect-popup', (req, res) => {
 
   <div class="step">
     <div class="step-num">1</div>
-    <div class="step-text">Click below to open the official <b>Vinted login / sign-up page</b> in a new tab and sign in there.</div>
+    <div class="step-text">Click below to open <b>Vinted</b> in a new tab and sign in (or sign up) using the buttons in the top-right.</div>
   </div>
-  <button class="btn btn-ghost" onclick="openVintedLogin()">Open Vinted login →</button>
+  <button class="btn btn-ghost" onclick="openVintedLogin()">Open Vinted →</button>
 
   <div class="step">
     <div class="step-num">2</div>
@@ -3849,7 +3849,7 @@ function showMsg(type, text) {
 }
 
 function openVintedLogin() {
-  window.open('https://www.vinted.co.uk/member/general/login', '_blank', 'noopener,noreferrer');
+  window.open('https://www.vinted.co.uk/', '_blank', 'noopener,noreferrer');
 }
 
 async function connectUsername() {
