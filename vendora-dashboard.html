@@ -1499,8 +1499,8 @@
             </div>
 
             <div style="display:flex;flex-direction:column;gap:6px;">
-              <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted2);">Description <span style="color:var(--muted);font-weight:400;text-transform:none;">(optional)</span></label>
-              <textarea id="cl-desc" rows="3" placeholder="Any extra details — size, colour, defects, original box etc." style="background:var(--bg3);border:1px solid var(--border-dim);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;resize:vertical;transition:border .15s;" onfocus="this.style.borderColor='rgba(232,33,122,0.4)'" onblur="this.style.borderColor=''"></textarea>
+              <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted2);">Description <span style="color:var(--pink);font-weight:500;text-transform:none;">*</span></label>
+              <textarea id="cl-desc" rows="3" placeholder="Describe the item — condition details, size, colour, defects, what's included etc." style="background:var(--bg3);border:1px solid var(--border-dim);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;resize:vertical;transition:border .15s;" onfocus="this.style.borderColor='rgba(232,33,122,0.4)'" onblur="this.style.borderColor=''"></textarea>
             </div>
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
@@ -3357,6 +3357,7 @@
     const intervalHours   = parseInt(document.getElementById('cl-interval')?.value || '168');
 
     if (!item) { showMsg(document.getElementById('cl-msg'), 'error', 'Please enter an item name.'); return; }
+    if (!desc) { showMsg(document.getElementById('cl-msg'), 'error', 'Description is required — Vinted and Depop listings need details to go live.'); document.getElementById('cl-desc')?.focus(); return; }
     if (platforms.length === 0) { showMsg(document.getElementById('cl-msg'), 'error', 'Select at least one platform.'); return; }
 
     const btn = document.getElementById('cl-generate-btn');
@@ -3513,24 +3514,24 @@
   // ── Changelog data ───────────────────────────────────────────────────────────
   const CHANGELOG = [
     {
-      version: 'v1.5.1',
+      version: 'v0.6',
       date: '2026-05-03',
-      title: 'Tools Unlocked + Auto-Buy powered by Apify',
+      title: 'Apify proxy everywhere + Watchlist Vinted support + Auto-Buy',
       type: 'feature',
       changes: [
-        'Enabled Auto-List, Listings, and Inventory in the dashboard sidebar (were previously marked "Soon" and disabled)',
-        'Auto-Buy section rebuilt — replaced Coming Soon placeholder with a live Apify-powered Vinted keyword monitor',
-        'Auto-Buy: set a keyword + max price, Vendora checks Vinted every 30 min and DMs you on Discord when a new match appears',
-        'Added /api/vinted-alerts GET/POST/DELETE endpoints powering the Auto-Buy dashboard UI',
-        'Auto-Buy Pro gate added (Pro+ required, 5 alerts; Elite 10 alerts)',
-        'Auto-Buy shows live alert list with keyword, max price, baseline count, last-checked time',
-        'build-version.js: MINOR bumped to 5 and baseline reset so footer now shows v1.5.x matching changelog',
-        'Changelog: per-entry "Copy for Discord" button added to every version entry',
+        'Fixed auto-listing crash on Railway — removed Playwright fallback (Chromium unavailable), listing now uses API + Apify residential proxy instead',
+        'vintedCreateListing and vintedUploadImage: two-route proxy strategy (user PROXY_URL → Apify residential) — no more libglib crashes',
+        'Description field in Auto-List is now required — prevents incomplete Vinted/Depop listings',
+        'Watchlist cron: Vinted item URLs now fetched via Apify proxy instead of Playwright — price-drop alerts work for vinted.co.uk and other Vinted domains',
+        'Auto-Buy section rebuilt — live Apify-powered Vinted keyword monitor in dashboard (Pro+ gate, 5/10 alert cap)',
+        '/vinted-alert command added (Pro+): add, list, remove keyword monitors — DM on new Vinted matches every 30 min',
+        'Enabled Auto-List, Listings, Inventory, Auto-Buy sidebar sections (removed disabled/Soon state)',
+        'Changelog renumbered to v0.x scheme; per-entry Copy for Discord button on every version',
       ],
       files: ['bot/index.js', 'vendora-dashboard.html', 'scripts/build-version.js'],
     },
     {
-      version: 'v1.5.0',
+      version: 'v0.5',
       date: '2026-05-03',
       title: 'Apify Vinted Scraper + /vinted-alert command + Admin Changelog',
       type: 'feature',
@@ -3546,7 +3547,7 @@
       files: ['bot/index.js', 'vendora-dashboard.html'],
     },
     {
-      version: 'v1.4.0',
+      version: 'v0.4',
       date: '2025-12',
       title: 'Auto-versioning: build-time SHA + in-app update toast',
       type: 'feature',
@@ -3558,7 +3559,7 @@
       files: ['scripts/build-version.js', 'vendora-dashboard.html'],
     },
     {
-      version: 'v1.3.0',
+      version: 'v0.3',
       date: '2025-12',
       title: 'Domain cutover: vendora.site',
       type: 'infrastructure',
@@ -3570,7 +3571,7 @@
       files: ['bot/index.js', 'index.html', 'vendora-dashboard.html', 'vendora-login.html'],
     },
     {
-      version: 'v1.2.0',
+      version: 'v0.2',
       date: '2025-12',
       title: 'Seller Intel: mirror + Claude raw page text dump',
       type: 'feature',
@@ -3581,7 +3582,7 @@
       files: ['bot/index.js'],
     },
     {
-      version: 'v1.1.0',
+      version: 'v0.1',
       date: '2025-12',
       title: 'Vinted browser flow: DOM-scrape fallback',
       type: 'feature',
@@ -3593,7 +3594,7 @@
       files: ['bot/vinted-browser.js'],
     },
     {
-      version: 'v1.0.0',
+      version: 'v0.0',
       date: '2025-11',
       title: 'Initial launch',
       type: 'launch',

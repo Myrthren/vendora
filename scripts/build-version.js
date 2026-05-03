@@ -12,12 +12,12 @@ const { execSync } = require('child_process');
 const { writeFileSync } = require('fs');
 const { join } = require('path');
 
-const MAJOR = 1;
-const MINOR = 5;
+const MAJOR = 0;
+const MINOR = 6;
 // Bump MINOR manually for each feature release (matches changelog MAJOR.MINOR).
 // Patch = commits since this baseline — increments automatically per push.
-// Baseline reset to 90 when v1.5.0 shipped, so next deploy = v1.5.0.
-const BASELINE_COMMIT_COUNT = 90;
+// Baseline reset to 91 when v0.6 shipped, so next deploy = v0.6.0.
+const BASELINE_COMMIT_COUNT = 91;
 
 function sh(cmd, fallback = '') {
   try { return execSync(cmd, { encoding: 'utf8' }).trim(); }

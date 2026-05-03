@@ -75,6 +75,21 @@ if (PROXY_URL && ProxyAgent) {
   console.warn('[proxy] PROXY_URL is set but undici ProxyAgent failed to load — proxy DISABLED');
 }
 
+// Apify residential proxy — used as secondary route for Vinted API calls.
+// Apify's residential IPs bypass DataDome without needing Playwright/Chromium.
+let APIFY_PROXY_AGENT = null;
+if (APIFY_TOKEN && ProxyAgent) {
+  try {
+    APIFY_PROXY_AGENT = new ProxyAgent({
+      uri: `http://groups-RESIDENTIAL:${APIFY_TOKEN}@proxy.apify.com:8000`,
+      connect: { ciphers: CHROME_CIPHERS, sigalgs: CHROME_SIGALGS },
+    });
+    console.log('[apify-proxy] Apify residential proxy agent ready — Vinted fallback available');
+  } catch (e) {
+    console.warn('[apify-proxy] Failed to create Apify ProxyAgent:', e.message);
+  }
+}
+
 const PORT            = process.env.PORT || 3000;
 const OWNER_ID       = '731207920007643167';
 const DASHBOARD_URL  = 'https://vendora.site/vendora-dashboard';
@@ -476,6 +491,35 @@ async function apifyVintedSearch(query, maxItems = 12) {
     }));
   } catch (e) {
     console.warn('[apify] Vinted search error:', e.message);
+    return null;
+  }
+}
+
+// Fetch a specific Vinted item by URL or ID via Apify residential proxy.
+// Used by the watchlist cron to track price changes on individual Vinted listings.
+async function apifyVintedFetchItem(itemIdOrUrl) {
+  let itemId = String(itemIdOrUrl || '');
+  const m = itemId.match(/\/items\/(\d+)/);
+  if (m) itemId = m[1];
+  if (!/^\d+$/.test(itemId)) return null;
+  try {
+    // Try Apify proxy route first — bypasses DataDome without browser
+    const bases = ['https://www.vinted.co.uk', 'https://www.vinted.fr'];
+    for (const base of bases) {
+      const res = APIFY_PROXY_AGENT
+        ? await apifyVFetch(`${base}/api/v2/items/${itemId}`, {
+            headers: { ...VINTED_HEADERS('', base), Authorization: undefined },
+            signal: AbortSignal.timeout(15000),
+          })
+        : null;
+      if (res?.ok) {
+        const data = await res.json();
+        if (data?.item) return data.item;
+      }
+    }
+    return null;
+  } catch (e) {
+    console.warn('[apify-item] fetch failed:', e.message);
     return null;
   }
 }
@@ -3175,6 +3219,20 @@ async function vFetch(url, opts = {}) {
   return fetch(url, opts); // fallback to global fetch (no proxy)
 }
 
+// apifyVFetch — same as vFetch but forces Apify's residential proxy regardless
+// of PROXY_AGENT. Used as DataDome bypass when the primary proxy is blocked.
+async function apifyVFetch(url, opts = {}) {
+  if (!APIFY_PROXY_AGENT || !undFetch) return null; // caller checks for null
+  if (opts.headers) {
+    const clean = {};
+    for (const [k, v] of Object.entries(opts.headers)) {
+      clean[k] = typeof v === 'string' ? v.replace(/[^\x00-\xFF]/g, '') : v;
+    }
+    opts = { ...opts, headers: clean };
+  }
+  return undFetch(url, { ...opts, dispatcher: APIFY_PROXY_AGENT });
+}
+
 // ── Vinted geo-base detection ─────────────────────────────────────────────────
 // The proxy may be geolocated to a non-UK country. Vinted redirects
 // www.vinted.co.uk → www.vinted.fr (or another locale) based on the proxy IP.
@@ -3333,20 +3391,23 @@ async function legacyVintedLogin(usernameOrEmail, password) {
 // Direct Bearer-auth HTTP is tried first (faster, no Playwright needed).
 // Only falls back to browser if DataDome explicitly blocks the direct request.
 async function vintedUploadImage(accessToken, base64Data, mimeType = 'image/jpeg') {
-  const direct = await legacyVintedUploadImage(accessToken, base64Data, mimeType);
+  // 1. Primary proxy
+  const direct = await legacyVintedUploadImage(accessToken, base64Data, mimeType, vFetch);
   if (!direct.error) return direct;
   const isDataDome = /datadome|captcha/i.test(direct.error);
-  if (!isDataDome) return direct; // real error (auth, network, etc.) — no point trying browser
-  console.warn('[vinted-upload] DataDome blocked direct call — trying browser flow');
-  if (vintedBrowser) {
-    const r = await vintedBrowser.vintedBrowserUploadPhoto(accessToken, base64Data, mimeType);
-    if (!r.error) return r;
-    console.warn('[vinted-upload] browser flow also failed:', r.error);
+  if (!isDataDome) return direct;
+
+  // 2. Apify residential proxy
+  if (APIFY_PROXY_AGENT) {
+    console.warn('[vinted-upload] DataDome blocked primary proxy — retrying via Apify residential proxy');
+    const apify = await legacyVintedUploadImage(accessToken, base64Data, mimeType, apifyVFetch);
+    if (!apify.error) return apify;
+    console.warn('[vinted-upload] Apify proxy also failed:', apify.error);
   }
-  return direct; // return the original DataDome error
+  return direct;
 }
 
-async function legacyVintedUploadImage(accessToken, base64Data, mimeType = 'image/jpeg') {
+async function legacyVintedUploadImage(accessToken, base64Data, mimeType = 'image/jpeg', fetchFn = vFetch) {
   try {
     const boundary = `----FormBoundary${Date.now()}`;
     const body = Buffer.concat([
@@ -3357,7 +3418,7 @@ async function legacyVintedUploadImage(accessToken, base64Data, mimeType = 'imag
       Buffer.from(`\r\n--${boundary}--\r\n`),
     ]);
     const vintedBase = await getVintedBase();
-    const res = await vFetch(`${vintedBase}/api/v2/photos`, {
+    const res = await fetchFn(`${vintedBase}/api/v2/photos`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -3367,36 +3428,35 @@ async function legacyVintedUploadImage(accessToken, base64Data, mimeType = 'imag
         'Origin': 'https://www.vinted.co.uk',
       },
       body,
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(25000),
     });
-    if (!res.ok) { const e = await res.text(); return { error: `Vinted image upload failed: ${e.slice(0, 80)}` }; }
+    if (!res) return { error: 'DataDome blocked image upload — proxy unavailable.' };
+    if (!res.ok) { const e = await res.text(); return { error: /datadome|captcha/i.test(e) ? `DataDome blocked image upload on ${vintedBase}.` : `Vinted image upload failed: ${e.slice(0, 80)}` }; }
     const data = await res.json();
     return { photo_id: data.id || data.photo?.id };
   } catch (e) { return { error: e.message }; }
 }
 
 async function vintedCreateListing(accessToken, listingData) {
-  // Direct Bearer-auth HTTP first — fastest and works without Playwright.
-  const direct = await legacyVintedCreateListing(accessToken, listingData);
+  // 1. Primary route: PROXY_AGENT (user's residential proxy or direct)
+  const direct = await legacyVintedCreateListing(accessToken, listingData, vFetch);
   if (!direct.error) return direct;
   const isDataDome = /datadome|captcha/i.test(direct.error);
-  if (!isDataDome) return direct; // auth error, network error, etc. — browser won't help
-  console.warn('[vinted-list] DataDome blocked direct call — trying browser flow');
-  if (vintedBrowser) {
-    try {
-      const r = await vintedBrowser.vintedBrowserCreateListing(accessToken, listingData);
-      if (!r.error) return r;
-      console.warn('[vinted-list] browser flow also failed:', r.error);
-      return { error: `Vinted is blocking automated listings right now (DataDome protection). Direct API and browser fallback both failed. Details: ${r.error}` };
-    } catch (e) {
-      console.warn('[vinted-list] browser flow threw:', e.message);
-      return { error: `Vinted blocked the request (DataDome) and the browser fallback crashed: ${e.message}. Try again in a few minutes, or reconnect your Vinted account.` };
-    }
+  if (!isDataDome) return direct; // auth/network error — other routes won't help
+
+  // 2. Apify residential proxy — bypasses DataDome without needing Playwright
+  if (APIFY_PROXY_AGENT) {
+    console.warn('[vinted-list] Primary proxy DataDome blocked — retrying via Apify residential proxy');
+    const apify = await legacyVintedCreateListing(accessToken, listingData, apifyVFetch);
+    if (!apify.error) return apify;
+    console.warn('[vinted-list] Apify proxy also failed:', apify.error);
+    return { error: `Vinted is blocking this listing. Both the primary proxy and Apify residential proxy were blocked. Please try again in a few minutes or reconnect your Vinted account.` };
   }
-  return { error: 'Vinted blocked the request (DataDome protection) and no browser fallback is available on this server. Contact support or try again later.' };
+
+  return { error: `Vinted blocked the listing request (DataDome). Add APIFY_API_TOKEN to Railway to enable the Apify residential proxy fallback.` };
 }
 
-async function legacyVintedCreateListing(accessToken, listingData) {
+async function legacyVintedCreateListing(accessToken, listingData, fetchFn = vFetch) {
   const {
     title, description = '', price, condition, photo_ids = [],
     brand = '', size = '',
@@ -3424,16 +3484,17 @@ async function legacyVintedCreateListing(accessToken, listingData) {
     };
     if (photo_ids.length) body.photos = photo_ids.map(id => ({ id }));
 
-    const res = await vFetch(`${vintedBase}/api/v2/items`, {
+    const res = await fetchFn(`${vintedBase}/api/v2/items`, {
       method: 'POST',
       headers: VINTED_HEADERS(accessToken, vintedBase),
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(20000),
     });
+    if (!res) return { error: 'DataDome blocked the direct listing call — proxy unavailable.' };
 
     if (!res.ok) {
       const err = await res.text();
-      console.error(`[vinted-list-direct] HTTP ${res.status} base=${vintedBase} proxy=${!!PROXY_AGENT}:`, err.slice(0, 400));
+      console.error(`[vinted-list-direct] HTTP ${res.status} base=${vintedBase}:`, err.slice(0, 400));
       if (/captcha-delivery\.com|datadome/i.test(err)) {
         return { error: `DataDome blocked the direct listing call on ${vintedBase}.` };
       }
@@ -5337,36 +5398,65 @@ cron.schedule('0 */6 * * *', async () => {
         let currentLow, currentAvg, dropVariants = [], currency = 'GBP';
 
         if (isUrl) {
-          // ── URL-based item: re-scrape the product page ──────────────────────
-          let product;
-          try { product = await scrapeProductPage(wl.item); }
-          catch (e) {
-            console.warn(`[cron:watchlist] Scrape failed for ${wl.item}: ${e.message}`);
-            continue;
+          const isVintedUrl = /vinted\.(co\.uk|fr|de|be|nl|es|it|pl|pt|se|at|lu|cz|sk|hu|ro|lt|lv|ee|fi|dk)\//i.test(wl.item);
+
+          if (isVintedUrl) {
+            // ── Vinted URL: fetch via Apify proxy (no Playwright) ──────────────
+            const vintedItem = await apifyVintedFetchItem(wl.item);
+            if (!vintedItem) {
+              console.warn(`[cron:watchlist] Vinted fetch failed for ${wl.item}`);
+              continue;
+            }
+            checkedCount++;
+            const price = parseFloat(vintedItem.price || '0');
+            if (!price) continue;
+            currentLow = price;
+            currentAvg = price;
+            currency   = vintedItem.currency || 'GBP';
+            const vintedName     = vintedItem.title || wl.item;
+            const vintedVariants = [{ size: vintedItem.size_title || null, price }];
+
+            if (!stored) {
+              baselines[wl.id] = { platform: 'vinted', productName: vintedName, baseline: price, lowestSeen: price, variants: vintedVariants, currency, url: wl.item, checkedAt: new Date().toISOString() };
+              console.log(`[cron:watchlist] Baselined Vinted "${vintedName}" at ${currency} ${price.toFixed(2)}`);
+              continue;
+            }
+
+            const vintedBaseline = stored.baseline || price;
+            const vintedPct = ((vintedBaseline - price) / vintedBaseline) * 100;
+            if (vintedPct >= 10) dropVariants.push({ size: vintedItem.size_title || null, price, baseline: vintedBaseline, pct: vintedPct });
+            baselines[wl.id] = { ...stored, productName: vintedName, lowestSeen: Math.min(price, stored.lowestSeen || price), variants: vintedVariants, checkedAt: new Date().toISOString() };
+
+          } else {
+            // ── Other URL: scrape the product page ────────────────────────────
+            let product;
+            try { product = await scrapeProductPage(wl.item); }
+            catch (e) {
+              console.warn(`[cron:watchlist] Scrape failed for ${wl.item}: ${e.message}`);
+              continue;
+            }
+            if (!product?.variants?.length) continue;
+            checkedCount++;
+
+            currentLow = product.lowestPrice;
+            currentAvg = product.variants.reduce((s, v) => s + v.price, 0) / product.variants.length;
+            currency   = product.currency || 'GBP';
+
+            if (!stored) {
+              baselines[wl.id] = { platform: stored?.platform, productName: product.name, baseline: currentAvg, lowestSeen: currentLow, variants: product.variants, currency, url: wl.item, checkedAt: new Date().toISOString() };
+              console.log(`[cron:watchlist] Baselined URL "${product.name}" at £${currentLow.toFixed(2)}`);
+              continue;
+            }
+
+            for (const v of product.variants) {
+              const baseline = (stored.variants || []).find(sv => sv.size === v.size)?.price || stored.baseline;
+              if (!baseline) continue;
+              const pct = ((baseline - v.price) / baseline) * 100;
+              if (pct >= 10) dropVariants.push({ size: v.size, price: v.price, baseline, pct });
+            }
+
+            baselines[wl.id] = { ...stored, productName: product.name, lowestSeen: Math.min(currentLow, stored.lowestSeen || currentLow), variants: product.variants, checkedAt: new Date().toISOString() };
           }
-          if (!product?.variants?.length) continue;
-          checkedCount++;
-
-          currentLow = product.lowestPrice;
-          currentAvg = product.variants.reduce((s, v) => s + v.price, 0) / product.variants.length;
-          currency   = product.currency || 'GBP';
-
-          if (!stored) {
-            baselines[wl.id] = { platform: stored?.platform, productName: product.name, baseline: currentAvg, lowestSeen: currentLow, variants: product.variants, currency, url: wl.item, checkedAt: new Date().toISOString() };
-            console.log(`[cron:watchlist] Baselined URL "${product.name}" at £${currentLow.toFixed(2)}`);
-            continue;
-          }
-
-          // Find per-variant drops ≥10%
-          for (const v of product.variants) {
-            const baseline = (stored.variants || []).find(sv => sv.size === v.size)?.price || stored.baseline;
-            if (!baseline) continue;
-            const pct = ((baseline - v.price) / baseline) * 100;
-            if (pct >= 10) dropVariants.push({ size: v.size, price: v.price, baseline, pct });
-          }
-
-          // Update stored data
-          baselines[wl.id] = { ...stored, productName: product.name, lowestSeen: Math.min(currentLow, stored.lowestSeen || currentLow), variants: product.variants, checkedAt: new Date().toISOString() };
 
         } else {
           // ── Text-based item (legacy): search Depop + Vinted ─────────────────
