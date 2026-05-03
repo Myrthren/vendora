@@ -643,12 +643,13 @@
 
     <!-- Tools -->
     <div class="nav-item" id="crosslist-nav-item" onclick="showSection('crosslist', this)">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 10h16M4 14h8M4 18h8"/><path d="M16 14l2 2 4-4"/></svg>
-      Auto-List
-    </div>
-    <div class="nav-item" id="listings-nav-item" onclick="showSection('listings', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
       Listings
+      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(232,33,122,0.18);color:var(--pink);letter-spacing:.04em;">Pro+</span>
+    </div>
+    <div class="nav-item" id="listings-nav-item" onclick="showSection('listings', this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 10h16M4 14h8M4 18h8"/><path d="M16 14l2 2 4-4"/></svg>
+      Auto-List
     </div>
     <div class="nav-item" id="inventory-nav-item" onclick="showSection('inventory', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
@@ -1137,7 +1138,7 @@
     <div class="section" id="section-listings">
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
-        <div class="page-title">Listings</div>
+        <div class="page-title">Auto-List</div>
         <div class="page-sub">Create, cross-list, and automate your listings across Depop and Vinted.</div>
       </div>
 
@@ -1372,38 +1373,41 @@
     <div class="section" id="section-inventory">
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
-        <div class="page-title">Inventory Tracker</div>
-        <div class="page-sub">Track every item you're selling. Add via the dashboard or with <code style="font-family:monospace;font-size:11px;color:var(--pink);background:rgba(232,33,122,0.1);padding:1px 6px;border-radius:4px;">/tracker add</code> in Discord.</div>
+        <div class="page-title">Inventory</div>
+        <div class="page-sub">Auto-synced from your connected Vinted account. Items appear here automatically — no manual entry needed.</div>
       </div>
 
-      <div class="card" style="margin-bottom:20px;">
-        <div class="card-title" style="margin-bottom:14px;">Add Item</div>
-        <div style="display:flex;gap:10px;">
-          <input id="inv-new-item" type="text" class="form-select" style="height:auto;padding:10px 14px;flex:1;" placeholder="e.g. Nike Air Max 90 White UK9">
-          <button id="inv-add-btn" class="btn btn-pink" onclick="addInventoryItem()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add
-          </button>
+      <!-- Status / sync banner -->
+      <div id="inv-status" class="card" style="margin-bottom:16px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+          <div id="inv-status-dot" style="width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0;"></div>
+          <div style="min-width:0;">
+            <div id="inv-status-title" style="font-size:13px;font-weight:600;color:var(--text);">Checking connection…</div>
+            <div id="inv-status-sub" style="font-size:11px;color:var(--muted);margin-top:2px;">Loading status…</div>
+          </div>
         </div>
-        <div id="inv-add-msg" style="display:none;margin-top:10px;font-size:12px;"></div>
+        <div style="display:flex;gap:8px;">
+          <button id="inv-sync-btn" class="btn btn-ghost btn-sm" onclick="syncInventory()" disabled>Sync now</button>
+        </div>
       </div>
 
       <div class="card" style="padding:0;overflow:hidden;">
         <div style="padding:16px 20px;border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
-          <div class="card-title" style="margin:0;">Your Items</div>
+          <div class="card-title" style="margin:0;">Your Vinted Listings</div>
           <button class="btn btn-ghost btn-sm" onclick="loadInventory()">Refresh</button>
         </div>
         <table class="data-table">
           <thead>
             <tr>
-              <th>#</th>
+              <th></th>
               <th>Item</th>
-              <th>Added</th>
-              <th>Actions</th>
+              <th>Price</th>
+              <th>Status</th>
+              <th>Last seen</th>
             </tr>
           </thead>
           <tbody id="inventory-tbody">
-            <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Loading...</td></tr>
+            <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Loading...</td></tr>
           </tbody>
         </table>
       </div>
@@ -1460,8 +1464,8 @@
     <div class="section" id="section-crosslist">
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
-        <div class="page-title">Auto-List</div>
-        <div class="page-sub">Generate platform-optimised listings for Depop, Vinted, and eBay in one click.</div>
+        <div class="page-title">Listings</div>
+        <div class="page-sub">Generate and post platform-optimised listings for Depop, Vinted, and eBay in one click.</div>
       </div>
 
       <!-- Pro gate -->
@@ -1577,7 +1581,19 @@
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
         <div class="page-title">Profit Tracker</div>
-        <div class="page-sub">Log your sales and costs. Track your margins, revenue, and ROI over time.</div>
+        <div class="page-sub">Vinted sales auto-detected via Apify. Log buy-prices to see real margins.</div>
+      </div>
+
+      <!-- Vinted auto-sync banner -->
+      <div id="pt-sync-status" class="card" style="margin-bottom:16px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+          <div id="pt-sync-dot" style="width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0;"></div>
+          <div style="min-width:0;">
+            <div id="pt-sync-title" style="font-size:13px;font-weight:600;color:var(--text);">Checking Vinted connection…</div>
+            <div id="pt-sync-sub" style="font-size:11px;color:var(--muted);margin-top:2px;">Loading…</div>
+          </div>
+        </div>
+        <button id="pt-sync-btn" class="btn btn-ghost btn-sm" onclick="syncProfit()" disabled>Sync sales</button>
       </div>
 
       <!-- Summary stats -->
@@ -2951,6 +2967,7 @@
     loadInventory();
     loadWatchlist();
     ptRefresh();
+    loadProfitSync();
     loadCreditsBalance(session);
 
     // Grant monthly credits for pro/elite, then refresh balance
@@ -3312,7 +3329,7 @@
     }
   });
 
-  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', inventory:'Inventory', watchlist:'Watchlist', profit:'Profit Tracker', crosslist:'Auto-List', listings:'Listings', enhancer:'Photo Enhancer', support:'Support', admin:'Admin Panel', 'listing-optimiser':'Listing Optimiser', 'flip-score':'Flip Score', 'price-elasticity':'Price Elasticity', 'auto-draft':'Auto-Draft', 'seller-intelligence':'Seller Intelligence', 'resell-calendar':'Resell Calendar', autobuy:'Auto-Buy' };
+  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', inventory:'Inventory', watchlist:'Watchlist', profit:'Profit Tracker', crosslist:'Listings', listings:'Auto-List', enhancer:'Photo Enhancer', support:'Support', admin:'Admin Panel', 'listing-optimiser':'Listing Optimiser', 'flip-score':'Flip Score', 'price-elasticity':'Price Elasticity', 'auto-draft':'Auto-Draft', 'seller-intelligence':'Seller Intelligence', 'resell-calendar':'Resell Calendar', autobuy:'Auto-Buy' };
 
   // ── Cross-list tool ──────────────────────────────────────────────────────────
   const BOT_API = 'https://vendora-production-8a47.up.railway.app';
@@ -3516,16 +3533,20 @@
     {
       version: 'v0.6',
       date: '2026-05-03',
-      title: 'Apify proxy everywhere + Watchlist Vinted support + Auto-Buy',
+      title: 'Username-only Vinted connect + Auto-synced Inventory & Profit Tracker',
       type: 'feature',
       changes: [
-        'Fixed auto-listing crash on Railway — removed Playwright fallback (Chromium unavailable), listing now uses API + Apify residential proxy instead',
-        'vintedCreateListing and vintedUploadImage: two-route proxy strategy (user PROXY_URL → Apify residential) — no more libglib crashes',
-        'Description field in Auto-List is now required — prevents incomplete Vinted/Depop listings',
-        'Watchlist cron: Vinted item URLs now fetched via Apify proxy instead of Playwright — price-drop alerts work for vinted.co.uk and other Vinted domains',
-        'Auto-Buy section rebuilt — live Apify-powered Vinted keyword monitor in dashboard (Pro+ gate, 5/10 alert cap)',
-        '/vinted-alert command added (Pro+): add, list, remove keyword monitors — DM on new Vinted matches every 30 min',
-        'Enabled Auto-List, Listings, Inventory, Auto-Buy sidebar sections (removed disabled/Soon state)',
+        'Vinted connection rebuilt — manual access-token entry removed. Popup now opens the official Vinted login/signup page; user only enters their Vinted username back in Vendora',
+        'New /api/vinted/connect-username endpoint verifies username via Apify residential proxy, no tokens needed',
+        'Inventory page rebuilt — manual Add Item form removed. Listings auto-sync from Vinted via Apify (active + sold items, photos, prices)',
+        'Profit Tracker now auto-detects Vinted sales via Apify — items that disappear from active listings are marked as sales with timestamp',
+        'New 6-hour cron: refreshes inventory + detects new sales for every connected Vinted user',
+        'New endpoints: /api/vinted/sync-inventory, /api/vinted/sync-profit (GET status, POST to force refresh)',
+        'Sidebar "Auto-List" and "Listings" labels swapped — Listings now points to the cross-listing tool',
+        'Pro+ badge added to Listings sidebar entry; Auto-Buy already Pro+',
+        'Fixed auto-listing crash on Railway — removed Playwright fallback, listing uses API + Apify residential proxy',
+        'Watchlist cron: Vinted URLs routed through Apify proxy (no Chromium needed)',
+        'Description field in Listings (Auto-List form) is now required',
         'Changelog renumbered to v0.x scheme; per-entry Copy for Discord button on every version',
       ],
       files: ['bot/index.js', 'vendora-dashboard.html', 'scripts/build-version.js'],
@@ -4054,9 +4075,13 @@
     btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Message`;
   }
 
-  // ── Inventory ─────────────────────────────────────────────────────────────────
+  // ── Inventory (auto-synced from Vinted via Apify) ─────────────────────────────
   async function loadInventory() {
-    const tbody = document.getElementById('inventory-tbody');
+    const tbody  = document.getElementById('inventory-tbody');
+    const dot    = document.getElementById('inv-status-dot');
+    const tEl    = document.getElementById('inv-status-title');
+    const sEl    = document.getElementById('inv-status-sub');
+    const btn    = document.getElementById('inv-sync-btn');
     if (!tbody) return;
     try {
       const { data: { session } } = await sb.auth.getSession();
@@ -4064,60 +4089,74 @@
       const res = await fetch(`${BOT_API}/api/inventory`, {
         headers: { 'Authorization': `Bearer ${session.access_token}` }
       });
-      if (!res.ok) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Failed to load.</td></tr>`; return; }
-      const { items } = await res.json();
-      renderInventoryTable(items);
-    } catch { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Error loading inventory.</td></tr>`; }
+      if (!res.ok) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Failed to load.</td></tr>`;
+        return;
+      }
+      const { items, connected, username, last_synced } = await res.json();
+      if (connected) {
+        if (dot) dot.style.background = 'var(--green)';
+        if (tEl) tEl.textContent = `Vinted connected — @${username || 'unknown'}`;
+        if (sEl) sEl.textContent = last_synced
+          ? `Last auto-synced ${new Date(last_synced).toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}`
+          : 'Awaiting first sync — click Sync now.';
+        if (btn) btn.disabled = false;
+      } else {
+        if (dot) dot.style.background = 'var(--muted)';
+        if (tEl) tEl.textContent = 'Vinted not connected';
+        if (sEl) sEl.innerHTML = `Connect your Vinted account on the <a href="#" onclick="showSection('platforms',document.querySelector('[onclick*=platforms]'));return false;" style="color:var(--pink);text-decoration:none;">Platforms</a> page to auto-import your listings.`;
+        if (btn) btn.disabled = true;
+      }
+      renderInventoryTable(items, connected);
+    } catch {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Error loading inventory.</td></tr>`;
+    }
   }
 
-  function renderInventoryTable(items) {
+  function renderInventoryTable(items, connected) {
     const tbody = document.getElementById('inventory-tbody');
     if (!tbody) return;
     if (!items || items.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">No items yet. Add one above or use <code style="font-family:monospace;color:var(--pink);">/tracker add</code> in Discord.</td></tr>`;
+      const msg = connected
+        ? 'No active Vinted listings yet — they will appear here once you list something.'
+        : 'Connect Vinted on the Platforms page to populate your inventory automatically.';
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">${msg}</td></tr>`;
       return;
     }
-    tbody.innerHTML = items.map((item, i) => `
-      <tr>
-        <td style="color:var(--muted);font-size:12px;">${i + 1}</td>
-        <td style="font-size:13px;">${item.item}</td>
-        <td style="font-size:12px;color:var(--muted2);white-space:nowrap;">${new Date(item.added_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="removeInventoryItem('${item.id}')">Remove</button></td>
-      </tr>`).join('');
+    tbody.innerHTML = items.map((item) => {
+      const photo  = item.photo  ? `<img src="${item.photo}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;background:var(--surface2);">` : `<div style="width:36px;height:36px;border-radius:6px;background:var(--surface2);"></div>`;
+      const price  = item.price ? `£${parseFloat(item.price).toFixed(2)}` : '—';
+      const status = item.status === 'sold'   ? `<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(232,33,122,0.15);color:var(--pink);font-weight:600;letter-spacing:.04em;">SOLD</span>`
+                   : item.status === 'active' ? `<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(74,222,128,0.15);color:var(--green);font-weight:600;letter-spacing:.04em;">ACTIVE</span>`
+                   : `<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--muted);font-weight:600;letter-spacing:.04em;">${(item.status || 'unknown').toUpperCase()}</span>`;
+      const seen   = item.last_seen_at ? new Date(item.last_seen_at).toLocaleDateString('en-GB',{ day:'2-digit', month:'short' }) : '—';
+      const titleHtml = item.url ? `<a href="${item.url}" target="_blank" style="color:var(--text);text-decoration:none;">${item.title || item.item || '(untitled)'}</a>` : (item.title || item.item || '(untitled)');
+      return `<tr>
+        <td>${photo}</td>
+        <td style="font-size:13px;">${titleHtml}</td>
+        <td style="font-size:13px;color:var(--text);white-space:nowrap;">${price}</td>
+        <td>${status}</td>
+        <td style="font-size:12px;color:var(--muted2);white-space:nowrap;">${seen}</td>
+      </tr>`;
+    }).join('');
   }
 
-  async function addInventoryItem() {
-    const input = document.getElementById('inv-new-item');
-    const item  = input?.value?.trim();
-    const msgEl = document.getElementById('inv-add-msg');
-    const btn   = document.getElementById('inv-add-btn');
-    if (!item) { showMsg(msgEl, 'error', 'Enter an item name.'); return; }
-
-    btn.disabled = true;
+  async function syncInventory() {
+    const btn = document.getElementById('inv-sync-btn');
+    const sEl = document.getElementById('inv-status-sub');
+    if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+    if (sEl) sEl.textContent = 'Fetching listings from Vinted via Apify…';
     try {
       const { data: { session } } = await sb.auth.getSession();
-      const res = await fetch(`${BOT_API}/api/inventory`, {
+      const res = await fetch(`${BOT_API}/api/vinted/sync-inventory`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ item }),
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
       });
       const json = await res.json();
-      if (res.ok) { input.value = ''; renderInventoryTable(json.items); msgEl.style.display = 'none'; }
-      else showMsg(msgEl, 'error', json.error || 'Failed to add.');
-    } catch { showMsg(msgEl, 'error', 'Network error.'); }
-    btn.disabled = false;
-  }
-
-  async function removeInventoryItem(id) {
-    if (!confirm('Remove this item from your inventory?')) return;
-    try {
-      const { data: { session } } = await sb.auth.getSession();
-      await fetch(`${BOT_API}/api/inventory/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${session.access_token}` }
-      });
-      loadInventory();
-    } catch { alert('Network error.'); }
+      if (!res.ok) { if (sEl) sEl.textContent = json.error || 'Sync failed.'; }
+    } catch { if (sEl) sEl.textContent = 'Network error during sync.'; }
+    if (btn) { btn.textContent = 'Sync now'; }
+    loadInventory();
   }
 
   // ── Watchlist ─────────────────────────────────────────────────────────────────
@@ -4254,14 +4293,15 @@
     } catch { alert('Network error.'); }
   }
 
-  // ── Profit Tracker (localStorage) ────────────────────────────────────────────
+  // ── Profit Tracker (localStorage manual + Apify auto-sales) ──────────────────
   const PT_KEY = 'vendora_profit_entries';
+  let _ptAutoSales = []; // sales pulled from /api/vinted/sync-profit
 
   function ptLoad() { try { return JSON.parse(localStorage.getItem(PT_KEY) || '[]'); } catch { return []; } }
   function ptSave(entries) { localStorage.setItem(PT_KEY, JSON.stringify(entries)); }
 
   function ptRefresh() {
-    const entries  = ptLoad();
+    const entries  = [..._ptAutoSales, ...ptLoad()];
     const tbody    = document.getElementById('pt-tbody');
     const revEl    = document.getElementById('pt-revenue');
     const costEl   = document.getElementById('pt-costs');
@@ -4274,22 +4314,32 @@
     if (!entries.length) {
       tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">No sales logged yet. Add your first sale above.</td></tr>`;
     } else {
+      const autoCount = _ptAutoSales.length;
       tbody.innerHTML = entries.map((e, i) => {
+        const isAuto  = i < autoCount;
+        const sell    = parseFloat(e.sell) || 0;
+        const buy     = parseFloat(e.buy)  || 0;
         const fees    = (parseFloat(e.fees) || 0) + (parseFloat(e.shipping) || 0);
-        const profit  = e.sell - e.buy - fees;
-        const margin  = e.sell > 0 ? ((profit / e.sell) * 100).toFixed(0) : 0;
+        const profit  = sell - buy - fees;
+        const margin  = sell > 0 ? ((profit / sell) * 100).toFixed(0) : 0;
         const pColor  = profit >= 0 ? 'var(--green)' : 'var(--red)';
-        totalRev  += e.sell;
-        totalCost += e.buy + fees;
+        totalRev  += sell;
+        totalCost += buy + fees;
+        const itemLabel = isAuto
+          ? `${e.item} <span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(9,177,186,0.15);color:#09b1ba;letter-spacing:.04em;margin-left:6px;">AUTO</span>`
+          : e.item;
+        const delBtn = isAuto
+          ? `<span style="color:var(--muted);font-size:11px;" title="Auto-imported from Vinted">—</span>`
+          : `<button class="btn btn-ghost btn-sm" onclick="ptDelete(${i - autoCount})" style="color:var(--red);font-size:11px;">✕</button>`;
         return `<tr>
-          <td style="font-weight:500;">${e.item}</td>
+          <td style="font-weight:500;">${itemLabel}</td>
           <td><span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);">${e.platform}</span></td>
-          <td style="color:var(--green);">£${e.sell.toFixed(2)}</td>
-          <td style="color:var(--red);">£${e.buy.toFixed(2)}</td>
+          <td style="color:var(--green);">£${sell.toFixed(2)}</td>
+          <td style="color:var(--red);">£${buy.toFixed(2)}</td>
           <td style="color:var(--muted2);">£${fees.toFixed(2)}</td>
           <td style="color:${pColor};font-weight:600;">£${profit.toFixed(2)}</td>
           <td style="color:${pColor};">${margin}%</td>
-          <td><button class="btn btn-ghost btn-sm" onclick="ptDelete(${i})" style="color:var(--red);font-size:11px;">✕</button></td>
+          <td>${delBtn}</td>
         </tr>`;
       }).join('');
     }
@@ -4337,9 +4387,58 @@
   }
 
   function clearAllSales() {
-    if (!confirm('Clear all logged sales? This cannot be undone.')) return;
+    if (!confirm('Clear all manually-logged sales? Auto-imported Vinted sales are not affected.')) return;
     ptSave([]);
     ptRefresh();
+  }
+
+  async function loadProfitSync() {
+    const dot = document.getElementById('pt-sync-dot');
+    const tEl = document.getElementById('pt-sync-title');
+    const sEl = document.getElementById('pt-sync-sub');
+    const btn = document.getElementById('pt-sync-btn');
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`${BOT_API}/api/vinted/sync-profit`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      const json = await res.json();
+      _ptAutoSales = (json.sales || []).map(s => ({
+        item: s.title, sell: s.price, buy: 0, platform: 'Vinted',
+        fees: 0, shipping: 0, date: s.sold_at,
+      }));
+      ptRefresh();
+      if (json.connected) {
+        if (dot) dot.style.background = 'var(--green)';
+        if (tEl) tEl.textContent = `Vinted connected — @${json.username || 'unknown'}`;
+        if (sEl) sEl.textContent = `${_ptAutoSales.length} auto-imported sale${_ptAutoSales.length === 1 ? '' : 's'}` + (json.last_synced ? ` · last synced ${new Date(json.last_synced).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}` : '');
+        if (btn) btn.disabled = false;
+      } else {
+        if (dot) dot.style.background = 'var(--muted)';
+        if (tEl) tEl.textContent = 'Vinted not connected';
+        if (sEl) sEl.innerHTML = `Connect Vinted on the <a href="#" onclick="showSection('platforms',document.querySelector('[onclick*=platforms]'));return false;" style="color:var(--pink);text-decoration:none;">Platforms</a> page to auto-track your sales.`;
+        if (btn) btn.disabled = true;
+      }
+    } catch {
+      if (sEl) sEl.textContent = 'Could not load sync status.';
+    }
+  }
+
+  async function syncProfit() {
+    const btn = document.getElementById('pt-sync-btn');
+    const sEl = document.getElementById('pt-sync-sub');
+    if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+    if (sEl) sEl.textContent = 'Detecting new sales via Apify…';
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      await fetch(`${BOT_API}/api/vinted/sync-profit`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      });
+    } catch {}
+    if (btn) { btn.textContent = 'Sync sales'; }
+    loadProfitSync();
   }
 
   // ── Listings access gate ─────────────────────────────────────────────────────

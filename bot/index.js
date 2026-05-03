@@ -2701,39 +2701,21 @@ function discordIdFromUser(user) {
     || null;
 }
 
-// GET /api/inventory — fetch all items for the authenticated user
+// GET /api/inventory — return the Vinted-auto-synced inventory snapshot.
+// Items are fetched from Vinted via Apify residential proxy (no manual entry).
+// The cron job at the bottom of this file refreshes the snapshot every 6 hours.
 app.get('/api/inventory', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
-  const discordId = discordIdFromUser(user);
-  if (!discordId) return res.status(400).json({ error: 'Discord ID not found' });
-  const items = await dbGetInventory(discordId);
-  return res.json({ ok: true, items });
-});
-
-// POST /api/inventory — add an item, return full updated list
-app.post('/api/inventory', async (req, res) => {
-  const user = await requireAuth(req, res); if (!user) return;
-  const discordId = discordIdFromUser(user);
-  if (!discordId) return res.status(400).json({ error: 'Discord ID not found' });
-  const { item } = req.body || {};
-  if (!item?.trim()) return res.status(400).json({ error: 'Item name required' });
-  const result = await dbAddInventory(discordId, item.trim());
-  if (result?.error) return res.status(500).json({ error: result.error });
-  const items = await dbGetInventory(discordId);
-  return res.json({ ok: true, items });
-});
-
-// DELETE /api/inventory/:id — remove a specific item by its Supabase row ID
-app.delete('/api/inventory/:id', async (req, res) => {
-  const user = await requireAuth(req, res); if (!user) return;
-  const discordId = discordIdFromUser(user);
-  if (!discordId) return res.status(400).json({ error: 'Discord ID not found' });
-  // Verify the item belongs to this user before deleting
-  const items = await dbGetInventory(discordId);
-  const owns = items.some(i => String(i.id) === String(req.params.id));
-  if (!owns) return res.status(403).json({ error: 'Not your item' });
-  await dbRemoveInventory(req.params.id);
-  return res.json({ ok: true });
+  const conn = await getPlatformConn(user.id, 'vinted');
+  if (!conn) return res.json({ ok: true, items: [], connected: false });
+  const snap = (await getSetting(`vinted_inventory_${user.id}`)) || { items: [], last_synced: null };
+  return res.json({
+    ok: true,
+    connected: true,
+    username: conn.platform_username,
+    last_synced: snap.last_synced,
+    items: snap.items || [],
+  });
 });
 
 // Supabase DB webhook — profile INSERT/UPDATE
@@ -3782,7 +3764,6 @@ app.delete('/api/platform/:platform/disconnect', async (req, res) => {
 // window.opener and calls window.close().
 app.get('/api/vinted/connect-popup', (req, res) => {
   const { auth } = req.query;
-  // auth may be undefined (if user opened the URL directly) — the page handles this gracefully
   const authJson = JSON.stringify(auth || '');
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
@@ -3795,13 +3776,13 @@ app.get('/api/vinted/connect-popup', (req, res) => {
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#090909;color:#f0f0f0;font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-  .card{background:#0f0f0f;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:32px;width:100%;max-width:400px}
-  .logo{display:flex;align-items:center;gap:10px;margin-bottom:28px}
+  .card{background:#0f0f0f;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:32px;width:100%;max-width:420px}
+  .logo{display:flex;align-items:center;gap:10px;margin-bottom:24px}
   .logo-mark{width:32px;height:32px;background:linear-gradient(135deg,#e8217a,#c41860);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;letter-spacing:-.5px;color:#fff}
   .logo-text{font-size:16px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#f0f0f0}
   h2{font-size:18px;font-weight:700;margin-bottom:6px}
-  .sub{font-size:13px;color:#666;margin-bottom:24px;line-height:1.5}
-  .platform-badge{display:flex;align-items:center;gap:8px;background:rgba(9,177,186,.08);border:1px solid rgba(9,177,186,.2);border-radius:8px;padding:8px 12px;margin-bottom:24px}
+  .sub{font-size:13px;color:#888;margin-bottom:20px;line-height:1.55}
+  .platform-badge{display:flex;align-items:center;gap:8px;background:rgba(9,177,186,.08);border:1px solid rgba(9,177,186,.2);border-radius:8px;padding:8px 12px;margin-bottom:22px}
   .plat-dot{width:8px;height:8px;border-radius:50%;background:#09b1ba;flex-shrink:0}
   .plat-label{font-size:12px;font-weight:600;color:#09b1ba}
   label{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#888;margin-bottom:6px}
@@ -3812,22 +3793,16 @@ app.get('/api/vinted/connect-popup', (req, res) => {
   .btn-primary{background:linear-gradient(135deg,#09b1ba,#077d84);color:#fff}
   .btn-primary:hover{opacity:.9}
   .btn-primary:disabled{opacity:.5;cursor:not-allowed}
-  .divider{display:flex;align-items:center;gap:10px;margin:16px 0}
-  .divider-line{flex:1;height:1px;background:rgba(255,255,255,.07)}
-  .divider-text{font-size:11px;color:#555}
-  .tab-row{display:flex;gap:0;border:1px solid rgba(255,255,255,.08);border-radius:8px;overflow:hidden;margin-bottom:20px}
-  .tab{flex:1;padding:8px;font-size:12px;font-weight:500;font-family:inherit;border:none;cursor:pointer;transition:background .15s}
-  .tab.active{background:#e8217a;color:#fff}
-  .tab.inactive{background:transparent;color:#666}
+  .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,.12);color:#f0f0f0;margin-bottom:14px}
+  .btn-ghost:hover{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.2)}
+  .step{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:#141414;border:1px solid rgba(255,255,255,.06);border-radius:10px;margin-bottom:10px}
+  .step-num{width:22px;height:22px;border-radius:50%;background:rgba(232,33,122,.16);color:#e8217a;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+  .step-text{font-size:12.5px;color:#ccc;line-height:1.55}
+  .step-text b{color:#f0f0f0;font-weight:600}
   .msg{margin-top:14px;padding:10px 14px;border-radius:8px;font-size:13px;display:none;line-height:1.5}
   .msg.success{background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.2);color:#4ade80}
   .msg.error{background:rgba(232,33,122,.1);border:1px solid rgba(232,33,122,.2);color:#f07;letter-spacing:.01em}
   .msg.info{background:rgba(9,177,186,.08);border:1px solid rgba(9,177,186,.2);color:#09b1ba}
-  .token-hint{background:rgba(232,161,33,.07);border:1px solid rgba(232,161,33,.2);border-radius:8px;padding:12px 14px;font-size:12px;color:rgba(232,161,33,.9);line-height:1.7;margin-bottom:14px}
-  .token-hint a{color:#e8a121}
-  code{background:rgba(255,255,255,.07);padding:1px 6px;border-radius:4px;font-size:11px}
-  #tab-creds{display:block}
-  #tab-token{display:none}
 </style>
 </head>
 <body>
@@ -3837,59 +3812,34 @@ app.get('/api/vinted/connect-popup', (req, res) => {
     <div class="logo-text">Vendora</div>
   </div>
   <h2>Connect Vinted</h2>
-  <p class="sub">Link your Vinted account to enable auto-listing and live analytics.</p>
+  <p class="sub">Sign in to your Vinted account, then enter your Vinted username so Vendora knows whose listings to track.</p>
   <div class="platform-badge">
     <div class="plat-dot"></div>
     <span class="plat-label">Vinted</span>
   </div>
 
-  <div class="tab-row">
-    <button class="tab active" id="btn-tab-creds" onclick="switchTab('creds')">Email / Password</button>
-    <button class="tab inactive" id="btn-tab-token" onclick="switchTab('token')">Manual Token</button>
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-text">Click below to open the official <b>Vinted login / sign-up page</b> in a new tab and sign in there.</div>
+  </div>
+  <button class="btn btn-ghost" onclick="openVintedLogin()">Open Vinted login →</button>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-text">Once you're signed in on Vinted, paste your <b>Vinted username</b> below and connect — Apify handles all bot-protection automatically.</div>
   </div>
 
-  <!-- Credentials form -->
-  <div id="tab-creds">
-    <div class="field">
-      <label>Vinted Username or Email</label>
-      <input id="vc-user" type="text" placeholder="username or email" autocomplete="username">
-    </div>
-    <div class="field">
-      <label>Password</label>
-      <input id="vc-pass" type="password" placeholder="••••••••" autocomplete="current-password">
-    </div>
-    <button class="btn btn-primary" id="vc-btn" onclick="connectCreds()">Connect Vinted Account</button>
+  <div class="field">
+    <label>Your Vinted username</label>
+    <input id="vc-user" type="text" placeholder="e.g. your_username" autocomplete="off">
   </div>
-
-  <!-- Manual token form -->
-  <div id="tab-token">
-    <div class="token-hint">
-      <strong>Why manual?</strong> Vinted's bot-protection can block automated login from servers.<br>
-      <strong>Steps:</strong> Open <a href="https://www.vinted.co.uk" target="_blank">vinted.co.uk</a> → log in → press <strong>F12</strong> → Application → Cookies → <code>www.vinted.co.uk</code> → copy the value of <code>access_token_web</code>
-    </div>
-    <div class="field">
-      <label>Your Vinted Username</label>
-      <input id="vt-user" type="text" placeholder="your_username" autocomplete="off">
-    </div>
-    <div class="field">
-      <label>access_token_web value</label>
-      <input id="vt-tok" type="password" placeholder="paste full token here" autocomplete="off">
-    </div>
-    <button class="btn btn-primary" id="vt-btn" onclick="connectToken()">Save Token</button>
-  </div>
+  <button class="btn btn-primary" id="vc-btn" onclick="connectUsername()">Connect Account</button>
 
   <div class="msg" id="msg"></div>
 </div>
 
 <script>
 const AUTH_TOKEN = ${authJson};
-
-function switchTab(tab) {
-  document.getElementById('tab-creds').style.display = tab === 'creds' ? 'block' : 'none';
-  document.getElementById('tab-token').style.display = tab === 'token' ? 'block' : 'none';
-  document.getElementById('btn-tab-creds').className = 'tab ' + (tab === 'creds' ? 'active' : 'inactive');
-  document.getElementById('btn-tab-token').className = 'tab ' + (tab === 'token' ? 'active' : 'inactive');
-}
 
 function showMsg(type, text) {
   const el = document.getElementById('msg');
@@ -3898,78 +3848,208 @@ function showMsg(type, text) {
   el.style.display = 'block';
 }
 
-async function connectCreds() {
+function openVintedLogin() {
+  window.open('https://www.vinted.co.uk/member/general/login', '_blank', 'noopener,noreferrer');
+}
+
+async function connectUsername() {
   if (!AUTH_TOKEN) return showMsg('error', 'Session expired — please close this window and try again from the dashboard.');
-  const u = document.getElementById('vc-user').value.trim();
-  const p = document.getElementById('vc-pass').value;
-  if (!u || !p) return showMsg('error', 'Please fill in both fields.');
+  let u = document.getElementById('vc-user').value.trim().replace(/^@/, '');
+  if (!u) return showMsg('error', 'Please enter your Vinted username.');
   const btn = document.getElementById('vc-btn');
-  btn.disabled = true; btn.textContent = 'Connecting — may take 15–30s…';
-  showMsg('info', 'Logging into Vinted — please wait…');
+  btn.disabled = true; btn.textContent = 'Verifying via Apify…';
+  showMsg('info', 'Looking up @' + u + ' on Vinted…');
   try {
-    const res = await fetch('/api/platform/connect', {
+    const res = await fetch('/api/vinted/connect-username', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
-      body: JSON.stringify({ platform: 'vinted', credentials: { username: u, password: p } }),
+      body: JSON.stringify({ username: u }),
     });
     const json = await res.json();
     if (!res.ok) {
-      if (json.error && json.error.toLowerCase().includes('blocking')) {
-        showMsg('error', json.error + ' — try the Manual Token tab instead.');
-        switchTab('token');
-      } else {
-        showMsg('error', json.error || 'Connection failed. Check your credentials and try again.');
-      }
+      showMsg('error', json.error || 'Could not verify username. Make sure it matches your Vinted profile exactly.');
     } else {
-      showMsg('success', 'Connected as @' + json.username + '! This window will close…');
+      showMsg('success', 'Connected as @' + json.username + ' — closing window…');
       setTimeout(() => {
         if (window.opener) {
           window.opener.postMessage({ type: 'vinted-connected', username: json.username }, '*');
-          window.close();
         }
+        window.close();
       }, 1200);
     }
   } catch (e) {
     showMsg('error', 'Request failed: ' + (e.message || 'network error'));
   }
-  btn.disabled = false; btn.textContent = 'Connect Vinted Account';
+  btn.disabled = false; btn.textContent = 'Connect Account';
 }
 
-async function connectToken() {
-  if (!AUTH_TOKEN) return showMsg('error', 'Session expired — please close this window and try again from the dashboard.');
-  const u = document.getElementById('vt-user').value.trim();
-  const t = document.getElementById('vt-tok').value.trim();
-  if (!u || !t) return showMsg('error', 'Please fill in both fields.');
-  const btn = document.getElementById('vt-btn');
-  btn.disabled = true; btn.textContent = 'Validating…';
-  showMsg('info', 'Validating token against Vinted…');
-  try {
-    const res = await fetch('/api/platform/connect', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
-      body: JSON.stringify({ platform: 'vinted', manual_token: t, username: u }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      showMsg('error', json.error || 'Failed to save token.');
-    } else {
-      const warnText = json.warning ? ' (note: ' + json.warning + ')' : '';
-      showMsg('success', 'Connected as @' + json.username + warnText + ' — closing window…');
-      setTimeout(() => {
-        if (window.opener) {
-          window.opener.postMessage({ type: 'vinted-connected', username: json.username }, '*');
-          window.close();
-        }
-      }, 1500);
-    }
-  } catch (e) {
-    showMsg('error', 'Request failed: ' + (e.message || 'network error'));
-  }
-  btn.disabled = false; btn.textContent = 'Save Token';
-}
+document.getElementById('vc-user').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') connectUsername();
+});
 </script>
 </body>
 </html>`);
+});
+
+// ── Vinted via Apify: user lookup + inventory + profit sync ──────────────────
+// All Vinted data is fetched through the Apify residential proxy (apifyVFetch),
+// bypassing DataDome without any user tokens. Username is the only credential
+// we store — Apify handles bot-protection.
+
+async function apifyVintedFetchUserByUsername(username) {
+  if (!APIFY_PROXY_AGENT) return null;
+  const clean = String(username || '').trim().replace(/^@/, '');
+  if (!clean) return null;
+  const bases = ['https://www.vinted.co.uk', 'https://www.vinted.fr'];
+  for (const base of bases) {
+    try {
+      const r = await apifyVFetch(`${base}/api/v2/users?login=${encodeURIComponent(clean)}&per_page=5`, {
+        headers: { ...VINTED_HEADERS('', base), Authorization: undefined },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!r?.ok) continue;
+      const data = await r.json();
+      const users = data?.users || [];
+      const match = users.find(u => (u.login || '').toLowerCase() === clean.toLowerCase()) || users[0];
+      if (match?.id) return { id: match.id, login: match.login, base };
+    } catch (e) { console.warn(`[apify-user-lookup] ${base}: ${e.message}`); }
+  }
+  return null;
+}
+
+async function apifyVintedFetchUserItems(userId, base = 'https://www.vinted.co.uk', perPage = 100) {
+  if (!APIFY_PROXY_AGENT || !userId) return [];
+  try {
+    const r = await apifyVFetch(`${base}/api/v2/users/${userId}/items?per_page=${perPage}&page=1&order=newest_first`, {
+      headers: { ...VINTED_HEADERS('', base), Authorization: undefined },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!r?.ok) return [];
+    const data = await r.json();
+    return data?.items || [];
+  } catch (e) {
+    console.warn('[apify-user-items]:', e.message);
+    return [];
+  }
+}
+
+function normaliseVintedItem(it, base) {
+  const price = typeof it.price === 'object' ? parseFloat(it.price?.amount || 0) : parseFloat(it.price || 0);
+  const photo = it.photo?.url || it.photos?.[0]?.url || null;
+  return {
+    id:        String(it.id),
+    title:     it.title || '(untitled)',
+    price,
+    currency:  it.currency || it.price?.currency_code || 'GBP',
+    photo,
+    url:       it.url || (it.id ? `${base}/items/${it.id}` : null),
+    status:    'active',
+    last_seen_at: new Date().toISOString(),
+  };
+}
+
+// POST /api/vinted/connect-username — verify via Apify and save to platform_connections
+app.post('/api/vinted/connect-username', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const username = String(req.body?.username || '').trim().replace(/^@/, '');
+  if (!username || !/^[A-Za-z0-9_.\-]{2,40}$/.test(username)) {
+    return res.status(400).json({ error: 'Enter a valid Vinted username (letters, digits, underscores).' });
+  }
+  if (!APIFY_PROXY_AGENT) {
+    return res.status(503).json({ error: 'Apify proxy is not configured on the server. Try again shortly.' });
+  }
+  const found = await apifyVintedFetchUserByUsername(username);
+  if (!found?.id) {
+    return res.status(404).json({ error: `Could not find @${username} on Vinted. Check the spelling and try again.` });
+  }
+  const save = await upsertPlatformConn(user.id, 'vinted', {
+    access_token:      encryptToken(''),
+    refresh_token:     null,
+    platform_user_id:  String(found.id),
+    platform_username: found.login || username,
+    connected_at:      new Date().toISOString(),
+  });
+  if (!save.ok) return res.status(500).json({ error: save.error || 'Could not save connection.' });
+  console.log(`[vinted-connect] @${found.login} (id ${found.id}) for user ${user.id} — username-only mode`);
+
+  // Trigger an immediate inventory sync in the background; don't block the response
+  syncVintedInventoryForUser(user.id).catch(e => console.warn('[sync-inventory] initial:', e.message));
+
+  res.json({ ok: true, username: found.login || username, vinted_user_id: found.id });
+});
+
+// Core sync: pulls user's listings via Apify, diffs against last snapshot,
+// items that vanished get marked sold (moved into vinted_sales_${userId}).
+async function syncVintedInventoryForUser(userId) {
+  const conn = await getPlatformConn(userId, 'vinted');
+  if (!conn?.platform_user_id) return { ok: false, reason: 'no-connection-or-userid' };
+  const base  = 'https://www.vinted.co.uk';
+  const live  = await apifyVintedFetchUserItems(conn.platform_user_id, base, 100);
+  const fresh = live.map(it => normaliseVintedItem(it, base));
+
+  const prevSnap = (await getSetting(`vinted_inventory_${userId}`)) || { items: [] };
+  const prev     = prevSnap.items || [];
+
+  // Detect sales: items in prev (active) that are missing from fresh
+  const freshIds = new Set(fresh.map(i => i.id));
+  const vanished = prev.filter(p => p.status === 'active' && !freshIds.has(p.id));
+
+  if (vanished.length) {
+    const salesSnap = (await getSetting(`vinted_sales_${userId}`)) || { sales: [] };
+    const knownSaleIds = new Set((salesSnap.sales || []).map(s => s.id));
+    const newSales = vanished.filter(v => !knownSaleIds.has(v.id)).map(v => ({
+      ...v, status: 'sold', sold_at: new Date().toISOString(),
+    }));
+    if (newSales.length) {
+      salesSnap.sales = [...newSales, ...(salesSnap.sales || [])].slice(0, 500);
+      salesSnap.last_synced = new Date().toISOString();
+      await saveSetting(`vinted_sales_${userId}`, salesSnap);
+      console.log(`[sync] ${newSales.length} new Vinted sale(s) detected for user ${userId}`);
+    }
+  }
+
+  const snap = { items: fresh, last_synced: new Date().toISOString() };
+  await saveSetting(`vinted_inventory_${userId}`, snap);
+  return { ok: true, count: fresh.length, sold_now: vanished.length };
+}
+
+// POST /api/vinted/sync-inventory — force an immediate sync
+app.post('/api/vinted/sync-inventory', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const r = await syncVintedInventoryForUser(user.id);
+  if (!r.ok) return res.status(400).json({ error: r.reason || 'sync failed' });
+  res.json({ ok: true, ...r });
+});
+
+// GET/POST /api/vinted/sync-profit — read sales (GET) or trigger sync first (POST)
+app.get('/api/vinted/sync-profit', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const conn = await getPlatformConn(user.id, 'vinted');
+  if (!conn) return res.json({ ok: true, sales: [], connected: false });
+  const snap = (await getSetting(`vinted_sales_${user.id}`)) || { sales: [], last_synced: null };
+  res.json({
+    ok: true,
+    connected: true,
+    username: conn.platform_username,
+    last_synced: snap.last_synced,
+    sales: snap.sales || [],
+  });
+});
+
+app.post('/api/vinted/sync-profit', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const r = await syncVintedInventoryForUser(user.id);
+  if (!r.ok) return res.status(400).json({ error: r.reason || 'sync failed' });
+  const snap = (await getSetting(`vinted_sales_${user.id}`)) || { sales: [], last_synced: null };
+  const conn = await getPlatformConn(user.id, 'vinted');
+  res.json({
+    ok: true,
+    connected: true,
+    username: conn?.platform_username,
+    last_synced: snap.last_synced,
+    sales: snap.sales || [],
+    new_sold: r.sold_now,
+  });
 });
 
 // Get connection status for all platforms
@@ -5367,6 +5447,36 @@ cron.schedule('0 * * * *', async () => {
   }
 
   console.log(`[cron] Processed ${due.length} relist(s).`);
+});
+
+// ── Vinted inventory + sales sync cron — runs every 6 hours ─────────────────
+// For every connected Vinted user, pulls live listings via Apify and diffs
+// against the last snapshot. Items that vanish are recorded as sales.
+cron.schedule('17 */6 * * *', async () => {
+  if (!SUPABASE_KEY || !APIFY_PROXY_AGENT) return;
+  console.log('[cron:vinted-sync] Starting inventory + sales sync…');
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/platform_connections?platform=eq.vinted&select=user_id,platform_user_id,platform_username`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+    });
+    const conns = await r.json();
+    if (!Array.isArray(conns)) { console.warn('[cron:vinted-sync] Unexpected response:', conns); return; }
+    let synced = 0, sales = 0;
+    for (const c of conns) {
+      if (!c.platform_user_id) continue;
+      try {
+        const out = await syncVintedInventoryForUser(c.user_id);
+        if (out.ok) { synced++; sales += out.sold_now || 0; }
+      } catch (e) {
+        console.warn(`[cron:vinted-sync] failed for ${c.platform_username}:`, e.message);
+      }
+      // Spread requests so we don't hammer Apify proxy
+      await new Promise(r => setTimeout(r, 1500));
+    }
+    console.log(`[cron:vinted-sync] Done. Synced ${synced}/${conns.length} accounts, ${sales} new sale(s).`);
+  } catch (e) {
+    console.error('[cron:vinted-sync] Fatal:', e.message);
+  }
 });
 
 // ── Price drop watchlist cron — runs every 6 hours ───────────────────────────
