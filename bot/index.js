@@ -46,6 +46,7 @@ const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
 const PAYPAL_SECRET    = process.env.PAYPAL_CLIENT_SECRET;
 const PAYPAL_MODE      = process.env.PAYPAL_MODE || 'live'; // 'sandbox' or 'live'
 const PROXY_URL        = process.env.PROXY_URL; // optional residential proxy e.g. http://user:pass@host:port
+const APIFY_TOKEN      = process.env.APIFY_API_TOKEN; // Apify API key for Vinted Scraper & Monitor
 
 // Create ONE shared proxy agent — reusing it keeps the same exit IP across a full Vinted session.
 // Chrome-like TLS cipher configuration to avoid JA3 fingerprint detection by DataDome.
@@ -88,6 +89,7 @@ if (!OPENAI_KEY)       console.warn('[warn] OPENAI_API_KEY not set — AI photo 
 if (!PHOTOROOM_KEY)    console.warn('[warn] PHOTOROOM_API_KEY not set — PhotoRoom enhancement will fail');
 if (!PAYPAL_CLIENT_ID) console.warn('[warn] PAYPAL_CLIENT_ID not set — credit purchases will fail');
 if (!PAYPAL_SECRET)    console.warn('[warn] PAYPAL_CLIENT_SECRET not set — credit purchases will fail');
+if (!APIFY_TOKEN)      console.warn('[warn] APIFY_API_TOKEN not set — Vinted Apify scraping disabled');
 
 // ── Anthropic ─────────────────────────────────────────────────────────────────
 const ai = ANTHROPIC_KEY ? new Anthropic({ apiKey: ANTHROPIC_KEY }) : null;
@@ -126,11 +128,13 @@ const CMD_RATE_GROUP = {
   sold: 'research', competitor: 'research', trends: 'research',
   reply: 'reply', lowball: 'reply', price: 'reply',
   pricedrop: 'default',
+  'vinted-alert': 'default',
   flip: 'flip',
 };
 const CMD_TIER_REQUIRED = {
   scan: 'pro', research: 'pro', margins: 'pro',
   pricedrop: 'pro', trends: 'pro', tracker: 'pro', sold: 'pro', competitor: 'pro',
+  'vinted-alert': 'pro',
   flip: 'elite', analytics: 'elite', earlydeals: 'elite',
   negotiate: 'elite', authenticate: 'elite', grade: 'elite',
 };
@@ -437,7 +441,52 @@ async function searchDepop(query) {
   }
 }
 
+// ── Apify Vinted Scraper ──────────────────────────────────────────────────────
+// Uses Apify's Vinted Scraper actor which runs on residential proxies and reliably
+// bypasses DataDome. Falls back to direct API if Apify token is unavailable.
+const APIFY_VINTED_ACTOR = 'kamilkrzyz~vinted-scraper';
+
+async function apifyVintedSearch(query, maxItems = 12) {
+  if (!APIFY_TOKEN) return null;
+  try {
+    const res = await fetch(
+      `https://api.apify.com/v2/acts/${APIFY_VINTED_ACTOR}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=90`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ search: query, maxItems, country: 'gb' }),
+        signal: AbortSignal.timeout(95000),
+      }
+    );
+    if (!res.ok) {
+      console.warn(`[apify] Vinted search failed (${res.status}) for "${query}"`);
+      return null;
+    }
+    const items = await res.json();
+    if (!Array.isArray(items)) return null;
+    return items.slice(0, maxItems).map(i => ({
+      id:        String(i.id || i.itemId || ''),
+      title:     i.title || i.name || '',
+      price:     i.price != null ? `£${parseFloat(i.price).toFixed(2)}` : (i.priceNumeric ? `£${parseFloat(i.priceNumeric).toFixed(2)}` : '—'),
+      priceNum:  parseFloat(i.price || i.priceNumeric || 0) || 0,
+      url:       i.url || i.itemUrl || '',
+      brand:     i.brand || i.brandTitle || '',
+      condition: i.status || i.condition || '',
+      photo:     i.photo || i.photoUrl || i.thumbnailUrl || '',
+    }));
+  } catch (e) {
+    console.warn('[apify] Vinted search error:', e.message);
+    return null;
+  }
+}
+
 async function searchVinted(query) {
+  // Try Apify first — bypasses DataDome via residential proxies
+  if (APIFY_TOKEN) {
+    const apifyResults = await apifyVintedSearch(query, 12);
+    if (apifyResults?.length) return apifyResults;
+  }
+  // Fallback: direct Vinted API (may be blocked by DataDome)
   try {
     const url = `https://www.vinted.co.uk/api/v2/catalog/items?search_text=${encodeURIComponent(query)}&per_page=12&order=newest_first`;
     const res = await fetch(url, vintedProxyOpts({
@@ -447,11 +496,14 @@ async function searchVinted(query) {
     if (!res.ok) return null;
     const data = await res.json();
     return (data.items || []).map(i => ({
-      title:    i.title || '',
-      price:    i.total_item_price ? `£${i.total_item_price.amount}` : '—',
-      url:      i.url || '',
-      brand:    i.brand_title || '',
+      id:        String(i.id || ''),
+      title:     i.title || '',
+      price:     i.total_item_price ? `£${i.total_item_price.amount}` : '—',
+      priceNum:  parseFloat(i.total_item_price?.amount || 0) || 0,
+      url:       i.url || '',
+      brand:     i.brand_title || '',
       condition: i.status || '',
+      photo:     i.photo?.url || '',
     }));
   } catch (e) {
     console.log('[vinted] Search failed:', e.message);
@@ -658,6 +710,13 @@ const commands = [
     .addStringOption(o => o.setName('item').setDescription('Item to analyse').setRequired(true)),
   new SlashCommandBuilder().setName('pricedrop').setDescription('Track price drops for a product page [Pro+]')
     .addStringOption(o => o.setName('url').setDescription('Direct link to the product page (Nike, ASOS, JD Sports, Selfridges, etc.)').setRequired(true)),
+  new SlashCommandBuilder().setName('vinted-alert').setDescription('Get alerted when new Vinted listings match your search [Pro+]')
+    .addSubcommand(s => s.setName('add').setDescription('Add a keyword alert for Vinted')
+      .addStringOption(o => o.setName('keyword').setDescription('Search term to monitor (e.g. "nike air max 90 uk9")').setRequired(true))
+      .addNumberOption(o => o.setName('max_price').setDescription('Only alert if price is below this (e.g. 40)').setRequired(false)))
+    .addSubcommand(s => s.setName('list').setDescription('View your active Vinted alerts'))
+    .addSubcommand(s => s.setName('remove').setDescription('Remove a Vinted alert by number (from /vinted-alert list)')
+      .addIntegerOption(o => o.setName('number').setDescription('Alert number from /vinted-alert list').setRequired(true))),
   new SlashCommandBuilder().setName('trends').setDescription('Current brand/category trend report [Pro+]')
     .addStringOption(o => o.setName('category').setDescription('Category or brand name').setRequired(true)),
   new SlashCommandBuilder().setName('tracker').setDescription('Manage your inventory tracker [Pro+]')
@@ -978,6 +1037,47 @@ async function dbGetWatchlist(discordId) {
   } catch { return []; }
 }
 
+// ── Vinted Alerts (persistent via Supabase) ───────────────────────────────────
+async function dbAddVintedAlert(discordId, keyword, maxPrice) {
+  if (!SUPABASE_KEY) return { error: 'no key' };
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/vinted_alerts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: 'return=representation' },
+      body: JSON.stringify({ discord_id: discordId, keyword, max_price: maxPrice || null, seen_ids: [] }),
+    });
+    return await r.json();
+  } catch (e) { return { error: e.message }; }
+}
+
+async function dbGetVintedAlerts(discordId) {
+  if (!SUPABASE_KEY) return [];
+  try {
+    const url = discordId
+      ? `${SUPABASE_URL}/rest/v1/vinted_alerts?discord_id=eq.${discordId}&order=created_at.asc`
+      : `${SUPABASE_URL}/rest/v1/vinted_alerts?order=created_at.asc`;
+    const r = await fetch(url, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
+    return await r.json();
+  } catch { return []; }
+}
+
+async function dbRemoveVintedAlert(id) {
+  if (!SUPABASE_KEY) return;
+  await fetch(`${SUPABASE_URL}/rest/v1/vinted_alerts?id=eq.${id}`, {
+    method: 'DELETE',
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+  }).catch(() => {});
+}
+
+async function dbUpdateVintedAlertSeenIds(id, seenIds) {
+  if (!SUPABASE_KEY) return;
+  await fetch(`${SUPABASE_URL}/rest/v1/vinted_alerts?id=eq.${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+    body: JSON.stringify({ seen_ids: seenIds, last_checked: new Date().toISOString() }),
+  }).catch(() => {});
+}
+
 // ── Settings (persistent config in Supabase) ──────────────────────────────────
 async function getSetting(key) {
   if (!SUPABASE_KEY) return null;
@@ -1283,6 +1383,84 @@ async function executeCommand(interaction, commandName, tier, profile) {
             ? `We fetched the **${platform.name}** page but couldn't extract price data from it. The site may use JavaScript rendering to display prices.\n\nTry a different platform.`
             : `Failed to load the page from **${platform.name}**:\n\`${msg.slice(0, 200)}\`\n\nCheck the URL is a direct product page and try again.`
         )] });
+    }
+  }
+
+  // /vinted-alert
+  if (commandName === 'vinted-alert') {
+    const sub = interaction.options.getSubcommand();
+
+    if (sub === 'add') {
+      const keyword  = opts.getString('keyword').trim();
+      const maxPrice = opts.getNumber('max_price') || null;
+
+      if (!APIFY_TOKEN) {
+        return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Vinted Alerts Unavailable')
+          .setDescription('Vinted alert monitoring requires the Apify API. Please contact the server owner.')] });
+      }
+
+      const existing = await dbGetVintedAlerts(user.id);
+      const MAX_ALERTS = TIER_RANK[profile.tier] >= 3 ? 10 : 5;
+      if (existing.length >= MAX_ALERTS) {
+        return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Alert Limit Reached')
+          .setDescription(`You can have up to **${MAX_ALERTS}** active Vinted alerts on your plan.\n\nRemove one with \`/vinted-alert remove\` to add a new one.`)] });
+      }
+
+      await interaction.editReply({ embeds: [baseEmbed().setTitle('⏳ Setting up alert…')
+        .setDescription(`Running an initial Vinted search for **"${keyword}"** to baseline your alert…`)] });
+
+      // Run initial scan to populate seen_ids so we only alert for NEW items going forward
+      const initialItems = await apifyVintedSearch(keyword, 20);
+      const seenIds = (initialItems || []).map(i => i.id).filter(Boolean);
+
+      await dbAddVintedAlert(user.id, keyword, maxPrice);
+      // Grab the newly created alert and patch its seen_ids
+      const alerts = await dbGetVintedAlerts(user.id);
+      const newAlert = alerts.find(a => a.keyword === keyword && (!a.seen_ids?.length));
+      if (newAlert) await dbUpdateVintedAlertSeenIds(newAlert.id, seenIds);
+
+      const priceNote = maxPrice ? ` under £${maxPrice}` : '';
+      return interaction.editReply({ embeds: [
+        baseEmbed('#4ade80')
+          .setTitle('✅ Vinted Alert Created')
+          .setDescription(`You'll be DMed whenever new **"${keyword}"** listings${priceNote} appear on Vinted.`)
+          .addFields(
+            { name: 'Keyword',       value: keyword,                                           inline: true },
+            { name: 'Max Price',     value: maxPrice ? `£${maxPrice}` : 'Any',                 inline: true },
+            { name: 'Active Alerts', value: `${alerts.length} / ${MAX_ALERTS}`,               inline: true },
+            { name: 'Baseline',      value: `${seenIds.length} existing listings catalogued`, inline: false },
+          )
+          .setFooter({ text: 'Checked every 30 minutes via Apify · /vinted-alert list to manage' }),
+      ] });
+    }
+
+    if (sub === 'list') {
+      const alerts = await dbGetVintedAlerts(user.id);
+      if (!alerts.length) {
+        return interaction.editReply({ embeds: [baseEmbed().setTitle('No Vinted Alerts')
+          .setDescription('You have no active Vinted alerts.\n\nUse `/vinted-alert add` to monitor a keyword.')] });
+      }
+      const lines = alerts.map((a, i) =>
+        `**${i + 1}.** \`${a.keyword}\`${a.max_price ? ` · Max £${a.max_price}` : ''} · ${a.seen_ids?.length || 0} seen`
+      );
+      return interaction.editReply({ embeds: [
+        baseEmbed().setTitle('🔔 Your Vinted Alerts')
+          .setDescription(lines.join('\n'))
+          .setFooter({ text: 'Use /vinted-alert remove <number> to delete · Checked every 30 min' }),
+      ] });
+    }
+
+    if (sub === 'remove') {
+      const num    = opts.getInteger('number');
+      const alerts = await dbGetVintedAlerts(user.id);
+      const target = alerts[num - 1];
+      if (!target) {
+        return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Not Found')
+          .setDescription(`No alert #${num}. Use \`/vinted-alert list\` to see your current alerts.`)] });
+      }
+      await dbRemoveVintedAlert(target.id);
+      return interaction.editReply({ embeds: [baseEmbed('#4ade80').setTitle('✅ Alert Removed')
+        .setDescription(`Removed Vinted alert for **"${target.keyword}"**.`)] });
     }
   }
 
@@ -5835,6 +6013,65 @@ No markdown, just JSON.`;
   } catch (e) {
     console.error('[resell-calendar]', e.message);
     res.status(500).json({ error: 'Failed to load calendar.' });
+  }
+});
+
+// ── Vinted alert cron — runs every 30 minutes ────────────────────────────────
+// For each saved vinted_alert, run an Apify Vinted search, diff against seen_ids,
+// and DM the user about any new matching listings.
+cron.schedule('*/30 * * * *', async () => {
+  if (!APIFY_TOKEN || !SUPABASE_KEY) return;
+  console.log('[cron:vinted-alerts] Running Vinted keyword alert checks...');
+
+  let alertCount = 0;
+  try {
+    const alerts = await dbGetVintedAlerts(null); // all users
+    if (!alerts?.length) return;
+
+    for (const alert of alerts) {
+      try {
+        const items = await apifyVintedSearch(alert.keyword, 20);
+        if (!items?.length) continue;
+
+        const seenIds  = new Set(alert.seen_ids || []);
+        const newItems = items.filter(i => i.id && !seenIds.has(i.id));
+
+        // Apply max_price filter if set
+        const filtered = alert.max_price
+          ? newItems.filter(i => i.priceNum > 0 && i.priceNum <= alert.max_price)
+          : newItems;
+
+        if (filtered.length) {
+          try {
+            const discordUser = await client.users.fetch(alert.discord_id);
+            const lines = filtered.slice(0, 5).map(i =>
+              `• **[${(i.title || 'Item').slice(0, 60)}](${i.url})** — ${i.price}${i.brand ? ` · ${i.brand}` : ''}`
+            );
+            const embed = new EmbedBuilder()
+              .setColor('#e8217a')
+              .setTitle(`🔔 New Vinted Listings — "${alert.keyword}"`)
+              .setDescription(lines.join('\n') + (filtered.length > 5 ? `\n*+${filtered.length - 5} more*` : ''))
+              .setFooter({ text: `Vendora Vinted Alerts · /vinted-alert list to manage` })
+              .setTimestamp();
+            if (alert.max_price) embed.addFields({ name: 'Filter', value: `Under £${alert.max_price}`, inline: true });
+            await discordUser.send({ embeds: [embed] });
+            alertCount++;
+          } catch (e) {
+            console.warn(`[cron:vinted-alerts] DM failed for ${alert.discord_id}:`, e.message);
+          }
+        }
+
+        // Update seen_ids with all current item IDs (so we don't re-alert)
+        const allIds = [...new Set([...seenIds, ...items.map(i => i.id).filter(Boolean)])];
+        await dbUpdateVintedAlertSeenIds(alert.id, allIds.slice(-500)); // cap to 500
+      } catch (e) {
+        console.warn(`[cron:vinted-alerts] Error checking alert "${alert.keyword}":`, e.message);
+      }
+    }
+
+    console.log(`[cron:vinted-alerts] Done. Checked ${alerts.length} alerts, sent ${alertCount} DMs.`);
+  } catch (e) {
+    console.error('[cron:vinted-alerts] Fatal error:', e.message);
   }
 });
 

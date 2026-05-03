@@ -2337,6 +2337,7 @@
           <div class="admin-tab" onclick="showAdminTab('coupons', this)">Coupons</div>
           <div class="admin-tab" onclick="showAdminTab('credits', this)">Credits</div>
           <div class="admin-tab" onclick="showAdminTab('testtools', this)">Test Tools</div>
+          <div class="admin-tab" onclick="showAdminTab('changelog', this)">Changelog</div>
         </div>
 
         <!-- Users -->
@@ -2742,6 +2743,21 @@
               <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Webhook URL</div>
               <div style="font-family:monospace;font-size:11px;color:var(--muted2);">https://vendora-production-8a47.up.railway.app/webhook</div>
             </div>
+          </div>
+        </div>
+
+        <!-- Changelog -->
+        <div class="admin-panel" id="admin-changelog">
+          <div class="card" style="margin-bottom:16px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+              <div class="card-title" style="margin:0;">Version History &amp; Change Log</div>
+              <button class="btn btn-ghost btn-sm" id="copy-log-btn" onclick="copyChangelogForDiscord()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                Copy for Discord
+              </button>
+            </div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:20px;font-weight:300;">All changes made to the Vendora site and bot. Use "Copy for Discord" to paste into your #update-logs channel.</div>
+            <div id="changelog-entries"></div>
           </div>
         </div>
 
@@ -3439,15 +3455,148 @@
     if (id === 'resell-calendar' && !_rcalLoaded) rcalLoad();
   }
 
+  // ── Changelog data ───────────────────────────────────────────────────────────
+  const CHANGELOG = [
+    {
+      version: 'v1.5.0',
+      date: '2026-05-03',
+      title: 'Apify Vinted Scraper + Vinted Monitor Alerts',
+      type: 'feature',
+      changes: [
+        'Integrated Apify Vinted Scraper actor as primary Vinted search engine — bypasses DataDome reliably via Apify residential proxies',
+        'searchVinted() now tries Apify first and falls back to direct Vinted API if unavailable',
+        'Added /vinted-alert command (Pro+) — set keyword monitors and get DM\'d when new matching Vinted listings appear',
+        '/vinted-alert add <keyword> [max_price] — creates an alert, runs an initial baseline scan',
+        '/vinted-alert list — view all active alerts',
+        '/vinted-alert remove <number> — delete an alert',
+        'Added vinted_alerts Supabase table helpers (dbAddVintedAlert, dbGetVintedAlerts, dbRemoveVintedAlert, dbUpdateVintedAlertSeenIds)',
+        'Added cron job: every 30 minutes, runs Apify searches for all saved keywords and DMs users about new listings',
+        'Max 5 alerts on Pro, 10 on Elite',
+        'Added APIFY_API_TOKEN env var (already set on Railway)',
+        'Admin panel: added Changelog tab with version history and Discord copy button',
+      ],
+      files: ['bot/index.js', 'vendora-dashboard.html'],
+    },
+    {
+      version: 'v1.4.0',
+      date: '2025-12',
+      title: 'Auto-versioning: build-time SHA + in-app update toast',
+      type: 'feature',
+      changes: [
+        'Added scripts/build-version.js — injects current git SHA into the app at build time',
+        'Dashboard shows an update toast when a new version is detected',
+        'Version SHA stored in localStorage for comparison on next load',
+      ],
+      files: ['scripts/build-version.js', 'vendora-dashboard.html'],
+    },
+    {
+      version: 'v1.3.0',
+      date: '2025-12',
+      title: 'Domain cutover: vendora.site',
+      type: 'infrastructure',
+      changes: [
+        'Moved live domain from previous host to vendora.site',
+        'Updated all hardcoded URLs in bot and dashboard to vendora.site',
+        'Updated canonical meta tags on all HTML pages',
+      ],
+      files: ['bot/index.js', 'index.html', 'vendora-dashboard.html', 'vendora-login.html'],
+    },
+    {
+      version: 'v1.2.0',
+      date: '2025-12',
+      title: 'Seller Intel: mirror + Claude raw page text dump',
+      type: 'feature',
+      changes: [
+        'LO + FS: mirror Seller Intel — dumps raw page text to Claude for AI analysis',
+        'Improved seller intelligence prompts for competitor tracking',
+      ],
+      files: ['bot/index.js'],
+    },
+    {
+      version: 'v1.1.0',
+      date: '2025-12',
+      title: 'Vinted browser flow: DOM-scrape fallback',
+      type: 'feature',
+      changes: [
+        'vintedBrowserFetchItem: navigate to item page and DOM-scrape as fallback if API blocked',
+        'Handles DataDome challenge detection and auto-retry',
+        'Multi-locale Vinted domain support (.co.uk, .fr, .de, .es, .pl)',
+      ],
+      files: ['bot/vinted-browser.js'],
+    },
+    {
+      version: 'v1.0.0',
+      date: '2025-11',
+      title: 'Initial launch',
+      type: 'launch',
+      changes: [
+        'Landing page, login, and dashboard built',
+        'Discord bot live with /scan, /research, /margins, /flip, /analytics, /pricedrop, /trends, /tracker, /sold, /competitor, /earlydeals, /negotiate, /authenticate, /grade',
+        'PayPal subscription tiers: Basic £9.99, Pro £24.99, Elite £49.99',
+        'Discord OAuth2 auth via Supabase',
+        'Vinted browser flow (Playwright + stealth) for DataDome bypass',
+        'Crosslist scheduler for automated relisting',
+        'Price drop watchlist cron (6h interval)',
+        'Session channels, support tickets, DM bot',
+      ],
+      files: ['bot/index.js', 'bot/vinted-browser.js', 'index.html', 'vendora-dashboard.html', 'vendora-login.html'],
+    },
+  ];
+
+  const TYPE_STYLE = {
+    feature:        { bg: 'rgba(232,33,122,0.12)', color: 'var(--pink)',  label: 'Feature'        },
+    infrastructure: { bg: 'rgba(96,165,250,0.12)', color: 'var(--blue)',  label: 'Infrastructure' },
+    fix:            { bg: 'rgba(74,222,128,0.12)', color: 'var(--green)', label: 'Fix'            },
+    launch:         { bg: 'rgba(232,161,33,0.12)', color: 'var(--gold)',  label: 'Launch'         },
+  };
+
+  function renderChangelog() {
+    const el = document.getElementById('changelog-entries');
+    if (!el) return;
+    el.innerHTML = CHANGELOG.map(entry => {
+      const s = TYPE_STYLE[entry.type] || TYPE_STYLE.feature;
+      const changeLines = entry.changes.map(c =>
+        `<li style="margin-bottom:5px;color:rgba(240,240,240,0.8);">${c}</li>`
+      ).join('');
+      const files = entry.files.map(f =>
+        `<span style="font-family:monospace;font-size:10px;background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px;color:var(--muted2);">${f}</span>`
+      ).join(' ');
+      return `
+        <div style="border:1px solid var(--border-dim);border-radius:10px;padding:18px 20px;margin-bottom:14px;background:rgba(255,255,255,0.018);">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+            <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:.05em;">${entry.version}</span>
+            <span style="font-size:11px;padding:2px 8px;border-radius:20px;background:${s.bg};color:${s.color};font-weight:500;">${s.label}</span>
+            <span style="font-size:11px;color:var(--muted);margin-left:auto;">${entry.date}</span>
+          </div>
+          <div style="font-size:14px;font-weight:500;margin-bottom:10px;">${entry.title}</div>
+          <ul style="padding-left:18px;font-size:12px;line-height:1.75;margin-bottom:12px;">${changeLines}</ul>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">${files}</div>
+        </div>`;
+    }).join('');
+  }
+
+  function copyChangelogForDiscord() {
+    const lines = CHANGELOG.map(entry => {
+      const changes = entry.changes.map(c => `• ${c}`).join('\n');
+      return `**${entry.version} — ${entry.title}** _(${entry.date})_\n${changes}`;
+    }).join('\n\n');
+    const text = `📋 **Vendora Update Log**\n\n${lines}`;
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById('copy-log-btn');
+      if (btn) { btn.textContent = '✓ Copied!'; setTimeout(() => { btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy for Discord'; }, 2000); }
+    }).catch(() => alert('Copy failed — try manually selecting the text.'));
+  }
+
   function showAdminTab(id, el) {
     document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
     document.getElementById('admin-' + id).classList.add('active');
     if (el) el.classList.add('active');
-    if (id === 'bot')      adminLoadConfig();
-    if (id === 'pricing')  adminLoadPricing();
-    if (id === 'announce') loadDiscordChannels();
-    if (id === 'credits')  adminLoadCreditCodes();
+    if (id === 'bot')       adminLoadConfig();
+    if (id === 'pricing')   adminLoadPricing();
+    if (id === 'announce')  loadDiscordChannels();
+    if (id === 'credits')   adminLoadCreditCodes();
+    if (id === 'changelog') renderChangelog();
   }
 
   // ── Admin: Bot Config ────────────────────────────────────────────────────────
