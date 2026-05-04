@@ -88,12 +88,8 @@ if (APIFY_PROXY_PASSWORD && ProxyAgent) {
   try {
     APIFY_PROXY_AGENT = new ProxyAgent({
       uri: `http://groups-RESIDENTIAL:${APIFY_PROXY_PASSWORD}@proxy.apify.com:8000`,
-      // Apify residential proxies can take 5–20s to establish on first connect
-      // — give them headroom rather than letting AbortSignal cancel the request.
-      requestTls: { ciphers: CHROME_CIPHERS, sigalgs: CHROME_SIGALGS },
-      connectTimeout: 30000,
-      headersTimeout: 60000,
-      bodyTimeout: 90000,
+      // Mirror PROXY_AGENT setup exactly — that's the one we know works.
+      connect: { ciphers: CHROME_CIPHERS, sigalgs: CHROME_SIGALGS },
     });
     const usingApiToken = !process.env.APIFY_PROXY_PASSWORD;
     console.log(`[apify-proxy] Apify residential proxy agent ready${usingApiToken ? ' — WARNING: using APIFY_API_TOKEN as proxy password (likely wrong, set APIFY_PROXY_PASSWORD env var)' : ''}`);
@@ -4065,6 +4061,57 @@ async function syncVintedInventoryForUser(userId) {
   await saveSetting(`vinted_inventory_${userId}`, snap);
   return { ok: true, count: fresh.length, sold_now: vanished.length };
 }
+
+// GET /api/vinted/proxy-test — owner-only. Probes Apify proxy step-by-step
+// to isolate which layer is broken when Vinted lookups fail.
+app.get('/api/vinted/proxy-test', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = user.user_metadata?.provider_id || user.identities?.find(i => i.provider === 'discord')?.id;
+  if (discordId !== OWNER_ID) return res.status(403).json({ error: 'Owner only' });
+
+  const out = {
+    apify_proxy_password_set: !!process.env.APIFY_PROXY_PASSWORD,
+    apify_proxy_password_falling_back_to_token: !process.env.APIFY_PROXY_PASSWORD && !!APIFY_TOKEN,
+    apify_proxy_agent_ready: !!APIFY_PROXY_AGENT,
+    tests: {},
+  };
+
+  // Test 1: Can we reach Apify's proxy at all? Use ipify.org to see what IP we exit from.
+  try {
+    const t0 = Date.now();
+    const r = await apifyVFetch('https://api.ipify.org/?format=json', { signal: AbortSignal.timeout(30000) });
+    out.tests.ipify = { ok: !!r?.ok, status: r?.status, ms: Date.now() - t0 };
+    if (r?.ok) out.tests.ipify.body = await r.json();
+  } catch (e) {
+    out.tests.ipify = { ok: false, error: e.message, cause: e.cause?.code || e.cause?.message || String(e.cause || '') };
+  }
+
+  // Test 2: Can we reach Vinted at all through the proxy?
+  try {
+    const t0 = Date.now();
+    const r = await apifyVFetch('https://www.vinted.co.uk/', {
+      headers: { 'User-Agent': VINTED_UA, 'Accept': 'text/html,*/*' },
+      signal: AbortSignal.timeout(30000),
+    });
+    out.tests.vinted_homepage = { ok: !!r?.ok, status: r?.status, ms: Date.now() - t0 };
+  } catch (e) {
+    out.tests.vinted_homepage = { ok: false, error: e.message, cause: e.cause?.code || e.cause?.message || String(e.cause || '') };
+  }
+
+  // Test 3: The actual user lookup we're trying to do.
+  try {
+    const t0 = Date.now();
+    const r = await apifyVFetch('https://www.vinted.co.uk/api/v2/users?login=test&per_page=1', {
+      headers: { ...VINTED_HEADERS('', 'https://www.vinted.co.uk'), Authorization: undefined },
+      signal: AbortSignal.timeout(30000),
+    });
+    out.tests.vinted_user_lookup = { ok: !!r?.ok, status: r?.status, ms: Date.now() - t0 };
+  } catch (e) {
+    out.tests.vinted_user_lookup = { ok: false, error: e.message, cause: e.cause?.code || e.cause?.message || String(e.cause || '') };
+  }
+
+  res.json(out);
+});
 
 // POST /api/vinted/save-token — save user-supplied access_token_web for write actions.
 // Required only for auto-listing (POST /api/v2/items). Read features (Inventory,
