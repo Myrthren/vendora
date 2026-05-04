@@ -3243,11 +3243,11 @@ async function getVintedBase() {
 
 // Returns { base, cookies } — always fetches fresh DataDome session cookies.
 // DataDome cookies are short-lived so they must never be cached.
-async function getVintedSession() {
+async function getVintedSession(fetchFn = vFetch) {
   const base = await getVintedBase();
   let cookies = '';
   try {
-    const r = await vFetch(`${base}/`, {
+    const r = await fetchFn(`${base}/`, {
       redirect: 'follow',
       headers: {
         'User-Agent': VINTED_UA,
@@ -3286,16 +3286,29 @@ const VINTED_HEADERS = (token, base = 'https://www.vinted.co.uk') => ({
 });
 
 async function vintedLogin(usernameOrEmail, password) {
-  if (vintedBrowser) {
-    console.log('[vinted-login] using browser flow');
-    const r = await vintedBrowser.vintedBrowserLogin(usernameOrEmail, password);
+  // 1. Apify residential proxy first — this is the only path that reliably
+  //    bypasses DataDome on a server (Railway / datacenter IPs are flagged).
+  if (APIFY_PROXY_AGENT) {
+    console.log('[vinted-login] trying Apify residential proxy');
+    const r = await legacyVintedLogin(usernameOrEmail, password, apifyVFetch);
     if (!r.error) return r;
-    console.warn('[vinted-login] browser flow failed, falling back to legacy:', r.error);
+    console.warn('[vinted-login] Apify proxy login failed:', r.error);
   }
-  return legacyVintedLogin(usernameOrEmail, password);
+  // 2. PROXY_URL (user-set residential proxy)
+  const r2 = await legacyVintedLogin(usernameOrEmail, password, vFetch);
+  if (!r2.error) return r2;
+  console.warn('[vinted-login] direct/PROXY_URL login failed:', r2.error);
+  // 3. Playwright (rarely available on Railway because of libglib)
+  if (vintedBrowser) {
+    console.log('[vinted-login] last-resort browser flow');
+    const r3 = await vintedBrowser.vintedBrowserLogin(usernameOrEmail, password);
+    if (!r3.error) return r3;
+    console.warn('[vinted-login] browser flow failed:', r3.error);
+  }
+  return r2;
 }
 
-async function legacyVintedLogin(usernameOrEmail, password) {
+async function legacyVintedLogin(usernameOrEmail, password, fetchFn = vFetch) {
   try {
     const BASE_HEADERS = {
       'User-Agent': VINTED_UA,
@@ -3305,7 +3318,7 @@ async function legacyVintedLogin(usernameOrEmail, password) {
     };
 
     // Step 1: Detect geo base + get fresh DataDome session cookies + CSRF token.
-    const { base: vintedBase, cookies: bootstrapCookies } = await getVintedSession();
+    const { base: vintedBase, cookies: bootstrapCookies } = await getVintedSession(fetchFn);
     let cookieStr = bootstrapCookies;
     let csrfToken = '';
     // Extract CSRF from cookies returned by getVintedBase
@@ -3325,7 +3338,7 @@ async function legacyVintedLogin(usernameOrEmail, password) {
       ...(csrfToken && { 'X-CSRF-Token': csrfToken }),
     };
 
-    const res = await vFetch(`${vintedBase}/api/v2/sessions`, {
+    const res = await fetchFn(`${vintedBase}/api/v2/sessions`, {
       method: 'POST',
       headers: loginHeaders,
       body: JSON.stringify({ login: usernameOrEmail, password, remember: true }),
@@ -3741,6 +3754,12 @@ app.post('/api/platform/connect', async (req, res) => {
   }
 
   console.log(`[platform] ${platform} connected for user ${user.id} (@${result.platform_username}) mode:${manual_token ? 'manual' : 'credentials'}`);
+
+  // Kick off an inventory sync in the background so the dashboard populates immediately
+  if (platform === 'vinted') {
+    syncVintedInventoryForUser(user.id).catch(e => console.warn('[sync-inventory] post-connect:', e.message));
+  }
+
   res.json({
     ok: true,
     platform,
@@ -3820,20 +3839,18 @@ app.get('/api/vinted/connect-popup', (req, res) => {
 
   <div class="step">
     <div class="step-num">1</div>
-    <div class="step-text">Click below to open <b>Vinted</b> in a new tab and sign in (or sign up) using the buttons in the top-right.</div>
-  </div>
-  <button class="btn btn-ghost" onclick="openVintedLogin()">Open Vinted →</button>
-
-  <div class="step">
-    <div class="step-num">2</div>
-    <div class="step-text">Once you're signed in on Vinted, paste your <b>Vinted username</b> below and connect — Apify handles all bot-protection automatically.</div>
+    <div class="step-text">Sign in with your <b>Vinted username (or email) + password</b>. Vendora routes the login through Apify's residential proxy so Vinted's bot-protection won't block it.</div>
   </div>
 
   <div class="field">
-    <label>Your Vinted username</label>
-    <input id="vc-user" type="text" placeholder="e.g. your_username" autocomplete="off">
+    <label>Vinted username or email</label>
+    <input id="vc-user" type="text" placeholder="e.g. your_username" autocomplete="username">
   </div>
-  <button class="btn btn-primary" id="vc-btn" onclick="connectUsername()">Connect Account</button>
+  <div class="field">
+    <label>Password</label>
+    <input id="vc-pass" type="password" placeholder="••••••••" autocomplete="current-password">
+  </div>
+  <button class="btn btn-primary" id="vc-btn" onclick="connectCreds()">Connect Account</button>
 
   <div class="msg" id="msg"></div>
 </div>
@@ -3848,26 +3865,23 @@ function showMsg(type, text) {
   el.style.display = 'block';
 }
 
-function openVintedLogin() {
-  window.open('https://www.vinted.co.uk/', '_blank', 'noopener,noreferrer');
-}
-
-async function connectUsername() {
+async function connectCreds() {
   if (!AUTH_TOKEN) return showMsg('error', 'Session expired — please close this window and try again from the dashboard.');
-  let u = document.getElementById('vc-user').value.trim().replace(/^@/, '');
-  if (!u) return showMsg('error', 'Please enter your Vinted username.');
+  const u = document.getElementById('vc-user').value.trim().replace(/^@/, '');
+  const p = document.getElementById('vc-pass').value;
+  if (!u || !p) return showMsg('error', 'Enter both your Vinted username/email and password.');
   const btn = document.getElementById('vc-btn');
-  btn.disabled = true; btn.textContent = 'Verifying via Apify…';
-  showMsg('info', 'Looking up @' + u + ' on Vinted…');
+  btn.disabled = true; btn.textContent = 'Connecting via Apify proxy…';
+  showMsg('info', 'Logging into Vinted — this can take 15–30s…');
   try {
-    const res = await fetch('/api/vinted/connect-username', {
+    const res = await fetch('/api/platform/connect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
-      body: JSON.stringify({ username: u }),
+      body: JSON.stringify({ platform: 'vinted', credentials: { username: u, password: p } }),
     });
     const json = await res.json();
     if (!res.ok) {
-      showMsg('error', json.error || 'Could not verify username. Make sure it matches your Vinted profile exactly.');
+      showMsg('error', json.error || 'Login failed. Check your username/email and password.');
     } else {
       showMsg('success', 'Connected as @' + json.username + ' — closing window…');
       setTimeout(() => {
@@ -3883,8 +3897,8 @@ async function connectUsername() {
   btn.disabled = false; btn.textContent = 'Connect Account';
 }
 
-document.getElementById('vc-user').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') connectUsername();
+document.getElementById('vc-pass').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') connectCreds();
 });
 </script>
 </body>
