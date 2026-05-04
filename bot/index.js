@@ -88,7 +88,12 @@ if (APIFY_PROXY_PASSWORD && ProxyAgent) {
   try {
     APIFY_PROXY_AGENT = new ProxyAgent({
       uri: `http://groups-RESIDENTIAL:${APIFY_PROXY_PASSWORD}@proxy.apify.com:8000`,
-      connect: { ciphers: CHROME_CIPHERS, sigalgs: CHROME_SIGALGS },
+      // Apify residential proxies can take 5–20s to establish on first connect
+      // — give them headroom rather than letting AbortSignal cancel the request.
+      requestTls: { ciphers: CHROME_CIPHERS, sigalgs: CHROME_SIGALGS },
+      connectTimeout: 30000,
+      headersTimeout: 60000,
+      bodyTimeout: 90000,
     });
     const usingApiToken = !process.env.APIFY_PROXY_PASSWORD;
     console.log(`[apify-proxy] Apify residential proxy agent ready${usingApiToken ? ' — WARNING: using APIFY_API_TOKEN as proxy password (likely wrong, set APIFY_PROXY_PASSWORD env var)' : ''}`);
@@ -3943,7 +3948,7 @@ async function apifyVintedFetchUserByUsername(username) {
     try {
       const r = await apifyVFetch(`${base}/api/v2/users?login=${encodeURIComponent(clean)}&per_page=5`, {
         headers: { ...VINTED_HEADERS('', base), Authorization: undefined },
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(45000), // Apify residential first-hop can take 10-20s
       });
       if (!r) continue;
       proxyReachable = true;
