@@ -3854,18 +3854,18 @@ app.get('/api/vinted/connect-popup', (req, res) => {
 
   <div class="step">
     <div class="step-num">1</div>
-    <div class="step-text">Sign in with your <b>Vinted username (or email) + password</b>. Vendora routes the login through Apify's residential proxy so Vinted's bot-protection won't block it.</div>
+    <div class="step-text">Enter your <b>Vinted username</b>. Vendora uses the Apify residential proxy to read your public Vinted data — no password needed. Your inventory and sales sync automatically once you're connected.</div>
   </div>
 
   <div class="field">
-    <label>Vinted username or email</label>
+    <label>Vinted username</label>
     <input id="vc-user" type="text" placeholder="e.g. your_username" autocomplete="username">
   </div>
-  <div class="field">
-    <label>Password</label>
-    <input id="vc-pass" type="password" placeholder="••••••••" autocomplete="current-password">
+  <button class="btn btn-primary" id="vc-btn" onclick="connectUsername()">Connect Account</button>
+
+  <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06);font-size:11.5px;color:#888;line-height:1.6;">
+    <b style="color:#aaa;">Want auto-listing too?</b> After connecting, head to <b>Platforms</b> in the dashboard and follow the optional "Enable Auto-Listing" step.
   </div>
-  <button class="btn btn-primary" id="vc-btn" onclick="connectCreds()">Connect Account</button>
 
   <div class="msg" id="msg"></div>
 </div>
@@ -3880,23 +3880,22 @@ function showMsg(type, text) {
   el.style.display = 'block';
 }
 
-async function connectCreds() {
+async function connectUsername() {
   if (!AUTH_TOKEN) return showMsg('error', 'Session expired — please close this window and try again from the dashboard.');
   const u = document.getElementById('vc-user').value.trim().replace(/^@/, '');
-  const p = document.getElementById('vc-pass').value;
-  if (!u || !p) return showMsg('error', 'Enter both your Vinted username/email and password.');
+  if (!u) return showMsg('error', 'Enter your Vinted username.');
   const btn = document.getElementById('vc-btn');
-  btn.disabled = true; btn.textContent = 'Connecting via Apify proxy…';
-  showMsg('info', 'Logging into Vinted — this can take 15–30s…');
+  btn.disabled = true; btn.textContent = 'Verifying via Apify…';
+  showMsg('info', 'Looking up @' + u + ' on Vinted…');
   try {
-    const res = await fetch('/api/platform/connect', {
+    const res = await fetch('/api/vinted/connect-username', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
-      body: JSON.stringify({ platform: 'vinted', credentials: { username: u, password: p } }),
+      body: JSON.stringify({ username: u }),
     });
     const json = await res.json();
     if (!res.ok) {
-      showMsg('error', json.error || 'Login failed. Check your username/email and password.');
+      showMsg('error', json.error || 'Could not find that username on Vinted. Check the spelling.');
     } else {
       showMsg('success', 'Connected as @' + json.username + ' — closing window…');
       setTimeout(() => {
@@ -3912,8 +3911,8 @@ async function connectCreds() {
   btn.disabled = false; btn.textContent = 'Connect Account';
 }
 
-document.getElementById('vc-pass').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') connectCreds();
+document.getElementById('vc-user').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') connectUsername();
 });
 </script>
 </body>
@@ -4042,6 +4041,46 @@ async function syncVintedInventoryForUser(userId) {
   return { ok: true, count: fresh.length, sold_now: vanished.length };
 }
 
+// POST /api/vinted/save-token — save user-supplied access_token_web for write actions.
+// Required only for auto-listing (POST /api/v2/items). Read features (Inventory,
+// Profit Tracker, Watchlist, Auto-Buy) work without a token via Apify proxy.
+app.post('/api/vinted/save-token', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const token = String(req.body?.token || '').trim();
+  if (!token || token.length < 20) {
+    return res.status(400).json({ error: 'Token looks too short — copy the full access_token_web cookie value.' });
+  }
+  const conn = await getPlatformConn(user.id, 'vinted');
+  if (!conn) {
+    return res.status(400).json({ error: 'Connect your Vinted username first, then add the token.' });
+  }
+  const save = await upsertPlatformConn(user.id, 'vinted', {
+    access_token:      encryptToken(token),
+    refresh_token:     null,
+    platform_user_id:  conn.platform_user_id,
+    platform_username: conn.platform_username,
+    connected_at:      conn.connected_at || new Date().toISOString(),
+  });
+  if (!save.ok) return res.status(500).json({ error: save.error || 'Could not save token.' });
+  console.log(`[vinted-token] saved for user ${user.id} (@${conn.platform_username})`);
+  res.json({ ok: true });
+});
+
+// DELETE /api/vinted/save-token — clear stored token without disconnecting account
+app.delete('/api/vinted/save-token', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const conn = await getPlatformConn(user.id, 'vinted');
+  if (!conn) return res.json({ ok: true });
+  await upsertPlatformConn(user.id, 'vinted', {
+    access_token:      encryptToken(''),
+    refresh_token:     null,
+    platform_user_id:  conn.platform_user_id,
+    platform_username: conn.platform_username,
+    connected_at:      conn.connected_at || new Date().toISOString(),
+  });
+  res.json({ ok: true });
+});
+
 // POST /api/vinted/sync-inventory — force an immediate sync
 app.post('/api/vinted/sync-inventory', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
@@ -4088,9 +4127,21 @@ app.get('/api/platform/status', async (req, res) => {
   const connections = {};
   for (const p of platforms) {
     const conn = await getPlatformConn(user.id, p);
-    connections[p] = conn
-      ? { connected: true, username: conn.platform_username, connected_at: conn.connected_at }
-      : { connected: false };
+    if (conn) {
+      let hasToken = false;
+      try {
+        const tok = decryptToken(conn.access_token || '');
+        hasToken = !!(tok && tok.length >= 20);
+      } catch { hasToken = false; }
+      connections[p] = {
+        connected: true,
+        username:  conn.platform_username,
+        connected_at: conn.connected_at,
+        has_token: hasToken,
+      };
+    } else {
+      connections[p] = { connected: false };
+    }
   }
   res.json({ ok: true, connections });
 });

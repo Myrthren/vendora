@@ -1092,6 +1092,34 @@
           </button>
           <div id="vinted-connect-msg" style="display:none;margin-top:10px;"></div>
         </div>
+
+        <!-- Optional: Enable Auto-Listing (paste access_token_web) — only visible after username is connected -->
+        <div id="vinted-autolist-card" style="display:none;margin-top:18px;padding-top:18px;border-top:1px solid var(--border-dim);">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--text);">Enable Auto-Listing <span style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);margin-left:6px;">Optional</span></div>
+              <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">Required only if you want Vendora to post listings to Vinted on your behalf.</div>
+            </div>
+            <div id="vinted-token-status" style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);">Not set</div>
+          </div>
+
+          <details style="background:rgba(232,161,33,.06);border:1px solid rgba(232,161,33,.2);border-radius:8px;padding:10px 14px;margin-bottom:10px;">
+            <summary style="font-size:12px;color:rgba(232,161,33,.95);cursor:pointer;font-weight:600;letter-spacing:.02em;">How to find your <code style="font-family:monospace;font-size:11px;background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;">access_token_web</code></summary>
+            <div style="font-size:12px;color:rgba(232,161,33,.85);line-height:1.7;margin-top:8px;">
+              1. Open <a href="https://www.vinted.co.uk" target="_blank" style="color:#e8a121;">vinted.co.uk</a> in your browser and sign in.<br>
+              2. Press <b>F12</b> → <b>Application</b> tab → <b>Cookies</b> → <b>www.vinted.co.uk</b>.<br>
+              3. Find the row named <code style="font-family:monospace;font-size:11px;background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;">access_token_web</code>, copy its <b>Value</b>, and paste below.<br>
+              4. Tokens last about 30 days. If auto-listing fails, repeat these steps.
+            </div>
+          </details>
+
+          <div style="display:flex;gap:8px;align-items:stretch;">
+            <input id="vinted-token-input" type="password" placeholder="Paste access_token_web value" autocomplete="off" style="flex:1;background:var(--bg3);border:1px solid var(--border-dim);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;">
+            <button class="btn btn-primary btn-sm" onclick="saveVintedToken()" id="vinted-token-save-btn">Save</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearVintedToken()" id="vinted-token-clear-btn" style="display:none;">Clear</button>
+          </div>
+          <div id="vinted-token-msg" style="display:none;margin-top:8px;font-size:12px;"></div>
+        </div>
       </div>
 
       <!-- Coming Soon platforms -->
@@ -3533,11 +3561,14 @@
     {
       version: 'v0.6',
       date: '2026-05-03',
-      title: 'Username-only Vinted connect + Auto-synced Inventory & Profit Tracker',
+      title: 'Username-only Vinted connect + Auto-synced Inventory & Profit Tracker (auto-listing token decoupled)',
       type: 'feature',
       changes: [
-        'Vinted connection rebuilt — manual access-token entry removed. Popup now opens the official Vinted login/signup page; user only enters their Vinted username back in Vendora',
-        'New /api/vinted/connect-username endpoint verifies username via Apify residential proxy, no tokens needed',
+        'Vinted connection rebuilt — popup now collects only the Vinted username (no password). All read features (Inventory, Profit, Watchlist, Auto-Buy) work via Apify residential proxy without auth',
+        'New /api/vinted/connect-username endpoint verifies username via Apify, no tokens needed',
+        'Auto-listing decoupled — separate optional "Enable Auto-Listing" card on Platforms page where users paste their access_token_web cookie. Required only for posting new listings; everything else works without it',
+        'Vinted retired their /api/v2/sessions login endpoint (now 404s) — server-side credential login is no longer possible. Token paste is the only way to enable write actions until we ship a browser extension',
+        '/api/platform/status now includes has_token flag so the dashboard can show whether auto-listing is enabled',
         'Inventory page rebuilt — manual Add Item form removed. Listings auto-sync from Vinted via Apify (active + sold items, photos, prices)',
         'Profit Tracker now auto-detects Vinted sales via Apify — items that disappear from active listings are marked as sales with timestamp',
         'New 6-hour cron: refreshes inventory + detects new sales for every connected Vinted user',
@@ -4552,6 +4583,46 @@
   }
 
   // ── Platform status ──────────────────────────────────────────────────────────
+  // ── Vinted Auto-Listing token (paste access_token_web) ─────────────────────
+  async function saveVintedToken() {
+    const input  = document.getElementById('vinted-token-input');
+    const msgEl  = document.getElementById('vinted-token-msg');
+    const btn    = document.getElementById('vinted-token-save-btn');
+    const tok    = (input?.value || '').trim();
+    if (!tok || tok.length < 20) { showMsg(msgEl, 'error', 'Paste the full access_token_web value.'); return; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/vinted/save-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ token: tok }),
+      });
+      const json = await res.json();
+      if (!res.ok) showMsg(msgEl, 'error', json.error || 'Could not save token.');
+      else {
+        showMsg(msgEl, 'success', 'Token saved — auto-listing is now enabled.');
+        if (input) input.value = '';
+        loadPlatformStatus();
+      }
+    } catch { showMsg(msgEl, 'error', 'Network error.'); }
+    if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+  }
+
+  async function clearVintedToken() {
+    if (!confirm('Clear stored Vinted token? Auto-listing will stop working until you paste a new one. Inventory and Profit Tracker will keep syncing.')) return;
+    const msgEl = document.getElementById('vinted-token-msg');
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      await fetch(`${BOT_API}/api/vinted/save-token`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      });
+      showMsg(msgEl, 'success', 'Token cleared.');
+      loadPlatformStatus();
+    } catch { showMsg(msgEl, 'error', 'Network error.'); }
+  }
+
   async function loadPlatformStatus() {
     try {
       const { data: { session } } = await sb.auth.getSession();
@@ -4583,6 +4654,22 @@
         if (badge) {
           badge.textContent = connected ? `✓ ${info.username || 'Connected'}` : 'Not connected';
           badge.style.color = connected ? 'var(--green)' : 'var(--muted)';
+        }
+
+        // Vinted auto-listing token card — only relevant once username is connected
+        if (p === 'vinted') {
+          const card     = document.getElementById('vinted-autolist-card');
+          const statusEl = document.getElementById('vinted-token-status');
+          const clearBtn = document.getElementById('vinted-token-clear-btn');
+          const input    = document.getElementById('vinted-token-input');
+          if (card) card.style.display = connected ? '' : 'none';
+          if (statusEl) {
+            const has = !!(info && info.has_token);
+            statusEl.textContent = has ? '● Token saved' : '○ Not set';
+            statusEl.style.color = has ? 'var(--green)' : 'var(--muted)';
+            if (clearBtn) clearBtn.style.display = has ? '' : 'none';
+            if (input && has) input.placeholder = 'Token saved — paste a new one to replace';
+          }
         }
       });
     } catch (e) {
