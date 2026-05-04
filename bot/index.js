@@ -459,7 +459,9 @@ async function searchDepop(query) {
 // ── Apify Vinted Scraper ──────────────────────────────────────────────────────
 // Uses Apify's Vinted Scraper actor which runs on residential proxies and reliably
 // bypasses DataDome. Falls back to direct API if Apify token is unavailable.
-const APIFY_VINTED_ACTOR = 'kamilkrzyz~vinted-scraper';
+// Apify actor used for Vinted keyword search (Auto-Buy, /vinted-alert).
+// Override via APIFY_VINTED_ACTOR env var. Format: "username~actor-name".
+const APIFY_VINTED_ACTOR = process.env.APIFY_VINTED_ACTOR || 'epicscrapers~vinted-search-scraper';
 
 async function apifyVintedSearch(query, maxItems = 12) {
   if (!APIFY_TOKEN) return null;
@@ -469,7 +471,20 @@ async function apifyVintedSearch(query, maxItems = 12) {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ search: query, maxItems, country: 'gb' }),
+        // Send the query under several common input keys so this works across
+        // different Vinted Apify actors (kamilkrzyz, epicscrapers, etc.) — actors
+        // ignore unknown fields, and missing fields default sensibly.
+        body: JSON.stringify({
+          search: query,
+          keyword: query,
+          keywords: [query],
+          query,
+          maxItems,
+          maxResults: maxItems,
+          country: 'gb',
+          countryCode: 'gb',
+          startUrls: [`https://www.vinted.co.uk/catalog?search_text=${encodeURIComponent(query)}`],
+        }),
         signal: AbortSignal.timeout(95000),
       }
     );
