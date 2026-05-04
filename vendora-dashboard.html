@@ -2842,6 +2842,17 @@
               <div style="font-family:monospace;font-size:11px;color:var(--muted2);">https://vendora-production-8a47.up.railway.app/webhook</div>
             </div>
           </div>
+          <div class="card">
+            <div class="card-title">Apify Proxy Diagnostic</div>
+            <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:14px;font-weight:300;">
+              Probes the Apify residential proxy in 3 layers: (1) ipify.org (does the proxy work at all?), (2) Vinted homepage (can it reach Vinted?), (3) the actual user-lookup call. Each test reports status, latency, and the underlying error.
+            </div>
+            <button class="btn btn-pink btn-sm" onclick="runApifyProxyTest()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Run Proxy Test
+            </button>
+            <pre id="apify-test-output" style="display:none;margin-top:14px;background:#0a0a0a;border:1px solid var(--border-dim);border-radius:8px;padding:14px;font-family:monospace;font-size:11px;color:var(--text);white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;"></pre>
+          </div>
         </div>
 
         <!-- Changelog -->
@@ -3297,6 +3308,23 @@
   }
 
   // ── Owner plan switcher ────────────────────────────────────────────────────
+  async function runApifyProxyTest() {
+    const out = document.getElementById('apify-test-output');
+    if (!out) return;
+    out.style.display = '';
+    out.textContent = 'Running tests… can take up to 30s per test.';
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/vinted/proxy-test`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      });
+      const json = await res.json();
+      out.textContent = JSON.stringify(json, null, 2);
+    } catch (e) {
+      out.textContent = 'Network error: ' + (e.message || 'unknown');
+    }
+  }
+
   async function ownerSwitchPlan(tier) {
     if (!_user.isOwner || !_user.id) return;
     const msgEl = document.getElementById('test-switch-msg');
