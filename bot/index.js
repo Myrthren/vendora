@@ -77,17 +77,26 @@ if (PROXY_URL && ProxyAgent) {
 
 // Apify residential proxy — used as secondary route for Vinted API calls.
 // Apify's residential IPs bypass DataDome without needing Playwright/Chromium.
+//
+// IMPORTANT: Apify's proxy authenticates with APIFY_PROXY_PASSWORD, NOT the API
+// token. The two are separate credentials — proxy password lives at
+// Apify Console → Settings → Proxy → Password. Falls back to APIFY_API_TOKEN
+// only as a courtesy (won't actually work — will surface as 407/fetch failed).
+const APIFY_PROXY_PASSWORD = process.env.APIFY_PROXY_PASSWORD || APIFY_TOKEN;
 let APIFY_PROXY_AGENT = null;
-if (APIFY_TOKEN && ProxyAgent) {
+if (APIFY_PROXY_PASSWORD && ProxyAgent) {
   try {
     APIFY_PROXY_AGENT = new ProxyAgent({
-      uri: `http://groups-RESIDENTIAL:${APIFY_TOKEN}@proxy.apify.com:8000`,
+      uri: `http://groups-RESIDENTIAL:${APIFY_PROXY_PASSWORD}@proxy.apify.com:8000`,
       connect: { ciphers: CHROME_CIPHERS, sigalgs: CHROME_SIGALGS },
     });
-    console.log('[apify-proxy] Apify residential proxy agent ready — Vinted fallback available');
+    const usingApiToken = !process.env.APIFY_PROXY_PASSWORD;
+    console.log(`[apify-proxy] Apify residential proxy agent ready${usingApiToken ? ' — WARNING: using APIFY_API_TOKEN as proxy password (likely wrong, set APIFY_PROXY_PASSWORD env var)' : ''}`);
   } catch (e) {
     console.warn('[apify-proxy] Failed to create Apify ProxyAgent:', e.message);
   }
+} else if (!APIFY_PROXY_PASSWORD) {
+  console.warn('[apify-proxy] APIFY_PROXY_PASSWORD not set — Apify residential proxy disabled');
 }
 
 const PORT            = process.env.PORT || 3000;
@@ -3925,24 +3934,29 @@ document.getElementById('vc-user').addEventListener('keydown', (e) => {
 // we store — Apify handles bot-protection.
 
 async function apifyVintedFetchUserByUsername(username) {
-  if (!APIFY_PROXY_AGENT) return null;
+  if (!APIFY_PROXY_AGENT) return { error: 'apify-proxy-unconfigured' };
   const clean = String(username || '').trim().replace(/^@/, '');
   if (!clean) return null;
   const bases = ['https://www.vinted.co.uk', 'https://www.vinted.fr'];
+  let proxyReachable = false;
   for (const base of bases) {
     try {
       const r = await apifyVFetch(`${base}/api/v2/users?login=${encodeURIComponent(clean)}&per_page=5`, {
         headers: { ...VINTED_HEADERS('', base), Authorization: undefined },
         signal: AbortSignal.timeout(15000),
       });
-      if (!r?.ok) continue;
+      if (!r) continue;
+      proxyReachable = true;
+      if (!r.ok) { console.warn(`[apify-user-lookup] ${base} returned ${r.status}`); continue; }
       const data = await r.json();
       const users = data?.users || [];
       const match = users.find(u => (u.login || '').toLowerCase() === clean.toLowerCase()) || users[0];
       if (match?.id) return { id: match.id, login: match.login, base };
-    } catch (e) { console.warn(`[apify-user-lookup] ${base}: ${e.message}`); }
+    } catch (e) {
+      console.warn(`[apify-user-lookup] ${base}: ${e.message} (cause=${e.cause?.code || e.cause?.message || 'n/a'})`);
+    }
   }
-  return null;
+  return proxyReachable ? null : { error: 'apify-proxy-unreachable' };
 }
 
 async function apifyVintedFetchUserItems(userId, base = 'https://www.vinted.co.uk', perPage = 100) {
@@ -3987,6 +4001,12 @@ app.post('/api/vinted/connect-username', async (req, res) => {
     return res.status(503).json({ error: 'Apify proxy is not configured on the server. Try again shortly.' });
   }
   const found = await apifyVintedFetchUserByUsername(username);
+  if (found?.error === 'apify-proxy-unconfigured') {
+    return res.status(503).json({ error: 'Apify proxy not configured on the server. Add APIFY_PROXY_PASSWORD to Railway env vars (find it in Apify Console → Settings → Proxy).' });
+  }
+  if (found?.error === 'apify-proxy-unreachable') {
+    return res.status(502).json({ error: 'Apify proxy connection failed. Likely cause: APIFY_PROXY_PASSWORD on the server is wrong (it\'s a separate password from your API token — find it in Apify Console → Settings → Proxy).' });
+  }
   if (!found?.id) {
     return res.status(404).json({ error: `Could not find @${username} on Vinted. Check the spelling and try again.` });
   }
