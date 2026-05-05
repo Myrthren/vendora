@@ -15,11 +15,14 @@ const Anthropic = require('@anthropic-ai/sdk');
 const cron     = require('node-cron');
 const crypto   = require('crypto');
 
-// Residential proxy support for Vinted (DataDome blocks datacenter IPs)
-// We import undici's OWN fetch — Node's global fetch silently ignores `dispatcher`.
+// undici fetch — used for the primary PROXY_URL agent (non-Apify path).
+// Apify proxy now uses a raw http.CONNECT implementation (see apifyVFetch).
 let ProxyAgent, undFetch;
 try { ({ ProxyAgent, fetch: undFetch } = require('undici')); }
-catch (e) { console.warn('[proxy] undici unavailable — proxy will be disabled:', e.message); }
+catch (e) { console.warn('[proxy] undici unavailable — primary proxy disabled:', e.message); }
+
+const nodeHttp  = require('http');
+const nodeHttps = require('https');
 
 // Vinted browser flow (Playwright + stealth) — bypasses DataDome by running
 // inside a real Chromium through the residential proxy. Optional dep:
@@ -75,34 +78,18 @@ if (PROXY_URL && ProxyAgent) {
   console.warn('[proxy] PROXY_URL is set but undici ProxyAgent failed to load — proxy DISABLED');
 }
 
-// Apify proxy — routes Vinted API calls through Apify's proxy network.
-// Username is always "auto" — Apify selects the best available proxy tier
-// (residential if your plan includes it, datacenter otherwise).
-// "groups-RESIDENTIAL" ONLY works if you have the residential proxy add-on;
-// using it on a free/basic plan causes a 407 → undici "Request was cancelled".
+// Apify proxy — routes Vinted API calls through Apify's proxy network via raw
+// http.CONNECT tunnelling (no undici ProxyAgent — it gives zero diagnostics on failure).
+// Username "auto" works on every Apify plan; "groups-RESIDENTIAL" requires a paid add-on.
 //
 // IMPORTANT: proxy password ≠ API token. Find it at:
 // Apify Console → Settings → Integrations → Proxy password
 const APIFY_PROXY_PASSWORD = process.env.APIFY_PROXY_PASSWORD || APIFY_TOKEN;
-let APIFY_PROXY_AGENT = null;
-if (APIFY_PROXY_PASSWORD && ProxyAgent) {
-  try {
-    // URL-encode password — Apify passwords contain special chars (@, :, /, =).
-    const encodedPassword = encodeURIComponent(APIFY_PROXY_PASSWORD);
-    // "auto" selects the best available tier — works on every Apify plan.
-    const proxyUri = `http://auto:${encodedPassword}@proxy.apify.com:8000`;
-    APIFY_PROXY_AGENT = new ProxyAgent({
-      uri: proxyUri,
-      // requestTls applies Chrome-like ciphers to the destination TLS (Vinted),
-      // NOT to the proxy connection (which is plain HTTP on port 8000).
-      requestTls: { ciphers: CHROME_CIPHERS, sigalgs: CHROME_SIGALGS },
-    });
-    const usingApiToken = !process.env.APIFY_PROXY_PASSWORD;
-    console.log(`[apify-proxy] Apify proxy agent ready — username=auto, password length=${APIFY_PROXY_PASSWORD.length}${usingApiToken ? ' — WARNING: using APIFY_API_TOKEN as proxy password (set APIFY_PROXY_PASSWORD instead)' : ''}`);
-  } catch (e) {
-    console.warn('[apify-proxy] Failed to create Apify ProxyAgent:', e.message);
-  }
-} else if (!APIFY_PROXY_PASSWORD) {
+const APIFY_PROXY_READY    = !!APIFY_PROXY_PASSWORD;
+if (APIFY_PROXY_READY) {
+  const usingApiToken = !process.env.APIFY_PROXY_PASSWORD;
+  console.log(`[apify-proxy] Apify proxy configured — username=auto, password length=${APIFY_PROXY_PASSWORD.length}${usingApiToken ? ' — WARNING: using APIFY_API_TOKEN as proxy password (set APIFY_PROXY_PASSWORD instead)' : ''}`);
+} else {
   console.warn('[apify-proxy] APIFY_PROXY_PASSWORD not set — Apify proxy disabled');
 }
 
@@ -537,7 +524,7 @@ async function apifyVintedFetchItem(itemIdOrUrl) {
     // Try Apify proxy route first — bypasses DataDome without browser
     const bases = ['https://www.vinted.co.uk', 'https://www.vinted.fr'];
     for (const base of bases) {
-      const res = APIFY_PROXY_AGENT
+      const res = APIFY_PROXY_READY
         ? await apifyVFetch(`${base}/api/v2/items/${itemId}`, {
             headers: { ...VINTED_HEADERS('', base), Authorization: undefined },
             signal: AbortSignal.timeout(15000),
@@ -3234,16 +3221,117 @@ async function vFetch(url, opts = {}) {
 
 // apifyVFetch — same as vFetch but forces Apify's residential proxy regardless
 // of PROXY_AGENT. Used as DataDome bypass when the primary proxy is blocked.
+// apifyVFetch — fetches a URL through Apify's HTTP proxy using raw http.CONNECT.
+// Bypasses undici ProxyAgent entirely: we tunnel through proxy.apify.com:8000
+// and then make an HTTPS request to the destination over that socket.
+// This gives us the actual proxy HTTP status code (200 = OK, 407 = bad password)
+// so errors are always diagnosable.
 async function apifyVFetch(url, opts = {}) {
-  if (!APIFY_PROXY_AGENT || !undFetch) return null; // caller checks for null
-  if (opts.headers) {
-    const clean = {};
-    for (const [k, v] of Object.entries(opts.headers)) {
-      clean[k] = typeof v === 'string' ? v.replace(/[^\x00-\xFF]/g, '') : v;
-    }
-    opts = { ...opts, headers: clean };
+  if (!APIFY_PROXY_READY) return null;
+
+  const parsed   = new URL(url);
+  const isHttps  = parsed.protocol === 'https:';
+  const destPort = parsed.port ? Number(parsed.port) : (isHttps ? 443 : 80);
+  const destHost = parsed.hostname;
+  const proxyAuth = Buffer.from(`auto:${APIFY_PROXY_PASSWORD}`).toString('base64');
+
+  // Strip non-latin1 chars from headers (HTTP/1.1 header restriction)
+  const rawHeaders = opts.headers || {};
+  const cleanHeaders = {};
+  for (const [k, v] of Object.entries(rawHeaders)) {
+    if (v == null) continue;
+    cleanHeaders[k] = typeof v === 'string' ? v.replace(/[^\x00-\xFF]/g, '') : String(v);
   }
-  return undFetch(url, { ...opts, dispatcher: APIFY_PROXY_AGENT });
+
+  const timeoutMs = opts.signal?.timeout ?? 45_000;
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const done  = (fn) => { if (settled) return; settled = true; fn(); };
+
+    const timer = setTimeout(() => done(() => reject(new Error('apifyVFetch timeout'))), timeoutMs);
+
+    // Step 1 — open TCP connection to proxy and send CONNECT
+    const connectReq = nodeHttp.request({
+      host:   'proxy.apify.com',
+      port:   8000,
+      method: 'CONNECT',
+      path:   `${destHost}:${destPort}`,
+      headers: { 'Proxy-Authorization': `Basic ${proxyAuth}`, 'Host': `${destHost}:${destPort}` },
+    });
+
+    connectReq.on('error', (e) => done(() => { clearTimeout(timer); reject(new Error(`Apify CONNECT error: ${e.message}`)); }));
+
+    connectReq.on('connect', (connectRes, socket, head) => {
+      if (connectRes.statusCode !== 200) {
+        socket.destroy();
+        const hint = connectRes.statusCode === 407
+          ? ' (407 = wrong APIFY_PROXY_PASSWORD)'
+          : connectRes.statusCode === 403
+          ? ' (403 = plan restriction — "auto" group may require upgrade)'
+          : '';
+        return done(() => { clearTimeout(timer); reject(new Error(`Apify proxy CONNECT failed: HTTP ${connectRes.statusCode}${hint}`)); });
+      }
+
+      // Step 2 — wrap the socket in TLS (the Chrome-cipher TLS handshake goes here,
+      // to Vinted, through the tunnel — exactly where it's supposed to be)
+      const tlsSocket = nodeHttps.createConnection({
+        socket,
+        host:     destHost,
+        servername: destHost,
+        ciphers:  CHROME_CIPHERS,
+        sigalgs:  CHROME_SIGALGS,
+        rejectUnauthorized: true,
+      });
+
+      tlsSocket.on('error', (e) => done(() => { clearTimeout(timer); reject(new Error(`Apify TLS error: ${e.message}`)); }));
+
+      // Step 3 — send the actual HTTP request through the TLS tunnel
+      const path   = parsed.pathname + parsed.search;
+      const method = (opts.method || 'GET').toUpperCase();
+      const body   = opts.body ? String(opts.body) : null;
+
+      const reqLines = [
+        `${method} ${path} HTTP/1.1`,
+        `Host: ${destHost}`,
+        'Connection: close',
+        ...Object.entries(cleanHeaders).map(([k, v]) => `${k}: ${v}`),
+        ...(body ? [`Content-Length: ${Buffer.byteLength(body)}`] : []),
+        '',
+        body || '',
+      ];
+      tlsSocket.write(reqLines.join('\r\n'));
+
+      // Step 4 — read the response
+      let raw = '';
+      tlsSocket.on('data', (chunk) => { raw += chunk.toString('binary'); });
+      tlsSocket.on('end', () => {
+        done(() => {
+          clearTimeout(timer);
+          try {
+            const headerEnd = raw.indexOf('\r\n\r\n');
+            const headerStr = headerEnd >= 0 ? raw.slice(0, headerEnd) : raw;
+            const bodyBin   = headerEnd >= 0 ? raw.slice(headerEnd + 4) : '';
+            const bodyBuf   = Buffer.from(bodyBin, 'binary');
+            const statusLine = headerStr.split('\r\n')[0] || '';
+            const statusCode = parseInt(statusLine.split(' ')[1] || '0', 10);
+            const ok         = statusCode >= 200 && statusCode < 300;
+            resolve({
+              ok,
+              status: statusCode,
+              headers: { get: () => null, getSetCookie: () => [] },
+              json:    () => Promise.resolve(JSON.parse(bodyBuf.toString('utf8'))),
+              text:    () => Promise.resolve(bodyBuf.toString('utf8')),
+            });
+          } catch (e) {
+            reject(new Error(`apifyVFetch parse error: ${e.message}`));
+          }
+        });
+      });
+    });
+
+    connectReq.end();
+  });
 }
 
 // ── Vinted geo-base detection ─────────────────────────────────────────────────
@@ -3319,7 +3407,7 @@ const VINTED_HEADERS = (token, base = 'https://www.vinted.co.uk') => ({
 async function vintedLogin(usernameOrEmail, password) {
   // 1. Apify residential proxy first — this is the only path that reliably
   //    bypasses DataDome on a server (Railway / datacenter IPs are flagged).
-  if (APIFY_PROXY_AGENT) {
+  if (APIFY_PROXY_READY) {
     console.log('[vinted-login] trying Apify residential proxy');
     const r = await legacyVintedLogin(usernameOrEmail, password, apifyVFetch);
     if (!r.error) return r;
@@ -3424,7 +3512,7 @@ async function vintedUploadImage(accessToken, base64Data, mimeType = 'image/jpeg
   if (!isDataDome) return direct;
 
   // 2. Apify residential proxy
-  if (APIFY_PROXY_AGENT) {
+  if (APIFY_PROXY_READY) {
     console.warn('[vinted-upload] DataDome blocked primary proxy — retrying via Apify residential proxy');
     const apify = await legacyVintedUploadImage(accessToken, base64Data, mimeType, apifyVFetch);
     if (!apify.error) return apify;
@@ -3471,7 +3559,7 @@ async function vintedCreateListing(accessToken, listingData) {
   if (!isDataDome) return direct; // auth/network error — other routes won't help
 
   // 2. Apify residential proxy — bypasses DataDome without needing Playwright
-  if (APIFY_PROXY_AGENT) {
+  if (APIFY_PROXY_READY) {
     console.warn('[vinted-list] Primary proxy DataDome blocked — retrying via Apify residential proxy');
     const apify = await legacyVintedCreateListing(accessToken, listingData, apifyVFetch);
     if (!apify.error) return apify;
@@ -3941,7 +4029,7 @@ document.getElementById('vc-user').addEventListener('keydown', (e) => {
 // we store — Apify handles bot-protection.
 
 async function apifyVintedFetchUserByUsername(username) {
-  if (!APIFY_PROXY_AGENT) return { error: 'apify-proxy-unconfigured' };
+  if (!APIFY_PROXY_READY) return { error: 'apify-proxy-unconfigured' };
   const clean = String(username || '').trim().replace(/^@/, '');
   if (!clean) return null;
   const bases = ['https://www.vinted.co.uk', 'https://www.vinted.fr'];
@@ -3967,7 +4055,7 @@ async function apifyVintedFetchUserByUsername(username) {
 }
 
 async function apifyVintedFetchUserItems(userId, base = 'https://www.vinted.co.uk', perPage = 100) {
-  if (!APIFY_PROXY_AGENT || !userId) return [];
+  if (!APIFY_PROXY_READY || !userId) return [];
   try {
     const r = await apifyVFetch(`${base}/api/v2/users/${userId}/items?per_page=${perPage}&page=1&order=newest_first`, {
       headers: { ...VINTED_HEADERS('', base), Authorization: undefined },
@@ -4004,7 +4092,7 @@ app.post('/api/vinted/connect-username', async (req, res) => {
   if (!username || !/^[A-Za-z0-9_.\-]{2,40}$/.test(username)) {
     return res.status(400).json({ error: 'Enter a valid Vinted username (letters, digits, underscores).' });
   }
-  if (!APIFY_PROXY_AGENT) {
+  if (!APIFY_PROXY_READY) {
     return res.status(503).json({ error: 'Apify proxy is not configured on the server. Try again shortly.' });
   }
   const found = await apifyVintedFetchUserByUsername(username);
@@ -4078,7 +4166,7 @@ app.get('/api/vinted/proxy-test', async (req, res) => {
   const out = {
     apify_proxy_password_set: !!process.env.APIFY_PROXY_PASSWORD,
     apify_proxy_password_falling_back_to_token: !process.env.APIFY_PROXY_PASSWORD && !!APIFY_TOKEN,
-    apify_proxy_agent_ready: !!APIFY_PROXY_AGENT,
+    apify_proxy_agent_ready: !!APIFY_PROXY_READY,
     tests: {},
   };
 
@@ -5611,7 +5699,7 @@ cron.schedule('0 * * * *', async () => {
 // For every connected Vinted user, pulls live listings via Apify and diffs
 // against the last snapshot. Items that vanish are recorded as sales.
 cron.schedule('17 */6 * * *', async () => {
-  if (!SUPABASE_KEY || !APIFY_PROXY_AGENT) return;
+  if (!SUPABASE_KEY || !APIFY_PROXY_READY) return;
   console.log('[cron:vinted-sync] Starting inventory + sales sync…');
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/platform_connections?platform=eq.vinted&select=user_id,platform_user_id,platform_username`, {
