@@ -75,37 +75,35 @@ if (PROXY_URL && ProxyAgent) {
   console.warn('[proxy] PROXY_URL is set but undici ProxyAgent failed to load — proxy DISABLED');
 }
 
-// Apify residential proxy — used as secondary route for Vinted API calls.
-// Apify's residential IPs bypass DataDome without needing Playwright/Chromium.
+// Apify proxy — routes Vinted API calls through Apify's proxy network.
+// Username is always "auto" — Apify selects the best available proxy tier
+// (residential if your plan includes it, datacenter otherwise).
+// "groups-RESIDENTIAL" ONLY works if you have the residential proxy add-on;
+// using it on a free/basic plan causes a 407 → undici "Request was cancelled".
 //
-// IMPORTANT: Apify's proxy authenticates with APIFY_PROXY_PASSWORD, NOT the API
-// token. The two are separate credentials — proxy password lives at
-// Apify Console → Settings → Proxy → Password. Falls back to APIFY_API_TOKEN
-// only as a courtesy (won't actually work — will surface as 407/fetch failed).
+// IMPORTANT: proxy password ≠ API token. Find it at:
+// Apify Console → Settings → Integrations → Proxy password
 const APIFY_PROXY_PASSWORD = process.env.APIFY_PROXY_PASSWORD || APIFY_TOKEN;
 let APIFY_PROXY_AGENT = null;
 if (APIFY_PROXY_PASSWORD && ProxyAgent) {
   try {
-    // CRITICAL: Apify proxy passwords contain special chars (@, :, /, =) that
-    // MUST be URL-encoded when embedded in the proxy URI — otherwise undici
-    // parses the URI wrong and auth fails with the cryptic 'Request was
-    // cancelled' error rather than a clean 407.
+    // URL-encode password — Apify passwords contain special chars (@, :, /, =).
     const encodedPassword = encodeURIComponent(APIFY_PROXY_PASSWORD);
-    const proxyUri = `http://groups-RESIDENTIAL:${encodedPassword}@proxy.apify.com:8000`;
+    // "auto" selects the best available tier — works on every Apify plan.
+    const proxyUri = `http://auto:${encodedPassword}@proxy.apify.com:8000`;
     APIFY_PROXY_AGENT = new ProxyAgent({
       uri: proxyUri,
-      // Pass auth via the token field too as a belt-and-braces — some undici
-      // versions prefer this over parsing the URI userinfo.
-      token: `Basic ${Buffer.from(`groups-RESIDENTIAL:${APIFY_PROXY_PASSWORD}`).toString('base64')}`,
-      connect: { ciphers: CHROME_CIPHERS, sigalgs: CHROME_SIGALGS },
+      // requestTls applies Chrome-like ciphers to the destination TLS (Vinted),
+      // NOT to the proxy connection (which is plain HTTP on port 8000).
+      requestTls: { ciphers: CHROME_CIPHERS, sigalgs: CHROME_SIGALGS },
     });
     const usingApiToken = !process.env.APIFY_PROXY_PASSWORD;
-    console.log(`[apify-proxy] Apify residential proxy agent ready (password length=${APIFY_PROXY_PASSWORD.length}, encoded length=${encodedPassword.length})${usingApiToken ? ' — WARNING: using APIFY_API_TOKEN as proxy password (likely wrong, set APIFY_PROXY_PASSWORD env var)' : ''}`);
+    console.log(`[apify-proxy] Apify proxy agent ready — username=auto, password length=${APIFY_PROXY_PASSWORD.length}${usingApiToken ? ' — WARNING: using APIFY_API_TOKEN as proxy password (set APIFY_PROXY_PASSWORD instead)' : ''}`);
   } catch (e) {
     console.warn('[apify-proxy] Failed to create Apify ProxyAgent:', e.message);
   }
 } else if (!APIFY_PROXY_PASSWORD) {
-  console.warn('[apify-proxy] APIFY_PROXY_PASSWORD not set — Apify residential proxy disabled');
+  console.warn('[apify-proxy] APIFY_PROXY_PASSWORD not set — Apify proxy disabled');
 }
 
 const PORT            = process.env.PORT || 3000;
@@ -4011,10 +4009,10 @@ app.post('/api/vinted/connect-username', async (req, res) => {
   }
   const found = await apifyVintedFetchUserByUsername(username);
   if (found?.error === 'apify-proxy-unconfigured') {
-    return res.status(503).json({ error: 'Apify proxy not configured on the server. Add APIFY_PROXY_PASSWORD to Railway env vars (find it in Apify Console → Settings → Proxy).' });
+    return res.status(503).json({ error: 'Apify proxy is not set up on the server. Add APIFY_PROXY_PASSWORD to Railway env vars (Apify Console → Settings → Integrations → Proxy password).' });
   }
   if (found?.error === 'apify-proxy-unreachable') {
-    return res.status(502).json({ error: 'Apify proxy connection failed. Likely cause: APIFY_PROXY_PASSWORD on the server is wrong (it\'s a separate password from your API token — find it in Apify Console → Settings → Proxy).' });
+    return res.status(502).json({ error: 'Could not reach Vinted through the proxy. Check the Railway logs for the specific error — it may be an authentication failure (wrong APIFY_PROXY_PASSWORD), a plan restriction, or a temporary network issue.' });
   }
   if (!found?.id) {
     return res.status(404).json({ error: `Could not find @${username} on Vinted. Check the spelling and try again.` });
