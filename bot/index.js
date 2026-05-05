@@ -86,13 +86,21 @@ const APIFY_PROXY_PASSWORD = process.env.APIFY_PROXY_PASSWORD || APIFY_TOKEN;
 let APIFY_PROXY_AGENT = null;
 if (APIFY_PROXY_PASSWORD && ProxyAgent) {
   try {
+    // CRITICAL: Apify proxy passwords contain special chars (@, :, /, =) that
+    // MUST be URL-encoded when embedded in the proxy URI — otherwise undici
+    // parses the URI wrong and auth fails with the cryptic 'Request was
+    // cancelled' error rather than a clean 407.
+    const encodedPassword = encodeURIComponent(APIFY_PROXY_PASSWORD);
+    const proxyUri = `http://groups-RESIDENTIAL:${encodedPassword}@proxy.apify.com:8000`;
     APIFY_PROXY_AGENT = new ProxyAgent({
-      uri: `http://groups-RESIDENTIAL:${APIFY_PROXY_PASSWORD}@proxy.apify.com:8000`,
-      // Mirror PROXY_AGENT setup exactly — that's the one we know works.
+      uri: proxyUri,
+      // Pass auth via the token field too as a belt-and-braces — some undici
+      // versions prefer this over parsing the URI userinfo.
+      token: `Basic ${Buffer.from(`groups-RESIDENTIAL:${APIFY_PROXY_PASSWORD}`).toString('base64')}`,
       connect: { ciphers: CHROME_CIPHERS, sigalgs: CHROME_SIGALGS },
     });
     const usingApiToken = !process.env.APIFY_PROXY_PASSWORD;
-    console.log(`[apify-proxy] Apify residential proxy agent ready${usingApiToken ? ' — WARNING: using APIFY_API_TOKEN as proxy password (likely wrong, set APIFY_PROXY_PASSWORD env var)' : ''}`);
+    console.log(`[apify-proxy] Apify residential proxy agent ready (password length=${APIFY_PROXY_PASSWORD.length}, encoded length=${encodedPassword.length})${usingApiToken ? ' — WARNING: using APIFY_API_TOKEN as proxy password (likely wrong, set APIFY_PROXY_PASSWORD env var)' : ''}`);
   } catch (e) {
     console.warn('[apify-proxy] Failed to create Apify ProxyAgent:', e.message);
   }
