@@ -527,7 +527,7 @@ async function apifyVintedFetchItem(itemIdOrUrl) {
       const res = APIFY_PROXY_READY
         ? await apifyVFetch(`${base}/api/v2/items/${itemId}`, {
             headers: { ...VINTED_HEADERS('', base), Authorization: undefined },
-            signal: AbortSignal.timeout(15000),
+            timeout: 15000,
           })
         : null;
       if (res?.ok) {
@@ -3243,7 +3243,10 @@ async function apifyVFetch(url, opts = {}) {
     cleanHeaders[k] = typeof v === 'string' ? v.replace(/[^\x00-\xFF]/g, '') : String(v);
   }
 
-  const timeoutMs = opts.signal?.timeout ?? 45_000;
+  // opts.timeout is the preferred way to pass a timeout to apifyVFetch.
+  // AbortSignal.timeout() signals are not listened to here (apifyVFetch uses raw sockets),
+  // so opts.signal?.timeout would always be undefined — use opts.timeout directly instead.
+  const timeoutMs = opts.timeout ?? 45_000;
 
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -3303,19 +3306,38 @@ async function apifyVFetch(url, opts = {}) {
       tlsSocket.write(reqLines.join('\r\n'));
 
       // Step 4 — read the response
-      let raw = '';
-      tlsSocket.on('data', (chunk) => { raw += chunk.toString('binary'); });
+      const chunks = [];
+      tlsSocket.on('data', (chunk) => { chunks.push(chunk); });
       tlsSocket.on('end', () => {
         done(() => {
           clearTimeout(timer);
           try {
-            const headerEnd = raw.indexOf('\r\n\r\n');
-            const headerStr = headerEnd >= 0 ? raw.slice(0, headerEnd) : raw;
-            const bodyBin   = headerEnd >= 0 ? raw.slice(headerEnd + 4) : '';
-            const bodyBuf   = Buffer.from(bodyBin, 'binary');
+            const raw        = Buffer.concat(chunks);
+            const headerEnd  = raw.indexOf('\r\n\r\n');
+            const headerBuf  = headerEnd >= 0 ? raw.slice(0, headerEnd) : raw;
+            const headerStr  = headerBuf.toString('utf8');
+            let   bodyBuf    = headerEnd >= 0 ? raw.slice(headerEnd + 4) : Buffer.alloc(0);
             const statusLine = headerStr.split('\r\n')[0] || '';
             const statusCode = parseInt(statusLine.split(' ')[1] || '0', 10);
             const ok         = statusCode >= 200 && statusCode < 300;
+
+            // Dechunk if Transfer-Encoding: chunked (HTTP/1.1 default for dynamic responses)
+            if (/transfer-encoding:\s*chunked/i.test(headerStr)) {
+              const decoded = [];
+              let i = 0;
+              while (i < bodyBuf.length) {
+                const crlfPos = bodyBuf.indexOf('\r\n', i);
+                if (crlfPos === -1) break;
+                const sizeLine = bodyBuf.slice(i, crlfPos).toString('ascii').split(';')[0].trim();
+                const size = parseInt(sizeLine, 16);
+                if (isNaN(size) || size === 0) break;
+                i = crlfPos + 2;
+                decoded.push(bodyBuf.slice(i, i + size));
+                i += size + 2; // skip chunk data + trailing \r\n
+              }
+              bodyBuf = Buffer.concat(decoded);
+            }
+
             resolve({
               ok,
               status: statusCode,
@@ -4001,13 +4023,24 @@ async function connectUsername() {
     if (!res.ok) {
       showMsg('error', json.error || 'Could not find that username on Vinted. Check the spelling.');
     } else {
-      showMsg('success', 'Connected as @' + json.username + ' — closing window…');
-      setTimeout(() => {
-        if (window.opener) {
-          window.opener.postMessage({ type: 'vinted-connected', username: json.username }, '*');
-        }
-        window.close();
-      }, 1200);
+      if (window.opener) {
+        // Normal popup — post back to opener and close
+        showMsg('success', 'Connected as @' + json.username + ' — closing window…');
+        setTimeout(() => {
+          try { window.opener.postMessage({ type: 'vinted-connected', username: json.username }, '*'); } catch {}
+          window.close();
+        }, 1200);
+        return; // window is closing — don't re-enable button
+      } else {
+        // New tab (popup blocked or mobile) — window.opener is null, postMessage can't fire.
+        // Connection IS saved in Supabase. Tell user to close this tab; the dashboard
+        // setInterval will call loadPlatformStatus() when it detects the tab closed.
+        showMsg('success', '✓ Connected as @' + json.username + '! Close this tab and return to the Vendora dashboard — it will update automatically.');
+        btn.textContent = 'Done — close this tab';
+        btn.disabled = false;
+        btn.onclick = () => window.close();
+        return; // leave button as close button — don't reset below
+      }
     }
   } catch (e) {
     showMsg('error', 'Request failed: ' + (e.message || 'network error'));
@@ -4038,7 +4071,7 @@ async function apifyVintedFetchUserByUsername(username) {
     try {
       const r = await apifyVFetch(`${base}/api/v2/users?login=${encodeURIComponent(clean)}&per_page=5`, {
         headers: { ...VINTED_HEADERS('', base), Authorization: undefined },
-        signal: AbortSignal.timeout(45000), // Apify residential first-hop can take 10-20s
+        timeout: 45000, // Apify residential first-hop can take 10-20s
       });
       if (!r) continue;
       proxyReachable = true;
@@ -4059,7 +4092,7 @@ async function apifyVintedFetchUserItems(userId, base = 'https://www.vinted.co.u
   try {
     const r = await apifyVFetch(`${base}/api/v2/users/${userId}/items?per_page=${perPage}&page=1&order=newest_first`, {
       headers: { ...VINTED_HEADERS('', base), Authorization: undefined },
-      signal: AbortSignal.timeout(20000),
+      timeout: 20000,
     });
     if (!r?.ok) return [];
     const data = await r.json();
@@ -4173,7 +4206,7 @@ app.get('/api/vinted/proxy-test', async (req, res) => {
   // Test 1: Can we reach Apify's proxy at all? Use ipify.org to see what IP we exit from.
   try {
     const t0 = Date.now();
-    const r = await apifyVFetch('https://api.ipify.org/?format=json', { signal: AbortSignal.timeout(30000) });
+    const r = await apifyVFetch('https://api.ipify.org/?format=json', { timeout: 30000 });
     out.tests.ipify = { ok: !!r?.ok, status: r?.status, ms: Date.now() - t0 };
     if (r?.ok) out.tests.ipify.body = await r.json();
   } catch (e) {
@@ -4185,7 +4218,7 @@ app.get('/api/vinted/proxy-test', async (req, res) => {
     const t0 = Date.now();
     const r = await apifyVFetch('https://www.vinted.co.uk/', {
       headers: { 'User-Agent': VINTED_UA, 'Accept': 'text/html,*/*' },
-      signal: AbortSignal.timeout(30000),
+      timeout: 30000,
     });
     out.tests.vinted_homepage = { ok: !!r?.ok, status: r?.status, ms: Date.now() - t0 };
   } catch (e) {
@@ -4197,7 +4230,7 @@ app.get('/api/vinted/proxy-test', async (req, res) => {
     const t0 = Date.now();
     const r = await apifyVFetch('https://www.vinted.co.uk/api/v2/users?login=test&per_page=1', {
       headers: { ...VINTED_HEADERS('', 'https://www.vinted.co.uk'), Authorization: undefined },
-      signal: AbortSignal.timeout(30000),
+      timeout: 30000,
     });
     out.tests.vinted_user_lookup = { ok: !!r?.ok, status: r?.status, ms: Date.now() - t0 };
   } catch (e) {

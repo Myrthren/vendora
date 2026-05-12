@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -4750,6 +4750,9 @@
   // Listen for the popup success message
   window.addEventListener('message', function(event) {
     if (!event.data || event.data.type !== 'vinted-connected') return;
+    // Only accept messages from our Railway bot server (or localhost in dev)
+    var origin = event.origin || '';
+    if (origin && !origin.includes('railway.app') && !origin.includes('localhost') && !origin.includes('127.0.0.1')) return;
     const btn   = document.getElementById('plat-connect-btn-vinted');
     const msgEl = document.getElementById('vinted-connect-msg');
     if (btn) { btn.disabled = false; btn.textContent = '🔗 \u00a0Connect Vinted Account'; }
@@ -4759,19 +4762,22 @@
     _connectPopup = null;
   });
 
-  // Re-enable button if user closes the popup without connecting
+  // Re-enable button and refresh status when popup closes — covers mobile + popup-blocker
+  // fallback where window.opener.postMessage never fires back to this tab
   setInterval(() => {
     if (_connectPopup && _connectPopup.closed) {
+      _connectPopup = null;
       const btn = document.getElementById('plat-connect-btn-vinted');
       if (btn && btn.disabled) {
         btn.disabled = false; btn.textContent = '🔗 \u00a0Connect Vinted Account';
         const msgEl = document.getElementById('vinted-connect-msg');
-        const el = msgEl;
-        if (el && el.style.display !== 'none' && el.textContent.includes('Waiting')) {
-          el.style.display = 'none';
+        if (msgEl && msgEl.style.display !== 'none' && msgEl.textContent.includes('Waiting')) {
+          msgEl.style.display = 'none';
         }
       }
-      _connectPopup = null;
+      // Always reload status — the backend may have saved the connection even if
+      // postMessage didn't reach this tab (mobile new-tab flow, etc.)
+      loadPlatformStatus();
     }
   }, 1000);
 
