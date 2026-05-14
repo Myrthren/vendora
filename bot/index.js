@@ -4296,15 +4296,78 @@ app.post('/api/vinted/connect-username', async (req, res) => {
   })();
 });
 
+// Resolve the numeric Vinted user ID from the stored access_token_web.
+// Calls /api/v2/users/me via direct HTTP, then Playwright fallback.
+// Returns the numeric ID string, or null on failure.
+async function resolveVintedUserIdFromToken(accessToken) {
+  if (!accessToken) return null;
+  try {
+    const base = await getVintedBase();
+    const r = await vFetch(`${base}/api/v2/users/me`, {
+      headers: VINTED_HEADERS(accessToken, base),
+      signal:  AbortSignal.timeout(10000),
+    });
+    if (r?.ok) {
+      const d = await r.json().catch(() => null);
+      const u = d?.user || d;
+      if (u?.id) { console.log(`[resolve-userid] direct HTTP → id ${u.id}`); return String(u.id); }
+    }
+  } catch (e) { console.warn('[resolve-userid] direct HTTP failed:', e.message); }
+
+  // Playwright fallback — bypasses DataDome
+  if (vintedBrowser?.vintedBrowserValidateToken) {
+    try {
+      const r = await vintedBrowser.vintedBrowserValidateToken(accessToken);
+      if (r.valid === true && r.user_id) {
+        console.log(`[resolve-userid] Playwright → id ${r.user_id}`);
+        return String(r.user_id);
+      }
+    } catch (e) { console.warn('[resolve-userid] Playwright failed:', e.message); }
+  }
+  return null;
+}
+
 // Core sync: pulls user's listings via Apify actor, diffs against last snapshot,
 // items that vanished get marked sold (moved into vinted_sales_${userId}).
 async function syncVintedInventoryForUser(userId) {
   const conn = await getPlatformConn(userId, 'vinted');
   if (!conn?.platform_username && !conn?.platform_user_id) return { ok: false, reason: 'no-connection' };
-  // Use numeric user ID if available, otherwise fall back to username
-  const identifier = conn.platform_user_id || conn.platform_username;
+
+  // ── Resolve numeric seller ID if not yet stored ───────────────────────────
+  // Without a numeric ID, inventory fetch falls back to the slow/unreliable
+  // member-page scrape. Try three paths in order:
+  //   1. /api/v2/users/me with the stored access_token_web (fast, no actor needed)
+  //   2. Apify actor search (searches username as keyword, finds seller ID from results)
+  let sellerId = conn.platform_user_id || '';
+  if (!sellerId) {
+    console.log(`[sync-inventory] no seller ID for @${conn.platform_username} — attempting resolution`);
+
+    // Path 1: token-based (stored access_token_web → /api/v2/users/me)
+    const rawToken = conn.access_token ? decryptToken(conn.access_token) : '';
+    if (rawToken) {
+      const id = await resolveVintedUserIdFromToken(rawToken);
+      if (id) sellerId = id;
+    }
+
+    // Path 2: Apify actor — search for username as keyword, extract seller.id
+    if (!sellerId && conn.platform_username) {
+      const found = await apifyVintedFetchUserByUsername(conn.platform_username);
+      if (found?.id) sellerId = String(found.id);
+    }
+
+    // Persist if resolved so future syncs use catalog URL directly
+    if (sellerId) {
+      await upsertPlatformConn(userId, 'vinted', { platform_user_id: sellerId });
+      console.log(`[sync-inventory] resolved seller ID ${sellerId} for @${conn.platform_username} — saved`);
+    } else {
+      console.warn(`[sync-inventory] could not resolve seller ID for @${conn.platform_username}`);
+    }
+  }
+
+  const identifier   = sellerId || conn.platform_username;
   const connUsername = (conn.platform_username || '').toLowerCase();
   const base = 'https://www.vinted.co.uk';
+  console.log(`[sync-inventory] fetching items with identifier=${identifier}`);
   const raw  = await apifyVintedFetchUserItems(identifier, base, 100);
 
   // Filter items to the connected user only when the actor returns seller info.
