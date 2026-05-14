@@ -4425,11 +4425,7 @@ async function syncVintedInventoryForUser(userId) {
       if (id) sellerId = id;
     }
 
-    // Path 2: Apify actor — search for username as keyword, extract seller.id
-    if (!sellerId && conn.platform_username) {
-      const found = await apifyVintedFetchUserByUsername(conn.platform_username);
-      if (found?.id) sellerId = String(found.id);
-    }
+
 
     // Path 3: Playwright member page lookup — bypasses DataDome, reads page state
     if (!sellerId && conn.platform_username && vintedBrowser?.vintedBrowserLookupUser) {
@@ -4476,8 +4472,7 @@ async function syncVintedInventoryForUser(userId) {
     }
   }
   if (!raw.length) {
-    console.log(`[sync-inventory] Playwright returned nothing — falling back to Apify for ${identifier}`);
-    raw = await apifyVintedFetchUserItems(identifier, base, 100);
+    console.log(`[sync-inventory] Playwright returned nothing — no Apify fallback, aborting sync`);
   }
 
   // Filter items to the connected user only when the actor returns seller info.
@@ -6055,6 +6050,36 @@ app.post('/api/admin/announce/channel', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// GET /api/announcement — public, returns active site banner or null
+app.get('/api/announcement', async (req, res) => {
+  try {
+    const data = await getSetting('site_announcement');
+    if (!data || !data.message) return res.json({ active: false });
+    if (data.expires_at && new Date(data.expires_at) < new Date()) {
+      return res.json({ active: false });
+    }
+    res.json({ active: true, message: data.message, created_at: data.created_at, expires_at: data.expires_at });
+  } catch (e) { res.json({ active: false }); }
+});
+
+// POST /api/admin/announcement — owner only, set site banner
+app.post('/api/admin/announcement', async (req, res) => {
+  if (!await requireOwner(req, res)) return;
+  const { message, duration_hours } = req.body;
+  if (!message?.trim()) return res.status(400).json({ error: 'Message required.' });
+  const hours = parseFloat(duration_hours) || 0;
+  const expires_at = hours > 0 ? new Date(Date.now() + hours * 3600000).toISOString() : null;
+  await saveSetting('site_announcement', { message: message.trim(), created_at: new Date().toISOString(), expires_at });
+  res.json({ ok: true, expires_at });
+});
+
+// DELETE /api/admin/announcement — owner only, remove site banner
+app.delete('/api/admin/announcement', async (req, res) => {
+  if (!await requireOwner(req, res)) return;
+  await saveSetting('site_announcement', { message: null });
+  res.json({ ok: true });
 });
 
 // ── Admin: update pricing (stored in Supabase; PayPal plans are separate) ─────

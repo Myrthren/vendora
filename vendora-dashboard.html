@@ -609,6 +609,17 @@
 </head>
 <body>
 
+<!-- Site announcement banner -->
+<div id="site-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,rgba(232,33,122,0.12),rgba(232,33,122,0.06));border-bottom:1px solid rgba(232,33,122,0.25);padding:10px 20px;display:none;align-items:center;justify-content:space-between;gap:12px;">
+  <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <span id="site-banner-text" style="font-size:12.5px;color:var(--text);line-height:1.4;"></span>
+  </div>
+  <button onclick="dismissBanner()" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:2px;flex-shrink:0;" title="Dismiss">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  </button>
+</div>
+
 <!-- SIDEBAR -->
 <aside class="sidebar">
   <div class="sidebar-top">
@@ -1071,7 +1082,7 @@
       <div class="card" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
           <div style="display:flex;align-items:center;gap:14px;">
-            <div class="plat-icon" style="background:rgba(9,177,186,0.12);color:#09b1ba;font-weight:700;">VT</div>
+            <div class="plat-icon" style="background:#fff;overflow:hidden;padding:0;"><img src="icons/vinted-icon.jfif" style="width:100%;height:100%;object-fit:cover;border-radius:3px;"></div>
             <div>
               <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:2px;">Vinted</div>
               <div id="plat-status-vinted" class="plat-status-row disconnected">○ Not connected</div>
@@ -1094,7 +1105,7 @@
         <div class="card-title">Coming Soon</div>
         <div class="platform-connect-list">
           <div class="platform-connect" style="opacity:.5;cursor:not-allowed;">
-            <div class="plat-icon" style="background:rgba(255,35,0,0.1);color:#ff2300;">DP</div>
+            <div class="plat-icon" style="background:#fff;overflow:hidden;padding:0;"><img src="icons/depop-icon.png" style="width:100%;height:100%;object-fit:cover;border-radius:3px;"></div>
             <div class="plat-details">
               <div class="plat-name-row">Depop</div>
               <div class="plat-status-row">Integration in development</div>
@@ -1102,7 +1113,7 @@
             <button class="btn btn-ghost btn-sm" disabled>Soon</button>
           </div>
           <div class="platform-connect" style="opacity:.5;cursor:not-allowed;">
-            <div class="plat-icon" style="background:rgba(229,50,56,0.1);color:#e53238;">EB</div>
+            <div class="plat-icon" style="background:#fff;overflow:hidden;padding:0;"><img src="icons/ebay-icon.jpg" style="width:100%;height:100%;object-fit:cover;border-radius:3px;"></div>
             <div class="plat-details">
               <div class="plat-name-row">eBay</div>
               <div class="plat-status-row">Official API — auto-listing in development</div>
@@ -1110,7 +1121,7 @@
             <button class="btn btn-ghost btn-sm" disabled>Soon</button>
           </div>
           <div class="platform-connect" style="opacity:.5;cursor:not-allowed;">
-            <div class="plat-icon">FB</div>
+            <div class="plat-icon" style="background:#fff;overflow:hidden;padding:0;"><img src="icons/facebook-marketplace-icon.png" style="width:100%;height:100%;object-fit:cover;border-radius:3px;"></div>
             <div class="plat-details">
               <div class="plat-name-row">Facebook Marketplace</div>
               <div class="plat-status-row">OAuth integration — launching soon</div>
@@ -1601,7 +1612,7 @@
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
         <div class="page-title">Profit Tracker</div>
-        <div class="page-sub">Vinted sales auto-detected via Apify. Log buy-prices to see real margins.</div>
+        <div class="page-sub">Vinted sales auto-detected when inventory syncs. Log buy-prices to see real margins.</div>
       </div>
 
       <!-- Vinted auto-sync banner -->
@@ -2568,6 +2579,27 @@
 
         <!-- Announcements -->
         <div class="admin-panel" id="admin-announce">
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-title" style="margin-bottom:4px;">Site Announcement Banner</div>
+            <div style="font-size:12px;color:var(--muted2);margin-bottom:14px;">Shows a dismissable banner at the top of the dashboard for all users.</div>
+            <div id="current-banner-status" style="margin-bottom:14px;padding:10px 14px;background:rgba(255,255,255,0.03);border:1px solid var(--border-dim);border-radius:4px;font-size:12px;color:var(--muted2);">Loading…</div>
+            <div class="announce-form">
+              <div>
+                <label class="form-label">Message</label>
+                <input id="banner-message" type="text" class="form-select" style="height:auto;padding:10px 14px;" placeholder="e.g. We're back online after maintenance. 🎉">
+              </div>
+              <div>
+                <label class="form-label">Duration (hours) — leave 0 for permanent until deleted</label>
+                <input id="banner-duration" type="number" min="0" step="1" value="0" class="form-select" style="height:auto;padding:10px 14px;width:140px;">
+              </div>
+              <div style="display:flex;gap:10px;align-items:center;">
+                <button class="btn btn-pink btn-sm" onclick="adminSetBanner()">Set Banner</button>
+                <button class="btn btn-danger btn-sm" onclick="adminDeleteBanner()">Delete Banner</button>
+                <div id="banner-msg" style="display:none;font-size:12px;"></div>
+              </div>
+            </div>
+          </div>
+
           <div class="card">
             <div class="card-title">Send DM Blast</div>
             <div class="announce-form">
@@ -2996,6 +3028,7 @@
     initToolAccess('rcal-gate','rcal-tool', tier, 'pro', 'resell-calendar-nav-item');
     if (tier === 'pro' || tier === 'elite') rcalLoad();
     loadPlatformStatus();
+    loadSiteBanner();
     loadNotificationPrefs();
     loadUsageStats();
     loadInventory();
@@ -3754,7 +3787,7 @@
     if (el) el.classList.add('active');
     if (id === 'bot')       adminLoadConfig();
     if (id === 'pricing')   adminLoadPricing();
-    if (id === 'announce')  loadDiscordChannels();
+    if (id === 'announce')  { loadDiscordChannels(); loadAdminBanner(); }
     if (id === 'credits')   adminLoadCreditCodes();
     if (id === 'changelog') renderChangelog();
   }
@@ -3867,6 +3900,54 @@
     if (!msg) return;
     box.style.display = '';
     box.textContent = msg;
+  }
+
+  async function loadAdminBanner() {
+    const statusEl = document.getElementById('current-banner-status');
+    if (!statusEl) return;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(`${BOT_API}/api/announcement`, { headers: { 'Authorization': `Bearer ${session?.access_token}` } });
+      const data = await res.json();
+      if (data.active) {
+        const exp = data.expires_at ? ` · Expires ${new Date(data.expires_at).toLocaleString('en-GB')}` : ' · Permanent';
+        statusEl.innerHTML = `<span style="color:var(--green);">● Active</span> — "${data.message}"${exp}`;
+      } else {
+        statusEl.textContent = 'No active banner.';
+      }
+    } catch { statusEl.textContent = 'Could not load banner status.'; }
+  }
+
+  async function adminSetBanner() {
+    const message  = document.getElementById('banner-message')?.value?.trim();
+    const duration = document.getElementById('banner-duration')?.value;
+    const msgEl    = document.getElementById('banner-msg');
+    if (!message) return showMsg(msgEl, 'error', 'Enter a message.');
+    const { data: { session } } = await sb.auth.getSession();
+    const res = await fetch(`${BOT_API}/api/admin/announcement`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ message, duration_hours: parseFloat(duration) || 0 }),
+    });
+    const json = await res.json();
+    if (!res.ok) return showMsg(msgEl, 'error', json.error || 'Failed.');
+    showMsg(msgEl, 'success', 'Banner set! Reload the dashboard to see it.');
+    loadAdminBanner();
+  }
+
+  async function adminDeleteBanner() {
+    if (!confirm('Remove the site announcement banner?')) return;
+    const msgEl = document.getElementById('banner-msg');
+    const { data: { session } } = await sb.auth.getSession();
+    const res = await fetch(`${BOT_API}/api/admin/announcement`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${session?.access_token}` },
+    });
+    const json = await res.json();
+    if (!res.ok) return showMsg(msgEl, 'error', json.error || 'Failed.');
+    showMsg(msgEl, 'success', 'Banner removed.');
+    loadAdminBanner();
+    dismissBanner();
   }
 
   async function adminSendBlast() {
@@ -4689,6 +4770,31 @@
       showMsg(msgEl, 'success', 'Token cleared.');
       loadPlatformStatus();
     } catch { showMsg(msgEl, 'error', 'Network error.'); }
+  }
+
+  // ── Site announcement banner ─────────────────────────────────────────────────
+  async function loadSiteBanner() {
+    try {
+      const res = await fetch(`${BOT_API}/api/announcement`);
+      const data = await res.json();
+      const banner = document.getElementById('site-banner');
+      const text   = document.getElementById('site-banner-text');
+      if (!banner || !text) return;
+      if (data.active && data.message && !sessionStorage.getItem('banner_dismissed')) {
+        text.textContent = data.message;
+        banner.style.display = 'flex';
+        // Push main layout down
+        document.querySelector('.layout')?.style && (document.querySelector('.layout').style.paddingTop = '41px');
+      }
+    } catch {}
+  }
+
+  function dismissBanner() {
+    const banner = document.getElementById('site-banner');
+    if (banner) banner.style.display = 'none';
+    sessionStorage.setItem('banner_dismissed', '1');
+    const layout = document.querySelector('.layout');
+    if (layout) layout.style.paddingTop = '';
   }
 
   async function loadPlatformStatus() {
