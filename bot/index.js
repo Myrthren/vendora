@@ -4056,111 +4056,173 @@ document.getElementById('vc-user').addEventListener('keydown', (e) => {
 </html>`);
 });
 
-// ── Vinted via Apify: user lookup + inventory + profit sync ──────────────────
-// All Vinted data is fetched through the Apify residential proxy (apifyVFetch),
-// bypassing DataDome without any user tokens. Username is the only credential
-// we store — Apify handles bot-protection.
+// ── Vinted via Apify Actor API: user lookup + inventory + profit sync ─────────
+// Uses Apify actor REST API — NOT the Apify proxy. Works on the free Apify plan.
+// The actor runs on Apify's servers (with residential proxies), we just POST to
+// the REST API and get results back. No raw TCP tunnelling required.
+// Actor is configured via APIFY_VINTED_ACTOR env var (same one used for search).
 
+// Resolve a Vinted username → numeric user ID by fetching their member page via
+// the search actor. Extracts seller.id from any returned item.
+// Returns { id, login } on success, or null if no items / actor unavailable.
 async function apifyVintedFetchUserByUsername(username) {
-  if (!APIFY_PROXY_READY) return { error: 'apify-proxy-unconfigured' };
+  if (!APIFY_TOKEN) return null;
   const clean = String(username || '').trim().replace(/^@/, '');
   if (!clean) return null;
-  const bases = ['https://www.vinted.co.uk', 'https://www.vinted.fr'];
-  let proxyReachable = false;
-  for (const base of bases) {
-    try {
-      const r = await apifyVFetch(`${base}/api/v2/users?login=${encodeURIComponent(clean)}&per_page=5`, {
-        headers: { ...VINTED_HEADERS('', base), Authorization: undefined },
-        timeout: 45000, // Apify residential first-hop can take 10-20s
-      });
-      if (!r) continue;
-      proxyReachable = true;
-      if (!r.ok) { console.warn(`[apify-user-lookup] ${base} returned ${r.status}`); continue; }
-      const data = await r.json();
-      const users = data?.users || [];
-      const match = users.find(u => (u.login || '').toLowerCase() === clean.toLowerCase()) || users[0];
-      if (match?.id) return { id: match.id, login: match.login, base };
-    } catch (e) {
-      console.warn(`[apify-user-lookup] ${base}: ${e.message} (cause=${e.cause?.code || e.cause?.message || 'n/a'})`);
+  const memberUrl = `https://www.vinted.co.uk/member/${encodeURIComponent(clean)}/items`;
+  try {
+    const res = await fetch(
+      `https://api.apify.com/v2/acts/${APIFY_VINTED_ACTOR}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=90`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startUrls:  [{ url: memberUrl }],
+          search:     clean,
+          keyword:    clean,
+          maxItems:   10,
+          maxResults: 10,
+          country:    'gb',
+          countryCode: 'gb',
+        }),
+        signal: AbortSignal.timeout(95000),
+      }
+    );
+    if (!res.ok) {
+      console.warn(`[apify-user-lookup] actor ${APIFY_VINTED_ACTOR} returned ${res.status}`);
+      return null;
     }
+    const items = await res.json();
+    if (!Array.isArray(items) || !items.length) return null;
+    // Prefer an item whose seller username matches exactly; fall back to first item
+    const match = items.find(i => {
+      const s = i.seller || i.user || {};
+      return (s.username || s.login || '').toLowerCase() === clean.toLowerCase();
+    }) || items[0];
+    const seller   = match?.seller || match?.user || {};
+    const sellerId = seller.id || seller.userId || match?.userId || match?.sellerId;
+    const login    = seller.username || seller.login || match?.sellerUsername || clean;
+    if (sellerId) {
+      console.log(`[apify-user-lookup] resolved @${clean} → id ${sellerId}`);
+      return { id: sellerId, login };
+    }
+    return null;
+  } catch (e) {
+    console.warn('[apify-user-lookup] actor error:', e.message);
+    return null;
   }
-  return proxyReachable ? null : { error: 'apify-proxy-unreachable' };
 }
 
-async function apifyVintedFetchUserItems(userId, base = 'https://www.vinted.co.uk', perPage = 100) {
-  if (!APIFY_PROXY_READY || !userId) return [];
+// Fetch a user's active Vinted listings via Apify actor (member page as startUrl).
+// Falls back gracefully to empty array — inventory sync is best-effort.
+async function apifyVintedFetchUserItems(usernameOrId, _base, perPage = 100) {
+  if (!APIFY_TOKEN || !usernameOrId) return [];
+  // Accept either a numeric user ID or a username string
+  const isNumericId = /^\d+$/.test(String(usernameOrId));
+  const memberUrl = isNumericId
+    ? `https://www.vinted.co.uk/member/${usernameOrId}/items`
+    : `https://www.vinted.co.uk/member/${encodeURIComponent(usernameOrId)}/items`;
   try {
-    const r = await apifyVFetch(`${base}/api/v2/users/${userId}/items?per_page=${perPage}&page=1&order=newest_first`, {
-      headers: { ...VINTED_HEADERS('', base), Authorization: undefined },
-      timeout: 20000,
-    });
-    if (!r?.ok) return [];
-    const data = await r.json();
-    return data?.items || [];
+    const res = await fetch(
+      `https://api.apify.com/v2/acts/${APIFY_VINTED_ACTOR}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=120`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startUrls:  [{ url: memberUrl }],
+          maxItems:   perPage,
+          maxResults: perPage,
+          country:    'gb',
+          countryCode: 'gb',
+        }),
+        signal: AbortSignal.timeout(125000),
+      }
+    );
+    if (!res.ok) {
+      console.warn(`[apify-user-items] actor returned ${res.status}`);
+      return [];
+    }
+    const items = await res.json();
+    return Array.isArray(items) ? items : [];
   } catch (e) {
-    console.warn('[apify-user-items]:', e.message);
+    console.warn('[apify-user-items] actor error:', e.message);
     return [];
   }
 }
 
-function normaliseVintedItem(it, base) {
-  const price = typeof it.price === 'object' ? parseFloat(it.price?.amount || 0) : parseFloat(it.price || 0);
-  const photo = it.photo?.url || it.photos?.[0]?.url || null;
+function normaliseVintedItem(it, base = 'https://www.vinted.co.uk') {
+  // Handle both raw Vinted API format and Apify actor output format
+  const price = typeof it.price === 'object'
+    ? parseFloat(it.price?.amount || it.price?.value || 0)
+    : parseFloat(it.price || it.priceNumeric || 0);
+  const photo = it.photo?.url || it.photos?.[0]?.url || it.photo || it.photoUrl || it.thumbnailUrl || null;
+  const id    = String(it.id || it.itemId || '');
   return {
-    id:        String(it.id),
-    title:     it.title || '(untitled)',
+    id,
+    title:    it.title || it.name || '(untitled)',
     price,
-    currency:  it.currency || it.price?.currency_code || 'GBP',
+    currency: it.currency || it.price?.currency_code || it.currencyCode || 'GBP',
     photo,
-    url:       it.url || (it.id ? `${base}/items/${it.id}` : null),
-    status:    'active',
+    url:      it.url || it.itemUrl || (id ? `${base}/items/${id}` : null),
+    status:   'active',
     last_seen_at: new Date().toISOString(),
   };
 }
 
-// POST /api/vinted/connect-username — verify via Apify and save to platform_connections
+// POST /api/vinted/connect-username — save username immediately, resolve numeric
+// ID via Apify actor in background. No proxy required — works on free Apify plan.
 app.post('/api/vinted/connect-username', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const username = String(req.body?.username || '').trim().replace(/^@/, '');
   if (!username || !/^[A-Za-z0-9_.\-]{2,40}$/.test(username)) {
     return res.status(400).json({ error: 'Enter a valid Vinted username (letters, digits, underscores).' });
   }
-  if (!APIFY_PROXY_READY) {
-    return res.status(503).json({ error: 'Apify proxy is not configured on the server. Try again shortly.' });
-  }
-  const found = await apifyVintedFetchUserByUsername(username);
-  if (found?.error === 'apify-proxy-unconfigured') {
-    return res.status(503).json({ error: 'Apify proxy is not set up on the server. Add APIFY_PROXY_PASSWORD to Railway env vars (Apify Console → Settings → Integrations → Proxy password).' });
-  }
-  if (found?.error === 'apify-proxy-unreachable') {
-    return res.status(502).json({ error: 'Could not reach Vinted through the proxy. Check the Railway logs for the specific error — it may be an authentication failure (wrong APIFY_PROXY_PASSWORD), a plan restriction, or a temporary network issue.' });
-  }
-  if (!found?.id) {
-    return res.status(404).json({ error: `Could not find @${username} on Vinted. Check the spelling and try again.` });
-  }
+
+  // Save immediately — username alone is enough to connect. Numeric user ID is
+  // resolved in the background via Apify actor and saved back when ready.
   const save = await upsertPlatformConn(user.id, 'vinted', {
     access_token:      encryptToken(''),
     refresh_token:     null,
-    platform_user_id:  String(found.id),
-    platform_username: found.login || username,
+    platform_user_id:  '',        // filled in below by background actor call
+    platform_username: username,
     connected_at:      new Date().toISOString(),
   });
   if (!save.ok) return res.status(500).json({ error: save.error || 'Could not save connection.' });
-  console.log(`[vinted-connect] @${found.login} (id ${found.id}) for user ${user.id} — username-only mode`);
 
-  // Trigger an immediate inventory sync in the background; don't block the response
-  syncVintedInventoryForUser(user.id).catch(e => console.warn('[sync-inventory] initial:', e.message));
+  // Respond immediately — user is connected
+  res.json({ ok: true, username });
+  console.log(`[vinted-connect] @${username} saved for user ${user.id} — resolving numeric ID in background`);
 
-  res.json({ ok: true, username: found.login || username, vinted_user_id: found.id });
+  // Background: try to resolve numeric Vinted user ID via Apify actor and patch it in
+  ;(async () => {
+    try {
+      const found = await apifyVintedFetchUserByUsername(username);
+      if (found?.id) {
+        await upsertPlatformConn(user.id, 'vinted', {
+          platform_user_id:  String(found.id),
+          platform_username: found.login || username,
+        });
+        console.log(`[vinted-connect] patched numeric ID ${found.id} for @${username} (user ${user.id})`);
+      } else {
+        console.log(`[vinted-connect] could not resolve numeric ID for @${username} — username saved, ID lookup failed`);
+      }
+    } catch (e) {
+      console.warn('[vinted-connect] background ID resolve error:', e.message);
+    }
+    // Trigger initial inventory sync (best-effort)
+    syncVintedInventoryForUser(user.id).catch(e => console.warn('[sync-inventory] initial:', e.message));
+  })();
 });
 
-// Core sync: pulls user's listings via Apify, diffs against last snapshot,
+// Core sync: pulls user's listings via Apify actor, diffs against last snapshot,
 // items that vanished get marked sold (moved into vinted_sales_${userId}).
 async function syncVintedInventoryForUser(userId) {
   const conn = await getPlatformConn(userId, 'vinted');
-  if (!conn?.platform_user_id) return { ok: false, reason: 'no-connection-or-userid' };
+  if (!conn?.platform_username && !conn?.platform_user_id) return { ok: false, reason: 'no-connection' };
+  // Use numeric user ID if available, otherwise fall back to username
+  const identifier = conn.platform_user_id || conn.platform_username;
   const base  = 'https://www.vinted.co.uk';
-  const live  = await apifyVintedFetchUserItems(conn.platform_user_id, base, 100);
+  const live  = await apifyVintedFetchUserItems(identifier, base, 100);
   const fresh = live.map(it => normaliseVintedItem(it, base));
 
   const prevSnap = (await getSetting(`vinted_inventory_${userId}`)) || { items: [] };
