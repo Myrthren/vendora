@@ -148,7 +148,7 @@
   }
   .tier-pro { color: var(--pink); }
   .tier-elite { color: var(--gold); }
-  .tier-basic { color: var(--muted2); }
+  .tier-basic { color: var(--blue); }
   .sidebar-logout {
     width: 28px; height: 28px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
@@ -303,6 +303,7 @@
     font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
     padding: 2px 8px; border-radius: 3px;
   }
+  .badge-tier-basic { background: rgba(96,165,250,0.1); color: var(--blue); border: 1px solid rgba(96,165,250,0.2); }
   .badge-tier-pro { background: rgba(232,33,122,0.13); color: var(--pink); border: 1px solid rgba(232,33,122,0.2); }
   .badge-tier-elite { background: rgba(232,161,33,0.1); color: var(--gold); border: 1px solid rgba(232,161,33,0.2); }
   .badge-owner-tag { background: rgba(232,33,122,0.08); color: var(--pink); border: 1px solid var(--border); }
@@ -496,7 +497,7 @@
   .td-mono { font-family: monospace; font-size: 11px; color: var(--muted2); }
   .td-tier-pro { color: var(--pink); font-weight: 500; }
   .td-tier-elite { color: var(--gold); font-weight: 500; }
-  .td-tier-basic { color: var(--muted2); }
+  .td-tier-basic { color: var(--blue); font-weight: 500; }
   .td-active { color: var(--green); }
   .td-inactive { color: var(--red); }
   .td-actions { display: flex; gap: 6px; align-items: center; }
@@ -2880,7 +2881,7 @@
 
   const TIER = {
     none:  { label:'No Plan',  price:'—',              limit:'—',       color:'var(--muted)'  },
-    basic: { label:'Starter',  price:'£9.99 / month',  limit:'of 5/day',  color:'var(--muted2)' },
+    basic: { label:'Basic',    price:'£9.99 / month',  limit:'of 5/day',  color:'var(--blue)'   },
     pro:   { label:'Pro',      price:'£24.99 / month', limit:'of 50/day', color:'var(--pink)'   },
     elite: { label:'Elite',    price:'£49.99 / month', limit:'Unlimited', color:'var(--gold)'   },
   };
