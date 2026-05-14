@@ -368,8 +368,8 @@
     transition: background .15s, box-shadow .2s, color .15s;
   }
   .btn svg { display: block; }
-  .btn-pink { background: var(--pink); color: #fff; }
-  .btn-pink:hover { background: var(--pink-light); box-shadow: 0 0 16px rgba(232,33,122,0.35); }
+  .btn-pink, .btn-primary { background: var(--pink); color: #fff; }
+  .btn-pink:hover, .btn-primary:hover { background: var(--pink-light); box-shadow: 0 0 16px rgba(232,33,122,0.35); }
   .btn-ghost { background: rgba(255,255,255,0.04); color: var(--muted2); border: 1px solid var(--border-dim); }
   .btn-ghost:hover { background: rgba(255,255,255,0.07); color: var(--text); border-color: rgba(255,255,255,0.1); }
   .btn-danger { background: rgba(248,113,113,0.07); color: var(--red); border: 1px solid rgba(248,113,113,0.15); }
@@ -646,7 +646,6 @@
     <div class="nav-item" id="crosslist-nav-item" onclick="showSection('crosslist', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
       Listings
-      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(232,33,122,0.18);color:var(--pink);letter-spacing:.04em;">Pro+</span>
     </div>
     <div class="nav-item" id="listings-nav-item" onclick="showSection('listings', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 10h16M4 14h8M4 18h8"/><path d="M16 14l2 2 4-4"/></svg>
@@ -673,37 +672,30 @@
     <div class="nav-item" id="enhancer-nav-item" onclick="showSection('enhancer', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
       Photo Enhancer
-      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(232,161,33,0.15);color:var(--gold);letter-spacing:.04em;">credits</span>
     </div>
     <div class="nav-item" id="optimiser-nav-item" onclick="showSection('listing-optimiser', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
       Listing Optimiser
-      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(96,165,250,0.15);color:#60a5fa;letter-spacing:.04em;">Basic+</span>
     </div>
     <div class="nav-item" id="auto-draft-nav-item" onclick="showSection('auto-draft', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
       Auto-Draft
-      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(96,165,250,0.15);color:#60a5fa;letter-spacing:.04em;">Basic+</span>
     </div>
     <div class="nav-item" id="seller-intel-nav-item" onclick="showSection('seller-intelligence', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       Seller Intel
-      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(96,165,250,0.15);color:#60a5fa;letter-spacing:.04em;">Basic+</span>
     </div>
     <div class="nav-item" id="flip-score-nav-item" onclick="showSection('flip-score', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
       Flip Score
-      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(232,33,122,0.18);color:var(--pink);letter-spacing:.04em;">Pro+</span>
     </div>
     <div class="nav-item" id="price-elasticity-nav-item" onclick="showSection('price-elasticity', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
       Price Elasticity
-      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(232,33,122,0.18);color:var(--pink);letter-spacing:.04em;">Pro+</span>
     </div>
     <div class="nav-item" id="resell-calendar-nav-item" onclick="showSection('resell-calendar', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       Resell Calendar
-      <span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(232,33,122,0.18);color:var(--pink);letter-spacing:.04em;">Pro+</span>
     </div>
     <div class="nav-item" onclick="showSection('credits', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M14.31 8l5.74 9.94M9.69 8h11.48M7.38 12l5.74-9.94M9.69 16L3.95 6.06M14.31 16H2.83M16.62 12l-5.74 9.94"/></svg>
@@ -2995,12 +2987,12 @@
     initListingsAccess(tier);
     initAutobuyAccess(tier);
     initEnhancerAccess(tier);
-    initToolAccess('lopt-gate','lopt-tool', tier, 'basic');
-    initToolAccess('draft-gate','draft-tool', tier, 'basic');
-    initToolAccess('sintel-gate','sintel-tool', tier, 'basic');
-    initToolAccess('fscore-gate','fscore-tool', tier, 'pro');
-    initToolAccess('pelast-gate','pelast-tool', tier, 'pro');
-    initToolAccess('rcal-gate','rcal-tool', tier, 'pro');
+    initToolAccess('lopt-gate','lopt-tool', tier, 'basic', 'optimiser-nav-item');
+    initToolAccess('draft-gate','draft-tool', tier, 'basic', 'auto-draft-nav-item');
+    initToolAccess('sintel-gate','sintel-tool', tier, 'basic', 'seller-intel-nav-item');
+    initToolAccess('fscore-gate','fscore-tool', tier, 'pro', 'flip-score-nav-item');
+    initToolAccess('pelast-gate','pelast-tool', tier, 'pro', 'price-elasticity-nav-item');
+    initToolAccess('rcal-gate','rcal-tool', tier, 'pro', 'resell-calendar-nav-item');
     if (tier === 'pro' || tier === 'elite') rcalLoad();
     loadPlatformStatus();
     loadNotificationPrefs();
@@ -6531,12 +6523,14 @@
 
   // ── Generic tier gate helper ──────────────────────────────────────────────────
   const TIER_RANK_CLIENT = { none:0, basic:1, pro:2, elite:3 };
-  function initToolAccess(gateId, toolId, tier, required) {
+  function initToolAccess(gateId, toolId, tier, required, navId) {
     const gate = document.getElementById(gateId);
     const tool = document.getElementById(toolId);
+    const nav  = navId ? document.getElementById(navId) : null;
     const ok   = TIER_RANK_CLIENT[tier] >= TIER_RANK_CLIENT[required];
     if (gate) gate.style.display = ok ? 'none' : '';
     if (tool) tool.style.display = ok ? ''     : 'none';
+    if (nav)  { nav.style.opacity = ok ? '' : '0.35'; nav.style.pointerEvents = ok ? '' : 'none'; }
   }
 
   // ── Listing Optimiser ─────────────────────────────────────────────────────────
