@@ -439,6 +439,106 @@ async function vintedBrowserFetchAnalytics(accessToken, userId) {
   }
 }
 
+// Look up a Vinted user by username via browser context (DataDome bypassed).
+// Returns { id, login }  — user found with numeric ID
+//         { exists }     — user page loaded but ID not extractable (has 0 listings)
+//         { not_found }  — user definitively does not exist
+//         { error }      — browser unavailable or network failure
+async function vintedBrowserLookupUser(username) {
+  if (!chromium) return { error: 'Browser unavailable' };
+  let page;
+  try {
+    const ctx = await ensureBrowser();
+    page = await ctx.newPage();
+    const base = await resolveVintedBase(page);
+    const clean = username.toLowerCase();
+
+    // Step 1: Try user search API from inside browser context (DataDome bypassed).
+    // Vinted returns an array of users matching the search_text query.
+    const apiResult = await page.evaluate(async ({ base, clean }) => {
+      for (const url of [
+        `${base}/api/v2/users?search_text=${encodeURIComponent(clean)}&per_page=20`,
+        `${base}/api/v2/users?login=${encodeURIComponent(clean)}&per_page=5`,
+      ]) {
+        try {
+          const r = await fetch(url, { headers: { Accept: 'application/json' }, credentials: 'include' });
+          if (!r.ok) continue;
+          const d = await r.json();
+          const list = Array.isArray(d) ? d : (d.users || d.members || d.items || []);
+          const hit = list.find(u =>
+            (u.login || u.username || '').toLowerCase() === clean
+          );
+          if (hit) return { id: String(hit.id), login: hit.login || hit.username || clean };
+        } catch {}
+      }
+      return null;
+    }, { base, clean });
+
+    if (apiResult?.id) {
+      console.log(`[vinted-lookup] API found @${clean} → id ${apiResult.id}`);
+      return apiResult;
+    }
+
+    // Step 2: Navigate to the member page and check if it's real.
+    // A non-existent user redirects away from /member/{username}.
+    console.log(`[vinted-lookup] API miss, navigating to member page for @${clean}`);
+    await page.goto(`${base}/member/${encodeURIComponent(username)}/items`, {
+      waitUntil: 'domcontentloaded', timeout: 20000,
+    });
+    await page.waitForTimeout(2000);
+
+    const finalUrl = page.url().toLowerCase();
+    // If Vinted redirected to login, 404, or homepage → user doesn't exist
+    if (
+      finalUrl.includes('/login') ||
+      finalUrl.includes('not_found') ||
+      finalUrl.includes('/users/') ||
+      (!finalUrl.includes('/member/') && !finalUrl.includes(clean))
+    ) {
+      console.log(`[vinted-lookup] @${clean} not found (redirected to ${finalUrl})`);
+      return { not_found: true };
+    }
+
+    // Member page loaded — try to extract user ID from Next.js embedded state
+    const pageId = await page.evaluate((clean) => {
+      try {
+        const nd = window.__NEXT_DATA__;
+        if (nd) {
+          const str = JSON.stringify(nd);
+          // Find "id":12345,"login":"username" pattern
+          const re = new RegExp('"id":(\\d+),"login":"' + clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"', 'i');
+          const m = re.exec(str);
+          if (m) return m[1];
+        }
+      } catch {}
+      // Also scan all <script> tags for embedded user ID
+      try {
+        for (const s of document.querySelectorAll('script')) {
+          const txt = s.textContent || '';
+          if (!txt.includes(clean)) continue;
+          const m = new RegExp('"id":(\\d+)[^}]*"login":"' + clean + '"', 'i').exec(txt);
+          if (m) return m[1];
+        }
+      } catch {}
+      return null;
+    }, clean);
+
+    if (pageId) {
+      console.log(`[vinted-lookup] @${clean} found via page state → id ${pageId}`);
+      return { id: pageId, login: username };
+    }
+
+    // Page is for this user but couldn't extract ID (e.g., 0 listings, no state embed)
+    console.log(`[vinted-lookup] @${clean} page loaded but ID not extracted`);
+    return { exists: true, login: username };
+  } catch (e) {
+    console.warn('[vinted-lookup] error:', e.message);
+    return { error: e.message };
+  } finally {
+    try { if (page) await page.close(); } catch {}
+  }
+}
+
 // Fetch a public Vinted item via the browser — bypasses DataDome.
 // Approach: navigate directly to the item URL (so DataDome solves naturally),
 // wait for the page to render, then call /api/v2/items/{id} from inside the
@@ -569,6 +669,7 @@ async function vintedBrowserFetchItem(itemIdOrUrl) {
 
 module.exports = {
   vintedBrowserLogin,
+  vintedBrowserLookupUser,
   vintedBrowserUploadPhoto,
   vintedBrowserCreateListing,
   vintedBrowserValidateToken,

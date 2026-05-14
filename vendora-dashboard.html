@@ -1716,7 +1716,10 @@
       <div class="card" style="padding:0;overflow:hidden;">
         <div style="padding:16px 20px;border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
           <div class="card-title" style="margin:0;">Sales Log</div>
-          <button class="btn btn-ghost btn-sm" onclick="clearAllSales()" style="color:var(--red);">Clear All</button>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button id="pt-clear-imported-btn" class="btn btn-ghost btn-sm" onclick="clearImportedSales()" style="color:var(--muted);">Clear auto-imported</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearAllSales()" style="color:var(--red);">Clear all</button>
+          </div>
         </div>
         <table class="data-table">
           <thead>
@@ -4501,6 +4504,25 @@
     if (!confirm('Clear all manually-logged sales? Auto-imported Vinted sales are not affected.')) return;
     ptSave([]);
     ptRefresh();
+  }
+
+  async function clearImportedSales() {
+    if (!confirm('Clear all auto-imported Vinted sales? Manually-logged sales are not affected.')) return;
+    const btn = document.getElementById('pt-clear-imported-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Clearing…'; }
+    try {
+      const res = await fetch(`${BOT_API}/api/vinted/sales`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${session?.access_token}` },
+      });
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      _ptAutoSales = [];
+      ptRefresh();
+    } catch (e) {
+      alert('Could not clear imported sales: ' + e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Clear auto-imported'; }
+    }
   }
 
   async function loadProfitSync() {

@@ -4247,8 +4247,8 @@ function normaliseVintedItem(it, base = 'https://www.vinted.co.uk') {
   };
 }
 
-// POST /api/vinted/connect-username — save username immediately, resolve numeric
-// ID via Apify actor in background. No proxy required — works on free Apify plan.
+// POST /api/vinted/connect-username — validate username exists on Vinted via
+// Playwright (DataDome-safe), then save connection with the numeric seller ID.
 app.post('/api/vinted/connect-username', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const username = String(req.body?.username || '').trim().replace(/^@/, '');
@@ -4256,44 +4256,53 @@ app.post('/api/vinted/connect-username', async (req, res) => {
     return res.status(400).json({ error: 'Enter a valid Vinted username (letters, digits, underscores).' });
   }
 
-  // Clear any stale inventory snapshot from a previous connection so the
-  // dashboard doesn't show another user's items while the new sync runs.
-  await saveSetting(`vinted_inventory_${user.id}`, { items: [], last_synced: null });
+  // ── Validate username exists on Vinted before saving ─────────────────────
+  // Uses Playwright browser context to bypass DataDome. Also extracts the
+  // numeric seller ID (needed for reliable inventory fetching via catalog URL).
+  let numericId = '';
+  if (vintedBrowser?.vintedBrowserLookupUser) {
+    try {
+      const lookup = await Promise.race([
+        vintedBrowser.vintedBrowserLookupUser(username),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('lookup timeout')), 35000)),
+      ]);
+      if (lookup?.not_found) {
+        return res.status(404).json({ error: `@${username} was not found on Vinted. Check the spelling and try again.` });
+      }
+      if (lookup?.id) {
+        numericId = String(lookup.id);
+        console.log(`[vinted-connect] @${username} validated → numeric ID ${numericId}`);
+      } else if (lookup?.exists) {
+        console.log(`[vinted-connect] @${username} page confirmed (no listings, ID not extracted)`);
+      } else if (lookup?.error) {
+        console.warn(`[vinted-connect] validation error (saving anyway): ${lookup.error}`);
+      }
+    } catch (e) {
+      // Timeout or crash — save anyway (best-effort; don't block the user)
+      console.warn(`[vinted-connect] validation failed (saving anyway): ${e.message}`);
+    }
+  }
 
-  // Save immediately — username alone is enough to connect. Numeric user ID is
-  // resolved in the background via Apify actor and saved back when ready.
+  // ── Clear stale data from any previous connection ────────────────────────
+  // Wipe both inventory snapshot AND sales history so no other user's items
+  // bleed into this account's profit tracker.
+  await saveSetting(`vinted_inventory_${user.id}`, { items: [], last_synced: null });
+  await saveSetting(`vinted_sales_${user.id}`,     { sales: [], last_synced: null });
+
   const save = await upsertPlatformConn(user.id, 'vinted', {
     access_token:      encryptToken(''),
     refresh_token:     null,
-    platform_user_id:  '',        // filled in below by background actor call
+    platform_user_id:  numericId,
     platform_username: username,
     connected_at:      new Date().toISOString(),
   });
   if (!save.ok) return res.status(500).json({ error: save.error || 'Could not save connection.' });
 
-  // Respond immediately — user is connected
-  res.json({ ok: true, username });
-  console.log(`[vinted-connect] @${username} saved for user ${user.id} — resolving numeric ID in background`);
+  res.json({ ok: true, username, seller_id: numericId || null });
+  console.log(`[vinted-connect] @${username} saved for user ${user.id} (seller_id=${numericId || 'unknown'})`);
 
-  // Background: try to resolve numeric Vinted user ID via Apify actor and patch it in
-  ;(async () => {
-    try {
-      const found = await apifyVintedFetchUserByUsername(username);
-      if (found?.id) {
-        await upsertPlatformConn(user.id, 'vinted', {
-          platform_user_id:  String(found.id),
-          platform_username: found.login || username,
-        });
-        console.log(`[vinted-connect] patched numeric ID ${found.id} for @${username} (user ${user.id})`);
-      } else {
-        console.log(`[vinted-connect] could not resolve numeric ID for @${username} — username saved, ID lookup failed`);
-      }
-    } catch (e) {
-      console.warn('[vinted-connect] background ID resolve error:', e.message);
-    }
-    // Trigger initial inventory sync (best-effort)
-    syncVintedInventoryForUser(user.id).catch(e => console.warn('[sync-inventory] initial:', e.message));
-  })();
+  // Background: trigger initial inventory sync now that we have the seller ID
+  syncVintedInventoryForUser(user.id).catch(e => console.warn('[sync-inventory] initial:', e.message));
 });
 
 // Resolve the numeric Vinted user ID from the stored access_token_web.
@@ -4355,6 +4364,17 @@ async function syncVintedInventoryForUser(userId) {
       if (found?.id) sellerId = String(found.id);
     }
 
+    // Path 3: Playwright member page lookup — bypasses DataDome, reads page state
+    if (!sellerId && conn.platform_username && vintedBrowser?.vintedBrowserLookupUser) {
+      try {
+        const r = await vintedBrowser.vintedBrowserLookupUser(conn.platform_username);
+        if (r?.id) {
+          sellerId = String(r.id);
+          console.log(`[sync-inventory] Playwright lookup → id ${sellerId} for @${conn.platform_username}`);
+        }
+      } catch (e) { console.warn('[sync-inventory] Playwright lookup failed:', e.message); }
+    }
+
     // Persist if resolved so future syncs use catalog URL directly
     if (sellerId) {
       await upsertPlatformConn(userId, 'vinted', { platform_user_id: sellerId });
@@ -4363,6 +4383,7 @@ async function syncVintedInventoryForUser(userId) {
       console.warn(`[sync-inventory] could not resolve seller ID for @${conn.platform_username}`);
     }
   }
+  const confirmedSellerId = !!sellerId; // track whether we have a verified numeric ID
 
   const identifier   = sellerId || conn.platform_username;
   const connUsername = (conn.platform_username || '').toLowerCase();
@@ -4418,10 +4439,18 @@ async function syncVintedInventoryForUser(userId) {
   const prevSnap = (await getSetting(`vinted_inventory_${userId}`)) || { items: [] };
   const prev     = prevSnap.items || [];
 
-  // Detect sales: items in prev (active) that are missing from fresh
+  // Detect sales: items in prev (active) that are missing from fresh.
+  // ONLY run sale detection when we have a confirmed numeric seller ID —
+  // if we fell back to the unreliable member-URL path the "vanished" items
+  // could belong to a different user, creating phantom sales.
   const freshIds = new Set(fresh.map(i => i.id).filter(Boolean));
-  const vanished = prev.filter(p => p.status === 'active' && p.id && !freshIds.has(p.id));
+  const vanished = confirmedSellerId
+    ? prev.filter(p => p.status === 'active' && p.id && !freshIds.has(p.id))
+    : [];
 
+  if (confirmedSellerId && !vanished.length) {
+    // nothing vanished — nothing to log
+  }
   if (vanished.length) {
     const salesSnap = (await getSetting(`vinted_sales_${userId}`)) || { sales: [] };
     const knownSaleIds = new Set((salesSnap.sales || []).map(s => s.id));
@@ -4569,6 +4598,13 @@ app.post('/api/vinted/sync-profit', async (req, res) => {
     sales: snap.sales || [],
     new_sold: r.sold_now,
   });
+});
+
+// DELETE /api/vinted/sales — wipe auto-imported sales history for this user.
+app.delete('/api/vinted/sales', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  await saveSetting(`vinted_sales_${user.id}`, { sales: [], last_synced: null });
+  res.json({ ok: true });
 });
 
 // Get connection status for all platforms
