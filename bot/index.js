@@ -4229,12 +4229,25 @@ async function apifyVintedFetchUserItems(usernameOrId, _base, perPage = 96) {
 }
 
 function normaliseVintedItem(it, base = 'https://www.vinted.co.uk') {
-  // Handle both raw Vinted API format and Apify actor output format
+  // Handle both raw Vinted API format and Apify actor output format.
+  // Raw API: price = { amount: "45.00", currency_code: "GBP" }
+  // Apify:   price = 45.0 (number) or priceNumeric
   const price = typeof it.price === 'object'
     ? parseFloat(it.price?.amount || it.price?.value || 0)
     : parseFloat(it.price || it.priceNumeric || 0);
-  const photo = it.photo?.url || it.photos?.[0]?.url || it.photo || it.photoUrl || it.thumbnailUrl || null;
-  const id    = String(it.id || it.itemId || '');
+  // Raw API: photo = { url, full_size_url, thumbnails: [{url}] }
+  // Apify:   photo = string URL, or photos = [{ url }]
+  const photo =
+    it.photo?.full_size_url ||
+    it.photo?.url ||
+    it.photos?.[0]?.full_size_url ||
+    it.photos?.[0]?.url ||
+    (typeof it.photo === 'string' ? it.photo : null) ||
+    it.photoUrl ||
+    it.thumbnailUrl ||
+    it.photo?.thumbnails?.[0]?.url ||
+    null;
+  const id = String(it.id || it.itemId || '');
   return {
     id,
     title:    it.title || it.name || '(untitled)',
@@ -4242,7 +4255,7 @@ function normaliseVintedItem(it, base = 'https://www.vinted.co.uk') {
     currency: it.currency || it.price?.currency_code || it.currencyCode || 'GBP',
     photo,
     url:      it.url || it.itemUrl || (id ? `${base}/items/${id}` : null),
-    status:   'active',
+    status:   it.status === 'reserved' ? 'reserved' : 'active',
     last_seen_at: new Date().toISOString(),
   };
 }
@@ -4389,7 +4402,29 @@ async function syncVintedInventoryForUser(userId) {
   const connUsername = (conn.platform_username || '').toLowerCase();
   const base = 'https://www.vinted.co.uk';
   console.log(`[sync-inventory] fetching items with identifier=${identifier}`);
-  const raw  = await apifyVintedFetchUserItems(identifier, base, 100);
+
+  // ── Fetch items: Playwright first (no Apify dependency), fall back to Apify ──
+  // Playwright loads the catalog page through a real browser (DataDome bypassed)
+  // and intercepts the XHR Vinted's frontend makes — the most reliable path.
+  // Apify is only used if Playwright returns nothing (e.g., browser not started yet).
+  let raw = [];
+  if (sellerId && vintedBrowser?.vintedBrowserFetchPublicUserItems) {
+    try {
+      const br = await vintedBrowser.vintedBrowserFetchPublicUserItems(sellerId);
+      if (br.items?.length > 0) {
+        raw = br.items;
+        console.log(`[sync-inventory] Playwright fetch: ${raw.length} items for seller ${sellerId}`);
+      } else if (br.error) {
+        console.warn(`[sync-inventory] Playwright fetch error: ${br.error}`);
+      }
+    } catch (e) {
+      console.warn('[sync-inventory] Playwright fetch threw:', e.message);
+    }
+  }
+  if (!raw.length) {
+    console.log(`[sync-inventory] Playwright returned nothing — falling back to Apify for ${identifier}`);
+    raw = await apifyVintedFetchUserItems(identifier, base, 100);
+  }
 
   // Filter items to the connected user only when the actor returns seller info.
   // Rule: discard only if seller info IS present AND username clearly belongs to

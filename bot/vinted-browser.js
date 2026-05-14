@@ -667,9 +667,91 @@ async function vintedBrowserFetchItem(itemIdOrUrl) {
   return first;
 }
 
+// ─── public: fetch a seller's active listings (no token required) ────────────
+// Loads the public catalog page filtered by seller_ids[] through the shared
+// Playwright browser context (DataDome already solved). Intercepts the XHR
+// requests Vinted's own frontend makes so we get the real item data — no Apify.
+// Falls back to extracting __NEXT_DATA__ if network interception misses.
+// Returns { items: Array } | { items: [], error: string }
+async function vintedBrowserFetchPublicUserItems(sellerId) {
+  if (!chromium) return { items: [], error: 'Browser unavailable' };
+  const id = String(sellerId || '').trim();
+  if (!/^\d+$/.test(id)) return { items: [], error: 'Numeric seller ID required' };
+
+  let page;
+  const capturedItems = [];
+
+  try {
+    const ctx = await ensureBrowser();
+    page = await ctx.newPage();
+
+    // Intercept API responses — capture whatever Vinted's frontend fetches
+    page.on('response', async (response) => {
+      const url = response.url();
+      if (!url.includes('/api/v2/')) return;
+      if (!url.includes('item') && !url.includes('catalog')) return;
+      try {
+        const ct = response.headers()['content-type'] || '';
+        if (!ct.includes('json')) return;
+        const body = await response.json().catch(() => null);
+        if (!body) return;
+        const arr = body.items || body.data || [];
+        if (Array.isArray(arr) && arr.length > 0) {
+          capturedItems.push(...arr);
+        }
+      } catch {}
+    });
+
+    const base = await resolveVintedBase(page);
+    const catalogUrl = `${base}/catalog?seller_ids[]=${id}&order=newest_first&per_page=96`;
+    console.log(`[vinted-browser-items] loading catalog for seller ${id}`);
+
+    await page.goto(catalogUrl, { waitUntil: 'networkidle', timeout: 40000 }).catch(() =>
+      page.goto(catalogUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {})
+    );
+    // Give any late XHRs a moment to land
+    await page.waitForTimeout(3000);
+
+    if (capturedItems.length > 0) {
+      console.log(`[vinted-browser-items] network intercept: ${capturedItems.length} items for seller ${id}`);
+      return { items: capturedItems };
+    }
+
+    // Fallback: pull from Next.js embedded page state
+    const nextItems = await page.evaluate(() => {
+      try {
+        const nd = window.__NEXT_DATA__;
+        if (!nd) return [];
+        const p = nd.props?.pageProps;
+        return (
+          p?.items ||
+          p?.catalogItems?.catalogItems ||
+          p?.initialState?.catalog?.items ||
+          p?.catalog?.items ||
+          []
+        );
+      } catch { return []; }
+    });
+
+    if (nextItems.length > 0) {
+      console.log(`[vinted-browser-items] __NEXT_DATA__: ${nextItems.length} items for seller ${id}`);
+      return { items: nextItems };
+    }
+
+    console.warn(`[vinted-browser-items] no items found for seller ${id}`);
+    return { items: [] };
+  } catch (e) {
+    console.warn('[vinted-browser-items] error:', e.message);
+    return { items: [], error: e.message };
+  } finally {
+    try { if (page) await page.close(); } catch {}
+  }
+}
+
 module.exports = {
   vintedBrowserLogin,
   vintedBrowserLookupUser,
+  vintedBrowserFetchPublicUserItems,
   vintedBrowserUploadPhoto,
   vintedBrowserCreateListing,
   vintedBrowserValidateToken,
