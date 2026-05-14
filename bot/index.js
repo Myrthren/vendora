@@ -460,11 +460,12 @@ async function searchDepop(query) {
 }
 
 // ── Apify Vinted Scraper ──────────────────────────────────────────────────────
-// Uses Apify's Vinted Scraper actor which runs on residential proxies and reliably
-// bypasses DataDome. Falls back to direct API if Apify token is unavailable.
-// Apify actor used for Vinted keyword search (Auto-Buy, /vinted-alert).
-// Override via APIFY_VINTED_ACTOR env var. Format: "username~actor-name".
-const APIFY_VINTED_ACTOR = process.env.APIFY_VINTED_ACTOR || 'epicscrapers~vinted-search-scraper';
+// Two separate actors:
+//   APIFY_VINTED_ACTOR      — keyword search (Auto-Buy, /vinted-alert, /scan)
+//   APIFY_VINTED_USER_ACTOR — user profile/member page item fetching (inventory)
+// Override either via Railway env vars. Format: "username~actor-name".
+const APIFY_VINTED_ACTOR      = process.env.APIFY_VINTED_ACTOR      || 'epicscrapers~vinted-search-scraper';
+const APIFY_VINTED_USER_ACTOR = process.env.APIFY_VINTED_USER_ACTOR || 'kazkn~vinted-smart-scraper';
 
 async function apifyVintedSearch(query, maxItems = 12) {
   if (!APIFY_TOKEN) return null;
@@ -2720,19 +2721,31 @@ function discordIdFromUser(user) {
 }
 
 // GET /api/inventory — return the Vinted-auto-synced inventory snapshot.
-// Items are fetched from Vinted via Apify residential proxy (no manual entry).
-// The cron job at the bottom of this file refreshes the snapshot every 6 hours.
+// If connected but no snapshot yet (first load after connect), auto-triggers
+// a background sync and returns syncing:true so the dashboard can show a spinner.
 app.get('/api/inventory', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const conn = await getPlatformConn(user.id, 'vinted');
   if (!conn) return res.json({ ok: true, items: [], connected: false });
   const snap = (await getSetting(`vinted_inventory_${user.id}`)) || { items: [], last_synced: null };
+  const items = snap.items || [];
+
+  // Auto-trigger a background sync if Vinted is connected but we have no items yet
+  if (items.length === 0 && !snap.last_synced) {
+    syncVintedInventoryForUser(user.id).catch(e => console.warn('[auto-sync]', e.message));
+    return res.json({
+      ok: true, connected: true, syncing: true,
+      username: conn.platform_username, last_synced: null, items: [],
+    });
+  }
+
   return res.json({
     ok: true,
     connected: true,
+    syncing: false,
     username: conn.platform_username,
     last_synced: snap.last_synced,
-    items: snap.items || [],
+    items,
   });
 });
 
@@ -4146,37 +4159,45 @@ async function apifyVintedFetchUserByUsername(username) {
   }
 }
 
-// Fetch a user's active Vinted listings via Apify actor (member page as startUrl).
-// Falls back gracefully to empty array — inventory sync is best-effort.
+// Fetch a user's active Vinted listings via APIFY_VINTED_USER_ACTOR.
+// Uses kazkn~vinted-smart-scraper by default — it honours member page startUrls
+// and returns items with seller info, unlike search-only actors.
 async function apifyVintedFetchUserItems(usernameOrId, _base, perPage = 100) {
   if (!APIFY_TOKEN || !usernameOrId) return [];
-  // Accept either a numeric user ID or a username string
-  const isNumericId = /^\d+$/.test(String(usernameOrId));
+  const clean = String(usernameOrId).trim();
+  const isNumericId = /^\d+$/.test(clean);
   const memberUrl = isNumericId
-    ? `https://www.vinted.co.uk/member/${usernameOrId}/items`
-    : `https://www.vinted.co.uk/member/${encodeURIComponent(usernameOrId)}/items`;
+    ? `https://www.vinted.co.uk/member/${clean}/items`
+    : `https://www.vinted.co.uk/member/${encodeURIComponent(clean)}/items`;
   try {
     const res = await fetch(
-      `https://api.apify.com/v2/acts/${APIFY_VINTED_ACTOR}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=120`,
+      `https://api.apify.com/v2/acts/${APIFY_VINTED_USER_ACTOR}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=120`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        // Wide input key coverage — different actor versions use different field names
         body: JSON.stringify({
-          startUrls:  [{ url: memberUrl }],
-          maxItems:   perPage,
-          maxResults: perPage,
-          country:    'gb',
-          countryCode: 'gb',
+          startUrls:    [{ url: memberUrl }],
+          urls:         [memberUrl],
+          profileUrls:  [memberUrl],
+          memberUrl:    memberUrl,
+          maxItems:     perPage,
+          maxResults:   perPage,
+          resultsLimit: perPage,
+          country:      'gb',
+          countryCode:  'gb',
         }),
         signal: AbortSignal.timeout(125000),
       }
     );
     if (!res.ok) {
-      console.warn(`[apify-user-items] actor returned ${res.status}`);
+      console.warn(`[apify-user-items] ${APIFY_VINTED_USER_ACTOR} returned ${res.status}`);
       return [];
     }
     const items = await res.json();
-    return Array.isArray(items) ? items : [];
+    if (!Array.isArray(items)) return [];
+    console.log(`[apify-user-items] got ${items.length} raw items for ${clean}`);
+    return items;
   } catch (e) {
     console.warn('[apify-user-items] actor error:', e.message);
     return [];
@@ -4259,20 +4280,39 @@ async function syncVintedInventoryForUser(userId) {
   // Use numeric user ID if available, otherwise fall back to username
   const identifier = conn.platform_user_id || conn.platform_username;
   const connUsername = (conn.platform_username || '').toLowerCase();
-  const base  = 'https://www.vinted.co.uk';
-  const raw   = await apifyVintedFetchUserItems(identifier, base, 100);
+  const base = 'https://www.vinted.co.uk';
+  const raw  = await apifyVintedFetchUserItems(identifier, base, 100);
 
-  // Filter to only items that belong to the connected user — the actor can return
-  // items from unrelated sellers if it doesn't honour the member page URL.
+  // Filter items to the connected user only when the actor returns seller info.
+  // Rule: discard only if seller info IS present AND username clearly belongs to
+  // a different user. If seller info is absent, keep the item (trust the URL).
   const live = connUsername
     ? raw.filter(it => {
         const s = it.seller || it.user || {};
-        const sellerName = (s.username || s.login || s.name || it.sellerUsername || '').toLowerCase();
-        // If the actor returns seller info, use it to filter; if absent, keep the item
-        // (better to show extra than to show nothing on actors that omit seller fields)
-        return !sellerName || sellerName === connUsername;
+        const sName = (s.username || s.login || s.name || it.sellerUsername || '').toLowerCase();
+        if (!sName) return true;                   // no seller info → keep (trust URL)
+        if (sName === connUsername) return true;   // exact match → keep
+        // Check numeric ID match too
+        const sId = String(s.id || s.userId || it.sellerId || it.userId || '');
+        if (sId && conn.platform_user_id && sId === String(conn.platform_user_id)) return true;
+        return false; // different seller — discard
       })
     : raw;
+
+  console.log(`[sync-inventory] ${live.length}/${raw.length} items kept for @${connUsername}`);
+
+  // If actor returned nothing (0 raw items), don't overwrite an existing good snapshot.
+  // Return 0 without saving so the user sees their last known listings until retry.
+  if (raw.length === 0) {
+    console.warn(`[sync-inventory] actor returned 0 items for @${connUsername} — keeping existing snapshot`);
+    return { ok: true, count: 0, sold_now: 0, actor_empty: true };
+  }
+
+  // If all items were filtered out (all from wrong seller), treat as actor failure
+  if (live.length === 0 && raw.length > 0) {
+    console.warn(`[sync-inventory] all ${raw.length} items filtered out (wrong seller) — keeping existing snapshot`);
+    return { ok: true, count: 0, sold_now: 0, all_filtered: true };
+  }
 
   const fresh = live.map(it => normaliseVintedItem(it, base));
 
@@ -4280,8 +4320,8 @@ async function syncVintedInventoryForUser(userId) {
   const prev     = prevSnap.items || [];
 
   // Detect sales: items in prev (active) that are missing from fresh
-  const freshIds = new Set(fresh.map(i => i.id));
-  const vanished = prev.filter(p => p.status === 'active' && !freshIds.has(p.id));
+  const freshIds = new Set(fresh.map(i => i.id).filter(Boolean));
+  const vanished = prev.filter(p => p.status === 'active' && p.id && !freshIds.has(p.id));
 
   if (vanished.length) {
     const salesSnap = (await getSetting(`vinted_sales_${userId}`)) || { sales: [] };

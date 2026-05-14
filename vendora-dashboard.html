@@ -1150,14 +1150,6 @@
             </div>
             <button class="btn btn-ghost btn-sm" disabled>Soon</button>
           </div>
-          <div class="platform-connect" style="opacity:.5;cursor:not-allowed;">
-            <div class="plat-icon">VC</div>
-            <div class="plat-details">
-              <div class="plat-name-row">Vestiaire Collective</div>
-              <div class="plat-status-row">Luxury resale platform — in development</div>
-            </div>
-            <button class="btn btn-ghost btn-sm" disabled>Soon</button>
-          </div>
         </div>
       </div>
     </div>
@@ -4135,6 +4127,7 @@
   }
 
   // ── Inventory (auto-synced from Vinted via Apify) ─────────────────────────────
+  let _invSyncPoll = null;
   async function loadInventory() {
     const tbody  = document.getElementById('inventory-tbody');
     const dot    = document.getElementById('inv-status-dot');
@@ -4152,33 +4145,53 @@
         tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Failed to load.</td></tr>`;
         return;
       }
-      const { items, connected, username, last_synced } = await res.json();
+      const { items, connected, username, last_synced, syncing } = await res.json();
       if (connected) {
-        if (dot) dot.style.background = 'var(--green)';
+        if (dot) dot.style.background = syncing ? 'var(--pink)' : 'var(--green)';
         if (tEl) tEl.textContent = `Vinted connected — @${username || 'unknown'}`;
-        if (sEl) sEl.textContent = last_synced
-          ? `Last auto-synced ${new Date(last_synced).toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}`
-          : 'Awaiting first sync — click Sync now.';
-        if (btn) btn.disabled = false;
+        if (sEl) sEl.textContent = syncing
+          ? 'Fetching your listings from Vinted… this takes about 30–60 seconds.'
+          : last_synced
+            ? `Last auto-synced ${new Date(last_synced).toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}`
+            : 'Awaiting first sync — click Sync now.';
+        if (btn) btn.disabled = syncing;
+        // Auto-poll every 8s while a background sync is running
+        if (syncing && !_invSyncPoll) {
+          _invSyncPoll = setInterval(async () => {
+            const s2 = await sb.auth.getSession();
+            const r2 = await fetch(`${BOT_API}/api/inventory`, { headers: { 'Authorization': `Bearer ${s2.data.session?.access_token}` } });
+            if (r2.ok) {
+              const d2 = await r2.json();
+              if (!d2.syncing || d2.items?.length > 0) {
+                clearInterval(_invSyncPoll); _invSyncPoll = null;
+                loadInventory();
+              }
+            }
+          }, 8000);
+        } else if (!syncing && _invSyncPoll) {
+          clearInterval(_invSyncPoll); _invSyncPoll = null;
+        }
       } else {
         if (dot) dot.style.background = 'var(--muted)';
         if (tEl) tEl.textContent = 'Vinted not connected';
         if (sEl) sEl.innerHTML = `Connect your Vinted account on the <a href="#" onclick="showSection('platforms',document.querySelector('[onclick*=platforms]'));return false;" style="color:var(--pink);text-decoration:none;">Platforms</a> page to auto-import your listings.`;
         if (btn) btn.disabled = true;
       }
-      renderInventoryTable(items, connected);
+      renderInventoryTable(items, connected, syncing);
     } catch {
       tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Error loading inventory.</td></tr>`;
     }
   }
 
-  function renderInventoryTable(items, connected) {
+  function renderInventoryTable(items, connected, syncing) {
     const tbody = document.getElementById('inventory-tbody');
     if (!tbody) return;
     if (!items || items.length === 0) {
-      const msg = connected
-        ? 'No active Vinted listings yet — they will appear here once you list something.'
-        : 'Connect Vinted on the Platforms page to populate your inventory automatically.';
+      const msg = !connected
+        ? 'Connect Vinted on the Platforms page to populate your inventory automatically.'
+        : syncing
+          ? '<span style="color:var(--pink);">⟳ Syncing your Vinted listings… check back in a moment.</span>'
+          : 'No active Vinted listings found. Click <strong>Sync now</strong> to retry.';
       tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">${msg}</td></tr>`;
       return;
     }
