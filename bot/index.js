@@ -4228,15 +4228,6 @@ async function apifyVintedFetchUserItems(usernameOrId, _base, perPage = 96) {
   } catch (e) { console.warn('[apify-user-items] member URL error:', e.message); return []; }
 }
 
-// (legacy read point — no more code here, just left for diff clarity)
-    console.log(`[apify-user-items] got ${items.length} raw items for ${clean}`);
-    return items;
-  } catch (e) {
-    console.warn('[apify-user-items] actor error:', e.message);
-    return [];
-  }
-}
-
 function normaliseVintedItem(it, base = 'https://www.vinted.co.uk') {
   // Handle both raw Vinted API format and Apify actor output format
   const price = typeof it.price === 'object'
