@@ -1197,10 +1197,11 @@
                   <select id="list-condition" class="form-select">
                     <option value="">Select...</option>
                     <option value="New with tags">New with tags</option>
-                    <option value="Like New">Like New</option>
-                    <option value="Very Good">Very Good</option>
-                    <option value="Good">Good</option>
-                    <option value="Acceptable">Acceptable</option>
+                    <option value="New without tags">New without tags</option>
+                    <option value="Like New">Like New — barely worn</option>
+                    <option value="Very Good">Very Good — minor signs of wear</option>
+                    <option value="Good">Good — visible signs of wear</option>
+                    <option value="Acceptable">Acceptable — heavily worn</option>
                   </select>
                 </div>
               </div>
@@ -1245,37 +1246,69 @@
                     </div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
                       <div>
-                        <label class="form-label">Category</label>
+                        <label class="form-label">Category <span style="color:var(--pink);">*</span></label>
                         <select id="list-vinted-category" class="form-select" style="font-size:12px;">
                           <option value="">Select…</option>
-                          <optgroup label="Men's">
-                            <option value="4">Men's Tops</option>
-                            <option value="88">Men's Hoodies</option>
-                            <option value="16">Men's Trousers</option>
-                            <option value="21">Men's Jackets</option>
-                            <option value="1484">Men's Shoes</option>
-                          </optgroup>
-                          <optgroup label="Women's">
-                            <option value="3">Women's Tops</option>
+                          <optgroup label="Women's Clothing">
+                            <option value="3">Women's Tops &amp; T-Shirts</option>
                             <option value="7">Women's Dresses</option>
-                            <option value="15">Women's Trousers</option>
-                            <option value="12">Women's Jackets</option>
-                            <option value="1235">Women's Shoes</option>
+                            <option value="15">Women's Trousers &amp; Shorts</option>
+                            <option value="12">Women's Coats &amp; Jackets</option>
+                            <option value="6">Women's Jumpers &amp; Cardigans</option>
+                            <option value="8">Women's Skirts</option>
+                            <option value="10">Women's Jeans</option>
+                            <option value="9">Women's Suits &amp; Blazers</option>
+                            <option value="204">Women's Sportswear</option>
+                          </optgroup>
+                          <optgroup label="Women's Shoes">
+                            <option value="1235">Women's Trainers</option>
+                            <option value="242">Women's Heels</option>
+                            <option value="255">Women's Boots</option>
+                            <option value="261">Women's Sandals &amp; Flip Flops</option>
+                            <option value="1866">Women's Flats</option>
+                          </optgroup>
+                          <optgroup label="Men's Clothing">
+                            <option value="4">Men's T-Shirts &amp; Tops</option>
+                            <option value="88">Men's Hoodies &amp; Sweatshirts</option>
+                            <option value="16">Men's Trousers &amp; Chinos</option>
+                            <option value="21">Men's Jackets &amp; Coats</option>
+                            <option value="91">Men's Jumpers &amp; Cardigans</option>
+                            <option value="20">Men's Jeans</option>
+                            <option value="24">Men's Shorts</option>
+                            <option value="302">Men's Sportswear</option>
+                            <option value="93">Men's Shirts</option>
+                            <option value="95">Men's Suits &amp; Blazers</option>
+                          </optgroup>
+                          <optgroup label="Men's Shoes">
+                            <option value="1484">Men's Trainers</option>
+                            <option value="308">Men's Boots</option>
+                            <option value="307">Men's Formal Shoes</option>
+                            <option value="309">Men's Sandals &amp; Flip Flops</option>
+                          </optgroup>
+                          <optgroup label="Kids">
+                            <option value="268">Boys' Clothing</option>
+                            <option value="269">Girls' Clothing</option>
+                            <option value="289">Kids' Shoes</option>
+                          </optgroup>
+                          <optgroup label="Bags &amp; Accessories">
+                            <option value="2082">Women's Bags &amp; Purses</option>
+                            <option value="2142">Men's Bags &amp; Backpacks</option>
+                            <option value="2140">Accessories (Belts, Hats, Scarves…)</option>
+                            <option value="131">Jewellery</option>
+                            <option value="143">Sunglasses &amp; Eyewear</option>
                           </optgroup>
                           <optgroup label="Other">
-                            <option value="2082">Bags</option>
-                            <option value="2140">Accessories</option>
-                            <option value="302">Sportswear</option>
                             <option value="1">Other</option>
                           </optgroup>
                         </select>
                       </div>
                       <div>
-                        <label class="form-label">Package Size</label>
+                        <label class="form-label">Parcel Size <span style="color:var(--pink);">*</span></label>
                         <select id="list-package-size" class="form-select" style="font-size:12px;">
-                          <option value="1">Small</option>
-                          <option value="2" selected>Medium</option>
-                          <option value="3">Large</option>
+                          <option value="1">Small (e.g. shoes, small top)</option>
+                          <option value="2" selected>Medium (e.g. jacket, dress)</option>
+                          <option value="3">Large (e.g. coat, multiple items)</option>
+                          <option value="4">Extra Large (bulky / very heavy)</option>
                         </select>
                       </div>
                     </div>
@@ -1315,7 +1348,7 @@
 
               <!-- Image upload -->
               <div>
-                <label class="form-label">Photos <span style="color:var(--muted);font-weight:300;text-transform:none;">(optional, max 8)</span></label>
+                <label class="form-label">Photos <span style="color:var(--muted);font-weight:300;text-transform:none;" id="photo-label-note">(max 8)</span> <span id="photo-vinted-min" style="display:none;color:var(--pink);font-size:10px;font-weight:600;">— Vinted requires min 3</span></label>
                 <div id="image-drop-zone" onclick="document.getElementById('list-images-input').click()" style="margin-top:4px;border:1px dashed rgba(255,255,255,0.1);border-radius:10px;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:border-color .15s;min-height:72px;" onmouseover="this.style.borderColor='rgba(232,33,122,0.35)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.1)'">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                   <span style="font-size:11px;color:var(--muted);">Click to add photos</span>
@@ -4886,6 +4919,8 @@
     if (!price || isNaN(price) || price <= 0) { showMsg(msgEl, 'error', 'Please enter a valid price.'); return; }
     if (platforms.length === 0) { showMsg(msgEl, 'error', 'Select at least one platform.'); return; }
     if (platforms.includes('vinted') && !brand) { showMsg(msgEl, 'error', 'Brand is required for Vinted listings.'); return; }
+    if (platforms.includes('vinted') && !vintedCat) { showMsg(msgEl, 'error', 'Category is required for Vinted listings.'); return; }
+    if (platforms.includes('vinted') && listingImages.length < 3) { showMsg(msgEl, 'error', `Vinted requires at least 3 photos — you've added ${listingImages.length}. Please add ${3 - listingImages.length} more.`); return; }
 
     btn.disabled = true;
     btn.innerHTML = `<div style="width:14px;height:14px;border:2px solid rgba(255,255,255,0.4);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;"></div> Listing…`;
@@ -6487,6 +6522,10 @@
 
     // Show divider between sections only when both are visible
     if (divider) divider.style.display = (depopChecked && vintedChecked) ? '' : 'none';
+
+    // Show the Vinted minimum-photos hint when Vinted is selected
+    const hint = document.getElementById('photo-vinted-min');
+    if (hint) hint.style.display = vintedChecked ? '' : 'none';
   }
 
   // ── Generic tier gate helper ──────────────────────────────────────────────────

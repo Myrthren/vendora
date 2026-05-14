@@ -3565,23 +3565,25 @@ async function legacyVintedLogin(usernameOrEmail, password, fetchFn = vFetch) {
 }
 
 // Upload image to Vinted — returns { photo_id } or { error }
-// Direct Bearer-auth HTTP is tried first (faster, no Playwright needed).
-// Only falls back to browser if DataDome explicitly blocks the direct request.
+// Tries: direct HTTP → Playwright browser (bypasses DataDome completely).
 async function vintedUploadImage(accessToken, base64Data, mimeType = 'image/jpeg') {
-  // 1. Primary proxy
+  // 1. Direct HTTP with Bearer auth
   const direct = await legacyVintedUploadImage(accessToken, base64Data, mimeType, vFetch);
   if (!direct.error) return direct;
-  const isDataDome = /datadome|captcha/i.test(direct.error);
-  if (!isDataDome) return direct;
 
-  // 2. Apify residential proxy
-  if (APIFY_PROXY_READY) {
-    console.warn('[vinted-upload] DataDome blocked primary proxy — retrying via Apify residential proxy');
-    const apify = await legacyVintedUploadImage(accessToken, base64Data, mimeType, apifyVFetch);
-    if (!apify.error) return apify;
-    console.warn('[vinted-upload] Apify proxy also failed:', apify.error);
+  const isDataDome = /datadome|captcha|403|html/i.test(direct.error) || direct.error.includes('<!');
+  if (!isDataDome) return direct; // real error — no point retrying
+
+  // 2. Playwright browser — runs requests from within a real browser context,
+  //    bypasses DataDome fingerprinting entirely
+  if (vintedBrowser?.vintedBrowserUploadPhoto) {
+    console.warn('[vinted-upload] DataDome blocked direct call — retrying via Playwright browser');
+    const browser = await vintedBrowser.vintedBrowserUploadPhoto(accessToken, base64Data, mimeType);
+    if (!browser.error) return browser;
+    console.warn('[vinted-upload] Playwright also failed:', browser.error);
   }
-  return direct;
+
+  return { error: 'Vinted is blocking photo uploads from the server. Try again in a few minutes.' };
 }
 
 async function legacyVintedUploadImage(accessToken, base64Data, mimeType = 'image/jpeg', fetchFn = vFetch) {
@@ -3615,22 +3617,28 @@ async function legacyVintedUploadImage(accessToken, base64Data, mimeType = 'imag
 }
 
 async function vintedCreateListing(accessToken, listingData) {
-  // 1. Primary route: PROXY_AGENT (user's residential proxy or direct)
+  // 1. Direct HTTP — fast, but Railway's datacenter IP is usually blocked by DataDome
   const direct = await legacyVintedCreateListing(accessToken, listingData, vFetch);
   if (!direct.error) return direct;
-  const isDataDome = /datadome|captcha/i.test(direct.error);
+
+  // DataDome returns 403 with an HTML page (no JSON) — catch that specifically
+  const isDataDome = /datadome|captcha|html/i.test(direct.error)
+    || direct.error.includes('<!') || direct.error.includes('(403)');
   if (!isDataDome) return direct; // auth/network error — other routes won't help
 
-  // 2. Apify residential proxy — bypasses DataDome without needing Playwright
-  if (APIFY_PROXY_READY) {
-    console.warn('[vinted-list] Primary proxy DataDome blocked — retrying via Apify residential proxy');
-    const apify = await legacyVintedCreateListing(accessToken, listingData, apifyVFetch);
-    if (!apify.error) return apify;
-    console.warn('[vinted-list] Apify proxy also failed:', apify.error);
-    return { error: `Vinted is blocking this listing. Both the primary proxy and Apify residential proxy were blocked. Please try again in a few minutes or reconnect your Vinted account.` };
+  console.warn('[vinted-list] DataDome/403 on direct HTTP — trying Playwright browser');
+
+  // 2. Playwright browser — makes the API call from inside a real browser context
+  //    with the access_token_web cookie set, bypasses DataDome fingerprinting.
+  if (vintedBrowser?.vintedBrowserCreateListing) {
+    const browser = await vintedBrowser.vintedBrowserCreateListing(accessToken, listingData);
+    if (!browser.error) return browser;
+    console.warn('[vinted-list] Playwright also failed:', browser.error);
+    // If Playwright worked but Vinted rejected the request (auth/validation), surface that
+    if (!/browser unavailable/i.test(browser.error)) return browser;
   }
 
-  return { error: `Vinted blocked the listing request (DataDome). Add APIFY_API_TOKEN to Railway to enable the Apify residential proxy fallback.` };
+  return { error: 'Vinted blocked this listing request. Make sure your access_token_web is current (tokens expire ~30 days). Refresh it on the Platforms page and try again.' };
 }
 
 async function legacyVintedCreateListing(accessToken, listingData, fetchFn = vFetch) {
@@ -3639,7 +3647,15 @@ async function legacyVintedCreateListing(accessToken, listingData, fetchFn = vFe
     brand = '', size = '',
     vinted_catalog_id = null, vinted_package_size_id = 2,
   } = listingData;
-  const condMap = { 'New with tags': 6, 'Like New': 2, 'Very Good': 3, 'Good': 4, 'Acceptable': 5 };
+  // Vinted status_id values (from Vinted API): 6=new_with_tags, 1=new_without_tags,
+  // 2=like_new, 3=very_good, 4=good, 5=acceptable
+  const condMap = {
+    'New with tags': 6, 'New without tags': 1,
+    'Like New': 2, 'Like New — barely worn': 2,
+    'Very Good': 3, 'Very Good — minor signs of wear': 3,
+    'Good': 4, 'Good — visible signs of wear': 4,
+    'Acceptable': 5, 'Acceptable — heavily worn': 5,
+  };
   try {
     // Use Bearer-auth only — no DataDome session cookies needed for authenticated API calls.
     // The getVintedSession() path (fetching HTML to get DataDome cookies) was causing
@@ -3813,9 +3829,22 @@ async function uploadImagesToPlatform(token, platform, images = []) {
 // ── Shared: post listing to one platform ─────────────────────────────────────
 async function postToPlatform(userId, platform, listingData) {
   const conn = await getPlatformConn(userId, platform);
-  if (!conn?.access_token) return { error: 'Not connected — link your account in the dashboard first.' };
+  if (!conn?.access_token) return { error: 'Not connected — link your account on the Platforms page first.' };
   const token = decryptToken(conn.access_token);
-  if (!token) return { error: 'Could not decrypt stored token — reconnect your account in the dashboard.' };
+  if (!token) {
+    if (platform === 'vinted') {
+      return { error: 'No access token saved for Vinted. Go to Platforms → Enable Auto-Listing and paste your access_token_web cookie value.' };
+    }
+    return { error: 'Could not read stored token — reconnect your account on the Platforms page.' };
+  }
+
+  // Vinted requires at least 3 photos
+  if (platform === 'vinted') {
+    const imgCount = (listingData.images || []).length;
+    if (imgCount < 3) {
+      return { error: `Vinted requires at least 3 photos (you uploaded ${imgCount}). Add more photos and try again.` };
+    }
+  }
 
   // Upload any images first — returns array of IDs, or { authError } if token is expired
   const uploadResult = await uploadImagesToPlatform(token, platform, listingData.images || []);

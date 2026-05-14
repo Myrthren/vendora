@@ -299,7 +299,13 @@ async function vintedBrowserCreateListing(accessToken, listingData) {
     brand = '', size = '',
     vinted_catalog_id = null, vinted_package_size_id = 2,
   } = listingData;
-  const condMap = { 'New with tags': 6, 'Like New': 2, 'Very Good': 3, 'Good': 4, 'Acceptable': 5 };
+  const condMap = {
+    'New with tags': 6, 'New without tags': 1,
+    'Like New': 2, 'Like New — barely worn': 2,
+    'Very Good': 3, 'Very Good — minor signs of wear': 3,
+    'Good': 4, 'Good — visible signs of wear': 4,
+    'Acceptable': 5, 'Acceptable — heavily worn': 5,
+  };
   const brandLine = [brand && `Brand: ${brand}`, size && `Size: ${size}`].filter(Boolean).join(' · ');
   const fullDesc  = brandLine ? `${brandLine}\n\n${description}`.trim() : description;
   const body = {
