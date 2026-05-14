@@ -95,21 +95,22 @@
 
   .nav-item {
     display: flex; align-items: center; gap: 10px;
-    padding: 9px 12px;
-    border-radius: 8px;
+    padding: 8px 12px;
+    border-radius: 3px;
     cursor: pointer;
-    transition: background .18s, color .18s;
-    font-size: 13px; font-weight: 400;
+    transition: background .15s, color .15s;
+    font-size: 12.5px; font-weight: 400;
     color: var(--muted);
-    border: 1px solid transparent;
+    border: none;
+    border-left: 2px solid transparent;
     text-decoration: none;
     position: relative;
   }
-  .nav-item svg { display: block; flex-shrink: 0; transition: stroke .18s; }
-  .nav-item:hover { background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.6); }
+  .nav-item svg { display: block; flex-shrink: 0; transition: stroke .15s; }
+  .nav-item:hover { background: rgba(255,255,255,0.025); color: rgba(255,255,255,0.65); }
   .nav-item.active {
-    background: rgba(232,33,122,0.08);
-    border-color: rgba(232,33,122,0.15);
+    background: rgba(255,255,255,0.03);
+    border-left-color: var(--pink);
     color: var(--text);
   }
   .nav-item.active svg { stroke: var(--pink); }
@@ -118,7 +119,7 @@
     margin-left: auto;
     font-size: 9px; font-weight: 700;
     letter-spacing: 0.08em; text-transform: uppercase;
-    padding: 2px 7px; border-radius: 4px;
+    padding: 2px 6px; border-radius: 2px;
   }
   .badge-owner { background: rgba(232,33,122,0.15); color: var(--pink); }
   .badge-new { background: rgba(74,222,128,0.12); color: var(--green); }
@@ -151,9 +152,9 @@
   .sidebar-logout {
     width: 28px; height: 28px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    border-radius: 6px; cursor: pointer;
+    border-radius: 3px; cursor: pointer;
     color: var(--muted);
-    transition: background .18s, color .18s;
+    transition: background .15s, color .15s;
     text-decoration: none;
   }
   .sidebar-logout:hover { background: rgba(255,255,255,0.04); color: var(--text); }
@@ -185,7 +186,7 @@
     letter-spacing: 0.04em;
     background: rgba(255,255,255,0.03);
     border: 1px solid var(--border-dim);
-    padding: 5px 12px; border-radius: 6px;
+    padding: 5px 12px; border-radius: 3px;
     font-family: monospace;
   }
   .topbar-status {
@@ -235,7 +236,7 @@
   .card {
     background: var(--bg3);
     border: 1px solid var(--border-dim);
-    border-radius: 12px; padding: 24px;
+    border-radius: 4px; padding: 24px;
     margin-bottom: 18px;
   }
   .card-title {
@@ -254,7 +255,7 @@
   .stat-card {
     background: var(--bg3);
     border: 1px solid var(--border-dim);
-    border-radius: 12px; padding: 22px;
+    border-radius: 4px; padding: 22px;
   }
   .stat-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
   .stat-val {
@@ -272,7 +273,7 @@
     padding: 28px;
     background: var(--bg3);
     border: 1px solid var(--border-dim);
-    border-radius: 12px; margin-bottom: 18px;
+    border-radius: 4px; margin-bottom: 18px;
     position: relative; overflow: hidden;
   }
   .account-hero::before {
@@ -300,7 +301,7 @@
   .account-badges { display: flex; align-items: center; gap: 8px; }
   .badge {
     font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
-    padding: 3px 9px; border-radius: 4px;
+    padding: 2px 8px; border-radius: 3px;
   }
   .badge-tier-pro { background: rgba(232,33,122,0.13); color: var(--pink); border: 1px solid rgba(232,33,122,0.2); }
   .badge-tier-elite { background: rgba(232,161,33,0.1); color: var(--gold); border: 1px solid rgba(232,161,33,0.2); }
@@ -329,7 +330,7 @@
     padding: 28px;
     background: var(--bg3);
     border: 1px solid rgba(232,33,122,0.25);
-    border-radius: 12px; margin-bottom: 18px;
+    border-radius: 4px; margin-bottom: 18px;
     position: relative; overflow: hidden;
   }
   .sub-current::before {
@@ -338,9 +339,9 @@
     background: linear-gradient(90deg, var(--pink), var(--pink-light));
   }
   .sub-tier-icon {
-    width: 52px; height: 52px; border-radius: 12px;
-    background: rgba(232,33,122,0.1);
-    border: 1px solid rgba(232,33,122,0.2);
+    width: 52px; height: 52px; border-radius: 4px;
+    background: rgba(232,33,122,0.08);
+    border: 1px solid rgba(232,33,122,0.18);
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
@@ -359,23 +360,23 @@
   /* Buttons */
   .btn {
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 9px 18px; border-radius: 7px;
+    padding: 8px 16px; border-radius: 4px;
     font-family: 'Syne', sans-serif;
     font-size: 11px; font-weight: 700;
     letter-spacing: 0.07em; text-transform: uppercase;
     cursor: pointer; text-decoration: none; border: none;
-    transition: background .2s, box-shadow .25s, transform .18s, color .2s;
+    transition: background .15s, box-shadow .2s, color .15s;
   }
   .btn svg { display: block; }
   .btn-pink { background: var(--pink); color: #fff; }
-  .btn-pink:hover { background: var(--pink-light); box-shadow: 0 0 20px var(--pink-glow); transform: translateY(-1px); }
+  .btn-pink:hover { background: var(--pink-light); box-shadow: 0 0 16px rgba(232,33,122,0.35); }
   .btn-ghost { background: rgba(255,255,255,0.04); color: var(--muted2); border: 1px solid var(--border-dim); }
-  .btn-ghost:hover { background: rgba(255,255,255,0.07); color: var(--text); }
-  .btn-danger { background: rgba(248,113,113,0.08); color: var(--red); border: 1px solid rgba(248,113,113,0.15); }
-  .btn-danger:hover { background: rgba(248,113,113,0.14); }
-  .btn-sm { padding: 7px 14px; font-size: 10px; }
-  .btn-gold { background: rgba(232,161,33,0.1); color: var(--gold); border: 1px solid rgba(232,161,33,0.2); }
-  .btn-gold:hover { background: rgba(232,161,33,0.18); }
+  .btn-ghost:hover { background: rgba(255,255,255,0.07); color: var(--text); border-color: rgba(255,255,255,0.1); }
+  .btn-danger { background: rgba(248,113,113,0.07); color: var(--red); border: 1px solid rgba(248,113,113,0.15); }
+  .btn-danger:hover { background: rgba(248,113,113,0.12); }
+  .btn-sm { padding: 6px 12px; font-size: 10px; }
+  .btn-gold { background: rgba(232,161,33,0.08); color: var(--gold); border: 1px solid rgba(232,161,33,0.18); }
+  .btn-gold:hover { background: rgba(232,161,33,0.14); }
 
   /* Toggle switch */
   .toggle-list { display: flex; flex-direction: column; gap: 0; }
@@ -413,22 +414,22 @@
   .toggle input:checked + .toggle-track::after { transform: translateX(18px); background: var(--pink); }
 
   /* Platforms */
-  .platform-connect-list { display: flex; flex-direction: column; gap: 12px; }
+  .platform-connect-list { display: flex; flex-direction: column; gap: 8px; }
   .platform-connect {
     display: flex; align-items: center; gap: 16px;
-    padding: 18px 20px;
+    padding: 16px 18px;
     background: rgba(255,255,255,0.02);
     border: 1px solid var(--border-dim);
-    border-radius: 10px;
-    transition: border-color .25s, background .25s;
+    border-radius: 4px;
+    transition: border-color .2s, background .2s;
   }
-  .platform-connect:hover { border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); }
+  .platform-connect:hover { border-color: rgba(255,255,255,0.09); background: rgba(255,255,255,0.03); }
   .plat-icon {
-    width: 40px; height: 40px; border-radius: 9px;
+    width: 36px; height: 36px; border-radius: 4px;
     background: rgba(255,255,255,0.04);
     border: 1px solid var(--border-dim);
     display: flex; align-items: center; justify-content: center;
-    font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+    font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 700;
     color: var(--muted2);
     flex-shrink: 0;
   }
@@ -446,9 +447,9 @@
   .admin-warning {
     display: flex; align-items: flex-start; gap: 14px;
     padding: 16px 20px;
-    background: rgba(232,33,122,0.06);
-    border: 1px solid rgba(232,33,122,0.2);
-    border-radius: 10px; margin-bottom: 24px;
+    background: rgba(232,33,122,0.05);
+    border: 1px solid rgba(232,33,122,0.18);
+    border-radius: 4px; margin-bottom: 24px;
   }
   .admin-warning svg { display: block; flex-shrink: 0; margin-top: 1px; }
   .admin-warning-text { font-size: 12px; color: rgba(255,255,255,0.55); line-height: 1.6; font-weight: 300; }
@@ -513,14 +514,14 @@
   .rate-limit-input {
     background: rgba(255,255,255,0.04);
     border: 1px solid var(--border-dim);
-    border-radius: 6px;
+    border-radius: 3px;
     padding: 5px 10px;
     font-size: 11px; color: var(--text);
     font-family: monospace; width: 80px; text-align: center;
     outline: none;
     transition: border-color .2s;
   }
-  .rate-limit-input:focus { border-color: rgba(232,33,122,0.35); }
+  .rate-limit-input:focus { border-color: rgba(232,33,122,0.4); }
   .rate-label { font-size: 9px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
 
   /* Announcement */
@@ -531,17 +532,17 @@
   }
   .form-select, .form-textarea {
     width: 100%;
-    background: rgba(255,255,255,0.03);
+    background: rgba(255,255,255,0.025);
     border: 1px solid var(--border-dim);
-    border-radius: 8px; padding: 10px 14px;
+    border-radius: 4px; padding: 10px 14px;
     font-size: 13px; color: var(--text);
     font-family: 'DM Sans', sans-serif;
     outline: none; transition: border-color .2s;
   }
-  .form-select:focus, .form-textarea:focus { border-color: rgba(232,33,122,0.35); }
+  .form-select:focus, .form-textarea:focus { border-color: rgba(232,33,122,0.4); }
   .form-select { height: 40px; }
   .form-textarea { resize: vertical; min-height: 100px; line-height: 1.6; }
-  option { background: #1a1a1a; }
+  option { background: #141414; }
 
   /* Revenue chart mock */
   .rev-bars { display: flex; align-items: flex-end; gap: 6px; height: 80px; margin-top: 16px; }
@@ -578,13 +579,13 @@
   .price-input {
     background: rgba(255,255,255,0.04);
     border: 1px solid var(--border-dim);
-    border-radius: 6px; padding: 7px 12px;
+    border-radius: 3px; padding: 7px 12px;
     font-size: 13px; color: var(--text);
     font-family: 'Syne', sans-serif; font-weight: 600;
     width: 100px; outline: none;
     transition: border-color .2s;
   }
-  .price-input:focus { border-color: rgba(232,33,122,0.35); }
+  .price-input:focus { border-color: rgba(232,33,122,0.4); }
 
   /* Access denied for non-owners */
   .access-denied {
@@ -746,7 +747,7 @@
   <div class="topbar">
     <div class="topbar-title" id="topbar-title">Account</div>
     <div class="topbar-right">
-      <a href="vendora-credits.html" id="topbar-credits" style="display:none;align-items:center;gap:6px;background:rgba(232,161,33,0.1);border:1px solid rgba(232,161,33,0.2);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;color:var(--gold);text-decoration:none;transition:background .15s;" onmouseover="this.style.background='rgba(232,161,33,0.18)'" onmouseout="this.style.background='rgba(232,161,33,0.1)'">
+      <a href="vendora-credits.html" id="topbar-credits" style="display:none;align-items:center;gap:6px;background:rgba(232,161,33,0.08);border:1px solid rgba(232,161,33,0.18);border-radius:3px;padding:4px 10px;font-size:11px;font-weight:700;color:var(--gold);text-decoration:none;transition:background .15s;letter-spacing:0.05em;" onmouseover="this.style.background='rgba(232,161,33,0.14)'" onmouseout="this.style.background='rgba(232,161,33,0.08)'">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
         <span id="topbar-credits-val">—</span> credits
       </a>
@@ -833,7 +834,7 @@
       </div>
 
       <!-- Discord server notice -->
-      <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:rgba(88,101,242,0.08);border:1px solid rgba(88,101,242,0.22);border-radius:10px;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:rgba(88,101,242,0.07);border:1px solid rgba(88,101,242,0.2);border-radius:4px;margin-bottom:20px;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5865f2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
         <div style="font-size:12px;color:rgba(255,255,255,0.55);line-height:1.5;">
           <strong style="color:rgba(255,255,255,0.8);">Already in the Vendora Discord?</strong> Your role is assigned automatically after payment. If it doesn't appear within a few minutes, visit the <span style="color:var(--pink);cursor:pointer;" onclick="showSection('support', document.querySelector('.nav-item[onclick*=support]'))">Support</span> page.
@@ -841,8 +842,8 @@
       </div>
 
       <!-- Payment banner — shown when arriving from a pricing button -->
-      <div id="payment-banner" style="display:none; align-items:center; justify-content:space-between; gap:16px; padding:18px 24px; background:rgba(232,33,122,0.07); border:1px solid rgba(232,33,122,0.25); border-radius:12px; margin-bottom:24px; position:relative;">
-        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--pink),var(--pink-light));border-radius:12px 12px 0 0;"></div>
+      <div id="payment-banner" style="display:none; align-items:center; justify-content:space-between; gap:16px; padding:18px 24px; background:rgba(232,33,122,0.06); border:1px solid rgba(232,33,122,0.22); border-radius:4px; margin-bottom:24px; position:relative;">
+        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--pink),var(--pink-light));border-radius:4px 4px 0 0;"></div>
         <div>
           <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--pink);margin-bottom:4px;">Selected Plan</div>
           <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--text);" class="banner-plan">Pro — £24.99/mo</div>
@@ -893,10 +894,10 @@
           <span>Have a coupon code?</span>
         </div>
         <div style="display:flex;gap:10px;align-items:center;">
-          <input id="coupon-input" type="text" placeholder="Enter code e.g. VENDORA-TEST-FREE" style="flex:1;background:rgba(255,255,255,0.04);border:1px solid var(--border-dim);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='rgba(232,33,122,0.35)'" onblur="this.style.borderColor=''" onkeydown="if(event.key==='Enter')redeemCoupon()">
+          <input id="coupon-input" type="text" placeholder="Enter code e.g. VENDORA-TEST-FREE" style="flex:1;background:rgba(255,255,255,0.025);border:1px solid var(--border-dim);border-radius:4px;padding:10px 14px;font-size:13px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='rgba(232,33,122,0.4)'" onblur="this.style.borderColor=''" onkeydown="if(event.key==='Enter')redeemCoupon()">
           <button class="btn btn-ghost" onclick="redeemCoupon()" id="coupon-btn">Apply</button>
         </div>
-        <div id="coupon-msg" style="display:none;margin-top:12px;padding:12px 16px;border-radius:8px;font-size:12px;font-weight:400;"></div>
+        <div id="coupon-msg" style="display:none;margin-top:12px;padding:12px 16px;border-radius:4px;font-size:12px;font-weight:400;"></div>
         <!-- Tier selector — shown when coupon tier is 'any' -->
         <div id="coupon-tier-select" style="display:none;margin-top:14px;">
           <div style="font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;">Select your plan</div>
@@ -918,7 +919,7 @@
           </div>
         </div>
         <div style="display:flex; gap:12px; margin-top:4px;">
-          <div class="upgrade-card" data-tier="basic" style="flex:1;padding:20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;position:relative;">
+          <div class="upgrade-card" data-tier="basic" style="flex:1;padding:20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:4px;position:relative;">
             <div class="upgrade-current-badge" style="display:none;position:absolute;top:12px;right:12px;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted2);border:1px solid rgba(255,255,255,0.1);padding:2px 8px;border-radius:3px;">Current</div>
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted2);margin-bottom:6px;">Basic</div>
             <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--muted2);" id="plan-price-basic">£9.99<span id="plan-period-basic" style="font-size:12px;font-weight:400;">/mo</span></div>
@@ -926,7 +927,7 @@
             <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5;">Photo Enhancer · Listing Optimiser · Auto-Draft · Seller Intel · Watchlist</div>
             <button class="btn btn-ghost btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('basic')">Get Basic</button>
           </div>
-          <div class="upgrade-card" data-tier="pro" style="flex:1;padding:20px;background:rgba(232,33,122,0.06);border:1px solid rgba(232,33,122,0.2);border-radius:10px;position:relative;">
+          <div class="upgrade-card" data-tier="pro" style="flex:1;padding:20px;background:rgba(232,33,122,0.05);border:1px solid rgba(232,33,122,0.2);border-radius:4px;position:relative;">
             <div class="upgrade-current-badge" style="display:none;position:absolute;top:12px;right:12px;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--pink);border:1px solid var(--border);padding:2px 8px;border-radius:3px;">Current</div>
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--pink);margin-bottom:6px;">Pro</div>
             <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);" id="plan-price-pro">£24.99<span id="plan-period-pro" style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
@@ -934,7 +935,7 @@
             <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5;">Everything in Basic · <span style="color:var(--gold);font-weight:600;">500 credits/mo</span> · Flip Score · Price Elasticity · Resell Calendar</div>
             <button class="btn btn-pink btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('pro')">Get Pro</button>
           </div>
-          <div class="upgrade-card" data-tier="elite" style="flex:1;padding:20px;background:rgba(232,161,33,0.04);border:1px solid rgba(232,161,33,0.18);border-radius:10px;position:relative;">
+          <div class="upgrade-card" data-tier="elite" style="flex:1;padding:20px;background:rgba(232,161,33,0.04);border:1px solid rgba(232,161,33,0.18);border-radius:4px;position:relative;">
             <div class="upgrade-current-badge" style="display:none;position:absolute;top:12px;right:12px;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold);border:1px solid rgba(232,161,33,0.2);padding:2px 8px;border-radius:3px;">Current</div>
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--gold);margin-bottom:6px;">Elite</div>
             <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);" id="plan-price-elite">£49.99<span id="plan-period-elite" style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
@@ -1103,7 +1104,7 @@
             <div id="vinted-token-status" style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);">Not set</div>
           </div>
 
-          <details style="background:rgba(232,161,33,.06);border:1px solid rgba(232,161,33,.2);border-radius:8px;padding:10px 14px;margin-bottom:10px;">
+          <details style="background:rgba(232,161,33,.05);border:1px solid rgba(232,161,33,.18);border-radius:4px;padding:10px 14px;margin-bottom:10px;">
             <summary style="font-size:12px;color:rgba(232,161,33,.95);cursor:pointer;font-weight:600;letter-spacing:.02em;">How to find your <code style="font-family:monospace;font-size:11px;background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;">access_token_web</code></summary>
             <div style="font-size:12px;color:rgba(232,161,33,.85);line-height:1.7;margin-top:8px;">
               1. Open <a href="https://www.vinted.co.uk" target="_blank" style="color:#e8a121;">vinted.co.uk</a> in your browser and sign in.<br>
@@ -1114,7 +1115,7 @@
           </details>
 
           <div style="display:flex;gap:8px;align-items:stretch;">
-            <input id="vinted-token-input" type="password" placeholder="Paste access_token_web value" autocomplete="off" style="flex:1;background:var(--bg3);border:1px solid var(--border-dim);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;">
+            <input id="vinted-token-input" type="password" placeholder="Paste access_token_web value" autocomplete="off" style="flex:1;background:var(--bg3);border:1px solid var(--border-dim);border-radius:4px;padding:10px 14px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;">
             <button class="btn btn-primary btn-sm" onclick="saveVintedToken()" id="vinted-token-save-btn">Save</button>
             <button class="btn btn-ghost btn-sm" onclick="clearVintedToken()" id="vinted-token-clear-btn" style="display:none;">Clear</button>
           </div>
@@ -1211,12 +1212,12 @@
               <div>
                 <label class="form-label">Platforms *</label>
                 <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
-                  <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-dim);border-radius:8px;opacity:0.45;pointer-events:none;" id="list-lbl-depop">
+                  <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-dim);border-radius:4px;opacity:0.45;pointer-events:none;" id="list-lbl-depop">
                     <input type="checkbox" id="list-depop" disabled style="accent-color:#ff2300;width:14px;height:14px;">
                     <span style="font-size:13px;color:var(--text);">Depop</span>
                     <span style="margin-left:auto;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);">Coming Soon</span>
                   </label>
-                  <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-dim);border-radius:8px;cursor:pointer;transition:border .15s;" id="list-lbl-vinted" onmouseover="this.style.borderColor='rgba(9,177,186,0.3)'" onmouseout="updateListPlatformBorder('vinted')">
+                  <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-dim);border-radius:4px;cursor:pointer;transition:border .15s;" id="list-lbl-vinted" onmouseover="this.style.borderColor='rgba(9,177,186,0.3)'" onmouseout="updateListPlatformBorder('vinted')">
                     <input type="checkbox" id="list-vinted" style="accent-color:#09b1ba;width:14px;height:14px;" onchange="updateListPlatformBorder('vinted');updatePlatformFields();">
                     <span style="font-size:13px;color:var(--text);">Vinted</span>
                     <span id="list-vinted-status" style="margin-left:auto;font-size:10px;color:var(--muted);">Not connected</span>
@@ -1225,7 +1226,7 @@
               </div>
 
               <!-- Platform-specific fields -->
-              <div id="plat-fields-wrapper" style="display:none;border:1px solid var(--border-dim);border-radius:10px;overflow:hidden;">
+              <div id="plat-fields-wrapper" style="display:none;border:1px solid var(--border-dim);border-radius:4px;overflow:hidden;">
 
                 <!-- Vinted fields -->
                 <div id="plat-fields-vinted" style="display:none;padding:14px;background:rgba(9,177,186,0.04);">
@@ -1349,7 +1350,7 @@
               <!-- Image upload -->
               <div>
                 <label class="form-label">Photos <span style="color:var(--muted);font-weight:300;text-transform:none;" id="photo-label-note">(max 8)</span> <span id="photo-vinted-min" style="display:none;color:var(--pink);font-size:10px;font-weight:600;">— Vinted requires min 3</span></label>
-                <div id="image-drop-zone" onclick="document.getElementById('list-images-input').click()" style="margin-top:4px;border:1px dashed rgba(255,255,255,0.1);border-radius:10px;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:border-color .15s;min-height:72px;" onmouseover="this.style.borderColor='rgba(232,33,122,0.35)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.1)'">
+                <div id="image-drop-zone" onclick="document.getElementById('list-images-input').click()" style="margin-top:4px;border:1px dashed rgba(255,255,255,0.1);border-radius:4px;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:border-color .15s;min-height:72px;" onmouseover="this.style.borderColor='rgba(232,33,122,0.35)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.1)'">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                   <span style="font-size:11px;color:var(--muted);">Click to add photos</span>
                 </div>
@@ -1357,7 +1358,7 @@
                 <div id="image-previews" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;"></div>
               </div>
 
-              <div style="padding:14px;background:rgba(255,255,255,0.02);border:1px solid var(--border-dim);border-radius:10px;">
+              <div style="padding:14px;background:rgba(255,255,255,0.02);border:1px solid var(--border-dim);border-radius:4px;">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
                   <div>
                     <div style="font-size:13px;font-weight:500;color:var(--text);">Auto-Relist</div>
@@ -1552,18 +1553,18 @@
 
             <div style="display:flex;flex-direction:column;gap:6px;">
               <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted2);">Item Name *</label>
-              <input id="cl-item" type="text" placeholder="e.g. Nike Air Max 90 White UK9" style="background:var(--bg3);border:1px solid var(--border-dim);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;transition:border .15s;" onfocus="this.style.borderColor='rgba(232,33,122,0.4)'" onblur="this.style.borderColor=''" />
+              <input id="cl-item" type="text" placeholder="e.g. Nike Air Max 90 White UK9" style="background:var(--bg3);border:1px solid var(--border-dim);border-radius:4px;padding:10px 14px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;transition:border .15s;" onfocus="this.style.borderColor='rgba(232,33,122,0.4)'" onblur="this.style.borderColor=''" />
             </div>
 
             <div style="display:flex;flex-direction:column;gap:6px;">
               <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted2);">Description <span style="color:var(--pink);font-weight:500;text-transform:none;">*</span></label>
-              <textarea id="cl-desc" rows="3" placeholder="Describe the item — condition details, size, colour, defects, what's included etc." style="background:var(--bg3);border:1px solid var(--border-dim);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;resize:vertical;transition:border .15s;" onfocus="this.style.borderColor='rgba(232,33,122,0.4)'" onblur="this.style.borderColor=''"></textarea>
+              <textarea id="cl-desc" rows="3" placeholder="Describe the item — condition details, size, colour, defects, what's included etc." style="background:var(--bg3);border:1px solid var(--border-dim);border-radius:4px;padding:10px 14px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;resize:vertical;transition:border .15s;" onfocus="this.style.borderColor='rgba(232,33,122,0.4)'" onblur="this.style.borderColor=''"></textarea>
             </div>
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
               <div style="display:flex;flex-direction:column;gap:6px;">
                 <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted2);">Condition</label>
-                <select id="cl-condition" style="background:var(--bg3);border:1px solid var(--border-dim);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;">
+                <select id="cl-condition" style="background:var(--bg3);border:1px solid var(--border-dim);border-radius:4px;padding:10px 14px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;">
                   <option value="">Select...</option>
                   <option value="New with tags">New with tags</option>
                   <option value="Like New">Like New</option>
@@ -1574,17 +1575,17 @@
               </div>
               <div style="display:flex;flex-direction:column;gap:6px;">
                 <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted2);">Your Price (£)</label>
-                <input id="cl-price" type="number" min="0" step="0.01" placeholder="e.g. 45.00" style="background:var(--bg3);border:1px solid var(--border-dim);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;transition:border .15s;" onfocus="this.style.borderColor='rgba(232,33,122,0.4)'" onblur="this.style.borderColor=''" />
+                <input id="cl-price" type="number" min="0" step="0.01" placeholder="e.g. 45.00" style="background:var(--bg3);border:1px solid var(--border-dim);border-radius:4px;padding:10px 14px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;transition:border .15s;" onfocus="this.style.borderColor='rgba(232,33,122,0.4)'" onblur="this.style.borderColor=''" />
               </div>
             </div>
 
             <div style="display:flex;flex-direction:column;gap:8px;">
               <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted2);">Platforms</label>
               <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text);padding:8px 14px;border:1px solid var(--border-dim);border-radius:8px;opacity:0.45;pointer-events:none;" id="cl-lbl-depop">
+                <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text);padding:8px 14px;border:1px solid var(--border-dim);border-radius:4px;opacity:0.45;pointer-events:none;" id="cl-lbl-depop">
                   <input type="checkbox" id="cl-depop" disabled style="accent-color:var(--pink);width:14px;height:14px;"> Depop <span style="margin-left:4px;font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);">Soon</span>
                 </label>
-                <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text);cursor:pointer;padding:8px 14px;border:1px solid var(--border-dim);border-radius:8px;transition:border .15s;" id="cl-lbl-vinted">
+                <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text);cursor:pointer;padding:8px 14px;border:1px solid var(--border-dim);border-radius:4px;transition:border .15s;" id="cl-lbl-vinted">
                   <input type="checkbox" id="cl-vinted" checked onchange="clTogglePlatform('vinted',this.checked)" style="accent-color:var(--pink);width:14px;height:14px;"> Vinted
                 </label>
               </div>
@@ -1597,11 +1598,11 @@
                 <input type="checkbox" id="cl-schedule" onchange="clToggleSchedule(this.checked)" style="accent-color:var(--pink);width:14px;height:14px;">
                 Schedule auto-republish
               </label>
-              <div id="cl-schedule-opts" style="display:none;background:var(--bg3);border:1px solid var(--border-dim);border-radius:8px;padding:12px 14px;display:none;flex-direction:column;gap:8px;">
+              <div id="cl-schedule-opts" style="display:none;background:var(--bg3);border:1px solid var(--border-dim);border-radius:4px;padding:12px 14px;display:none;flex-direction:column;gap:8px;">
                 <div style="font-size:12px;color:var(--muted2);">Listing will auto-delete and republish to stay at the top of search results.</div>
                 <div style="display:flex;align-items:center;gap:10px;">
                   <label style="font-size:12px;color:var(--muted2);white-space:nowrap;">Repeat every</label>
-                  <select id="cl-interval" style="background:var(--bg4);border:1px solid var(--border-dim);border-radius:6px;padding:7px 12px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;flex:1;">
+                  <select id="cl-interval" style="background:var(--bg4);border:1px solid var(--border-dim);border-radius:4px;padding:7px 12px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;flex:1;">
                     <option value="24">1 day</option>
                     <option value="72">3 days</option>
                     <option value="168" selected>1 week</option>
@@ -2265,7 +2266,7 @@
         <div class="card-title">Send a Message</div>
         <p style="color:var(--muted2);font-size:13px;line-height:1.6;margin-bottom:6px;">Fill in the form below and your message will be delivered directly via Discord. We typically respond within a few hours.</p>
         <p style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px;">Messages go directly to <span style="font-family:monospace;color:var(--text);background:rgba(255,255,255,0.05);padding:1px 6px;border-radius:4px;font-size:12px;">pluniez</span> on Discord.</p>
-        <div style="background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.18);border-radius:8px;padding:10px 14px;margin-bottom:18px;display:flex;gap:10px;align-items:flex-start;">
+        <div style="background:rgba(248,113,113,0.05);border:1px solid rgba(248,113,113,0.15);border-radius:4px;padding:10px 14px;margin-bottom:18px;display:flex;gap:10px;align-items:flex-start;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           <span style="font-size:12px;color:rgba(255,255,255,0.5);line-height:1.55;">Only use this form for genuine support requests. Spam or abuse results in a <strong style="color:var(--red);">strike</strong> on your account — <strong style="color:var(--red);">3 strikes = permanent support ban.</strong></span>
         </div>
@@ -2364,27 +2365,27 @@
       <div class="card" style="margin-bottom:20px;">
         <div class="card-title" style="margin-bottom:16px;">Credit Packages</div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
-          <div style="background:var(--surface3);border:1px solid var(--border-dim);border-radius:10px;padding:16px;text-align:center;">
+          <div style="background:var(--surface3);border:1px solid var(--border-dim);border-radius:4px;padding:16px;text-align:center;">
             <div style="font-size:20px;font-weight:800;color:var(--text);font-family:'Syne',sans-serif;">500</div>
             <div style="font-size:11px;color:var(--muted);margin:2px 0 8px;">credits</div>
             <div style="font-size:16px;font-weight:700;color:var(--pink);">£3.99</div>
             <div style="font-size:10px;color:var(--muted);margin-top:4px;">6 enhancements</div>
           </div>
-          <div style="background:var(--surface3);border:2px solid var(--pink);border-radius:10px;padding:16px;text-align:center;position:relative;">
+          <div style="background:var(--surface3);border:2px solid var(--pink);border-radius:4px;padding:16px;text-align:center;position:relative;">
             <div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:var(--pink);color:#fff;font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.05em;white-space:nowrap;">POPULAR</div>
             <div style="font-size:20px;font-weight:800;color:var(--text);font-family:'Syne',sans-serif;">1,000</div>
             <div style="font-size:11px;color:var(--muted);margin:2px 0 8px;">credits</div>
             <div style="font-size:16px;font-weight:700;color:var(--pink);">£7.99</div>
             <div style="font-size:10px;color:var(--muted);margin-top:4px;">12 enhancements</div>
           </div>
-          <div style="background:var(--surface3);border:2px solid var(--gold);border-radius:10px;padding:16px;text-align:center;position:relative;">
+          <div style="background:var(--surface3);border:2px solid var(--gold);border-radius:4px;padding:16px;text-align:center;position:relative;">
             <div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:var(--gold);color:#000;font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.05em;white-space:nowrap;">BEST VALUE</div>
             <div style="font-size:20px;font-weight:800;color:var(--text);font-family:'Syne',sans-serif;">2,500</div>
             <div style="font-size:11px;color:var(--muted);margin:2px 0 8px;">credits</div>
             <div style="font-size:16px;font-weight:700;color:var(--gold);">£16.99</div>
             <div style="font-size:10px;color:var(--muted);margin-top:4px;">31 enhancements</div>
           </div>
-          <div style="background:var(--surface3);border:1px solid var(--border-dim);border-radius:10px;padding:16px;text-align:center;">
+          <div style="background:var(--surface3);border:1px solid var(--border-dim);border-radius:4px;padding:16px;text-align:center;">
             <div style="font-size:20px;font-weight:800;color:var(--text);font-family:'Syne',sans-serif;">5,000</div>
             <div style="font-size:11px;color:var(--muted);margin:2px 0 8px;">credits</div>
             <div style="font-size:16px;font-weight:700;color:var(--text);">£29.99</div>
@@ -2615,7 +2616,7 @@
                 <label class="form-label">Message</label>
                 <textarea id="blast-message" class="form-textarea" placeholder="Write your announcement..."></textarea>
               </div>
-              <div id="blast-preview-box" style="display:none;background:rgba(255,255,255,0.02);border:1px solid var(--border-dim);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--muted2);white-space:pre-wrap;line-height:1.6;"></div>
+              <div id="blast-preview-box" style="display:none;background:rgba(255,255,255,0.02);border:1px solid var(--border-dim);border-radius:4px;padding:12px 14px;font-size:12px;color:var(--muted2);white-space:pre-wrap;line-height:1.6;"></div>
               <div style="display:flex;gap:10px;justify-content:flex-end;align-items:center;">
                 <div id="blast-msg" style="display:none;font-size:12px;"></div>
                 <button class="btn btn-ghost" onclick="adminPreviewBlast()">Preview</button>
@@ -2654,7 +2655,7 @@
         <div class="admin-panel" id="admin-pricing">
           <div class="card">
             <div class="card-title">Tier Pricing</div>
-            <div style="background:rgba(232,33,122,0.06);border:1px solid rgba(232,33,122,0.15);border-radius:8px;padding:10px 14px;margin-bottom:18px;font-size:12px;color:var(--muted2);line-height:1.5;">
+            <div style="background:rgba(232,33,122,0.05);border:1px solid rgba(232,33,122,0.15);border-radius:4px;padding:10px 14px;margin-bottom:18px;font-size:12px;color:var(--muted2);line-height:1.5;">
               <strong style="color:var(--text);">Note:</strong> Prices saved here update Vendora's display and bot messages. PayPal plan prices are set at plan creation — changing them requires creating new PayPal plans and updating the Plan IDs in code.
             </div>
             <div class="price-edit-row">
@@ -2862,7 +2863,7 @@
             <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:14px;font-weight:300;">
               Switching your plan above writes to Supabase, which triggers the database webhook, which calls the Railway bot, which assigns/removes your Discord role and sends you a DM — all automatically. If it works end-to-end you know the full pipeline is live.
             </div>
-            <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border-dim);border-radius:8px;padding:14px 16px;">
+            <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border-dim);border-radius:4px;padding:14px 16px;">
               <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Webhook URL</div>
               <div style="font-family:monospace;font-size:11px;color:var(--muted2);">https://vendora-production-8a47.up.railway.app/webhook</div>
             </div>
@@ -2876,7 +2877,7 @@
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
               Run Proxy Test
             </button>
-            <pre id="apify-test-output" style="display:none;margin-top:14px;background:#0a0a0a;border:1px solid var(--border-dim);border-radius:8px;padding:14px;font-family:monospace;font-size:11px;color:var(--text);white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;"></pre>
+            <pre id="apify-test-output" style="display:none;margin-top:14px;background:#0a0a0a;border:1px solid var(--border-dim);border-radius:4px;padding:14px;font-family:monospace;font-size:11px;color:var(--text);white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;"></pre>
           </div>
         </div>
 
@@ -6115,7 +6116,7 @@
         return `<div style="grid-column:1/-1;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:4px;">${g}</div>` +
           bgs.map(b => `
             <div onclick="enhSetBg('${b.id}',this)" data-bg="${b.id}" title="${b.label}"
-              style="aspect-ratio:1;border-radius:8px;border:2px solid ${b.id==='white-studio'?'var(--pink)':'transparent'};background:${b.css};cursor:pointer;transition:border-color .15s;position:relative;overflow:hidden;">
+              style="aspect-ratio:1;border-radius:4px;border:2px solid ${b.id==='white-studio'?'var(--pink)':'transparent'};background:${b.css};cursor:pointer;transition:border-color .15s;position:relative;overflow:hidden;">
               ${b.group==='AI Scene'?`<span style="position:absolute;bottom:2px;left:0;right:0;text-align:center;font-size:8px;font-weight:700;color:rgba(255,255,255,0.85);text-shadow:0 1px 3px rgba(0,0,0,0.8);letter-spacing:.03em;">AI</span>`:''}
             </div>`).join('');
       }).join('');
@@ -6124,7 +6125,7 @@
     if (lbtns) {
       lbtns.innerHTML = ENH_LIGHTINGS.map(l => `
         <button onclick="enhSetLighting('${l.id}',this)" data-lit="${l.id}"
-          style="padding:7px 12px;border-radius:8px;border:${l.id==='studio'?'2px solid var(--pink)':'1px solid var(--border-dim)'};background:${l.id==='studio'?'rgba(232,33,122,0.08)':'rgba(255,255,255,0.03)'};cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif;color:${l.id==='studio'?'var(--pink)':'var(--muted2)'};transition:all .15s;">
+          style="padding:7px 12px;border-radius:4px;border:${l.id==='studio'?'2px solid var(--pink)':'1px solid var(--border-dim)'};background:${l.id==='studio'?'rgba(232,33,122,0.08)':'rgba(255,255,255,0.03)'};cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif;color:${l.id==='studio'?'var(--pink)':'var(--muted2)'};transition:all .15s;">
           ${l.icon} ${l.label}
         </button>`).join('');
     }
@@ -6221,7 +6222,7 @@
                 if (modsCard) modsCard.style.display = '';
                 if (modList) {
                   modList.innerHTML = j.modifications.map(m => `
-                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 10px;border-radius:8px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.02);transition:background .15s;" onmouseover="this.style.background='rgba(232,33,122,0.04)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
+                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 10px;border-radius:4px;border:1px solid var(--border-dim);background:rgba(255,255,255,0.02);transition:background .15s;" onmouseover="this.style.background='rgba(232,33,122,0.04)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
                       <input type="checkbox" id="mod-${m.id}" checked style="accent-color:var(--pink);width:14px;height:14px;cursor:pointer;">
                       <div>
                         <div style="font-size:12px;font-weight:600;color:var(--text);">${m.label}</div>
@@ -6573,7 +6574,7 @@
       const CATEGORY_COLORS = { Title:'#60a5fa', Description:'#34d399', Pricing:'#f59e0b', Photos:'#a78bfa', Keywords:'#fb7185', General:'var(--pink)' };
       if (sugEl && j.suggestions?.length) {
         sugEl.innerHTML = j.suggestions.map(s => `
-          <div style="display:flex;gap:12px;padding:12px 14px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid var(--border-dim);">
+          <div style="display:flex;gap:12px;padding:12px 14px;border-radius:4px;background:rgba(255,255,255,0.02);border:1px solid var(--border-dim);">
             <span style="flex-shrink:0;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.05);color:${CATEGORY_COLORS[s.category]||'var(--pink)'};height:fit-content;margin-top:1px;">${s.category||'Tip'}</span>
             <div>
               <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;">${s.heading}</div>
@@ -6783,7 +6784,7 @@
       const URGENCY_COLOR = { high:'#f87171', medium:'#f59e0b', low:'var(--green)' };
       if(res_) res_.innerHTML = j.events.map(ev => `
         <div class="card" style="display:flex;gap:16px;align-items:flex-start;">
-          <div style="flex-shrink:0;width:52px;text-align:center;padding:8px 0;border-radius:8px;background:rgba(232,33,122,0.08);border:1px solid rgba(232,33,122,0.18);">
+          <div style="flex-shrink:0;width:52px;text-align:center;padding:8px 0;border-radius:4px;background:rgba(232,33,122,0.08);border:1px solid rgba(232,33,122,0.18);">
             <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--pink);">${ev.month||''}</div>
             <div style="font-size:20px;font-weight:800;font-family:'Syne',sans-serif;color:var(--text);line-height:1.1;">${ev.day||'?'}</div>
           </div>
