@@ -4122,14 +4122,19 @@ async function apifyVintedFetchUserByUsername(username) {
     }
     const items = await res.json();
     if (!Array.isArray(items) || !items.length) return null;
-    // Prefer an item whose seller username matches exactly; fall back to first item
+    // Only accept a result where seller.username matches exactly — never take
+    // items[0] blindly as the actor may return items from unrelated sellers.
     const match = items.find(i => {
       const s = i.seller || i.user || {};
-      return (s.username || s.login || '').toLowerCase() === clean.toLowerCase();
-    }) || items[0];
-    const seller   = match?.seller || match?.user || {};
+      return (s.username || s.login || s.name || '').toLowerCase() === clean.toLowerCase();
+    });
+    if (!match) {
+      console.log(`[apify-user-lookup] actor returned ${items.length} items but none matched seller @${clean} — cannot resolve numeric ID`);
+      return null;
+    }
+    const seller   = match.seller || match.user || {};
     const sellerId = seller.id || seller.userId || match?.userId || match?.sellerId;
-    const login    = seller.username || seller.login || match?.sellerUsername || clean;
+    const login    = seller.username || seller.login || clean;
     if (sellerId) {
       console.log(`[apify-user-lookup] resolved @${clean} → id ${sellerId}`);
       return { id: sellerId, login };
@@ -4206,6 +4211,10 @@ app.post('/api/vinted/connect-username', async (req, res) => {
     return res.status(400).json({ error: 'Enter a valid Vinted username (letters, digits, underscores).' });
   }
 
+  // Clear any stale inventory snapshot from a previous connection so the
+  // dashboard doesn't show another user's items while the new sync runs.
+  await saveSetting(`vinted_inventory_${user.id}`, { items: [], last_synced: null });
+
   // Save immediately — username alone is enough to connect. Numeric user ID is
   // resolved in the background via Apify actor and saved back when ready.
   const save = await upsertPlatformConn(user.id, 'vinted', {
@@ -4249,8 +4258,22 @@ async function syncVintedInventoryForUser(userId) {
   if (!conn?.platform_username && !conn?.platform_user_id) return { ok: false, reason: 'no-connection' };
   // Use numeric user ID if available, otherwise fall back to username
   const identifier = conn.platform_user_id || conn.platform_username;
+  const connUsername = (conn.platform_username || '').toLowerCase();
   const base  = 'https://www.vinted.co.uk';
-  const live  = await apifyVintedFetchUserItems(identifier, base, 100);
+  const raw   = await apifyVintedFetchUserItems(identifier, base, 100);
+
+  // Filter to only items that belong to the connected user — the actor can return
+  // items from unrelated sellers if it doesn't honour the member page URL.
+  const live = connUsername
+    ? raw.filter(it => {
+        const s = it.seller || it.user || {};
+        const sellerName = (s.username || s.login || s.name || it.sellerUsername || '').toLowerCase();
+        // If the actor returns seller info, use it to filter; if absent, keep the item
+        // (better to show extra than to show nothing on actors that omit seller fields)
+        return !sellerName || sellerName === connUsername;
+      })
+    : raw;
+
   const fresh = live.map(it => normaliseVintedItem(it, base));
 
   const prevSnap = (await getSetting(`vinted_inventory_${userId}`)) || { items: [] };
