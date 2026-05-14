@@ -4007,33 +4007,33 @@ app.get('/api/vinted/connect-popup', (req, res) => {
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#090909;color:#f0f0f0;font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-  .card{background:#0f0f0f;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:32px;width:100%;max-width:420px}
+  .card{background:#0f0f0f;border:1px solid rgba(255,255,255,.08);border-radius:4px;padding:32px;width:100%;max-width:420px}
   .logo{display:flex;align-items:center;gap:10px;margin-bottom:24px}
-  .logo-mark{width:32px;height:32px;background:linear-gradient(135deg,#e8217a,#c41860);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;letter-spacing:-.5px;color:#fff}
+  .logo-mark{width:32px;height:32px;background:linear-gradient(135deg,#e8217a,#c41860);border-radius:4px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;letter-spacing:-.5px;color:#fff}
   .logo-text{font-size:16px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#f0f0f0}
   h2{font-size:18px;font-weight:700;margin-bottom:6px}
   .sub{font-size:13px;color:#888;margin-bottom:20px;line-height:1.55}
-  .platform-badge{display:flex;align-items:center;gap:8px;background:rgba(9,177,186,.08);border:1px solid rgba(9,177,186,.2);border-radius:8px;padding:8px 12px;margin-bottom:22px}
+  .platform-badge{display:flex;align-items:center;gap:8px;background:rgba(9,177,186,.08);border:1px solid rgba(9,177,186,.2);border-radius:4px;padding:8px 12px;margin-bottom:22px}
   .plat-dot{width:8px;height:8px;border-radius:50%;background:#09b1ba;flex-shrink:0}
   .plat-label{font-size:12px;font-weight:600;color:#09b1ba}
   label{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#888;margin-bottom:6px}
-  input{width:100%;background:#141414;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:11px 14px;font-size:14px;color:#f0f0f0;font-family:inherit;outline:none;transition:border .15s}
+  input{width:100%;background:#141414;border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:11px 14px;font-size:14px;color:#f0f0f0;font-family:inherit;outline:none;transition:border .15s}
   input:focus{border-color:rgba(9,177,186,.5)}
   .field{margin-bottom:14px}
-  .btn{width:100%;padding:12px;border-radius:10px;border:none;cursor:pointer;font-size:14px;font-weight:600;font-family:inherit;transition:opacity .15s,background .15s;letter-spacing:.03em}
+  .btn{width:100%;padding:12px;border-radius:4px;border:none;cursor:pointer;font-size:14px;font-weight:600;font-family:inherit;transition:opacity .15s,background .15s;letter-spacing:.03em}
   .btn-primary{background:linear-gradient(135deg,#09b1ba,#077d84);color:#fff}
   .btn-primary:hover{opacity:.9}
   .btn-primary:disabled{opacity:.5;cursor:not-allowed}
-  .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,.12);color:#f0f0f0;margin-bottom:14px}
-  .btn-ghost:hover{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.2)}
-  .step{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:#141414;border:1px solid rgba(255,255,255,.06);border-radius:10px;margin-bottom:10px}
-  .step-num{width:22px;height:22px;border-radius:50%;background:rgba(232,33,122,.16);color:#e8217a;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
-  .step-text{font-size:12.5px;color:#ccc;line-height:1.55}
-  .step-text b{color:#f0f0f0;font-weight:600}
-  .msg{margin-top:14px;padding:10px 14px;border-radius:8px;font-size:13px;display:none;line-height:1.5}
+  .notice{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:4px;margin-bottom:18px}
+  .notice-icon{font-size:14px;flex-shrink:0;margin-top:1px}
+  .notice-text{font-size:12px;color:#999;line-height:1.6}
+  .notice-text b{color:#bbb}
+  .msg{margin-top:14px;padding:10px 14px;border-radius:4px;font-size:13px;display:none;line-height:1.5}
   .msg.success{background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.2);color:#4ade80}
-  .msg.error{background:rgba(232,33,122,.1);border:1px solid rgba(232,33,122,.2);color:#f07;letter-spacing:.01em}
+  .msg.error{background:rgba(232,33,122,.1);border:1px solid rgba(232,33,122,.2);color:#f07}
   .msg.info{background:rgba(9,177,186,.08);border:1px solid rgba(9,177,186,.2);color:#09b1ba}
+  .spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;margin-right:8px;vertical-align:middle}
+  @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -4043,25 +4043,26 @@ app.get('/api/vinted/connect-popup', (req, res) => {
     <div class="logo-text">Vendora</div>
   </div>
   <h2>Connect Vinted</h2>
-  <p class="sub">Sign in to your Vinted account, then enter your Vinted username so Vendora knows whose listings to track.</p>
+  <p class="sub">Sign in with your Vinted credentials. Vendora uses them once to authenticate, then stores only your session token — your password is never saved.</p>
   <div class="platform-badge">
     <div class="plat-dot"></div>
     <span class="plat-label">Vinted</span>
   </div>
 
-  <div class="step">
-    <div class="step-num">1</div>
-    <div class="step-text">Enter your <b>Vinted username</b>. Vendora uses the Apify residential proxy to read your public Vinted data — no password needed. Your inventory and sales sync automatically once you're connected.</div>
-  </div>
-
   <div class="field">
     <label>Vinted username</label>
-    <input id="vc-user" type="text" placeholder="e.g. your_username" autocomplete="username">
+    <input id="vc-user" type="text" placeholder="your_username" autocomplete="username">
   </div>
-  <button class="btn btn-primary" id="vc-btn" onclick="connectUsername()">Connect Account</button>
+  <div class="field">
+    <label>Vinted password</label>
+    <input id="vc-pass" type="password" placeholder="••••••••" autocomplete="current-password">
+  </div>
 
-  <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06);font-size:11.5px;color:#888;line-height:1.6;">
-    <b style="color:#aaa;">Want auto-listing too?</b> After connecting, head to <b>Platforms</b> in the dashboard and follow the optional "Enable Auto-Listing" step.
+  <button class="btn btn-primary" id="vc-btn" onclick="doLogin()">Sign in &amp; Connect</button>
+
+  <div class="notice" style="margin-top:16px;">
+    <span class="notice-icon">🔒</span>
+    <div class="notice-text">Your password is sent securely to Vendora's server, used to log in to Vinted via a real browser, and then <b>immediately discarded</b>. Only the session token is stored (encrypted).</div>
   </div>
 
   <div class="msg" id="msg"></div>
@@ -4073,58 +4074,111 @@ const AUTH_TOKEN = ${authJson};
 function showMsg(type, text) {
   const el = document.getElementById('msg');
   el.className = 'msg ' + type;
-  el.textContent = text;
+  el.innerHTML = text;
   el.style.display = 'block';
 }
 
-async function connectUsername() {
-  if (!AUTH_TOKEN) return showMsg('error', 'Session expired — please close this window and try again from the dashboard.');
-  const u = document.getElementById('vc-user').value.trim().replace(/^@/, '');
-  if (!u) return showMsg('error', 'Enter your Vinted username.');
+async function doLogin() {
+  if (!AUTH_TOKEN) return showMsg('error', 'Session expired — close this window and try again from the dashboard.');
+  const username = document.getElementById('vc-user').value.trim().replace(/^@/, '');
+  const password = document.getElementById('vc-pass').value;
+  if (!username) return showMsg('error', 'Enter your Vinted username.');
+  if (!password)  return showMsg('error', 'Enter your Vinted password.');
+
   const btn = document.getElementById('vc-btn');
-  btn.disabled = true; btn.textContent = 'Verifying via Apify…';
-  showMsg('info', 'Looking up @' + u + ' on Vinted…');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Signing in to Vinted…';
+  showMsg('info', 'Opening a browser session on Vinted — this takes up to 30 seconds…');
+
   try {
-    const res = await fetch('/api/vinted/connect-username', {
+    const res = await fetch('/api/vinted/connect-login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
-      body: JSON.stringify({ username: u }),
+      body: JSON.stringify({ username, password }),
     });
     const json = await res.json();
     if (!res.ok) {
-      showMsg('error', json.error || 'Could not find that username on Vinted. Check the spelling.');
+      showMsg('error', json.error || 'Login failed. Check your username and password and try again.');
+      btn.disabled = false; btn.textContent = 'Sign in & Connect';
+      return;
+    }
+    showMsg('success', '✓ Connected as @' + json.username + '!');
+    if (window.opener) {
+      setTimeout(() => {
+        try { window.opener.postMessage({ type: 'vinted-connected', username: json.username }, '*'); } catch {}
+        window.close();
+      }, 1400);
     } else {
-      if (window.opener) {
-        // Normal popup — post back to opener and close
-        showMsg('success', 'Connected as @' + json.username + ' — closing window…');
-        setTimeout(() => {
-          try { window.opener.postMessage({ type: 'vinted-connected', username: json.username }, '*'); } catch {}
-          window.close();
-        }, 1200);
-        return; // window is closing — don't re-enable button
-      } else {
-        // New tab (popup blocked or mobile) — window.opener is null, postMessage can't fire.
-        // Connection IS saved in Supabase. Tell user to close this tab; the dashboard
-        // setInterval will call loadPlatformStatus() when it detects the tab closed.
-        showMsg('success', '✓ Connected as @' + json.username + '! Close this tab and return to the Vendora dashboard — it will update automatically.');
-        btn.textContent = 'Done — close this tab';
-        btn.disabled = false;
-        btn.onclick = () => window.close();
-        return; // leave button as close button — don't reset below
-      }
+      btn.textContent = 'Done — close this tab';
+      btn.disabled = false;
+      btn.onclick = () => window.close();
     }
   } catch (e) {
-    showMsg('error', 'Request failed: ' + (e.message || 'network error'));
+    showMsg('error', 'Network error: ' + (e.message || 'please try again'));
+    btn.disabled = false; btn.textContent = 'Sign in & Connect';
   }
-  btn.disabled = false; btn.textContent = 'Connect Account';
 }
 
-document.getElementById('vc-user').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') connectUsername();
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doLogin();
 });
 </script>
 </body>
 </html>`);
+});
+
+// POST /api/vinted/connect-login — log in with real Vinted credentials via
+// Playwright browser (bypasses DataDome), store the session token + seller ID.
+// Password is used once and never persisted.
+app.post('/api/vinted/connect-login', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const username = String(req.body?.username || '').trim().replace(/^@/, '');
+  const password = String(req.body?.password || '');
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required.' });
+  }
+  if (!vintedBrowser?.vintedBrowserLogin) {
+    return res.status(503).json({ error: 'Browser login unavailable — Playwright not running on this server.' });
+  }
+
+  let result;
+  try {
+    result = await Promise.race([
+      vintedBrowser.vintedBrowserLogin(username, password),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('Login timed out after 60s')), 60000)),
+    ]);
+  } catch (e) {
+    console.warn('[vinted-connect-login] timeout/error:', e.message);
+    return res.status(504).json({ error: 'Login timed out. Vinted may be slow — please try again.' });
+  }
+
+  if (result?.error) {
+    // Surface Vinted-specific messages (wrong password, captcha, etc.)
+    return res.status(401).json({ error: result.error });
+  }
+  if (!result?.access_token) {
+    return res.status(401).json({ error: 'Login did not return a session token. Check your credentials and try again.' });
+  }
+
+  // Clear any stale inventory + sales before saving fresh connection
+  await saveSetting(`vinted_inventory_${user.id}`, { items: [], last_synced: null });
+  await saveSetting(`vinted_sales_${user.id}`,     { sales: [], last_synced: null });
+
+  const save = await upsertPlatformConn(user.id, 'vinted', {
+    access_token:      encryptToken(result.access_token),
+    refresh_token:     result.refresh_token || null,
+    platform_user_id:  result.platform_user_id || '',
+    platform_username: result.platform_username || username,
+    connected_at:      new Date().toISOString(),
+  });
+  if (!save.ok) return res.status(500).json({ error: save.error || 'Could not save connection.' });
+
+  const savedUsername = result.platform_username || username;
+  console.log(`[vinted-connect-login] @${savedUsername} connected (id=${result.platform_user_id})`);
+  res.json({ ok: true, username: savedUsername, seller_id: result.platform_user_id || null });
+
+  // Kick off inventory sync in background now that we have a real token + ID
+  syncVintedInventoryForUser(user.id).catch(e => console.warn('[sync-inventory] post-login:', e.message));
 });
 
 // ── Vinted via Apify Actor API: user lookup + inventory + profit sync ─────────
