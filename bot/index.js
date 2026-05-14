@@ -2953,22 +2953,50 @@ async function getPlatformConn(userId, platform) {
 async function upsertPlatformConn(userId, platform, data) {
   if (!SUPABASE_KEY) return { error: 'SUPABASE_SERVICE_KEY not configured on server' };
   try {
-    const res  = await fetch(`${SUPABASE_URL}/rest/v1/platform_connections`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-        Prefer: 'resolution=merge-duplicates,return=representation',
-      },
-      body: JSON.stringify({ user_id: userId, platform, ...data }),
-    });
-    const text = await res.text();
-    if (!res.ok) {
-      console.error(`[upsertPlatformConn] ${platform} HTTP ${res.status}:`, text.slice(0, 200));
-      return { error: `Database error (${res.status}): ${text.slice(0, 100)}` };
+    // Check if a row already exists — if so, PATCH it; otherwise POST (insert).
+    // This avoids relying on PostgREST's merge-duplicates which requires a
+    // specific unique constraint name and breaks with 409 on some schema setups.
+    const existing = await getPlatformConn(userId, platform);
+    if (existing) {
+      // UPDATE existing row
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/platform_connections?user_id=eq.${userId}&platform=eq.${platform}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+            Prefer: 'return=representation',
+          },
+          body: JSON.stringify(data),
+        }
+      );
+      const text = await res.text();
+      if (!res.ok) {
+        console.error(`[upsertPlatformConn] PATCH ${platform} HTTP ${res.status}:`, text.slice(0, 200));
+        return { error: `Database error (${res.status}): ${text.slice(0, 100)}` };
+      }
+      return { ok: true };
+    } else {
+      // INSERT new row
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/platform_connections`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify({ user_id: userId, platform, ...data }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        console.error(`[upsertPlatformConn] POST ${platform} HTTP ${res.status}:`, text.slice(0, 200));
+        return { error: `Database error (${res.status}): ${text.slice(0, 100)}` };
+      }
+      return { ok: true };
     }
-    return { ok: true };
   } catch (e) { return { error: e.message }; }
 }
 
