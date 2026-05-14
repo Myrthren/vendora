@@ -2745,6 +2745,7 @@ app.get('/api/inventory', async (req, res) => {
     syncing: false,
     username: conn.platform_username,
     last_synced: snap.last_synced,
+    sync_note: snap.sync_note || null,
     items,
   });
 });
@@ -4128,103 +4129,106 @@ document.getElementById('vc-user').addEventListener('keydown', (e) => {
 
 // ── Vinted via Apify Actor API: user lookup + inventory + profit sync ─────────
 // Uses Apify actor REST API — NOT the Apify proxy. Works on the free Apify plan.
-// The actor runs on Apify's servers (with residential proxies), we just POST to
-// the REST API and get results back. No raw TCP tunnelling required.
-// Actor is configured via APIFY_VINTED_ACTOR env var (same one used for search).
+//
+// Strategy:
+//   • Username → ID lookup: APIFY_VINTED_USER_ACTOR with maxItems:1 (fast)
+//   • Inventory fetch (have numeric ID): APIFY_VINTED_ACTOR with catalog URL
+//       https://www.vinted.co.uk/catalog?seller_ids[]=ID  ← same actor used for
+//       keyword search, proven reliable, returns all items for that seller
+//   • Inventory fetch (username only, no ID): APIFY_VINTED_USER_ACTOR with member URL
 
-// Resolve a Vinted username → numeric user ID by fetching their member page via
-// the search actor. Extracts seller.id from any returned item.
-// Returns { id, login } on success, or null if no items / actor unavailable.
+// Helper: run any Apify actor and return the dataset array, or [] on error.
+async function apifyRunActor(actorId, input, timeoutSec = 90) {
+  const res = await fetch(
+    `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=${timeoutSec}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+      signal: AbortSignal.timeout((timeoutSec + 5) * 1000),
+    }
+  );
+  if (!res.ok) { console.warn(`[apify] ${actorId} → HTTP ${res.status}`); return []; }
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+// Resolve a Vinted username → numeric user ID.
+// Uses APIFY_VINTED_USER_ACTOR with maxItems:1 — only needs one item to extract
+// the seller.id, so it completes fast without full-page timeout risk.
+// Returns { id, login } on success, null if not found.
 async function apifyVintedFetchUserByUsername(username) {
   if (!APIFY_TOKEN) return null;
   const clean = String(username || '').trim().replace(/^@/, '');
   if (!clean) return null;
   const memberUrl = `https://www.vinted.co.uk/member/${encodeURIComponent(clean)}/items`;
   try {
-    const res = await fetch(
-      `https://api.apify.com/v2/acts/${APIFY_VINTED_ACTOR}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=90`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          startUrls:  [{ url: memberUrl }],
-          search:     clean,
-          keyword:    clean,
-          maxItems:   10,
-          maxResults: 10,
-          country:    'gb',
-          countryCode: 'gb',
-        }),
-        signal: AbortSignal.timeout(95000),
-      }
-    );
-    if (!res.ok) {
-      console.warn(`[apify-user-lookup] actor ${APIFY_VINTED_ACTOR} returned ${res.status}`);
-      return null;
-    }
-    const items = await res.json();
-    if (!Array.isArray(items) || !items.length) return null;
-    // Only accept a result where seller.username matches exactly — never take
-    // items[0] blindly as the actor may return items from unrelated sellers.
+    const items = await apifyRunActor(APIFY_VINTED_USER_ACTOR, {
+      startUrls:  [{ url: memberUrl }],
+      urls:       [memberUrl],
+      maxItems:   1,   // only need 1 item to get seller.id — much faster
+      maxResults: 1,
+      country:    'gb', countryCode: 'gb',
+    }, 60);
+    if (!items.length) { console.log(`[apify-user-lookup] no items returned for @${clean}`); return null; }
+    // Accept only items where seller.username matches exactly
     const match = items.find(i => {
       const s = i.seller || i.user || {};
       return (s.username || s.login || s.name || '').toLowerCase() === clean.toLowerCase();
     });
-    if (!match) {
-      console.log(`[apify-user-lookup] actor returned ${items.length} items but none matched seller @${clean} — cannot resolve numeric ID`);
-      return null;
-    }
+    if (!match) { console.log(`[apify-user-lookup] ${items.length} items but none from @${clean}`); return null; }
     const seller   = match.seller || match.user || {};
     const sellerId = seller.id || seller.userId || match?.userId || match?.sellerId;
     const login    = seller.username || seller.login || clean;
-    if (sellerId) {
-      console.log(`[apify-user-lookup] resolved @${clean} → id ${sellerId}`);
-      return { id: sellerId, login };
-    }
+    if (sellerId) { console.log(`[apify-user-lookup] @${clean} → id ${sellerId}`); return { id: sellerId, login }; }
     return null;
-  } catch (e) {
-    console.warn('[apify-user-lookup] actor error:', e.message);
-    return null;
-  }
+  } catch (e) { console.warn('[apify-user-lookup]', e.message); return null; }
 }
 
-// Fetch a user's active Vinted listings via APIFY_VINTED_USER_ACTOR.
-// Uses kazkn~vinted-smart-scraper by default — it honours member page startUrls
-// and returns items with seller info, unlike search-only actors.
-async function apifyVintedFetchUserItems(usernameOrId, _base, perPage = 100) {
+// Fetch a user's active Vinted listings.
+// • If we have a numeric seller ID: use the SEARCH actor with a catalog URL filtered
+//   by seller_ids[]. This is the same actor used for keyword search and is reliable.
+// • If only username: fall back to APIFY_VINTED_USER_ACTOR with member page URL.
+async function apifyVintedFetchUserItems(usernameOrId, _base, perPage = 96) {
   if (!APIFY_TOKEN || !usernameOrId) return [];
   const clean = String(usernameOrId).trim();
   const isNumericId = /^\d+$/.test(clean);
-  const memberUrl = isNumericId
-    ? `https://www.vinted.co.uk/member/${clean}/items`
-    : `https://www.vinted.co.uk/member/${encodeURIComponent(clean)}/items`;
+
+  if (isNumericId) {
+    // Catalog URL with seller filter — works with the existing search actor, reliable
+    const catalogUrl = `https://www.vinted.co.uk/catalog?seller_ids[]=${clean}&order=newest_first&per_page=${Math.min(perPage, 96)}`;
+    console.log(`[apify-user-items] fetching by seller_id=${clean} via catalog URL`);
+    try {
+      const items = await apifyRunActor(APIFY_VINTED_ACTOR, {
+        startUrls:  [{ url: catalogUrl }],
+        maxItems:   perPage,
+        maxResults: perPage,
+        country:    'gb', countryCode: 'gb',
+      }, 90);
+      console.log(`[apify-user-items] catalog URL returned ${items.length} items for seller ${clean}`);
+      return items;
+    } catch (e) { console.warn('[apify-user-items] catalog URL error:', e.message); return []; }
+  }
+
+  // Username-only fallback — member page URL via user actor
+  const memberUrl = `https://www.vinted.co.uk/member/${encodeURIComponent(clean)}/items`;
+  console.log(`[apify-user-items] no numeric ID, trying member URL for @${clean}`);
   try {
-    const res = await fetch(
-      `https://api.apify.com/v2/acts/${APIFY_VINTED_USER_ACTOR}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=120`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // Wide input key coverage — different actor versions use different field names
-        body: JSON.stringify({
-          startUrls:    [{ url: memberUrl }],
-          urls:         [memberUrl],
-          profileUrls:  [memberUrl],
-          memberUrl:    memberUrl,
-          maxItems:     perPage,
-          maxResults:   perPage,
-          resultsLimit: perPage,
-          country:      'gb',
-          countryCode:  'gb',
-        }),
-        signal: AbortSignal.timeout(125000),
-      }
-    );
-    if (!res.ok) {
-      console.warn(`[apify-user-items] ${APIFY_VINTED_USER_ACTOR} returned ${res.status}`);
-      return [];
-    }
-    const items = await res.json();
-    if (!Array.isArray(items)) return [];
+    const items = await apifyRunActor(APIFY_VINTED_USER_ACTOR, {
+      startUrls:    [{ url: memberUrl }],
+      urls:         [memberUrl],
+      profileUrls:  [memberUrl],
+      memberUrl:    memberUrl,
+      maxItems:     perPage,
+      maxResults:   perPage,
+      country:      'gb', countryCode: 'gb',
+    }, 90);
+    console.log(`[apify-user-items] member URL returned ${items.length} items for @${clean}`);
+    return items;
+  } catch (e) { console.warn('[apify-user-items] member URL error:', e.message); return []; }
+}
+
+// (legacy read point — no more code here, just left for diff clarity)
     console.log(`[apify-user-items] got ${items.length} raw items for ${clean}`);
     return items;
   } catch (e) {
@@ -4330,16 +4334,28 @@ async function syncVintedInventoryForUser(userId) {
 
   console.log(`[sync-inventory] ${live.length}/${raw.length} items kept for @${connUsername}`);
 
-  // If actor returned nothing (0 raw items), don't overwrite an existing good snapshot.
-  // Return 0 without saving so the user sees their last known listings until retry.
+  // If actor returned nothing, preserve the existing snapshot items but still
+  // stamp last_synced so the dashboard stops showing "syncing" indefinitely.
   if (raw.length === 0) {
-    console.warn(`[sync-inventory] actor returned 0 items for @${connUsername} — keeping existing snapshot`);
+    console.warn(`[sync-inventory] actor returned 0 items for @${connUsername}`);
+    const prevSnap0 = (await getSetting(`vinted_inventory_${userId}`)) || { items: [] };
+    await saveSetting(`vinted_inventory_${userId}`, {
+      items: prevSnap0.items || [],
+      last_synced: new Date().toISOString(),
+      sync_note: 'actor returned 0 items',
+    });
     return { ok: true, count: 0, sold_now: 0, actor_empty: true };
   }
 
-  // If all items were filtered out (all from wrong seller), treat as actor failure
+  // If all items filtered out (wrong seller), same — stamp last_synced to stop spinner
   if (live.length === 0 && raw.length > 0) {
-    console.warn(`[sync-inventory] all ${raw.length} items filtered out (wrong seller) — keeping existing snapshot`);
+    console.warn(`[sync-inventory] all ${raw.length} items filtered (wrong seller) for @${connUsername}`);
+    const prevSnap0 = (await getSetting(`vinted_inventory_${userId}`)) || { items: [] };
+    await saveSetting(`vinted_inventory_${userId}`, {
+      items: prevSnap0.items || [],
+      last_synced: new Date().toISOString(),
+      sync_note: 'all items filtered (wrong seller)',
+    });
     return { ok: true, count: 0, sold_now: 0, all_filtered: true };
   }
 

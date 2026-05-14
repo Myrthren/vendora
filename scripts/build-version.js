@@ -1,23 +1,26 @@
 #!/usr/bin/env node
-// Writes version.json at the site root on every Netlify build.
-// Auto-bumps semver patch per commit, no manual file to maintain.
+// Writes version.json at the site root on every Netlify/Railway build.
 //
-// Versioning scheme: vMAJOR.MINOR.PATCH
-//   MAJOR + MINOR = constants below (bump manually for big changes)
-//   PATCH = number of commits since BASELINE_COMMIT_COUNT
-// Result: every push → patch bumps by 1. Starts at v1.0.0 on the
-// first deploy after this script lands.
+// Versioning scheme:
+//   • Before v6.2: vMAJOR.MINOR.PATCH  (three-part, patch auto-increments per commit)
+//   • From v6.2 onwards: vMAJOR.MINOR   (two-part, MINOR auto-increments per commit,
+//     giving v6.2 → v6.3 → v6.4 … i.e. +0.1 per release, not +0.01)
+//
+// To release v6.2: set MAJOR=6, MINOR=2, set BASELINE_COMMIT_COUNT to current
+// git rev-list count. Each subsequent push will show v6.3, v6.4, etc.
 
 const { execSync } = require('child_process');
 const { writeFileSync } = require('fs');
 const { join } = require('path');
 
-const MAJOR = 0;
-const MINOR = 6;
-// Bump MINOR manually for each feature release (matches changelog MAJOR.MINOR).
-// Patch = commits since this baseline — increments automatically per push.
-// Baseline reset to 91 when v0.6 shipped, so next deploy = v0.6.0.
-const BASELINE_COMMIT_COUNT = 91;
+// ── Bump these manually when making a major/minor version jump ────────────────
+const MAJOR = 6;
+const MINOR = 2;
+// Set to the git commit count at the time MAJOR.MINOR was set.
+// Every commit after this baseline adds 1 to the displayed minor version.
+// Current count at v6.2 baseline: 110
+const BASELINE_COMMIT_COUNT = 110;
+// ─────────────────────────────────────────────────────────────────────────────
 
 function sh(cmd, fallback = '') {
   try { return execSync(cmd, { encoding: 'utf8' }).trim(); }
@@ -25,7 +28,6 @@ function sh(cmd, fallback = '') {
 }
 
 function getCommitCount() {
-  // Netlify clones with full history by default; locally `git` is available.
   const n = parseInt(sh('git rev-list --count HEAD', '0'), 10);
   return Number.isFinite(n) ? n : 0;
 }
@@ -35,9 +37,11 @@ const short   = sha.slice(0, 7);
 const builtAt = new Date().toISOString();
 const message = sh(`git log -1 --pretty=%s ${process.env.COMMIT_REF || ''}`).slice(0, 200);
 
-const count   = getCommitCount();
-const patch   = Math.max(0, count - BASELINE_COMMIT_COUNT);
-const version = `v${MAJOR}.${MINOR}.${patch}`;
+const count = getCommitCount();
+const bump  = Math.max(0, count - BASELINE_COMMIT_COUNT);
+
+// From v6.2 onwards: two-part versioning (MAJOR.MINOR+bump), +0.1 per release
+const version = `v${MAJOR}.${MINOR + bump}`;
 
 const out = { version, sha, short, builtAt, message };
 const target = join(__dirname, '..', 'version.json');

@@ -4178,7 +4178,7 @@
         tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Failed to load.</td></tr>`;
         return;
       }
-      const { items, connected, username, last_synced, syncing } = await res.json();
+      const { items, connected, username, last_synced, syncing, sync_note } = await res.json();
       if (connected) {
         if (dot) dot.style.background = syncing ? 'var(--pink)' : 'var(--green)';
         if (tEl) tEl.textContent = `Vinted connected — @${username || 'unknown'}`;
@@ -4210,21 +4210,26 @@
         if (sEl) sEl.innerHTML = `Connect your Vinted account on the <a href="#" onclick="showSection('platforms',document.querySelector('[onclick*=platforms]'));return false;" style="color:var(--pink);text-decoration:none;">Platforms</a> page to auto-import your listings.`;
         if (btn) btn.disabled = true;
       }
-      renderInventoryTable(items, connected, syncing);
+      renderInventoryTable(items, connected, syncing, sync_note);
     } catch {
       tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Error loading inventory.</td></tr>`;
     }
   }
 
-  function renderInventoryTable(items, connected, syncing) {
+  function renderInventoryTable(items, connected, syncing, sync_note) {
     const tbody = document.getElementById('inventory-tbody');
     if (!tbody) return;
     if (!items || items.length === 0) {
-      const msg = !connected
-        ? 'Connect Vinted on the Platforms page to populate your inventory automatically.'
-        : syncing
-          ? '<span style="color:var(--pink);">⟳ Syncing your Vinted listings… check back in a moment.</span>'
-          : 'No active Vinted listings found. Click <strong>Sync now</strong> to retry.';
+      let msg;
+      if (!connected) {
+        msg = 'Connect Vinted on the Platforms page to populate your inventory automatically.';
+      } else if (syncing) {
+        msg = '<span style="color:var(--pink);">⟳ Fetching your Vinted listings… this takes up to 60 seconds.</span>';
+      } else if (sync_note) {
+        msg = `No listings found during last sync. This can happen if your Vinted account has no public items, or if the scraper couldn't reach your profile. <a href="#" onclick="syncInventory();return false;" style="color:var(--pink);">Try syncing again</a>.`;
+      } else {
+        msg = 'No active Vinted listings found. Click <strong>Sync now</strong> to retry.';
+      }
       tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">${msg}</td></tr>`;
       return;
     }
