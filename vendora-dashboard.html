@@ -358,6 +358,27 @@
   .sub-next { font-size: 12px; color: var(--muted); font-weight: 300; }
   .sub-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
 
+  /* Plan upgrade cards */
+  .upgrade-card { overflow: hidden; }
+  .upgrade-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  }
+  .upgrade-card[data-tier="basic"] { background: linear-gradient(160deg, rgba(96,165,250,0.06) 0%, rgba(255,255,255,0.015) 100%) !important; }
+  .upgrade-card[data-tier="basic"]::before { background: linear-gradient(90deg, transparent, rgba(96,165,250,0.55), transparent); }
+  .upgrade-card[data-tier="pro"] { background: linear-gradient(160deg, rgba(232,33,122,0.09) 0%, rgba(232,33,122,0.02) 100%) !important; }
+  .upgrade-card[data-tier="pro"]::before { background: linear-gradient(90deg, var(--pink), var(--pink-light)); }
+  .upgrade-card[data-tier="elite"] { background: linear-gradient(160deg, rgba(232,161,33,0.09) 0%, rgba(232,161,33,0.02) 100%) !important; }
+  .upgrade-card[data-tier="elite"]::before { background: linear-gradient(90deg, transparent, rgba(232,161,33,0.7), transparent); }
+
+  /* Stat cards — subtle top shimmer */
+  .stat-card { position: relative; overflow: hidden; }
+  .stat-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(232,33,122,0.3), transparent);
+  }
+
   /* Buttons */
   .btn {
     display: inline-flex; align-items: center; gap: 8px;
@@ -655,21 +676,20 @@
     <span class="nav-section-label" style="margin-top:8px;">Tools</span>
 
     <!-- Tools -->
-    <div class="nav-item" id="crosslist-nav-item" onclick="showSection('crosslist', this)">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-      Listings
-    </div>
-    <div class="nav-item" id="listings-nav-item" onclick="showSection('listings', this)">
+    <div class="nav-item" id="listings-nav-item" onclick="showSection('listings', this)" style="opacity:0.38;">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 10h16M4 14h8M4 18h8"/><path d="M16 14l2 2 4-4"/></svg>
       Auto-List
+      <span style="margin-left:auto;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);">Soon</span>
     </div>
-    <div class="nav-item" id="inventory-nav-item" onclick="showSection('inventory', this)">
+    <div class="nav-item" id="inventory-nav-item" onclick="showSection('inventory', this)" style="opacity:0.38;">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
       Inventory
+      <span style="margin-left:auto;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);">Soon</span>
     </div>
-    <div class="nav-item" id="autobuy-nav-item" onclick="showSection('autobuy', this)">
+    <div class="nav-item" id="autobuy-nav-item" onclick="showSection('autobuy', this)" style="opacity:0.38;">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       Auto-Buy
+      <span style="margin-left:auto;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);">Soon</span>
     </div>
 
     <!-- Active tools -->
@@ -906,14 +926,15 @@
         <div id="coupon-tier-select" style="display:none;margin-top:14px;">
           <div style="font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;">Select your plan</div>
           <div style="display:flex;gap:8px;">
-            <button class="btn btn-ghost btn-sm" style="flex:1;justify-content:center;" onclick="activateCoupon('basic')">Starter</button>
+            <button class="btn btn-ghost btn-sm" style="flex:1;justify-content:center;" onclick="activateCoupon('basic')">Basic</button>
             <button class="btn btn-pink btn-sm" style="flex:1;justify-content:center;" onclick="activateCoupon('pro')">Pro</button>
             <button class="btn btn-gold btn-sm" style="flex:1;justify-content:center;" onclick="activateCoupon('elite')">Elite</button>
           </div>
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" style="position:relative;overflow:hidden;">
+        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(232,33,122,0.5),rgba(232,161,33,0.4),transparent);"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
           <div class="card-title" style="margin:0;">Change Plan</div>
           <div style="display:flex;align-items:center;gap:10px;">
@@ -1136,267 +1157,34 @@
     <div class="section" id="section-listings">
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
-        <div class="page-title">Auto-List</div>
-        <div class="page-sub">Create, cross-list, and automate your listings across Depop and Vinted.</div>
+        <div class="page-title">Auto-List <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--muted2);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Coming Soon</span></div>
+        <div class="page-sub">Create and cross-list to Depop, Vinted, and eBay in one click — automatically optimised for each platform.</div>
       </div>
-
-      <!-- Pro gate -->
-      <div id="listings-gate" style="display:none;">
-        <div class="access-denied" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px 24px;gap:16px;">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-          <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text);">Pro Required</div>
-          <div style="font-size:13px;color:var(--muted2);max-width:320px;">Listings is available on Vendora Pro and above. Upgrade to list and automate across all platforms.</div>
-          <button class="btn btn-primary btn-sm" onclick="showSection('subscription', document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Pro</button>
+      <div class="card" style="text-align:center;padding:64px 24px;">
+        <div style="width:56px;height:56px;border-radius:50%;background:rgba(232,33,122,0.08);border:1px solid rgba(232,33,122,0.2);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 10h16M4 14h8M4 18h8"/><path d="M16 14l2 2 4-4"/></svg>
         </div>
-      </div>
-
-      <div id="listings-tool">
-        <!-- Create listing -->
-        <div class="card" style="margin-bottom:20px;">
-          <div class="card-title" style="margin-bottom:18px;">New Listing</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-
-            <div style="display:flex;flex-direction:column;gap:14px;">
-              <div>
-                <label class="form-label">Item Title *</label>
-                <input id="list-title" type="text" class="form-select" style="height:auto;padding:10px 14px;" placeholder="e.g. Nike Air Max 90 White UK9">
-              </div>
-              <div>
-                <label class="form-label">Description <span style="color:var(--muted);font-weight:300;text-transform:none;">(optional)</span></label>
-                <textarea id="list-desc" rows="3" class="form-select" style="height:auto;padding:10px 14px;resize:vertical;" placeholder="Extra details — size, colour, defects, original box etc."></textarea>
-              </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                <div>
-                  <label class="form-label">Price (£) *</label>
-                  <input id="list-price" type="number" min="0" step="0.01" class="form-select" style="height:auto;padding:10px 14px;" placeholder="45.00">
-                </div>
-                <div>
-                  <label class="form-label">Condition</label>
-                  <select id="list-condition" class="form-select">
-                    <option value="">Select...</option>
-                    <option value="New with tags">New with tags</option>
-                    <option value="New without tags">New without tags</option>
-                    <option value="Like New">Like New — barely worn</option>
-                    <option value="Very Good">Very Good — minor signs of wear</option>
-                    <option value="Good">Good — visible signs of wear</option>
-                    <option value="Acceptable">Acceptable — heavily worn</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div style="display:flex;flex-direction:column;gap:14px;">
-              <div>
-                <label class="form-label">Platforms *</label>
-                <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
-                  <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-dim);border-radius:4px;opacity:0.45;pointer-events:none;" id="list-lbl-depop">
-                    <input type="checkbox" id="list-depop" disabled style="accent-color:#ff2300;width:14px;height:14px;">
-                    <span style="font-size:13px;color:var(--text);">Depop</span>
-                    <span style="margin-left:auto;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);">Coming Soon</span>
-                  </label>
-                  <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border-dim);border-radius:4px;cursor:pointer;transition:border .15s;" id="list-lbl-vinted" onmouseover="this.style.borderColor='rgba(9,177,186,0.3)'" onmouseout="updateListPlatformBorder('vinted')">
-                    <input type="checkbox" id="list-vinted" style="accent-color:#09b1ba;width:14px;height:14px;" onchange="updateListPlatformBorder('vinted');updatePlatformFields();">
-                    <span style="font-size:13px;color:var(--text);">Vinted</span>
-                    <span id="list-vinted-status" style="margin-left:auto;font-size:10px;color:var(--muted);">Not connected</span>
-                  </label>
-                </div>
-              </div>
-
-              <!-- Platform-specific fields -->
-              <div id="plat-fields-wrapper" style="display:none;border:1px solid var(--border-dim);border-radius:4px;overflow:hidden;">
-
-                <!-- Vinted fields -->
-                <div id="plat-fields-vinted" style="display:none;padding:14px;background:rgba(9,177,186,0.04);">
-                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
-                    <div style="width:6px;height:6px;border-radius:50%;background:#09b1ba;"></div>
-                    <span style="font-size:10px;font-weight:700;color:#09b1ba;text-transform:uppercase;letter-spacing:.07em;">Vinted Details</span>
-                  </div>
-                  <div style="display:flex;flex-direction:column;gap:10px;">
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                      <div>
-                        <label class="form-label">Brand <span style="color:var(--pink);">*</span></label>
-                        <input id="list-brand" type="text" class="form-select" style="height:auto;padding:8px 12px;font-size:12px;" placeholder="Nike, Adidas, Zara…">
-                      </div>
-                      <div>
-                        <label class="form-label">Size</label>
-                        <input id="list-size" type="text" class="form-select" style="height:auto;padding:8px 12px;font-size:12px;" placeholder="M, 32, UK9…">
-                      </div>
-                    </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                      <div>
-                        <label class="form-label">Category <span style="color:var(--pink);">*</span></label>
-                        <select id="list-vinted-category" class="form-select" style="font-size:12px;">
-                          <option value="">Select…</option>
-                          <optgroup label="Women's Clothing">
-                            <option value="3">Women's Tops &amp; T-Shirts</option>
-                            <option value="7">Women's Dresses</option>
-                            <option value="15">Women's Trousers &amp; Shorts</option>
-                            <option value="12">Women's Coats &amp; Jackets</option>
-                            <option value="6">Women's Jumpers &amp; Cardigans</option>
-                            <option value="8">Women's Skirts</option>
-                            <option value="10">Women's Jeans</option>
-                            <option value="9">Women's Suits &amp; Blazers</option>
-                            <option value="204">Women's Sportswear</option>
-                          </optgroup>
-                          <optgroup label="Women's Shoes">
-                            <option value="1235">Women's Trainers</option>
-                            <option value="242">Women's Heels</option>
-                            <option value="255">Women's Boots</option>
-                            <option value="261">Women's Sandals &amp; Flip Flops</option>
-                            <option value="1866">Women's Flats</option>
-                          </optgroup>
-                          <optgroup label="Men's Clothing">
-                            <option value="4">Men's T-Shirts &amp; Tops</option>
-                            <option value="88">Men's Hoodies &amp; Sweatshirts</option>
-                            <option value="16">Men's Trousers &amp; Chinos</option>
-                            <option value="21">Men's Jackets &amp; Coats</option>
-                            <option value="91">Men's Jumpers &amp; Cardigans</option>
-                            <option value="20">Men's Jeans</option>
-                            <option value="24">Men's Shorts</option>
-                            <option value="302">Men's Sportswear</option>
-                            <option value="93">Men's Shirts</option>
-                            <option value="95">Men's Suits &amp; Blazers</option>
-                          </optgroup>
-                          <optgroup label="Men's Shoes">
-                            <option value="1484">Men's Trainers</option>
-                            <option value="308">Men's Boots</option>
-                            <option value="307">Men's Formal Shoes</option>
-                            <option value="309">Men's Sandals &amp; Flip Flops</option>
-                          </optgroup>
-                          <optgroup label="Kids">
-                            <option value="268">Boys' Clothing</option>
-                            <option value="269">Girls' Clothing</option>
-                            <option value="289">Kids' Shoes</option>
-                          </optgroup>
-                          <optgroup label="Bags &amp; Accessories">
-                            <option value="2082">Women's Bags &amp; Purses</option>
-                            <option value="2142">Men's Bags &amp; Backpacks</option>
-                            <option value="2140">Accessories (Belts, Hats, Scarves…)</option>
-                            <option value="131">Jewellery</option>
-                            <option value="143">Sunglasses &amp; Eyewear</option>
-                          </optgroup>
-                          <optgroup label="Other">
-                            <option value="1">Other</option>
-                          </optgroup>
-                        </select>
-                      </div>
-                      <div>
-                        <label class="form-label">Parcel Size <span style="color:var(--pink);">*</span></label>
-                        <select id="list-package-size" class="form-select" style="font-size:12px;">
-                          <option value="1">Small (e.g. shoes, small top)</option>
-                          <option value="2" selected>Medium (e.g. jacket, dress)</option>
-                          <option value="3">Large (e.g. coat, multiple items)</option>
-                          <option value="4">Extra Large (bulky / very heavy)</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Depop fields -->
-                <div id="plat-fields-depop" style="display:none;padding:14px;background:rgba(255,35,0,0.04);">
-                  <div id="plat-fields-depop-divider" style="display:none;height:1px;background:var(--border-dim);margin:-14px -14px 14px;"></div>
-                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
-                    <div style="width:6px;height:6px;border-radius:50%;background:#ff2300;"></div>
-                    <span style="font-size:10px;font-weight:700;color:#ff2300;text-transform:uppercase;letter-spacing:.07em;">Depop Details</span>
-                  </div>
-                  <div style="display:flex;flex-direction:column;gap:10px;">
-                    <div>
-                      <label class="form-label">Category</label>
-                      <select id="list-depop-category" class="form-select" style="font-size:12px;">
-                        <option value="">Select…</option>
-                        <option value="3">Tops</option>
-                        <option value="4">Bottoms</option>
-                        <option value="5">Dresses</option>
-                        <option value="6">Outerwear</option>
-                        <option value="7">Footwear</option>
-                        <option value="8">Bags & Accessories</option>
-                        <option value="10">Sportswear</option>
-                        <option value="20">Other</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label class="form-label">Hashtags <span style="color:var(--muted);font-weight:300;text-transform:none;">(space or comma separated)</span></label>
-                      <input id="list-hashtags" type="text" class="form-select" style="height:auto;padding:8px 12px;font-size:12px;" placeholder="nike vintage streetwear y2k">
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-              <!-- Image upload -->
-              <div>
-                <label class="form-label">Photos <span style="color:var(--muted);font-weight:300;text-transform:none;" id="photo-label-note">(max 8)</span> <span id="photo-vinted-min" style="display:none;color:var(--pink);font-size:10px;font-weight:600;">— Vinted requires min 3</span></label>
-                <div id="image-drop-zone" onclick="document.getElementById('list-images-input').click()" style="margin-top:4px;border:1px dashed rgba(255,255,255,0.1);border-radius:4px;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:border-color .15s;min-height:72px;" onmouseover="this.style.borderColor='rgba(232,33,122,0.35)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.1)'">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                  <span style="font-size:11px;color:var(--muted);">Click to add photos</span>
-                </div>
-                <input type="file" id="list-images-input" accept="image/*" multiple style="display:none;" onchange="handleImageSelect(event)">
-                <div id="image-previews" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;"></div>
-              </div>
-
-              <div style="padding:14px;background:rgba(255,255,255,0.02);border:1px solid var(--border-dim);border-radius:4px;">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-                  <div>
-                    <div style="font-size:13px;font-weight:500;color:var(--text);">Auto-Relist</div>
-                    <div style="font-size:11px;color:var(--muted);margin-top:2px;">Delete and repost automatically to stay at the top</div>
-                  </div>
-                  <label class="toggle"><input type="checkbox" id="list-auto-relist" onchange="toggleRelistOptions()"><span class="toggle-track"></span></label>
-                </div>
-                <div id="relist-options" style="display:none;padding-top:10px;border-top:1px solid var(--border-dim);">
-                  <label class="form-label">Relist every</label>
-                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
-                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2);cursor:pointer;">
-                      <input type="radio" name="relist-interval" value="1" style="accent-color:var(--pink);"> 1 day
-                    </label>
-                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2);cursor:pointer;">
-                      <input type="radio" name="relist-interval" value="3" style="accent-color:var(--pink);"> 3 days
-                    </label>
-                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2);cursor:pointer;">
-                      <input type="radio" name="relist-interval" value="7" checked style="accent-color:var(--pink);"> 7 days
-                    </label>
-                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2);cursor:pointer;">
-                      <input type="radio" name="relist-interval" value="14" style="accent-color:var(--pink);"> 14 days
-                    </label>
-                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2);cursor:pointer;">
-                      <input type="radio" name="relist-interval" value="30" style="accent-color:var(--pink);"> 30 days
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              <button id="list-submit-btn" class="btn btn-primary" onclick="createListing()" style="margin-top:auto;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                List Now
-              </button>
-              <div id="list-msg" style="display:none;"></div>
-            </div>
+        <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;margin-bottom:8px;">Auto-List is coming soon</div>
+        <div style="font-size:13px;color:var(--muted2);max-width:380px;margin:0 auto;line-height:1.65;">Fill in your item details once and Vendora will generate and post platform-optimised listings to Depop, Vinted, and eBay simultaneously.</div>
+        <div style="display:flex;gap:20px;justify-content:center;margin-top:32px;flex-wrap:wrap;">
+          <div style="text-align:center;">
+            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--pink);">3</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.06em;text-transform:uppercase;">Platforms</div>
+          </div>
+          <div style="width:1px;background:var(--border-dim);"></div>
+          <div style="text-align:center;">
+            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);">1 click</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.06em;text-transform:uppercase;">To list everywhere</div>
+          </div>
+          <div style="width:1px;background:var(--border-dim);"></div>
+          <div style="text-align:center;">
+            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);">AI</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.06em;text-transform:uppercase;">Optimised titles</div>
           </div>
         </div>
-
-        <!-- Active listings table -->
-        <div class="card" style="padding:0;overflow:hidden;">
-          <div style="padding:16px 20px;border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
-            <div class="card-title" style="margin:0;">Active Listings</div>
-            <button class="btn btn-ghost btn-sm" onclick="loadListings()">Refresh</button>
-          </div>
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th>Platforms</th>
-                <th>Price</th>
-                <th>Condition</th>
-                <th>Auto-Relist</th>
-                <th>Listed</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="listings-tbody">
-              <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Your listings will appear here.</td></tr>
-            </tbody>
-          </table>
-        </div>
+      </div>
+      <!-- hidden gate/tool divs kept so initListingsAccess() doesn't crash -->
+      <div id="listings-gate" style="display:none;"></div>
       </div>
     </div>
 
@@ -1404,43 +1192,15 @@
     <div class="section" id="section-inventory">
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
-        <div class="page-title">Inventory</div>
-        <div class="page-sub">Auto-synced from your connected Vinted account. Items appear here automatically — no manual entry needed.</div>
+        <div class="page-title">Inventory <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--muted2);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Coming Soon</span></div>
+        <div class="page-sub">Your Vinted listings will sync here automatically once the feature goes live.</div>
       </div>
-
-      <!-- Status / sync banner -->
-      <div id="inv-status" class="card" style="margin-bottom:16px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-          <div id="inv-status-dot" style="width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0;"></div>
-          <div style="min-width:0;">
-            <div id="inv-status-title" style="font-size:13px;font-weight:600;color:var(--text);">Checking connection…</div>
-            <div id="inv-status-sub" style="font-size:11px;color:var(--muted);margin-top:2px;">Loading status…</div>
-          </div>
+      <div class="card" style="text-align:center;padding:64px 24px;">
+        <div style="width:56px;height:56px;border-radius:50%;background:rgba(232,33,122,0.08);border:1px solid rgba(232,33,122,0.2);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
         </div>
-        <div style="display:flex;gap:8px;">
-          <button id="inv-sync-btn" class="btn btn-ghost btn-sm" onclick="syncInventory()" disabled>Sync now</button>
-        </div>
-      </div>
-
-      <div class="card" style="padding:0;overflow:hidden;">
-        <div style="padding:16px 20px;border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
-          <div class="card-title" style="margin:0;">Your Vinted Listings</div>
-          <button class="btn btn-ghost btn-sm" onclick="loadInventory()">Refresh</button>
-        </div>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th></th>
-              <th>Item</th>
-              <th>Price</th>
-              <th>Status</th>
-              <th>Last seen</th>
-            </tr>
-          </thead>
-          <tbody id="inventory-tbody">
-            <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Loading...</td></tr>
-          </tbody>
-        </table>
+        <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;margin-bottom:8px;">Inventory is coming soon</div>
+        <div style="font-size:13px;color:var(--muted2);max-width:380px;margin:0 auto;line-height:1.65;">Connect your Vinted account and your live listings will sync here automatically — photos, prices, status, and sold history all in one place.</div>
       </div>
     </div>
 
@@ -1492,7 +1252,7 @@
     </div>
 
     <!-- ── CROSS-LIST ── -->
-    <div class="section" id="section-crosslist">
+    <div class="section" id="section-crosslist" style="display:none;">
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
         <div class="page-title">Listings</div>
@@ -2159,21 +1919,37 @@
     <div class="section" id="section-autobuy">
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
-        <div class="page-title">Auto-Buy</div>
-        <div class="page-sub">Set keyword rules and a max price — Vendora monitors Vinted every 30 minutes via Apify and alerts you the instant a match appears.</div>
+        <div class="page-title">Auto-Buy <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--muted2);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Coming Soon</span></div>
+        <div class="page-sub">Set keyword rules and a max price — Vendora monitors Vinted and alerts you the instant a match appears.</div>
       </div>
 
-      <!-- Pro gate -->
-      <div id="autobuy-gate" style="display:none;">
-        <div class="access-denied" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px 24px;gap:16px;">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-          <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">Pro Required</div>
-          <div style="font-size:13px;color:var(--muted2);max-width:320px;">Auto-Buy alerts are available on Vendora Pro and above.</div>
-          <button class="btn btn-primary btn-sm" onclick="showSection('subscription', document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Pro</button>
+      <div class="card" style="text-align:center;padding:64px 24px;">
+        <div style="width:56px;height:56px;border-radius:50%;background:rgba(232,33,122,0.08);border:1px solid rgba(232,33,122,0.2);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;margin-bottom:8px;">Auto-Buy is coming soon</div>
+        <div style="font-size:13px;color:var(--muted2);max-width:420px;margin:0 auto;line-height:1.65;">Set keyword rules and a max price. Vendora will monitor Vinted around the clock and send you a Discord DM the moment a matching listing appears — before anyone else sees it.</div>
+        <div style="display:flex;gap:20px;justify-content:center;margin-top:32px;flex-wrap:wrap;">
+          <div style="text-align:center;">
+            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--pink);">30 min</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.06em;text-transform:uppercase;">Scan interval</div>
+          </div>
+          <div style="width:1px;background:var(--border-dim);"></div>
+          <div style="text-align:center;">
+            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);">Unlimited</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.06em;text-transform:uppercase;">Keywords (Elite)</div>
+          </div>
+          <div style="width:1px;background:var(--border-dim);"></div>
+          <div style="text-align:center;">
+            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);">Instant</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.06em;text-transform:uppercase;">Discord DM alert</div>
+          </div>
         </div>
       </div>
 
-      <div id="autobuy-tool">
+      <!-- hidden gate/tool divs kept so initAutobuyAccess() doesn't crash -->
+      <div id="autobuy-gate" style="display:none;"></div>
+      <div id="autobuy-tool" style="display:none;">
         <!-- Add rule -->
         <div class="card" style="margin-bottom:20px;">
           <div class="card-title">Add Buy Alert</div>
@@ -2870,13 +2646,13 @@
             </div>
           </div>
           <div class="card">
-            <div class="card-title">Apify Proxy Diagnostic</div>
+            <div class="card-title">Playwright Browser Diagnostic</div>
             <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:14px;font-weight:300;">
-              Probes the Apify residential proxy in 3 layers: (1) ipify.org (does the proxy work at all?), (2) Vinted homepage (can it reach Vinted?), (3) the actual user-lookup call. Each test reports status, latency, and the underlying error.
+              Tests the Railway Playwright Chromium instance: checks if the browser launches correctly, can reach Vinted, and returns a valid response. Use this to diagnose inventory sync failures.
             </div>
             <button class="btn btn-pink btn-sm" onclick="runApifyProxyTest()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              Run Proxy Test
+              Run Browser Test
             </button>
             <pre id="apify-test-output" style="display:none;margin-top:14px;background:#0a0a0a;border:1px solid var(--border-dim);border-radius:4px;padding:14px;font-family:monospace;font-size:11px;color:var(--text);white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;"></pre>
           </div>
@@ -2909,6 +2685,7 @@
   const SUPABASE_URL      = 'https://fqfanqtybvnurhzkoxwr.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxZmFucXR5YnZudXJoemtveHdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2OTcxNjMsImV4cCI6MjA5MTI3MzE2M30.aoqhW8hXgRVfX8JI27jfN7QBfyY-ev6PQ52xvUz-X-E';
   const sb       = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  window._sb = sb;
   const OWNER_ID = '731207920007643167';
 
   const TIER = {
@@ -3417,6 +3194,7 @@
 
   // ── Cross-list tool ──────────────────────────────────────────────────────────
   const BOT_API = 'https://vendora-production-8a47.up.railway.app';
+  window._BOT_API = BOT_API;
 
   function refreshCrossListBadges() {
     const badges = document.getElementById('cl-platform-badges');
@@ -3586,21 +3364,8 @@
     });
   }
 
-  // Show/hide cross-list tool based on tier
-  function initCrossListAccess(tier) {
-    const gate = document.getElementById('crosslist-gate');
-    const tool = document.getElementById('crosslist-tool');
-    const nav  = document.getElementById('crosslist-nav-item');
-    const rank = { none: 0, basic: 1, pro: 2, elite: 3 };
-    if (rank[tier] >= rank.pro) {
-      if (gate) gate.style.display = 'none';
-      if (tool) tool.style.display = '';
-    } else {
-      if (gate) gate.style.display = '';
-      if (tool) tool.style.display = 'none';
-      if (nav)  nav.style.opacity  = '0.5';
-    }
-  }
+  // Listings removed — crosslist section hidden entirely
+  function initCrossListAccess(tier) { }
 
   function showSection(id, el) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
@@ -4210,7 +3975,7 @@
     btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Message`;
   }
 
-  // ── Inventory (auto-synced from Vinted via Apify) ─────────────────────────────
+  // ── Inventory (auto-synced from Vinted via Playwright) ───────────────────────
   let _invSyncPoll = null;
   async function loadInventory() {
     const tbody  = document.getElementById('inventory-tbody');
@@ -4306,7 +4071,7 @@
     const btn = document.getElementById('inv-sync-btn');
     const sEl = document.getElementById('inv-status-sub');
     if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
-    if (sEl) sEl.textContent = 'Fetching listings from Vinted via Apify…';
+    if (sEl) sEl.textContent = 'Fetching listings from Vinted…';
     try {
       const { data: { session } } = await sb.auth.getSession();
       const res = await fetch(`${BOT_API}/api/vinted/sync-inventory`, {
@@ -4609,7 +4374,7 @@
     const btn = document.getElementById('pt-sync-btn');
     const sEl = document.getElementById('pt-sync-sub');
     if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
-    if (sEl) sEl.textContent = 'Detecting new sales via Apify…';
+    if (sEl) sEl.textContent = 'Detecting new sales from Vinted…';
     try {
       const { data: { session } } = await sb.auth.getSession();
       await fetch(`${BOT_API}/api/vinted/sync-profit`, {
@@ -4622,19 +4387,9 @@
   }
 
   // ── Listings access gate ─────────────────────────────────────────────────────
-  // ── Auto-Buy ─────────────────────────────────────────────────────────────────
+  // ── Auto-Buy (coming soon — Apify removed) ───────────────────────────────────
   function initAutobuyAccess(tier) {
-    const rank = { none: 0, basic: 1, pro: 2, elite: 3 };
-    const gate = document.getElementById('autobuy-gate');
-    const tool = document.getElementById('autobuy-tool');
-    if (rank[tier] >= rank.pro) {
-      if (gate) gate.style.display = 'none';
-      if (tool) tool.style.display = '';
-      autobuyLoad();
-    } else {
-      if (gate) gate.style.display = '';
-      if (tool) tool.style.display = 'none';
-    }
+    // Feature is coming soon — gate + tool divs kept hidden, coming soon card shown
   }
 
   async function autobuyLoad() {
@@ -4717,18 +4472,7 @@
   }
 
   function initListingsAccess(tier) {
-    const gate = document.getElementById('listings-gate');
-    const tool = document.getElementById('listings-tool');
-    const nav  = document.getElementById('listings-nav-item');
-    const rank = { none: 0, basic: 1, pro: 2, elite: 3 };
-    if (rank[tier] >= rank.pro) {
-      if (gate) gate.style.display = 'none';
-      if (tool) tool.style.display = '';
-    } else {
-      if (gate) gate.style.display = '';
-      if (tool) tool.style.display = 'none';
-      if (nav)  nav.style.opacity  = '0.5';
-    }
+    // Coming soon — gate/tool kept hidden
   }
 
   // ── Platform status ──────────────────────────────────────────────────────────
@@ -6878,22 +6622,28 @@
       if(load) load.style.display='none';
       if (!r.ok || !j.events?.length) { if(empty) empty.style.display=''; if(btn) btn.disabled=false; return; }
       const URGENCY_COLOR = { high:'#f87171', medium:'#f59e0b', low:'var(--green)' };
-      if(res_) res_.innerHTML = j.events.map(ev => `
-        <div class="card" style="display:flex;gap:16px;align-items:flex-start;">
-          <div style="flex-shrink:0;width:52px;text-align:center;padding:8px 0;border-radius:4px;background:rgba(232,33,122,0.08);border:1px solid rgba(232,33,122,0.18);">
-            <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--pink);">${ev.month||''}</div>
+      const URGENCY_BG = { high:'rgba(248,113,113,0.08)', medium:'rgba(245,158,11,0.08)', low:'rgba(74,222,128,0.08)' };
+      if(res_) res_.innerHTML = j.events.map(ev => {
+        const uc = URGENCY_COLOR[ev.urgency] || 'var(--pink)';
+        const ub = URGENCY_BG[ev.urgency] || 'rgba(232,33,122,0.06)';
+        return `
+        <div class="card" style="display:flex;gap:16px;align-items:flex-start;position:relative;overflow:hidden;border-left:2px solid ${uc};background:linear-gradient(135deg,${ub} 0%,rgba(255,255,255,0) 60%);">
+          <div style="position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,${uc}55,transparent);"></div>
+          <div style="flex-shrink:0;width:52px;text-align:center;padding:8px 0;border-radius:4px;background:${ub};border:1px solid ${uc}33;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${uc};">${ev.month||''}</div>
             <div style="font-size:20px;font-weight:800;font-family:'Syne',sans-serif;color:var(--text);line-height:1.1;">${ev.day||'?'}</div>
           </div>
           <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
               <div style="font-size:14px;font-weight:700;color:var(--text);">${ev.title}</div>
               ${ev.category?`<span style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--muted);">${ev.category}</span>`:''}
-              ${ev.urgency?`<span style="font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.05);color:${URGENCY_COLOR[ev.urgency]||'var(--muted)'};">${ev.urgency.toUpperCase()}</span>`:''}
+              ${ev.urgency?`<span style="font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 7px;border-radius:4px;background:${ub};color:${uc};">${ev.urgency.toUpperCase()}</span>`:''}
             </div>
             <div style="font-size:13px;color:var(--muted2);line-height:1.55;margin-bottom:6px;">${ev.description}</div>
-            ${ev.action?`<div style="font-size:12px;font-weight:600;color:var(--pink);">→ ${ev.action}</div>`:''}
+            ${ev.action?`<div style="font-size:12px;font-weight:600;color:${uc};">→ ${ev.action}</div>`:''}
           </div>
-        </div>`).join('');
+        </div>`;
+      }).join('');
       _rcalLoaded = true;
     } catch(e) { if(load) load.style.display='none'; if(empty) empty.style.display=''; }
     if(btn) btn.disabled=false;
@@ -6906,15 +6656,68 @@
 (function () {
   const POLL_MS = 60000;
   const badge   = document.getElementById('app-version-badge');
-  let loaded    = null;       // version this page was served as
+  let loaded    = null;
   let toastShown = false;
-
-  function fmt(v) { return v?.version ? `${v.version} · ${v.short || ''}`.trim() : ''; }
 
   function paintBadge(v) {
     if (!badge || !v) return;
-    badge.textContent = v.version || '';
-    badge.title = `Build ${v.short || ''} · ${v.builtAt || ''}${v.message ? '\n' + v.message : ''}`;
+    badge.textContent = v.staged ? `${v.version} ★` : (v.version || '');
+    badge.title = v.staged
+      ? `v${v.version} — STAGED (live: ${v.liveVersion})\nClick Publish in Admin to go live`
+      : `v${v.version}`;
+    badge.style.color = v.staged ? 'var(--gold)' : '';
+  }
+
+  function showStagedToast(v) {
+    if (toastShown) return;
+    toastShown = true;
+    const t = document.createElement('div');
+    t.id = 'app-update-toast';
+    t.innerHTML = `
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="flex:1;">
+          <div style="font-size:11px;color:var(--gold);letter-spacing:0.08em;text-transform:uppercase;font-weight:600;margin-bottom:2px;">★ Staged — awaiting your approval</div>
+          <div style="font-size:14px;color:#f0f0f0;font-weight:500;">v${v.version} ready to publish</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px;">Live is still v${v.liveVersion}</div>
+        </div>
+        <button id="app-staged-publish" style="background:linear-gradient(135deg,#e8a121,#f5c842);color:#000;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:12px;letter-spacing:0.04em;cursor:pointer;text-transform:uppercase;font-family:'Syne',sans-serif;">Publish</button>
+        <button id="app-staged-revert" style="background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.25);padding:8px 14px;border-radius:8px;font-weight:600;font-size:12px;letter-spacing:0.04em;cursor:pointer;text-transform:uppercase;font-family:'Syne',sans-serif;">Revert</button>
+        <button id="app-update-dismiss" aria-label="Dismiss" style="background:transparent;color:rgba(255,255,255,0.4);border:none;font-size:18px;cursor:pointer;padding:4px 6px;line-height:1;">&times;</button>
+      </div>`;
+    Object.assign(t.style, {
+      position: 'fixed', bottom: '24px', right: '24px', zIndex: '99999',
+      background: '#141414', border: '1px solid rgba(232,161,33,0.45)',
+      borderRadius: '12px', padding: '14px 16px', minWidth: '340px',
+      boxShadow: '0 12px 40px rgba(0,0,0,0.55), 0 0 24px rgba(232,161,33,0.2)',
+      fontFamily: "'DM Sans',sans-serif",
+      animation: 'appUpdateSlideIn 0.35s ease-out',
+    });
+    ensureSlideKeyframes();
+    document.body.appendChild(t);
+    document.getElementById('app-staged-publish').onclick = async () => {
+      try {
+        const { data: { session } } = await window._sb.auth.getSession();
+        const r = await fetch(`${window._BOT_API}/api/admin/version/publish`, {
+          method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` }
+        });
+        const j = await r.json();
+        if (r.ok) { t.remove(); toastShown = false; showUpdateToast({ version: j.version }); }
+        else alert(j.error || 'Publish failed');
+      } catch(e) { alert('Error: ' + e.message); }
+    };
+    document.getElementById('app-staged-revert').onclick = async () => {
+      if (!confirm('Discard v' + v.version + ' and keep v' + v.liveVersion + ' live?')) return;
+      try {
+        const { data: { session } } = await window._sb.auth.getSession();
+        const r = await fetch(`${window._BOT_API}/api/admin/version/revert`, {
+          method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` }
+        });
+        const j = await r.json();
+        if (r.ok) { t.remove(); toastShown = false; loaded = null; check(); }
+        else alert(j.error || 'Revert failed');
+      } catch(e) { alert('Error: ' + e.message); }
+    };
+    document.getElementById('app-update-dismiss').onclick = () => { t.remove(); toastShown = false; };
   }
 
   function showUpdateToast(latest) {
@@ -6926,10 +6729,10 @@
       <div style="display:flex;align-items:center;gap:14px;">
         <div style="flex:1;">
           <div style="font-size:11px;color:rgba(255,255,255,0.55);letter-spacing:0.08em;text-transform:uppercase;font-weight:600;margin-bottom:2px;">Update available</div>
-          <div style="font-size:14px;color:#f0f0f0;font-weight:500;">${latest.version} is live</div>
+          <div style="font-size:14px;color:#f0f0f0;font-weight:500;">v${latest.version} is live</div>
         </div>
         <button id="app-update-refresh" style="background:linear-gradient(135deg,#e8217a,#f72e8a);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:600;font-size:12px;letter-spacing:0.04em;cursor:pointer;text-transform:uppercase;font-family:'Syne',sans-serif;">Refresh</button>
-        <button id="app-update-dismiss" aria-label="Dismiss" style="background:transparent;color:rgba(255,255,255,0.4);border:none;font-size:18px;cursor:pointer;padding:4px 6px;line-height:1;">&times;</button>
+        <button id="app-update-dismiss2" aria-label="Dismiss" style="background:transparent;color:rgba(255,255,255,0.4);border:none;font-size:18px;cursor:pointer;padding:4px 6px;line-height:1;">&times;</button>
       </div>`;
     Object.assign(t.style, {
       position: 'fixed', bottom: '24px', right: '24px', zIndex: '99999',
@@ -6939,34 +6742,43 @@
       fontFamily: "'DM Sans',sans-serif",
       animation: 'appUpdateSlideIn 0.35s ease-out',
     });
+    ensureSlideKeyframes();
+    document.body.appendChild(t);
+    document.getElementById('app-update-refresh').onclick = () => location.reload();
+    document.getElementById('app-update-dismiss2').onclick = () => { t.remove(); toastShown = false; };
+  }
+
+  function ensureSlideKeyframes() {
     if (!document.getElementById('app-update-keyframes')) {
       const s = document.createElement('style');
       s.id = 'app-update-keyframes';
       s.textContent = '@keyframes appUpdateSlideIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}';
       document.head.appendChild(s);
     }
-    document.body.appendChild(t);
-    document.getElementById('app-update-refresh').onclick = () => location.reload();
-    document.getElementById('app-update-dismiss').onclick = () => { t.remove(); toastShown = false; };
   }
 
   async function check() {
     try {
-      const r = await fetch('/version.json?t=' + Date.now(), { cache: 'no-store' });
+      const BOT = window._BOT_API;
+      if (!BOT) return;
+      let headers = {};
+      if (window._sb) {
+        try {
+          const { data: { session } } = await window._sb.auth.getSession();
+          if (session) headers.Authorization = `Bearer ${session.access_token}`;
+        } catch {}
+      }
+      const r = await fetch(`${BOT}/api/version`, { headers, cache: 'no-store' });
       if (!r.ok) return;
       const v = await r.json();
-      if (!loaded) {
-        loaded = v;
-        paintBadge(v);
-        return;
-      }
-      if (v.sha && v.sha !== loaded.sha) showUpdateToast(v);
+      if (!loaded) { loaded = v; paintBadge(v); if (v.staged) showStagedToast(v); return; }
+      if (v.staged && !toastShown) { showStagedToast(v); return; }
+      if (!v.staged && loaded.version !== v.version) showUpdateToast(v);
     } catch {}
   }
 
   check();
   setInterval(check, POLL_MS);
-  // Also re-check when the user returns to the tab
   document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
 })();
 </script>

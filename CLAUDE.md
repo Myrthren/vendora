@@ -23,6 +23,15 @@ Payments: PayPal Subscriptions API
 Hosting (site): Vercel (netlify.toml present from earlier testing)
 Hosting (bot): Railway
 
+VERSIONING RULES — NEVER BREAK THESE
+- Current live version: 6.0
+- Current staged version: 6.1 (pending owner approval)
+- Versions increment by exactly 0.1 each update (6.0 → 6.1 → 6.2 → 6.3 …)
+- Every update is staged first — owner (Kene) must click Publish before it goes live
+- Never skip a version number. The NEXT update after 6.1 is 6.2, then 6.3, etc.
+- Every published update must be reflected in the dashboard changelog immediately
+- Always update "Current live version" and "Current staged version" in this file
+
 Key Rules
 - Auth is Discord OAuth only — no passwords
 - All bot responses are ephemeral

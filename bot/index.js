@@ -6082,6 +6082,73 @@ app.delete('/api/admin/announcement', async (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Version staging endpoints ─────────────────────────────────────────────────
+
+app.get('/api/version', async (req, res) => {
+  try {
+    const live = (await getSetting('app_version_live')) || { version: '6.0', short: 'v6.0', builtAt: '2026-05-14' };
+    // Check if requester is the owner
+    let isOwner = false;
+    try {
+      const token = req.headers['authorization']?.replace('Bearer ', '');
+      if (token) {
+        const user = await verifySupabaseToken(token);
+        if (user) {
+          const discordId = user.user_metadata?.provider_id
+            || user.identities?.find(i => i.provider === 'discord')?.id;
+          if (discordId === OWNER_ID) isOwner = true;
+        }
+      }
+    } catch {}
+    if (isOwner) {
+      const staged = await getSetting('app_version_staged');
+      if (staged) return res.json({ ...staged, staged: true, liveVersion: live.version });
+    }
+    res.json(live);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/admin/version/publish', async (req, res) => {
+  if (!await requireOwner(req, res)) return;
+  const staged = await getSetting('app_version_staged');
+  if (!staged) return res.status(400).json({ error: 'No staged version to publish' });
+  const live = await getSetting('app_version_live');
+  if (live) await saveSetting('app_version_previous', live);
+  await saveSetting('app_version_live', staged);
+  await saveSetting('app_version_staged', null);
+  console.log(`[version] Published v${staged.version}`);
+  res.json({ ok: true, version: staged.version });
+});
+
+app.post('/api/admin/version/revert', async (req, res) => {
+  if (!await requireOwner(req, res)) return;
+  // Revert: discard staged OR roll back live to previous
+  const staged = await getSetting('app_version_staged');
+  if (staged) {
+    await saveSetting('app_version_staged', null);
+    console.log(`[version] Reverted staged v${staged.version}`);
+    return res.json({ ok: true, action: 'staged_discarded', version: (await getSetting('app_version_live'))?.version });
+  }
+  const previous = await getSetting('app_version_previous');
+  if (!previous) return res.status(400).json({ error: 'No previous version to revert to' });
+  await saveSetting('app_version_live', previous);
+  await saveSetting('app_version_previous', null);
+  console.log(`[version] Rolled back to v${previous.version}`);
+  res.json({ ok: true, action: 'rolled_back', version: previous.version });
+});
+
+app.post('/api/admin/version/stage', async (req, res) => {
+  if (!await requireOwner(req, res)) return;
+  const { version, notes } = req.body || {};
+  if (!version) return res.status(400).json({ error: 'version required' });
+  const entry = { version: String(version), notes: notes || '', stagedAt: new Date().toISOString() };
+  await saveSetting('app_version_staged', entry);
+  console.log(`[version] Staged v${version}`);
+  res.json({ ok: true, version });
+});
+
 // ── Admin: update pricing (stored in Supabase; PayPal plans are separate) ─────
 app.post('/api/admin/pricing', async (req, res) => {
   if (!await requireOwner(req, res)) return;
@@ -7027,6 +7094,23 @@ app.get('/api/user/avatar', async (req, res) => {
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => console.log(`[http] Listening on port ${PORT}`));
+
+// Initialise version if not set
+(async () => {
+  try {
+    const live = await getSetting('app_version_live');
+    if (!live) {
+      await saveSetting('app_version_live', { version: '6.0', short: 'v6.0', builtAt: '2026-05-14' });
+      console.log('[version] Initialised app_version_live = 6.0');
+    }
+    // Stage 6.1 if no staged version exists yet
+    const staged = await getSetting('app_version_staged');
+    if (!staged) {
+      await saveSetting('app_version_staged', { version: '6.1', short: 'v6.1', builtAt: '2026-05-14', notes: 'Coming soon: Auto-List, Inventory, Auto-Buy. Removed Listings. Version staging system.' });
+      console.log('[version] Staged v6.1');
+    }
+  } catch(e) { console.warn('[version] init error:', e.message); }
+})();
 
 if (TOKEN) {
   client.login(TOKEN).catch(err => console.error('[discord] Login failed:', err.message));
