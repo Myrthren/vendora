@@ -7095,19 +7095,21 @@ app.get('/api/user/avatar', async (req, res) => {
 // ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => console.log(`[http] Listening on port ${PORT}`));
 
-// Initialise version if not set
+// Initialise version — seed live only if it has never been set; NEVER auto-seed staged
 (async () => {
   try {
     const live = await getSetting('app_version_live');
     if (!live) {
-      await saveSetting('app_version_live', { version: '6.0', short: 'v6.0', builtAt: '2026-05-14' });
-      console.log('[version] Initialised app_version_live = 6.0');
+      await saveSetting('app_version_live', { version: '6.1', short: 'v6.1', builtAt: '2026-05-14' });
+      console.log('[version] Initialised app_version_live = 6.1');
     }
-    // Stage 6.1 if no staged version exists yet
+    // Clean up any stale staged entry that was auto-seeded with the same version as live.
+    // This prevents the "publish loop" where the staged toast reappears every bot restart.
+    const currentLive = await getSetting('app_version_live');
     const staged = await getSetting('app_version_staged');
-    if (!staged) {
-      await saveSetting('app_version_staged', { version: '6.1', short: 'v6.1', builtAt: '2026-05-14', notes: 'Coming soon: Auto-List, Inventory, Auto-Buy. Removed Listings. Version staging system.' });
-      console.log('[version] Staged v6.1');
+    if (staged && staged.version === currentLive?.version) {
+      await saveSetting('app_version_staged', null);
+      console.log('[version] Cleared stale staged entry — matches live, nothing to approve');
     }
   } catch(e) { console.warn('[version] init error:', e.message); }
 })();
