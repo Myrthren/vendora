@@ -723,7 +723,7 @@
 <body>
 
 <!-- Site announcement banner -->
-<div id="site-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,rgba(232,33,122,0.12),rgba(232,33,122,0.06));border-bottom:1px solid rgba(232,33,122,0.25);padding:10px 20px;display:none;align-items:center;justify-content:space-between;gap:12px;">
+<div id="site-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,rgba(232,33,122,0.12),rgba(232,33,122,0.06));border-bottom:1px solid rgba(232,33,122,0.25);padding:10px 20px;align-items:center;justify-content:space-between;gap:12px;">
   <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
     <span id="site-banner-text" style="font-size:12.5px;color:var(--text);line-height:1.4;"></span>
@@ -4712,10 +4712,13 @@
       const banner = document.getElementById('site-banner');
       const text   = document.getElementById('site-banner-text');
       if (!banner || !text) return;
-      if (data.active && data.message && !sessionStorage.getItem('banner_dismissed')) {
+      if (data.active && data.message) {
+        // Only suppress if THIS exact message was already dismissed this session
+        const dismissedMsg = sessionStorage.getItem('banner_dismissed_msg');
+        if (dismissedMsg === data.message) return; // same message, user dismissed it
         text.textContent = data.message;
         banner.style.display = 'flex';
-        // Let the banner render, then measure its actual height and push everything below it
+        // Measure actual height and shift sidebar + topbar below the banner
         requestAnimationFrame(() => {
           const h = banner.offsetHeight;
           document.documentElement.style.setProperty('--banner-h', h + 'px');
@@ -4726,8 +4729,10 @@
 
   function dismissBanner() {
     const banner = document.getElementById('site-banner');
+    const text   = document.getElementById('site-banner-text');
     if (banner) banner.style.display = 'none';
-    sessionStorage.setItem('banner_dismissed', '1');
+    // Store the dismissed message — new messages from admin will still show
+    if (text) sessionStorage.setItem('banner_dismissed_msg', text.textContent);
     document.documentElement.style.setProperty('--banner-h', '0px');
   }
 
