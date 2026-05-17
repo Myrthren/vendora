@@ -67,8 +67,9 @@
     background: linear-gradient(180deg, #0f0f0f 0%, #0a0a0a 100%);
     border-right: 1px solid rgba(232,33,122,0.08);
     display: flex; flex-direction: column;
-    position: fixed; top: 0; left: 0; bottom: 0;
+    position: fixed; top: var(--banner-h, 0px); left: 0; bottom: 0;
     z-index: 100;
+    transition: top .2s ease;
   }
 
   .sidebar::after {
@@ -188,13 +189,14 @@
   }
 
   .topbar {
-    position: sticky; top: 0; z-index: 50;
+    position: sticky; top: var(--banner-h, 0px); z-index: 50;
     padding: 14px 36px;
     background: rgba(9,9,9,0.88);
     backdrop-filter: blur(24px);
     border-bottom: 1px solid rgba(255,255,255,0.045);
     box-shadow: 0 1px 0 0 rgba(232,33,122,0.06);
     display: flex; align-items: center; justify-content: space-between;
+    transition: top .2s ease;
   }
   .topbar-title {
     font-family: 'Syne', sans-serif;
@@ -1193,7 +1195,9 @@
       <div class="card" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
           <div style="display:flex;align-items:center;gap:14px;">
-            <div class="plat-icon" style="background:#fff;overflow:hidden;padding:0;"><img src="icons/vinted-icon.jfif" style="width:100%;height:100%;object-fit:cover;border-radius:3px;"></div>
+            <div class="plat-icon" style="overflow:hidden;padding:0;" id="plat-icon-vinted">
+              <img src="icons/vinted-icon.jfif" style="width:100%;height:100%;object-fit:cover;border-radius:3px;" onerror="this.parentElement.innerHTML='<span style=\'font-family:Syne,sans-serif;font-weight:800;font-size:13px;color:#09b1ba;\'>V</span>';this.parentElement.style.background=\'rgba(9,177,186,0.12)\';">
+            </div>
             <div>
               <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:2px;">Vinted</div>
               <div id="plat-status-vinted" class="plat-status-row disconnected">○ Not connected</div>
@@ -1216,7 +1220,9 @@
         <div class="card-title">Coming Soon</div>
         <div class="platform-connect-list">
           <div class="platform-connect" style="opacity:.5;cursor:not-allowed;">
-            <div class="plat-icon" style="background:#fff;overflow:hidden;padding:0;"><img src="icons/depop-icon.png" style="width:100%;height:100%;object-fit:cover;border-radius:3px;"></div>
+            <div class="plat-icon" style="overflow:hidden;padding:0;">
+              <img src="icons/depop-icon.png" style="width:100%;height:100%;object-fit:cover;border-radius:3px;" onerror="this.parentElement.innerHTML='<span style=\'font-family:Syne,sans-serif;font-weight:800;font-size:13px;color:#FF2300;\'>D</span>';this.parentElement.style.background=\'rgba(255,35,0,0.12)\';">
+            </div>
             <div class="plat-details">
               <div class="plat-name-row">Depop</div>
               <div class="plat-status-row">Integration in development</div>
@@ -1224,7 +1230,9 @@
             <button class="btn btn-ghost btn-sm" disabled>Soon</button>
           </div>
           <div class="platform-connect" style="opacity:.5;cursor:not-allowed;">
-            <div class="plat-icon" style="background:#fff;overflow:hidden;padding:0;"><img src="icons/ebay-icon.jpg" style="width:100%;height:100%;object-fit:cover;border-radius:3px;"></div>
+            <div class="plat-icon" style="overflow:hidden;padding:0;">
+              <img src="icons/ebay-icon.jpg" style="width:100%;height:100%;object-fit:cover;border-radius:3px;" onerror="this.parentElement.innerHTML='<span style=\'font-family:Syne,sans-serif;font-weight:800;font-size:10px;color:#E53238;\'>eB</span>';this.parentElement.style.background=\'rgba(229,50,56,0.12)\';">
+            </div>
             <div class="plat-details">
               <div class="plat-name-row">eBay</div>
               <div class="plat-status-row">Official API — auto-listing in development</div>
@@ -1232,7 +1240,9 @@
             <button class="btn btn-ghost btn-sm" disabled>Soon</button>
           </div>
           <div class="platform-connect" style="opacity:.5;cursor:not-allowed;">
-            <div class="plat-icon" style="background:#fff;overflow:hidden;padding:0;"><img src="icons/facebook-marketplace-icon.png" style="width:100%;height:100%;object-fit:cover;border-radius:3px;"></div>
+            <div class="plat-icon" style="overflow:hidden;padding:0;">
+              <img src="icons/facebook-marketplace-icon.png" style="width:100%;height:100%;object-fit:cover;border-radius:3px;" onerror="this.parentElement.innerHTML='<span style=\'font-family:Syne,sans-serif;font-weight:800;font-size:13px;color:#1877F2;\'>f</span>';this.parentElement.style.background=\'rgba(24,119,242,0.12)\';">
+            </div>
             <div class="plat-details">
               <div class="plat-name-row">Facebook Marketplace</div>
               <div class="plat-status-row">OAuth integration — launching soon</div>
@@ -2582,7 +2592,7 @@
                 <label class="form-label">Tier unlocked</label>
                 <select id="new-coupon-tier" class="form-select">
                   <option value="any">Any (user picks)</option>
-                  <option value="basic">Starter</option>
+                  <option value="basic">Basic</option>
                   <option value="pro">Pro</option>
                   <option value="elite">Elite</option>
                 </select>
@@ -2719,7 +2729,7 @@
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
                 No Plan
               </button>
-              <button class="btn btn-ghost" style="flex:1;justify-content:center;color:var(--muted2);border-color:rgba(255,255,255,0.1);" onclick="ownerSwitchPlan('basic')">Starter</button>
+              <button class="btn" style="flex:1;justify-content:center;background:rgba(96,165,250,0.12);color:var(--blue);border:1px solid rgba(96,165,250,0.3);" onmouseover="this.style.background='linear-gradient(135deg,#60a5fa,#3b82f6)';this.style.color='#fff';this.style.borderColor='transparent';this.style.boxShadow='0 0 18px rgba(96,165,250,0.4)';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='rgba(96,165,250,0.12)';this.style.color='var(--blue)';this.style.borderColor='rgba(96,165,250,0.3)';this.style.boxShadow='';this.style.transform=''" onclick="ownerSwitchPlan('basic')">Basic</button>
               <button class="btn btn-pink" style="flex:1;justify-content:center;" onclick="ownerSwitchPlan('pro')">Pro</button>
               <button class="btn btn-gold" style="flex:1;justify-content:center;" onclick="ownerSwitchPlan('elite')">Elite</button>
             </div>
@@ -2750,6 +2760,33 @@
 
         <!-- Changelog -->
         <div class="admin-panel" id="admin-changelog">
+          <!-- Stage new version card -->
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-title" style="margin-bottom:14px;">Stage New Version</div>
+            <div style="display:grid;grid-template-columns:100px 1fr;gap:10px;margin-bottom:10px;">
+              <div>
+                <label class="form-label">Version</label>
+                <input id="stage-version" class="form-select" style="height:auto;padding:9px 14px;font-family:monospace;" placeholder="6.2">
+              </div>
+              <div>
+                <label class="form-label">Title / Summary</label>
+                <input id="stage-title" class="form-select" style="height:auto;padding:9px 14px;" placeholder="e.g. Premium design overhaul + version fix">
+              </div>
+            </div>
+            <div style="margin-bottom:12px;">
+              <label class="form-label">What changed (one item per line)</label>
+              <textarea id="stage-changes" class="form-textarea" style="min-height:80px;" placeholder="Fixed version publish loop&#10;Gradient buttons + custom scrollbar&#10;Banner layout fix"></textarea>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <button class="btn btn-gold btn-sm" onclick="stageNewVersion()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                Stage for Review
+              </button>
+              <div id="stage-msg" style="display:none;font-size:12px;"></div>
+            </div>
+          </div>
+
+          <!-- Published + hardcoded history -->
           <div class="card" style="margin-bottom:16px;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
               <div class="card-title" style="margin:0;">Version History &amp; Change Log</div>
@@ -2758,7 +2795,8 @@
                 Copy for Discord
               </button>
             </div>
-            <div style="font-size:12px;color:var(--muted);margin-bottom:20px;font-weight:300;">All changes made to the Vendora site and bot. Use "Copy for Discord" to paste into your #update-logs channel.</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:20px;font-weight:300;">Published entries appear at the top. Use "Copy for Discord" to paste into your #update-logs channel.</div>
+            <div id="changelog-published" style="margin-bottom:8px;"></div>
             <div id="changelog-entries"></div>
           </div>
         </div>
@@ -3635,6 +3673,66 @@
     }).catch(() => alert('Copy failed — try manually selecting the text.'));
   }
 
+  // ── Stage new version ────────────────────────────────────────────────────────
+  async function stageNewVersion() {
+    const version = document.getElementById('stage-version')?.value?.trim();
+    const title   = document.getElementById('stage-title')?.value?.trim();
+    const raw     = document.getElementById('stage-changes')?.value?.trim();
+    const msgEl   = document.getElementById('stage-msg');
+    if (!version) { showMsg(msgEl, 'error', 'Version number required (e.g. 6.2)'); return; }
+    const changes = raw ? raw.split('\n').map(l => l.trim()).filter(Boolean) : [];
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const r = await fetch(`${BOT_API}/api/admin/version/stage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ version, title, changes, notes: title }),
+      });
+      const j = await r.json();
+      if (r.ok) {
+        showMsg(msgEl, 'success', `v${version} staged — you'll see the gold toast on next page load.`);
+        document.getElementById('stage-version').value = '';
+        document.getElementById('stage-title').value = '';
+        document.getElementById('stage-changes').value = '';
+      } else {
+        showMsg(msgEl, 'error', j.error || 'Failed to stage');
+      }
+    } catch(e) { showMsg(msgEl, 'error', 'Network error: ' + e.message); }
+  }
+
+  // ── Load published changelog entries from bot ────────────────────────────────
+  async function loadPublishedChangelog() {
+    const el = document.getElementById('changelog-published');
+    if (!el) return;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const r = await fetch(`${BOT_API}/api/admin/version/changelog-entries`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: 'no-store',
+      });
+      if (!r.ok) { el.innerHTML = ''; return; }
+      const { entries } = await r.json();
+      if (!entries?.length) { el.innerHTML = ''; return; }
+      el.innerHTML = entries.map((entry, idx) => {
+        const changeLines = (entry.changes || [entry.notes]).filter(Boolean).map(c =>
+          `<li style="margin-bottom:5px;color:rgba(240,240,240,0.8);">${c}</li>`
+        ).join('') || '<li style="color:var(--muted);">No change list provided</li>';
+        const discordText = `📦 **Vendora v${entry.version} — ${entry.title || entry.notes || 'Update'}** _(${entry.publishedAt?.slice(0,10) || entry.date || ''})_\n\n${(entry.changes || [entry.notes]).filter(Boolean).map(c => '• ' + c).join('\n')}`;
+        return `
+          <div style="border:1px solid rgba(232,161,33,0.2);border-radius:10px;padding:18px 20px;margin-bottom:14px;background:linear-gradient(135deg,rgba(232,161,33,0.05),rgba(255,255,255,0.012));">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+              <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:.05em;">v${entry.version}</span>
+              <span style="font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(232,161,33,0.15);color:var(--gold);font-weight:600;">★ Published</span>
+              <span style="font-size:11px;color:var(--muted);">${entry.publishedAt?.slice(0,10) || ''}</span>
+              <button onclick="navigator.clipboard.writeText(${JSON.stringify(discordText)}).then(()=>{this.textContent='✓ Copied!';setTimeout(()=>this.textContent='Copy for Discord',2000)})" style="margin-left:auto;background:rgba(255,255,255,0.05);border:1px solid var(--border-dim);border-radius:6px;padding:3px 10px;color:var(--muted2);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;">Copy for Discord</button>
+            </div>
+            <div style="font-size:14px;font-weight:500;margin-bottom:10px;">${entry.title || entry.notes || 'Update'}</div>
+            <ul style="padding-left:18px;font-size:12px;line-height:1.75;">${changeLines}</ul>
+          </div>`;
+      }).join('');
+    } catch { el.innerHTML = ''; }
+  }
+
   function showAdminTab(id, el) {
     document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
@@ -3644,7 +3742,7 @@
     if (id === 'pricing')   adminLoadPricing();
     if (id === 'announce')  { loadDiscordChannels(); loadAdminBanner(); }
     if (id === 'credits')   adminLoadCreditCodes();
-    if (id === 'changelog') renderChangelog();
+    if (id === 'changelog') { renderChangelog(); loadPublishedChangelog(); }
   }
 
   // ── Admin: Bot Config ────────────────────────────────────────────────────────
@@ -4617,8 +4715,11 @@
       if (data.active && data.message && !sessionStorage.getItem('banner_dismissed')) {
         text.textContent = data.message;
         banner.style.display = 'flex';
-        // Push main layout down
-        document.querySelector('.layout')?.style && (document.querySelector('.layout').style.paddingTop = '41px');
+        // Let the banner render, then measure its actual height and push everything below it
+        requestAnimationFrame(() => {
+          const h = banner.offsetHeight;
+          document.documentElement.style.setProperty('--banner-h', h + 'px');
+        });
       }
     } catch {}
   }
@@ -4627,8 +4728,7 @@
     const banner = document.getElementById('site-banner');
     if (banner) banner.style.display = 'none';
     sessionStorage.setItem('banner_dismissed', '1');
-    const layout = document.querySelector('.layout');
-    if (layout) layout.style.paddingTop = '';
+    document.documentElement.style.setProperty('--banner-h', '0px');
   }
 
   async function loadPlatformStatus() {
@@ -6747,7 +6847,8 @@
   const POLL_MS = 60000;
   const badge   = document.getElementById('app-version-badge');
   let loaded    = null;
-  let toastShown = false;
+  let toastShown    = false;
+  let stageDismissed = false; // set when user clicks Later — prevents repoll re-show this session
 
   function paintBadge(v) {
     if (!badge || !v) return;
@@ -6772,7 +6873,7 @@
         </div>
         <button id="app-staged-publish" style="background:linear-gradient(135deg,#e8a121,#f5c842);color:#000;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:12px;letter-spacing:0.04em;cursor:pointer;text-transform:uppercase;font-family:'Syne',sans-serif;">Publish</button>
         <button id="app-staged-revert" style="background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.25);padding:8px 14px;border-radius:8px;font-weight:600;font-size:12px;letter-spacing:0.04em;cursor:pointer;text-transform:uppercase;font-family:'Syne',sans-serif;">Revert</button>
-        <button id="app-update-dismiss" aria-label="Dismiss" style="background:transparent;color:rgba(255,255,255,0.4);border:none;font-size:18px;cursor:pointer;padding:4px 6px;line-height:1;">&times;</button>
+        <button id="app-update-dismiss" aria-label="Dismiss later" style="background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.45);border:1px solid rgba(255,255,255,0.08);font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;padding:6px 10px;border-radius:6px;font-family:'Syne',sans-serif;">Later</button>
       </div>`;
     Object.assign(t.style, {
       position: 'fixed', bottom: '24px', right: '24px', zIndex: '99999',
@@ -6791,8 +6892,12 @@
           method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` }
         });
         const j = await r.json();
-        if (r.ok) { t.remove(); toastShown = false; showUpdateToast({ version: j.version }); }
-        else alert(j.error || 'Publish failed');
+        if (r.ok) {
+          t.remove(); toastShown = false;
+          showUpdateToast({ version: j.version });
+          // Refresh published changelog if admin panel is open
+          if (typeof loadPublishedChangelog === 'function') loadPublishedChangelog();
+        } else { alert(j.error || 'Publish failed'); }
       } catch(e) { alert('Error: ' + e.message); }
     };
     document.getElementById('app-staged-revert').onclick = async () => {
@@ -6803,11 +6908,12 @@
           method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` }
         });
         const j = await r.json();
-        if (r.ok) { t.remove(); toastShown = false; loaded = null; check(); }
+        if (r.ok) { t.remove(); toastShown = false; stageDismissed = false; loaded = null; check(); }
         else alert(j.error || 'Revert failed');
       } catch(e) { alert('Error: ' + e.message); }
     };
-    document.getElementById('app-update-dismiss').onclick = () => { t.remove(); toastShown = false; };
+    // Later: dismiss for this session only — staged entry stays in DB, toast won't repoll
+    document.getElementById('app-update-dismiss').onclick = () => { t.remove(); toastShown = false; stageDismissed = true; };
   }
 
   function showUpdateToast(latest) {
@@ -6863,8 +6969,8 @@
       const v = await r.json();
       // Guard: skip staged toast if staged version == live version (stale seed artefact)
       const isMeaningfulStaged = v.staged && v.version !== v.liveVersion;
-      if (!loaded) { loaded = v; paintBadge(v); if (isMeaningfulStaged) showStagedToast(v); return; }
-      if (isMeaningfulStaged && !toastShown) { showStagedToast(v); return; }
+      if (!loaded) { loaded = v; paintBadge(v); if (isMeaningfulStaged && !stageDismissed) showStagedToast(v); return; }
+      if (isMeaningfulStaged && !toastShown && !stageDismissed) { showStagedToast(v); return; }
       if (!v.staged && loaded.version !== v.version) showUpdateToast(v);
     } catch {}
   }

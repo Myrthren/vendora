@@ -6118,6 +6118,19 @@ app.post('/api/admin/version/publish', async (req, res) => {
   if (live) await saveSetting('app_version_previous', live);
   await saveSetting('app_version_live', staged);
   await saveSetting('app_version_staged', null);
+
+  // Auto-add to changelog entries in Supabase
+  try {
+    const entry = {
+      version:     staged.version,
+      title:       staged.title || staged.notes || 'Update',
+      changes:     staged.changes || (staged.notes ? [staged.notes] : []),
+      publishedAt: new Date().toISOString(),
+    };
+    const existing = (await getSetting('app_changelog_entries')) || [];
+    await saveSetting('app_changelog_entries', [entry, ...existing]);
+  } catch(e) { console.warn('[version] changelog save failed:', e.message); }
+
   console.log(`[version] Published v${staged.version}`);
   res.json({ ok: true, version: staged.version });
 });
@@ -6141,12 +6154,24 @@ app.post('/api/admin/version/revert', async (req, res) => {
 
 app.post('/api/admin/version/stage', async (req, res) => {
   if (!await requireOwner(req, res)) return;
-  const { version, notes } = req.body || {};
+  const { version, notes, title, changes } = req.body || {};
   if (!version) return res.status(400).json({ error: 'version required' });
-  const entry = { version: String(version), notes: notes || '', stagedAt: new Date().toISOString() };
+  const entry = {
+    version:  String(version),
+    title:    title || notes || '',
+    notes:    notes || title || '',
+    changes:  Array.isArray(changes) ? changes : [],
+    stagedAt: new Date().toISOString(),
+  };
   await saveSetting('app_version_staged', entry);
   console.log(`[version] Staged v${version}`);
   res.json({ ok: true, version });
+});
+
+app.get('/api/admin/version/changelog-entries', async (req, res) => {
+  if (!await requireOwner(req, res)) return;
+  const entries = (await getSetting('app_changelog_entries')) || [];
+  res.json({ ok: true, entries });
 });
 
 // ── Admin: update pricing (stored in Supabase; PayPal plans are separate) ─────
