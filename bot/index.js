@@ -1141,6 +1141,15 @@ async function dbUpdateVintedAlertSeenIds(id, seenIds) {
   }).catch(() => {});
 }
 
+async function dbUpdateVintedAlert(id, data) {
+  if (!SUPABASE_KEY) return;
+  await fetch(`${SUPABASE_URL}/rest/v1/vinted_alerts?id=eq.${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+    body: JSON.stringify(data),
+  }).catch(() => {});
+}
+
 // ── Settings (persistent config in Supabase) ──────────────────────────────────
 async function getSetting(key) {
   if (!SUPABASE_KEY) return null;
@@ -3958,6 +3967,7 @@ app.post('/api/platform/connect', async (req, res) => {
     platform_user_id:  result.platform_user_id,
     platform_username: result.platform_username,
     connected_at:      new Date().toISOString(),
+    token_expires_at:  new Date(Date.now() + 28 * 86400000).toISOString(),
   });
 
   if (!saveResult.ok) {
@@ -4166,10 +4176,11 @@ app.post('/api/vinted/connect-login', async (req, res) => {
 
   const save = await upsertPlatformConn(user.id, 'vinted', {
     access_token:      encryptToken(result.access_token),
-    refresh_token:     result.refresh_token || null,
+    refresh_token:     result.refresh_token ? encryptToken(result.refresh_token) : null,
     platform_user_id:  result.platform_user_id || '',
     platform_username: result.platform_username || username,
     connected_at:      new Date().toISOString(),
+    token_expires_at:  new Date(Date.now() + 28 * 86400000).toISOString(),
   });
   if (!save.ok) return res.status(500).json({ error: save.error || 'Could not save connection.' });
 
@@ -6223,10 +6234,11 @@ cron.schedule('0 * * * *', async () => {
 });
 
 // ── Vinted inventory + sales sync cron — runs every 6 hours ─────────────────
-// For every connected Vinted user, pulls live listings via Apify and diffs
-// against the last snapshot. Items that vanish are recorded as sales.
+// For every connected Vinted user, pulls live listings via Playwright browser
+// (DataDome already solved) and diffs against the last snapshot.
+// Items that vanish from the live feed are recorded as sales.
 cron.schedule('17 */6 * * *', async () => {
-  if (!SUPABASE_KEY || !APIFY_PROXY_READY) return;
+  if (!SUPABASE_KEY) return;
   console.log('[cron:vinted-sync] Starting inventory + sales sync…');
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/platform_connections?platform=eq.vinted&select=user_id,platform_user_id,platform_username`, {
@@ -7037,6 +7049,295 @@ No markdown, just JSON.`;
 // ── Vinted alert cron — runs every 30 minutes ────────────────────────────────
 // For each saved vinted_alert, run an Apify Vinted search, diff against seen_ids,
 // and DM the user about any new matching listings.
+// ── Vinted token refresh helper ───────────────────────────────────────────────
+// Silently refreshes a user's Vinted access token using the stored refresh token.
+// Stores the new token in Supabase with an updated token_expires_at.
+// Returns the new raw access_token string, or null on failure.
+async function refreshVintedTokenIfNeeded(userId, conn) {
+  if (!conn?.refresh_token || !vintedBrowser?.refreshVintedAccessToken) return null;
+  try {
+    const rawRefresh = decryptToken(conn.refresh_token);
+    if (!rawRefresh) return null;
+
+    console.log(`[token-refresh] Refreshing Vinted token for user ${userId}…`);
+    const result = await vintedBrowser.refreshVintedAccessToken(rawRefresh);
+
+    if (result.error) {
+      console.warn(`[token-refresh] Failed for user ${userId}:`, result.error);
+      return null;
+    }
+
+    // Save new access token (and possibly new refresh token) to Supabase
+    await upsertPlatformConn(userId, 'vinted', {
+      access_token:     encryptToken(result.access_token),
+      ...(result.refresh_token && result.refresh_token !== rawRefresh
+        ? { refresh_token: encryptToken(result.refresh_token) }
+        : {}),
+      token_expires_at: new Date(Date.now() + (result.expires_in || 2592000) * 1000).toISOString(),
+    });
+
+    console.log(`[token-refresh] Token refreshed for user ${userId}`);
+    return result.access_token;
+  } catch (e) {
+    console.error('[token-refresh] Error:', e.message);
+    return null;
+  }
+}
+
+// ── Token refresh cron — runs every hour ──────────────────────────────────────
+// Checks every connected Vinted account and refreshes the access token if it
+// will expire within 2 days. Ensures features like auto-buy never fail mid-session
+// due to a stale token.
+cron.schedule('45 * * * *', async () => {
+  if (!SUPABASE_KEY || !vintedBrowser?.refreshVintedAccessToken) return;
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/platform_connections?platform=eq.vinted&select=user_id,refresh_token,token_expires_at`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    const conns = await r.json();
+    if (!Array.isArray(conns) || !conns.length) return;
+
+    const twoDaysFromNow = Date.now() + 2 * 86400000;
+    const toRefresh = conns.filter(c => {
+      if (!c.refresh_token) return false; // no refresh token stored — can't refresh
+      if (!c.token_expires_at) return true; // no expiry stored — refresh as a safety measure
+      return new Date(c.token_expires_at).getTime() < twoDaysFromNow;
+    });
+
+    if (!toRefresh.length) {
+      console.log('[cron:token-refresh] All Vinted tokens still valid, skipping');
+      return;
+    }
+
+    console.log(`[cron:token-refresh] Refreshing ${toRefresh.length} expiring token(s)…`);
+    for (const conn of toRefresh) {
+      await refreshVintedTokenIfNeeded(conn.user_id, conn);
+      // Space requests so we don't hammer the shared Playwright browser
+      await new Promise(r => setTimeout(r, 3000));
+    }
+    console.log('[cron:token-refresh] Done');
+  } catch (e) {
+    console.error('[cron:token-refresh] Fatal:', e.message);
+  }
+});
+
+// ── AI inventory suggestions cron — every 8 hours ────────────────────────────
+// For every connected Vinted user, loads their inventory snapshot and asks the
+// AI for specific improvement suggestions on stale listings (listed > 3 days).
+// Results stored in Supabase under inventory_suggestions_{userId}.
+async function generateInventorySuggestionsForUser(userId, items) {
+  if (!ai || !items?.length) return;
+  try {
+    const STALE_DAYS = 3;
+    const now        = Date.now();
+
+    // Only analyse listings that have been up long enough to have real view data
+    const stale = items.filter(item => {
+      const ts = item.created_at ? new Date(item.created_at).getTime() : 0;
+      return (now - ts) > STALE_DAYS * 86400000;
+    }).slice(0, 10); // cap at 10 to control AI spend
+
+    if (!stale.length) return;
+
+    const existing = (await getSetting(`inventory_suggestions_${userId}`)) || {};
+
+    for (const item of stale) {
+      const itemId = String(item.id || item.item_id || '');
+      if (!itemId) continue;
+
+      // Skip items we generated suggestions for in the last 24h
+      const prev = existing[itemId];
+      if (prev?.generated_at && (now - new Date(prev.generated_at).getTime()) < 86400000) continue;
+
+      const daysListed = item.created_at
+        ? Math.floor((now - new Date(item.created_at).getTime()) / 86400000)
+        : null;
+
+      const context = [
+        `Title: ${item.title || '—'}`,
+        `Price: £${item.price?.amount || item.price || '—'}`,
+        item.brand_title    ? `Brand: ${item.brand_title}`    : null,
+        item.size_title     ? `Size: ${item.size_title}`      : null,
+        item.status         ? `Condition: ${item.status}`     : null,
+        daysListed != null  ? `Days listed: ${daysListed}`    : null,
+        item.favourite_count != null ? `Favourites: ${item.favourite_count}` : null,
+        item.view_count      != null ? `Views: ${item.view_count}`            : null,
+      ].filter(Boolean).join('\n');
+
+      const text = await callAI(
+        'You are Vendora\'s listing optimization expert for Vinted UK. Analyze this listing and give exactly 2 specific, actionable improvement suggestions to increase views and speed up the sale. Each suggestion must be concrete — mention exact words to add/change, specific price points, or precise description edits. Do NOT give generic advice.',
+        context,
+        'claude-3-5-haiku-20241022',
+        250,
+      );
+
+      if (text) {
+        existing[itemId] = {
+          item_title:   (item.title || '').slice(0, 60),
+          suggestions:  text.trim(),
+          generated_at: new Date().toISOString(),
+        };
+      }
+
+      await new Promise(r => setTimeout(r, 600)); // small gap between AI calls
+    }
+
+    await saveSetting(`inventory_suggestions_${userId}`, existing);
+    console.log(`[ai-suggestions] Generated suggestions for user ${userId} (${stale.length} items checked)`);
+  } catch (e) {
+    console.error('[ai-suggestions] Error:', e.message);
+  }
+}
+
+cron.schedule('30 */8 * * *', async () => {
+  if (!SUPABASE_KEY || !ai) return;
+  console.log('[cron:ai-suggestions] Starting AI inventory suggestion pass…');
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/platform_connections?platform=eq.vinted&select=user_id`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    const conns = await r.json();
+    if (!Array.isArray(conns)) return;
+
+    for (const conn of conns) {
+      try {
+        const snapshot = await getSetting(`vinted_inventory_${conn.user_id}`);
+        if (!snapshot?.items?.length) continue;
+        await generateInventorySuggestionsForUser(conn.user_id, snapshot.items);
+        await new Promise(r => setTimeout(r, 4000)); // spread AI load across users
+      } catch (e) {
+        console.warn(`[cron:ai-suggestions] Error for user ${conn.user_id}:`, e.message);
+      }
+    }
+    console.log('[cron:ai-suggestions] Done');
+  } catch (e) {
+    console.error('[cron:ai-suggestions] Fatal:', e.message);
+  }
+});
+
+// ── Auto-buy fast poll — every 2 minutes ─────────────────────────────────────
+// Runs keyword searches every 2 min for alerts that have auto_buy = true.
+// Uses the Playwright browser (DataDome already solved) instead of Apify —
+// this cuts detection latency from ~30 min down to ~2 min, which is fast
+// enough to win the competition for desirable items.
+// If the user has a connected Vinted account, attempts to auto-purchase.
+cron.schedule('*/2 * * * *', async () => {
+  if (!SUPABASE_KEY || !vintedBrowser?.vintedBrowserSearchItems) return;
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/vinted_alerts?auto_buy=eq.true&select=*`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    const alerts = await r.json();
+    if (!Array.isArray(alerts) || !alerts.length) return;
+
+    for (const alert of alerts) {
+      try {
+        const { items, error } = await vintedBrowser.vintedBrowserSearchItems(alert.keyword, alert.max_price, 20);
+        if (error) { console.warn(`[auto-buy] Search error for "${alert.keyword}":`, error); continue; }
+        if (!items.length) continue;
+
+        const seenIds  = new Set(alert.seen_ids || []);
+        const newItems = items.filter(i => {
+          const id = String(i.id || '');
+          return id && !seenIds.has(id);
+        });
+        if (!newItems.length) continue;
+
+        // Look up the user's connected Vinted account for auto-purchasing
+        let platformConn = null;
+        try {
+          const ur = await fetch(
+            `${SUPABASE_URL}/rest/v1/profiles?discord_id=eq.${alert.discord_id}&select=id`,
+            { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+          );
+          const profiles = await ur.json();
+          if (profiles?.[0]?.id) platformConn = await getPlatformConn(profiles[0].id, 'vinted');
+        } catch {}
+
+        for (const item of newItems.slice(0, 3)) {
+          const itemId = String(item.id || '');
+          const price  = item.price?.amount || item.priceNum || item.price || '?';
+          const title  = (item.title || 'New listing').slice(0, 80);
+          const url    = item.url || `https://www.vinted.co.uk/items/${itemId}`;
+
+          let purchaseResult = null;
+
+          // Attempt auto-purchase if user has a valid stored token
+          if (platformConn?.access_token && itemId) {
+            try {
+              // Refresh token if needed before purchase attempt
+              let rawToken = decryptToken(platformConn.access_token);
+              if (platformConn.token_expires_at && new Date(platformConn.token_expires_at).getTime() < Date.now() + 3600000) {
+                const refreshed = await refreshVintedTokenIfNeeded(platformConn.user_id, platformConn);
+                if (refreshed) rawToken = refreshed;
+              }
+              if (rawToken) {
+                console.log(`[auto-buy] Attempting purchase of item ${itemId} (keyword: "${alert.keyword}")`);
+                purchaseResult = await vintedBrowser.vintedBrowserBuyItem(rawToken, itemId);
+                console.log(`[auto-buy] Item ${itemId}:`, purchaseResult?.ok ? '✅ purchased' : `❌ ${purchaseResult?.error}`);
+              }
+            } catch (e) {
+              console.warn('[auto-buy] Purchase threw:', e.message);
+              purchaseResult = { error: e.message };
+            }
+          }
+
+          // DM the user whether purchase succeeded or failed
+          try {
+            const discordUser = await client.users.fetch(alert.discord_id);
+            const bought = purchaseResult?.ok;
+
+            const embed = new EmbedBuilder()
+              .setColor(bought ? '#4ade80' : '#e8217a')
+              .setTimestamp();
+
+            if (bought) {
+              embed
+                .setTitle(`✅ Auto-Bought — "${alert.keyword}"`)
+                .setDescription(`**${title}**\nPrice: £${price}\n\n[View on Vinted](${url})`)
+                .setFooter({ text: 'Vendora Auto-Buy · Check your Vinted app to confirm the order' });
+              if (purchaseResult.transaction_id) {
+                embed.addFields({ name: 'Transaction ID', value: purchaseResult.transaction_id, inline: true });
+              }
+            } else {
+              const failNote = purchaseResult?.error
+                ? `\n⚠️ **Auto-buy failed:** ${purchaseResult.error.slice(0, 120)}`
+                : '';
+              embed
+                .setTitle(`🔔 Auto-Buy Alert — "${alert.keyword}"`)
+                .setDescription(`**${title}**\nPrice: £${price}${failNote}\n\n**[→ Buy Now on Vinted](${url})**`)
+                .setFooter({ text: 'Vendora Auto-Buy · Found within 2 min of listing' });
+            }
+
+            if (alert.max_price) embed.addFields({ name: 'Under', value: `£${alert.max_price}`, inline: true });
+
+            const components = !bought && itemId ? [
+              new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setLabel('Buy on Vinted →').setURL(url).setStyle(ButtonStyle.Link)
+              ),
+            ] : [];
+
+            await discordUser.send({ embeds: [embed], components });
+          } catch (e) {
+            console.warn(`[auto-buy] DM failed for ${alert.discord_id}:`, e.message);
+          }
+        }
+
+        // Update seen_ids so we don't re-alert for these items
+        const allIds = [...new Set([...seenIds, ...items.map(i => String(i.id || '')).filter(Boolean)])];
+        await dbUpdateVintedAlertSeenIds(alert.id, allIds.slice(-500));
+      } catch (e) {
+        console.warn(`[auto-buy] Error for alert "${alert.keyword}":`, e.message);
+      }
+    }
+  } catch (e) {
+    console.error('[auto-buy] Fatal:', e.message);
+  }
+});
+
 cron.schedule('*/30 * * * *', async () => {
   if (!APIFY_TOKEN || !SUPABASE_KEY) return;
   console.log('[cron:vinted-alerts] Running Vinted keyword alert checks...');
@@ -7091,6 +7392,41 @@ cron.schedule('*/30 * * * *', async () => {
   } catch (e) {
     console.error('[cron:vinted-alerts] Fatal error:', e.message);
   }
+});
+
+// ── Vinted alert toggle (auto_buy, max_price) ────────────────────────────────
+// PATCH /api/vinted/alert/:id — update fields on a Vinted alert owned by the user.
+// Supports toggling auto_buy on/off and updating max_price.
+app.patch('/api/vinted/alert/:id', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = user.user_metadata?.provider_id
+    || user.identities?.find(i => i.provider === 'discord')?.id;
+  if (!discordId) return res.status(400).json({ error: 'No Discord ID on account' });
+
+  const alertId = req.params.id;
+  const { auto_buy, max_price } = req.body;
+
+  // Verify this alert belongs to this Discord user
+  const alerts = await dbGetVintedAlerts(discordId);
+  const alert   = alerts.find(a => String(a.id) === String(alertId));
+  if (!alert) return res.status(404).json({ error: 'Alert not found or does not belong to you' });
+
+  const update = {};
+  if (typeof auto_buy === 'boolean') update.auto_buy = auto_buy;
+  if (max_price !== undefined)        update.max_price = max_price === null ? null : Number(max_price);
+  if (!Object.keys(update).length)    return res.status(400).json({ error: 'Nothing to update — send auto_buy or max_price' });
+
+  await dbUpdateVintedAlert(alertId, update);
+  res.json({ ok: true, alert: { ...alert, ...update } });
+});
+
+// GET /api/inventory/suggestions — AI improvement suggestions for the user's listings
+// Populated by the every-8-hours AI suggestions cron. Returns a map of
+// item_id → { item_title, suggestions, generated_at }.
+app.get('/api/inventory/suggestions', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const suggestions = (await getSetting(`inventory_suggestions_${user.id}`)) || {};
+  res.json({ ok: true, suggestions });
 });
 
 // ── Avatar refresh ─────────────────────────────────────────────────────────────

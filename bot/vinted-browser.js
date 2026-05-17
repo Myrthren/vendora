@@ -667,6 +667,208 @@ async function vintedBrowserFetchItem(itemIdOrUrl) {
   return first;
 }
 
+// ─── public: refresh access token ────────────────────────────────────────────
+// Uses the stored refresh_token_web to silently obtain a new access token.
+// Calls Vinted's oauth endpoint from inside the established browser context
+// so DataDome is already solved — no residential proxy needed for this step.
+// Returns { access_token, refresh_token?, expires_in } | { error }
+async function refreshVintedAccessToken(refreshToken) {
+  if (!chromium) return { error: 'Browser unavailable' };
+  if (!refreshToken) return { error: 'No refresh token provided' };
+  let page;
+  try {
+    const ctx = await ensureBrowser();
+    page = await ctx.newPage();
+    const base = await resolveVintedBase(page);
+
+    // Inject the refresh token as a cookie so the page context is aware of it
+    const domain = '.' + new URL(base).hostname.replace(/^www\./, '');
+    await ctx.addCookies([{
+      name: 'refresh_token_web', value: refreshToken,
+      domain, path: '/', httpOnly: true, secure: true, sameSite: 'Lax',
+    }]).catch(() => {});
+
+    // Call the token endpoint from inside the browser (DataDome already solved,
+    // correct TLS fingerprint and cookies are in place).
+    const result = await page.evaluate(async ({ base, rt }) => {
+      try {
+        const r = await fetch(`${base}/api/v2/oauth/token`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+          },
+          body: new URLSearchParams({
+            grant_type: 'refresh_token',
+            refresh_token: rt,
+            client_id: 'web',
+            scope: 'user',
+          }).toString(),
+        });
+        const text = await r.text();
+        try { return { ok: r.ok, status: r.status, data: JSON.parse(text) }; }
+        catch { return { ok: false, status: r.status, raw: text.slice(0, 300) }; }
+      } catch (e) { return { error: e.message }; }
+    }, { base, rt: refreshToken });
+
+    if (result.error) return { error: result.error };
+
+    if (!result.ok) {
+      // If the endpoint itself returned a non-2xx, try reading the cookie —
+      // some Vinted builds set access_token_web via Set-Cookie rather than body.
+      const cookies = await ctx.cookies();
+      const atCookie = cookies.find(c => c.name === 'access_token_web' && c.domain.includes('vinted'));
+      if (atCookie?.value) {
+        console.log('[vinted-refresh] Got new token from Set-Cookie fallback');
+        return { access_token: atCookie.value, expires_in: 2592000 };
+      }
+      return { error: `Token refresh failed (${result.status}): ${result.raw || JSON.stringify(result.data)?.slice(0, 200)}` };
+    }
+
+    const newAccess = result.data?.access_token;
+    if (!newAccess) return { error: 'Refresh endpoint returned no access_token' };
+
+    console.log('[vinted-refresh] Token refreshed successfully');
+    return {
+      access_token:  newAccess,
+      refresh_token: result.data?.refresh_token || refreshToken, // Vinted may rotate it
+      expires_in:    result.data?.expires_in || 2592000,         // default 30 days
+    };
+  } catch (e) {
+    console.error('[vinted-refresh] Error:', e.message);
+    return { error: e.message };
+  } finally {
+    try { if (page) await page.close(); } catch {}
+  }
+}
+
+// ─── public: fast keyword search (for auto-buy polling) ──────────────────────
+// Calls Vinted's catalog API from inside the established browser context —
+// DataDome is already solved so this is much faster than spinning up Apify.
+// Used by the 2-minute auto-buy cron to detect new listings near-instantly.
+// Returns { items: Array } | { items: [], error: string }
+async function vintedBrowserSearchItems(keyword, maxPrice = null, perPage = 20) {
+  if (!chromium) return { items: [], error: 'Browser unavailable' };
+  let page;
+  try {
+    const ctx = await ensureBrowser();
+    page = await ctx.newPage();
+    const base = await resolveVintedBase(page);
+
+    const items = await page.evaluate(async ({ base, keyword, maxPrice, perPage }) => {
+      const params = new URLSearchParams({
+        search_text: keyword,
+        order:       'newest_first',
+        per_page:    String(perPage),
+        currency:    'GBP',
+        country_id:  '7', // UK
+      });
+      if (maxPrice) params.set('price_to', String(maxPrice));
+      try {
+        const r = await fetch(`${base}/api/v2/catalog/items?${params}`, {
+          credentials: 'include',
+          headers: { Accept: 'application/json' },
+        });
+        if (!r.ok) return [];
+        const d = await r.json();
+        return d.items || d.item || d.data || [];
+      } catch { return []; }
+    }, { base, keyword, maxPrice, perPage });
+
+    return { items: Array.isArray(items) ? items : [] };
+  } catch (e) {
+    return { items: [], error: e.message };
+  } finally {
+    try { if (page) await page.close(); } catch {}
+  }
+}
+
+// ─── public: buy item (auto-buy) ──────────────────────────────────────────────
+// Attempts to purchase a Vinted item on behalf of a connected user via the
+// internal Vinted transactions API, called from inside the browser context.
+//
+// REQUIREMENTS for success:
+//   • User must have a payment method saved in their Vinted account.
+//   • User must have a shipping address saved in their Vinted account.
+//   • The item must still be available (not already sold).
+//
+// Returns { ok, transaction_id, total } | { error }
+async function vintedBrowserBuyItem(accessToken, itemId) {
+  if (!chromium) return { error: 'Browser unavailable' };
+  if (!accessToken) return { error: 'No access token — reconnect your Vinted account' };
+  if (!itemId) return { error: 'No item ID provided' };
+  let page;
+  try {
+    const ctx = await ensureBrowser();
+    await setAuthCookie(ctx, accessToken);
+    page = await ctx.newPage();
+    const base = await resolveVintedBase(page);
+
+    const result = await page.evaluate(async ({ base, itemId }) => {
+      async function api(path, opts = {}) {
+        const r = await fetch(`${base}${path}`, {
+          credentials: 'include',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          ...opts,
+        });
+        const text = await r.text();
+        try { return { ok: r.ok, status: r.status, data: JSON.parse(text) }; }
+        catch { return { ok: false, status: r.status, raw: text.slice(0, 300) }; }
+      }
+
+      // 1. Verify item is still available
+      const itemRes = await api(`/api/v2/items/${itemId}`);
+      if (!itemRes.ok) return { error: `Item fetch failed (${itemRes.status})` };
+      const item = itemRes.data?.item || itemRes.data;
+      if (!item) return { error: 'Item data not found in response' };
+      // Vinted uses status = 'available' (string) or status_id = 1 (int)
+      const avail = item.status === 'available' || item.status === 1 || item.status_id === 1;
+      if (!avail) return { error: `Item is no longer available (status: ${item.status})` };
+
+      // 2. Get shipping options for this item
+      const shipRes = await api(`/api/v2/items/${itemId}/shipping_options`);
+      const shippingOptions = shipRes.data?.shipping_options || shipRes.data?.options || [];
+      const shipping = shippingOptions[0]; // cheapest/first option
+
+      // 3. Initiate the transaction
+      const txPayload = {
+        transaction: {
+          item_id: Number(itemId),
+          ...(shipping?.id ? { shipping_option_id: Number(shipping.id) } : {}),
+        },
+      };
+      const txRes = await api('/api/v2/transactions', {
+        method: 'POST',
+        body: JSON.stringify(txPayload),
+      });
+
+      if (!txRes.ok) {
+        const msg = txRes.data?.message || txRes.data?.error || txRes.raw || `HTTP ${txRes.status}`;
+        // Surface payment-not-configured errors clearly
+        if (/payment|card|wallet/i.test(msg)) {
+          return { error: `Purchase failed — no payment method configured in your Vinted account. Add one in the Vinted app first. (${msg.slice(0, 100)})` };
+        }
+        return { error: `Purchase failed (${txRes.status}): ${msg.slice(0, 200)}` };
+      }
+
+      const tx = txRes.data?.transaction || txRes.data;
+      return {
+        ok:             true,
+        transaction_id: String(tx?.id || ''),
+        status:         tx?.status || 'created',
+        total:          tx?.total_price || item.price?.amount || '?',
+      };
+    }, { base, itemId: String(itemId) });
+
+    return result;
+  } catch (e) {
+    return { error: e.message };
+  } finally {
+    try { if (page) await page.close(); } catch {}
+  }
+}
+
 // ─── public: fetch a seller's active listings (no token required) ────────────
 // Loads the public catalog page filtered by seller_ids[] through the shared
 // Playwright browser context (DataDome already solved). Intercepts the XHR
@@ -757,5 +959,8 @@ module.exports = {
   vintedBrowserValidateToken,
   vintedBrowserFetchAnalytics,
   vintedBrowserFetchItem,
+  refreshVintedAccessToken,
+  vintedBrowserSearchItems,
+  vintedBrowserBuyItem,
   closeVintedBrowser,
 };
