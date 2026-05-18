@@ -190,30 +190,56 @@ async function vintedBrowserLogin(username, password) {
     }
     console.log(`[vinted-browser-login] base=${base} (proxy_skipped=${_proxySkipped})`);
 
-    // ── Navigate to homepage and open login modal ────────────────────────────
-    // We always go via the homepage rather than a direct /login URL because
-    // Vinted's login path differs per locale (en: /login, fr: /connexion, de: /anmelden…).
-    // Clicking the header login button opens a modal that works on every locale.
-    await page.goto(`${base}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    // ── Navigate to the login page ───────────────────────────────────────────
+    // Strategy: try /login directly (works on .co.uk), then fall back to
+    // homepage + header button click. Wait for full React hydration each time.
+    let onLoginPage = false;
 
-    // Open login modal — try all known button shapes
-    const LOGIN_BTN_SELS = [
-      '[data-testid="header--login-button"]',
-      '[data-testid="header-login-button"]',
-      'a[href*="/login"]',
-      'a[href*="/connexion"]',
-      'a[href*="/anmelden"]',
-      'button:has-text("Log in")',
-      'button:has-text("Se connecter")',
-      'button:has-text("Anmelden")',
-      '[data-testid="header--main-navigation"] a:has-text("Log")',
-    ];
-    for (const sel of LOGIN_BTN_SELS) {
-      const btn = await page.$(sel);
-      if (btn) { await btn.click(); break; }
+    // First attempt: direct URL
+    try {
+      await page.goto(`${base}/login`, { waitUntil: 'load', timeout: 35000 });
+      await page.waitForTimeout(1500); // let React finish rendering
+      onLoginPage = !!(await page.$('input[type="password"]'));
+    } catch {}
+
+    // Second attempt: homepage → click login link/button
+    if (!onLoginPage) {
+      await page.goto(`${base}/`, { waitUntil: 'load', timeout: 35000 });
+      await page.waitForTimeout(2000); // wait for React hydration
+
+      // Try every known selector shape for the login trigger
+      const LOGIN_BTN_SELS = [
+        '[data-testid="header--login-button"]',
+        '[data-testid="header-login-button"]',
+        '[data-testid="login-button"]',
+        'a[href="/login"]',
+        'a[href*="/login"]',
+        'button:has-text("Log in")',
+        'a:has-text("Log in")',
+        '[data-testid="header--main-navigation"] a',
+      ];
+      for (const sel of LOGIN_BTN_SELS) {
+        try {
+          const el = await page.$(sel);
+          if (el) {
+            await el.click();
+            await page.waitForTimeout(1500);
+            onLoginPage = !!(await page.$('input[type="password"]'));
+            if (onLoginPage) break;
+          }
+        } catch {}
+      }
     }
-    // Give the modal/page time to animate in
-    await page.waitForTimeout(1500);
+
+    // Last resort: evaluate-click anything that looks like a login link
+    if (!onLoginPage) {
+      await page.evaluate(() => {
+        const els = Array.from(document.querySelectorAll('a, button'));
+        const hit = els.find(el => /log.?in|sign.?in/i.test(el.textContent || el.getAttribute('href') || ''));
+        if (hit) hit.click();
+      });
+      await page.waitForTimeout(2000);
+    }
 
     // ── Dismiss cookie banner ────────────────────────────────────────────────
     await page.click('#onetrust-accept-btn-handler', { timeout: 4000 }).catch(() => {});
