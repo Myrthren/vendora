@@ -208,15 +208,21 @@ async function vintedBrowserLogin(username, password) {
     // DataDome cookies + TLS fingerprint are carried automatically.
     // We try several known endpoint shapes in order.
 
-    // Step 1: extract CSRF token if the page exposes one (Rails-based pages do)
+    // Step 1: extract CSRF token — Vinted embeds it as "CSRF_TOKEN":"..." in page HTML
     const csrfToken = await page.evaluate(() => {
-      const m = document.querySelector('meta[name="csrf-token"]');
-      if (m) return m.getAttribute('content');
       try {
-        // Some SPAs embed it in a window global
+        // Primary: embedded in JS bundle as "CSRF_TOKEN":"<value>"
+        const html = document.documentElement.innerHTML;
+        const m = html.match(/"CSRF_TOKEN":"([^"]+)"/);
+        if (m) return m[1];
+        // Fallback: meta tag (older Vinted versions)
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        if (meta) return meta.getAttribute('content');
+        // Fallback: window globals
         return window._rails_csrf_token || window.__CSRF__ || null;
       } catch { return null; }
     }).catch(() => null);
+    console.log(`[vinted-browser-login] csrf=${csrfToken ? csrfToken.slice(0,12) + '…' : 'not found'}`);
 
     const apiResult = await page.evaluate(async ({ user, pass, csrf }) => {
       const attempts = [];
@@ -269,8 +275,64 @@ async function vintedBrowserLogin(username, password) {
     }
 
     if (apiResult.api_failed) {
-      console.warn('[vinted-browser-login] all API attempts failed:', JSON.stringify(apiResult.attempts));
-      return { error: `Vinted login API rejected all attempts. Details: ${JSON.stringify(apiResult.attempts)}` };
+      console.warn('[vinted-browser-login] direct API failed, trying form-based login:', JSON.stringify(apiResult.attempts));
+
+      // ── Fallback: form-based login with full React hydration wait ────────
+      // Navigate to /login with networkidle — waits for React to fully render
+      // the login modal before we look for form fields.
+      try {
+        await page.goto(`${base}/login`, { waitUntil: 'networkidle', timeout: 45000 });
+        await page.waitForTimeout(1500);
+
+        const formResult = await page.evaluate(async ({ user, pass }) => {
+          const passEl = document.querySelector('input[type="password"], input[name="password"], input[autocomplete="current-password"]');
+          if (!passEl) return { no_form: true };
+
+          const userEl = document.querySelector('input[type="email"], input[name="username"], input[name="login"], input[name="email"], input[autocomplete="username"], input[autocomplete="email"]');
+          if (!userEl) return { no_user_field: true };
+
+          userEl.focus(); userEl.value = user;
+          userEl.dispatchEvent(new Event('input', { bubbles: true }));
+          userEl.dispatchEvent(new Event('change', { bubbles: true }));
+          passEl.focus(); passEl.value = pass;
+          passEl.dispatchEvent(new Event('input', { bubbles: true }));
+          passEl.dispatchEvent(new Event('change', { bubbles: true }));
+
+          const submitBtn = document.querySelector('button[type="submit"], [data-testid="submit-button"], form button');
+          if (!submitBtn) return { no_submit: true };
+          submitBtn.click();
+          return { submitted: true };
+        }, { user: username, pass: password });
+
+        if (formResult.submitted) {
+          // Wait for the auth cookie to be set after form submission
+          await page.waitForTimeout(4000);
+          const formToken = await cookieValue(ctx, 'access_token_web') || await cookieValue(ctx, '_vinted_fr_session');
+          if (formToken) {
+            console.log('[vinted-browser-login] form-based login succeeded');
+            const me2 = await page.evaluate(async () => {
+              try {
+                const r = await fetch('/api/v2/users/me', { credentials: 'include', headers: { Accept: 'application/json' } });
+                if (!r.ok) return {};
+                return await r.json();
+              } catch { return {}; }
+            });
+            const u2 = me2?.user || me2 || {};
+            return {
+              access_token:      formToken,
+              refresh_token:     await cookieValue(ctx, 'refresh_token_web') || '',
+              platform_user_id:  String(u2.id || ''),
+              platform_username: u2.login || u2.username || username,
+            };
+          }
+        }
+        const formTitle = await page.title().catch(() => '?');
+        console.warn('[vinted-browser-login] form-based login also failed, title:', formTitle, 'result:', JSON.stringify(formResult));
+      } catch (formErr) {
+        console.warn('[vinted-browser-login] form-based fallback error:', formErr.message);
+      }
+
+      return { error: `Vinted login failed. API attempts: ${JSON.stringify(apiResult.attempts?.slice(0,2))}` };
     }
 
     // ── Confirm token by calling /api/v2/users/me ────────────────────────────
