@@ -203,52 +203,74 @@ async function vintedBrowserLogin(username, password) {
       return { error: 'Vinted is blocking this server\'s IP (DataDome). A UK residential proxy is required — set PROXY_URL on Railway.' };
     }
 
-    // ── Direct OAuth API call (no UI interaction needed) ─────────────────────
-    // We call Vinted's own token endpoint from inside the browser so DataDome
-    // cookies are automatically included. This works regardless of UI changes.
-    const apiResult = await page.evaluate(async ({ user, pass }) => {
-      const tryEndpoint = async (endpoint, clientId) => {
-        const params = new URLSearchParams({ grant_type: 'password', username: user, password: pass, scope: 'user' });
-        if (clientId) params.set('client_id', clientId);
-        const r = await fetch(endpoint, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
-          body: params.toString(),
+    // ── Direct API login (no UI interaction needed) ───────────────────────────
+    // Vinted's mobile/web API is called from inside the browser context so that
+    // DataDome cookies + TLS fingerprint are carried automatically.
+    // We try several known endpoint shapes in order.
+
+    // Step 1: extract CSRF token if the page exposes one (Rails-based pages do)
+    const csrfToken = await page.evaluate(() => {
+      const m = document.querySelector('meta[name="csrf-token"]');
+      if (m) return m.getAttribute('content');
+      try {
+        // Some SPAs embed it in a window global
+        return window._rails_csrf_token || window.__CSRF__ || null;
+      } catch { return null; }
+    }).catch(() => null);
+
+    const apiResult = await page.evaluate(async ({ user, pass, csrf }) => {
+      const attempts = [];
+
+      const post = async (url, body, contentType = 'application/json') => {
+        const headers = { 'Content-Type': contentType, Accept: 'application/json' };
+        if (csrf) headers['X-CSRF-Token'] = csrf;
+        const r = await fetch(url, {
+          method: 'POST', credentials: 'include', headers,
+          body: contentType === 'application/json' ? JSON.stringify(body) : new URLSearchParams(body).toString(),
         });
         const text = await r.text();
-        let data;
-        try { data = JSON.parse(text); } catch { return { status: r.status, raw: text.slice(0, 200) }; }
-        return { status: r.status, data };
+        let data; try { data = JSON.parse(text); } catch { data = null; }
+        return { status: r.status, data, raw: text.slice(0, 300) };
       };
 
-      const endpoints = ['/oauth/token', '/api/v2/oauth/token'];
-      const clientIds = ['web', 'vinted-web-2', 'vinted-web', ''];
-      const attempts  = [];
-
-      for (const ep of endpoints) {
-        for (const cid of clientIds) {
-          try {
-            const res = await tryEndpoint(ep, cid);
-            attempts.push({ ep, cid, status: res.status, error: res.data?.error });
-            if (res.data?.access_token)           return { ok: true, access_token: res.data.access_token, refresh_token: res.data.refresh_token || '' };
-            if (res.data?.error === 'invalid_grant') return { invalid_credentials: true, attempts };
-            if (res.status === 404 || res.status === 405) continue;
-          } catch (e) {
-            attempts.push({ ep, cid, error: e.message });
-          }
-        }
+      // ── 1. Vinted app-style JSON login (most likely to work) ────────────
+      for (const payload of [
+        { login: user, password: pass },
+        { user: { login: user, password: pass } },
+        { email: user, password: pass },
+      ]) {
+        try {
+          const res = await post('/api/v2/users/login', payload);
+          attempts.push({ ep: '/api/v2/users/login', status: res.status, error: res.data?.error_code || res.data?.error });
+          const token = res.data?.user?.auth_token || res.data?.access_token || res.data?.token;
+          if (token) return { ok: true, access_token: token, refresh_token: res.data?.user?.refresh_token || res.data?.refresh_token || '', user: res.data?.user };
+          if (res.status === 401 || res.data?.error_code === 'invalid_credentials' || res.data?.error === 'invalid_grant') return { invalid_credentials: true, attempts };
+        } catch (e) { attempts.push({ ep: '/api/v2/users/login', error: e.message }); }
       }
+
+      // ── 2. OAuth token endpoint with CSRF header ─────────────────────────
+      for (const cid of ['web', 'vinted-web-2', '']) {
+        try {
+          const res = await post('/oauth/token',
+            { grant_type: 'password', username: user, password: pass, scope: 'user', ...(cid ? { client_id: cid } : {}) },
+            'application/x-www-form-urlencoded'
+          );
+          attempts.push({ ep: '/oauth/token', cid, status: res.status, error: res.data?.error });
+          if (res.data?.access_token) return { ok: true, access_token: res.data.access_token, refresh_token: res.data.refresh_token || '' };
+          if (res.data?.error === 'invalid_grant') return { invalid_credentials: true, attempts };
+        } catch (e) { attempts.push({ ep: '/oauth/token', cid, error: e.message }); }
+      }
+
       return { api_failed: true, attempts };
-    }, { user: username, pass: password });
+    }, { user: username, pass: password, csrf: csrfToken });
 
     if (apiResult.invalid_credentials) {
       return { error: 'Incorrect Vinted username or password.' };
     }
 
     if (apiResult.api_failed) {
-      console.warn('[vinted-browser-login] OAuth API failed, attempts:', JSON.stringify(apiResult.attempts));
-      return { error: `Vinted OAuth API did not return a token. Attempts: ${JSON.stringify(apiResult.attempts?.slice(0,3))}` };
+      console.warn('[vinted-browser-login] all API attempts failed:', JSON.stringify(apiResult.attempts));
+      return { error: `Vinted login API rejected all attempts. Details: ${JSON.stringify(apiResult.attempts)}` };
     }
 
     // ── Confirm token by calling /api/v2/users/me ────────────────────────────
