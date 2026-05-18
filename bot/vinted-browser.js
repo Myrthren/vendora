@@ -113,11 +113,15 @@ async function closeVintedBrowser() {
   _context = null; _browser = null;
 }
 
-// Resolve the right domain (proxy may redirect .co.uk → .fr etc.)
+// Load Vinted's homepage and return the base URL we actually landed on.
+// We do NOT follow geo-redirects (.co.uk → .fr) — we always use .co.uk as
+// canonical. The proxy may route through France but the .co.uk site still
+// serves the right content; locale redirects just break locale-specific URL paths.
 async function resolveVintedBase(page) {
   try {
     await page.goto('https://www.vinted.co.uk/', { waitUntil: 'domcontentloaded', timeout: 25000 });
-    return new URL(page.url()).origin;
+    // Ignore geo-redirects — always use .co.uk so login URLs are predictable
+    return 'https://www.vinted.co.uk';
   } catch (e) {
     if (e.message.includes('ERR_TUNNEL_CONNECTION_FAILED') || e.message.includes('ERR_PROXY_CONNECTION_FAILED')) {
       throw new Error('PROXY_TUNNEL_FAILED:' + e.message);
@@ -186,24 +190,30 @@ async function vintedBrowserLogin(username, password) {
     }
     console.log(`[vinted-browser-login] base=${base} (proxy_skipped=${_proxySkipped})`);
 
-    // ── Navigate to login page ───────────────────────────────────────────────
-    // Try the direct login URL first; fall back to clicking the header button
-    const loginUrls = [
-      `${base}/login`,
-      `${base}/member/general/login`,
+    // ── Navigate to homepage and open login modal ────────────────────────────
+    // We always go via the homepage rather than a direct /login URL because
+    // Vinted's login path differs per locale (en: /login, fr: /connexion, de: /anmelden…).
+    // Clicking the header login button opens a modal that works on every locale.
+    await page.goto(`${base}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+    // Open login modal — try all known button shapes
+    const LOGIN_BTN_SELS = [
+      '[data-testid="header--login-button"]',
+      '[data-testid="header-login-button"]',
+      'a[href*="/login"]',
+      'a[href*="/connexion"]',
+      'a[href*="/anmelden"]',
+      'button:has-text("Log in")',
+      'button:has-text("Se connecter")',
+      'button:has-text("Anmelden")',
+      '[data-testid="header--main-navigation"] a:has-text("Log")',
     ];
-    let landed = false;
-    for (const url of loginUrls) {
-      try {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        landed = true;
-        break;
-      } catch {}
+    for (const sel of LOGIN_BTN_SELS) {
+      const btn = await page.$(sel);
+      if (btn) { await btn.click(); break; }
     }
-    if (!landed) {
-      await page.goto(`${base}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.click('[data-testid="header--login-button"]', { timeout: 10000 }).catch(() => {});
-    }
+    // Give the modal/page time to animate in
+    await page.waitForTimeout(1500);
 
     // ── Dismiss cookie banner ────────────────────────────────────────────────
     await page.click('#onetrust-accept-btn-handler', { timeout: 4000 }).catch(() => {});
