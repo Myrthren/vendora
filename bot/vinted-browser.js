@@ -197,15 +197,15 @@ async function vintedBrowserLogin(username, password) {
 
     // First attempt: direct URL
     try {
-      await page.goto(`${base}/login`, { waitUntil: 'load', timeout: 35000 });
-      await page.waitForTimeout(1500); // let React finish rendering
+      await page.goto(`${base}/login`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForTimeout(800);
       onLoginPage = !!(await page.$('input[type="password"]'));
     } catch {}
 
     // Second attempt: homepage → click login link/button
     if (!onLoginPage) {
-      await page.goto(`${base}/`, { waitUntil: 'load', timeout: 35000 });
-      await page.waitForTimeout(2000); // wait for React hydration
+      await page.goto(`${base}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForTimeout(1500); // wait for React hydration
 
       // Try every known selector shape for the login trigger
       const LOGIN_BTN_SELS = [
@@ -238,7 +238,7 @@ async function vintedBrowserLogin(username, password) {
         const hit = els.find(el => /log.?in|sign.?in/i.test(el.textContent || el.getAttribute('href') || ''));
         if (hit) hit.click();
       });
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(1000);
     }
 
     // ── Dismiss cookie banner ────────────────────────────────────────────────
@@ -291,7 +291,7 @@ async function vintedBrowserLogin(username, password) {
 
     // Wait up to 20s for any password field — it's the most distinctive
     let passField = null;
-    for (let attempt = 0; attempt < 40 && !passField; attempt++) {
+    for (let attempt = 0; attempt < 20 && !passField; attempt++) {
       for (const sel of PASS_SELS) {
         passField = await page.$(sel);
         if (passField) break;

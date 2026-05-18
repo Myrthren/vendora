@@ -4155,7 +4155,7 @@ app.post('/api/vinted/connect-login', async (req, res) => {
   try {
     result = await Promise.race([
       vintedBrowser.vintedBrowserLogin(username, password),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('Login timed out after 60s')), 60000)),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('Login timed out after 120s')), 120000)),
     ]);
   } catch (e) {
     console.warn('[vinted-connect-login] timeout/error:', e.message);
