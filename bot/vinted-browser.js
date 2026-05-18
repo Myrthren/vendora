@@ -186,30 +186,122 @@ async function vintedBrowserLogin(username, password) {
     }
     console.log(`[vinted-browser-login] base=${base} (proxy_skipped=${_proxySkipped})`);
 
-    // Go to login page — Vinted opens login as a modal on /
-    await page.goto(`${base}/member/general/login`, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(async () => {
-      // fallback: click login button on home
+    // ── Navigate to login page ───────────────────────────────────────────────
+    // Try the direct login URL first; fall back to clicking the header button
+    const loginUrls = [
+      `${base}/login`,
+      `${base}/member/general/login`,
+    ];
+    let landed = false;
+    for (const url of loginUrls) {
+      try {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        landed = true;
+        break;
+      } catch {}
+    }
+    if (!landed) {
       await page.goto(`${base}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
       await page.click('[data-testid="header--login-button"]', { timeout: 10000 }).catch(() => {});
-    });
+    }
 
-    // Dismiss any cookie banner
-    await page.click('#onetrust-accept-btn-handler', { timeout: 3000 }).catch(() => {});
+    // ── Dismiss cookie banner ────────────────────────────────────────────────
+    await page.click('#onetrust-accept-btn-handler', { timeout: 4000 }).catch(() => {});
+    await page.click('[data-testid="cookie-banner-accept"]', { timeout: 2000 }).catch(() => {});
 
-    // Open email/username login tab if present
-    await page.click('[data-testid="auth-select-type--login"]', { timeout: 5000 }).catch(() => {});
-    await page.click('text=/log in with email|email login/i', { timeout: 3000 }).catch(() => {});
+    // ── Check for DataDome block immediately after landing ───────────────────
+    const blockedEarly = await page.evaluate(() =>
+      document.title?.toLowerCase().includes('blocked') ||
+      !!document.querySelector('iframe[src*="captcha-delivery"], iframe[src*="datadome"], [id*="dd-challenge"]')
+    ).catch(() => false);
+    if (blockedEarly) {
+      return { error: 'Vinted is blocking this server\'s IP (DataDome). A residential proxy is required. Set PROXY_URL on Railway to a UK residential proxy, e.g. http://user:pass@host:443' };
+    }
 
-    // Fill form — try both selector shapes (Vinted has rotated them)
-    const userSel = 'input[name="username"], input[name="login"], input[type="email"]';
-    const passSel = 'input[name="password"], input[type="password"]';
-    await page.waitForSelector(userSel, { timeout: 15000 });
-    await page.fill(userSel, username);
-    await page.fill(passSel, password);
-    await page.click('button[type="submit"], [data-testid="auth-submit"]', { timeout: 5000 });
+    // ── Open email login tab if Vinted is showing a provider-select screen ───
+    // Vinted sometimes shows "Log in with Facebook / Google / Email" tabs.
+    await page.click('[data-testid="auth-select-type--login"]', { timeout: 4000 }).catch(() => {});
+    // Click "Log in with email" button/link if present
+    for (const sel of [
+      'button:has-text("Log in with email")',
+      'button:has-text("Email")',
+      'a:has-text("Log in with email")',
+      '[data-testid="auth-login-with-email"]',
+    ]) {
+      const hit = await page.$(sel);
+      if (hit) { await hit.click(); break; }
+    }
 
-    // Wait for either success (redirect away from /login) or error
-    await page.waitForURL(u => !String(u).includes('/login') && !String(u).includes('/member/general'), { timeout: 25000 }).catch(() => {});
+    // ── Wait for the credential form ─────────────────────────────────────────
+    // Vinted has used many different attribute shapes — try all known ones.
+    // Also handle the case where they embed the form inside a dialog/modal.
+    const USER_SELS = [
+      'input[name="username"]',
+      'input[name="login"]',
+      'input[name="email"]',
+      'input[type="email"]',
+      'input[autocomplete="username"]',
+      'input[autocomplete="email"]',
+      '[data-testid="username_or_email-input"] input',
+      '[data-testid="email-input"] input',
+      'form input[type="text"]:first-of-type',
+    ];
+    const PASS_SELS = [
+      'input[name="password"]',
+      'input[type="password"]',
+      'input[autocomplete="current-password"]',
+      '[data-testid="password-input"] input',
+    ];
+
+    // Wait up to 20s for any password field — it's the most distinctive
+    let passField = null;
+    for (let attempt = 0; attempt < 40 && !passField; attempt++) {
+      for (const sel of PASS_SELS) {
+        passField = await page.$(sel);
+        if (passField) break;
+      }
+      if (!passField) await page.waitForTimeout(500);
+    }
+    if (!passField) {
+      // Snapshot the page title to help diagnose
+      const title = await page.title().catch(() => '?');
+      return { error: `Vinted login form not found (page: "${title}"). Vinted may have changed their login UI — this usually means DataDome served a different page, or the selectors need updating.` };
+    }
+
+    // Find the username/email field — try each selector, pick the first visible one
+    let userField = null;
+    for (const sel of USER_SELS) {
+      userField = await page.$(sel);
+      if (userField) break;
+    }
+    if (!userField) {
+      return { error: 'Vinted login username field not found — login UI may have changed.' };
+    }
+
+    await userField.fill(username);
+    await passField.fill(password);
+
+    // ── Submit ────────────────────────────────────────────────────────────────
+    const SUBMIT_SELS = [
+      'button[type="submit"]',
+      '[data-testid="auth-submit"]',
+      '[data-testid="submit-button"]',
+      'button:has-text("Log in")',
+      'button:has-text("Sign in")',
+      'form button',
+    ];
+    let submitted = false;
+    for (const sel of SUBMIT_SELS) {
+      const btn = await page.$(sel);
+      if (btn) { await btn.click(); submitted = true; break; }
+    }
+    if (!submitted) return { error: 'Could not find Vinted login submit button.' };
+
+    // ── Wait for redirect out of login pages ─────────────────────────────────
+    await page.waitForURL(
+      u => !String(u).includes('/login') && !String(u).includes('/member/general'),
+      { timeout: 25000 }
+    ).catch(() => {});
 
     // If DataDome captcha appeared in an iframe, fail — user needs to switch proxy country
     const captcha = await page.$('iframe[src*="captcha-delivery"], iframe[src*="datadome"]');
