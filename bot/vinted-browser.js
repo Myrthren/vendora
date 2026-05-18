@@ -61,35 +61,45 @@ function parseProxy(url) {
   } catch { return null; }
 }
 
+// Whether the last browser launch skipped the proxy due to a tunnel failure
+let _proxySkipped = false;
+
+async function launchBrowser(useProxy = true) {
+  const proxy = useProxy ? parseProxy(PROXY_URL) : null;
+  console.log(`[vinted-browser] launching chromium (stealth=${stealthApplied}, proxy=${!!proxy})`);
+  const browser = await chromium.launch({
+    headless: true,
+    proxy: proxy || undefined,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-dev-shm-usage',
+    ],
+  });
+  const context = await browser.newContext({
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    locale: 'en-GB',
+    timezoneId: 'Europe/London',
+    viewport: { width: 1280, height: 800 },
+    extraHTTPHeaders: { 'Accept-Language': 'en-GB,en;q=0.9' },
+  });
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+  });
+  return { browser, context };
+}
+
 async function ensureBrowser() {
   if (!chromium) throw new Error('Playwright not installed');
   if (_context) return _context;
   if (_launchingPromise) return _launchingPromise;
 
   _launchingPromise = (async () => {
-    const proxy = parseProxy(PROXY_URL);
-    console.log(`[vinted-browser] launching chromium (stealth=${stealthApplied}, proxy=${!!proxy})`);
-    _browser = await chromium.launch({
-      headless: true,
-      proxy: proxy || undefined,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-dev-shm-usage',
-      ],
-    });
-    _context = await _browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      locale: 'en-GB',
-      timezoneId: 'Europe/London',
-      viewport: { width: 1280, height: 800 },
-      extraHTTPHeaders: { 'Accept-Language': 'en-GB,en;q=0.9' },
-    });
-    // Hide webdriver flag on all pages in this context
-    await _context.addInitScript(() => {
-      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    });
+    const { browser, context } = await launchBrowser(true);
+    _browser  = browser;
+    _context  = context;
+    _proxySkipped = false;
     return _context;
   })();
 
@@ -109,6 +119,9 @@ async function resolveVintedBase(page) {
     await page.goto('https://www.vinted.co.uk/', { waitUntil: 'domcontentloaded', timeout: 25000 });
     return new URL(page.url()).origin;
   } catch (e) {
+    if (e.message.includes('ERR_TUNNEL_CONNECTION_FAILED') || e.message.includes('ERR_PROXY_CONNECTION_FAILED')) {
+      throw new Error('PROXY_TUNNEL_FAILED:' + e.message);
+    }
     console.warn('[vinted-browser] base resolve failed:', e.message);
     return 'https://www.vinted.co.uk';
   }
@@ -144,11 +157,34 @@ async function vintedBrowserLogin(username, password) {
 
   let page;
   try {
-    const ctx = await ensureBrowser();
-    page = await ctx.newPage();
+    let ctx;
+    try {
+      ctx = await ensureBrowser();
+      page = await ctx.newPage();
+    } catch (e) {
+      return { error: `Browser failed to launch: ${e.message}` };
+    }
 
-    const base = await resolveVintedBase(page);
-    console.log(`[vinted-browser-login] base=${base}`);
+    let base;
+    try {
+      base = await resolveVintedBase(page);
+    } catch (e) {
+      if (e.message.startsWith('PROXY_TUNNEL_FAILED')) {
+        // Proxy can't establish HTTPS tunnel — tear down and retry without proxy
+        console.warn('[vinted-browser-login] Proxy tunnel failed — retrying without proxy');
+        try { await page.close(); } catch {}
+        await closeVintedBrowser();
+        _proxySkipped = true;
+        const { browser: b2, context: c2 } = await launchBrowser(false);
+        _browser = b2; _context = c2;
+        page = await c2.newPage();
+        base = await resolveVintedBase(page).catch(() => 'https://www.vinted.co.uk');
+        console.warn('[vinted-browser-login] Running WITHOUT proxy — DataDome may block login from this IP. Fix: set PROXY_URL to a residential proxy that supports HTTPS on port 443.');
+      } else {
+        throw e;
+      }
+    }
+    console.log(`[vinted-browser-login] base=${base} (proxy_skipped=${_proxySkipped})`);
 
     // Go to login page — Vinted opens login as a modal on /
     await page.goto(`${base}/member/general/login`, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(async () => {
