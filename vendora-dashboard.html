@@ -1213,6 +1213,25 @@
           <div id="vinted-connect-msg" style="display:none;margin-top:10px;"></div>
         </div>
 
+        <!-- Session token card — visible only when account is connected -->
+        <div id="vinted-autolist-card" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.06);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div>
+              <div style="font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);margin-bottom:3px;">Session Token</div>
+              <div id="vinted-token-status" style="font-size:13px;color:var(--muted);">○ Not set</div>
+            </div>
+            <button id="vinted-token-clear-btn" onclick="clearVintedToken()" class="btn btn-ghost btn-sm" style="display:none;font-size:11px;padding:5px 10px;color:var(--red);border-color:rgba(248,113,113,0.25);">Clear</button>
+          </div>
+          <div style="font-size:12px;color:var(--muted2);line-height:1.6;margin-bottom:12px;">
+            Paste your <code style="background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px;font-size:11px;">access_token_web</code> cookie to enable auto-listing. Get it from <strong style="color:var(--text);">F12 → Application → Cookies → www.vinted.co.uk</strong>. Tokens last ~30 days.
+          </div>
+          <div style="display:flex;gap:8px;">
+            <input id="vinted-token-input" type="password" placeholder="Paste access_token_web cookie value (eyJ…)" style="flex:1;background:var(--bg4);border:1px solid var(--border-dim);border-radius:6px;padding:9px 12px;font-size:12px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;transition:border .15s;" onfocus="this.style.borderColor='rgba(9,177,186,0.4)'" onblur="this.style.borderColor=''" onkeydown="if(event.key==='Enter')saveVintedToken()">
+            <button id="vinted-token-save-btn" onclick="saveVintedToken()" style="padding:9px 16px;background:rgba(9,177,186,0.15);border:1px solid rgba(9,177,186,0.35);border-radius:6px;color:#09b1ba;font-size:13px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .15s;white-space:nowrap;" onmouseover="this.style.background='rgba(9,177,186,0.25)'" onmouseout="this.style.background='rgba(9,177,186,0.15)'">Save</button>
+          </div>
+          <div id="vinted-token-msg" style="display:none;margin-top:10px;"></div>
+        </div>
+
       </div>
 
       <!-- Coming Soon platforms -->

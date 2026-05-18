@@ -4016,34 +4016,51 @@ app.get('/api/vinted/connect-popup', (req, res) => {
 <title>Connect Vinted · Vendora</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#090909;color:#f0f0f0;font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-  .card{background:#0f0f0f;border:1px solid rgba(255,255,255,.08);border-radius:4px;padding:32px;width:100%;max-width:420px}
-  .logo{display:flex;align-items:center;gap:10px;margin-bottom:24px}
+  body{background:#090909;color:#f0f0f0;font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:24px}
+  .card{background:#0f0f0f;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:28px 24px;width:100%;max-width:420px;margin-top:16px}
+  .logo{display:flex;align-items:center;gap:10px;margin-bottom:20px}
   .logo-mark{width:32px;height:32px;background:linear-gradient(135deg,#e8217a,#c41860);border-radius:4px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;letter-spacing:-.5px;color:#fff}
   .logo-text{font-size:16px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#f0f0f0}
-  h2{font-size:18px;font-weight:700;margin-bottom:6px}
-  .sub{font-size:13px;color:#888;margin-bottom:20px;line-height:1.55}
-  .platform-badge{display:flex;align-items:center;gap:8px;background:rgba(9,177,186,.08);border:1px solid rgba(9,177,186,.2);border-radius:4px;padding:8px 12px;margin-bottom:22px}
-  .plat-dot{width:8px;height:8px;border-radius:50%;background:#09b1ba;flex-shrink:0}
-  .plat-label{font-size:12px;font-weight:600;color:#09b1ba}
+  h2{font-size:17px;font-weight:700;margin-bottom:5px}
+  .sub{font-size:13px;color:#888;margin-bottom:18px;line-height:1.55}
+  .tabs{display:flex;margin-bottom:20px;border:1px solid rgba(255,255,255,.1);border-radius:6px;overflow:hidden}
+  .tab-btn{flex:1;padding:9px 10px;font-size:11px;font-weight:600;font-family:inherit;border:none;cursor:pointer;letter-spacing:.05em;text-transform:uppercase;transition:background .15s,color .15s}
+  .tab-btn.active{background:rgba(9,177,186,.16);color:#09b1ba}
+  .tab-btn:not(.active){background:transparent;color:#555}
+  .tab-btn:not(.active):hover{background:rgba(255,255,255,.04);color:#999}
+  .tab-pane{display:none}
+  .tab-pane.active{display:block}
   label{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#888;margin-bottom:6px}
-  input{width:100%;background:#141414;border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:11px 14px;font-size:14px;color:#f0f0f0;font-family:inherit;outline:none;transition:border .15s}
-  input:focus{border-color:rgba(9,177,186,.5)}
+  input,textarea{width:100%;background:#141414;border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:11px 14px;font-size:13px;color:#f0f0f0;font-family:inherit;outline:none;transition:border .15s;resize:none}
+  input:focus,textarea:focus{border-color:rgba(9,177,186,.5)}
   .field{margin-bottom:14px}
-  .btn{width:100%;padding:12px;border-radius:4px;border:none;cursor:pointer;font-size:14px;font-weight:600;font-family:inherit;transition:opacity .15s,background .15s;letter-spacing:.03em}
+  .btn{width:100%;padding:11px;border-radius:4px;border:none;cursor:pointer;font-size:14px;font-weight:600;font-family:inherit;transition:opacity .15s,background .15s;letter-spacing:.03em}
   .btn-primary{background:linear-gradient(135deg,#09b1ba,#077d84);color:#fff}
   .btn-primary:hover{opacity:.9}
   .btn-primary:disabled{opacity:.5;cursor:not-allowed}
-  .notice{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:4px;margin-bottom:18px}
+  .notice{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:4px;margin-bottom:16px}
   .notice-icon{font-size:14px;flex-shrink:0;margin-top:1px}
   .notice-text{font-size:12px;color:#999;line-height:1.6}
   .notice-text b{color:#bbb}
-  .msg{margin-top:14px;padding:10px 14px;border-radius:4px;font-size:13px;display:none;line-height:1.5}
+  .notice.teal{background:rgba(9,177,186,.05);border-color:rgba(9,177,186,.2)}
+  .msg{margin-top:12px;padding:10px 14px;border-radius:4px;font-size:13px;display:none;line-height:1.5}
   .msg.success{background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.2);color:#4ade80}
   .msg.error{background:rgba(232,33,122,.1);border:1px solid rgba(232,33,122,.2);color:#f07}
   .msg.info{background:rgba(9,177,186,.08);border:1px solid rgba(9,177,186,.2);color:#09b1ba}
   .spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;margin-right:8px;vertical-align:middle}
   @keyframes spin{to{transform:rotate(360deg)}}
+  .step{display:none}
+  .step.active{display:block}
+  .step-header{display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:13px;font-weight:600;color:#bbb}
+  .step-num{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(9,177,186,.2);color:#09b1ba;font-size:11px;font-weight:700;flex-shrink:0}
+  .cookie-steps{margin:10px 0 2px;display:flex;flex-direction:column;gap:7px}
+  .cookie-step{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#999;line-height:1.5}
+  .cookie-step b{color:#ccc}
+  kbd{display:inline-block;padding:1px 6px;background:#1a1a1a;border:1px solid rgba(255,255,255,.15);border-radius:3px;font-size:11px;color:#bbb;font-family:monospace}
+  .back-link{display:block;margin-top:10px;text-align:center;font-size:12px;color:#555;text-decoration:none;cursor:pointer}
+  .back-link:hover{color:#999}
+  .switch-link{color:#09b1ba;text-decoration:none;font-size:12px}
+  .switch-link:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -4053,52 +4070,111 @@ app.get('/api/vinted/connect-popup', (req, res) => {
     <div class="logo-text">Vendora</div>
   </div>
   <h2>Connect Vinted</h2>
-  <p class="sub">Sign in with your Vinted credentials. Vendora uses them once to authenticate, then stores only your session token — your password is never saved.</p>
-  <div class="platform-badge">
-    <div class="plat-dot"></div>
-    <span class="plat-label">Vinted</span>
+  <p class="sub">Link your Vinted account to enable auto-listing, inventory sync, and profit tracking.</p>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-btn-auto" onclick="switchTab('auto')">Auto-connect</button>
+    <button class="tab-btn" id="tab-btn-manual" onclick="switchTab('manual')">Manual (Cookie)</button>
   </div>
 
-  <div class="field">
-    <label>Vinted username</label>
-    <input id="vc-user" type="text" placeholder="your_username" autocomplete="username">
-  </div>
-  <div class="field">
-    <label>Vinted password</label>
-    <input id="vc-pass" type="password" placeholder="••••••••" autocomplete="current-password">
+  <!-- ── AUTO TAB ──────────────────────────────────────────────────────── -->
+  <div class="tab-pane active" id="tab-auto">
+    <div class="field">
+      <label>Vinted username</label>
+      <input id="vc-user" type="text" placeholder="your_username" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Vinted password</label>
+      <input id="vc-pass" type="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" id="vc-btn" onclick="doLogin()">Sign in &amp; Connect</button>
+    <div class="notice" style="margin-top:14px;">
+      <span class="notice-icon">🔒</span>
+      <div class="notice-text">Your password is sent securely to Vendora's server, used once to log in, then <b>immediately discarded</b>. Only your session token is stored (encrypted).</div>
+    </div>
+    <div class="msg" id="auto-msg"></div>
+    <p style="margin-top:12px;text-align:center;font-size:12px;color:#555;">
+      Auto-connect blocked? Use <a class="switch-link" onclick="switchTab('manual');return false;" href="#">Manual (Cookie)</a> instead.
+    </p>
   </div>
 
-  <button class="btn btn-primary" id="vc-btn" onclick="doLogin()">Sign in &amp; Connect</button>
+  <!-- ── MANUAL TAB ─────────────────────────────────────────────────────── -->
+  <div class="tab-pane" id="tab-manual">
 
-  <div class="notice" style="margin-top:16px;">
-    <span class="notice-icon">🔒</span>
-    <div class="notice-text">Your password is sent securely to Vendora's server, used to log in to Vinted via a real browser, and then <b>immediately discarded</b>. Only the session token is stored (encrypted).</div>
-  </div>
+    <!-- Step 1: username -->
+    <div class="step active" id="manual-step1">
+      <div class="step-header">
+        <span class="step-num">1</span> Enter your Vinted username
+      </div>
+      <div class="field">
+        <label>Vinted username</label>
+        <input id="mc-user" type="text" placeholder="your_username" autocomplete="username">
+      </div>
+      <button class="btn btn-primary" id="mc-step1-btn" onclick="doManualStep1()">Continue →</button>
+      <div class="msg" id="manual-step1-msg"></div>
+    </div>
 
-  <div class="msg" id="msg"></div>
+    <!-- Step 2: paste cookie (shown after step 1 succeeds) -->
+    <div class="step" id="manual-step2">
+      <div class="step-header">
+        <span class="step-num">2</span> Paste your session cookie
+      </div>
+      <div class="notice teal">
+        <span class="notice-icon">📋</span>
+        <div class="notice-text">
+          <b>How to get your Vinted cookie:</b>
+          <div class="cookie-steps">
+            <div class="cookie-step"><b>1.</b>&ensp;Log in to Vinted in your browser</div>
+            <div class="cookie-step"><b>2.</b>&ensp;Press <kbd>F12</kbd> → <b>Application</b> tab → <b>Cookies</b> → <b>www.vinted.co.uk</b></div>
+            <div class="cookie-step"><b>3.</b>&ensp;Find <b>access_token_web</b> — copy its full <b>Value</b></div>
+            <div class="cookie-step"><b>4.</b>&ensp;Paste it below (long string starting with <b>eyJ</b>)</div>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>access_token_web value</label>
+        <textarea id="mc-token" rows="3" placeholder="eyJ..."></textarea>
+      </div>
+      <button class="btn btn-primary" id="mc-step2-btn" onclick="doManualStep2()">Save &amp; Connect</button>
+      <div class="msg" id="manual-step2-msg"></div>
+      <a class="back-link" onclick="resetManual();return false;">← Back</a>
+    </div>
+
+  </div><!-- /tab-manual -->
 </div>
 
 <script>
 const AUTH_TOKEN = ${authJson};
+let _manualUsername = '';
 
-function showMsg(type, text) {
-  const el = document.getElementById('msg');
+function switchTab(tab) {
+  const isAuto = tab === 'auto';
+  document.getElementById('tab-btn-auto').classList.toggle('active', isAuto);
+  document.getElementById('tab-btn-manual').classList.toggle('active', !isAuto);
+  document.getElementById('tab-auto').classList.toggle('active', isAuto);
+  document.getElementById('tab-manual').classList.toggle('active', !isAuto);
+}
+
+function showMsg(id, type, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
   el.className = 'msg ' + type;
   el.innerHTML = text;
   el.style.display = 'block';
 }
 
+// ── AUTO TAB ──────────────────────────────────────────────────────────────────
 async function doLogin() {
-  if (!AUTH_TOKEN) return showMsg('error', 'Session expired — close this window and try again from the dashboard.');
+  if (!AUTH_TOKEN) return showMsg('auto-msg', 'error', 'Session expired — close this window and try again from the dashboard.');
   const username = document.getElementById('vc-user').value.trim().replace(/^@/, '');
   const password = document.getElementById('vc-pass').value;
-  if (!username) return showMsg('error', 'Enter your Vinted username.');
-  if (!password)  return showMsg('error', 'Enter your Vinted password.');
+  if (!username) return showMsg('auto-msg', 'error', 'Enter your Vinted username.');
+  if (!password)  return showMsg('auto-msg', 'error', 'Enter your Vinted password.');
 
   const btn = document.getElementById('vc-btn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Signing in to Vinted…';
-  showMsg('info', 'Opening a browser session on Vinted — this takes up to 30 seconds…');
+  showMsg('auto-msg', 'info', 'Opening a browser session — this can take up to 30 seconds…');
 
   try {
     const res = await fetch('/api/vinted/connect-login', {
@@ -4108,29 +4184,111 @@ async function doLogin() {
     });
     const json = await res.json();
     if (!res.ok) {
-      showMsg('error', json.error || 'Login failed. Check your username and password and try again.');
+      showMsg('auto-msg', 'error', json.error || 'Login failed. Check your credentials and try again.');
       btn.disabled = false; btn.textContent = 'Sign in & Connect';
       return;
     }
-    showMsg('success', '✓ Connected as @' + json.username + '!');
-    if (window.opener) {
-      setTimeout(() => {
-        try { window.opener.postMessage({ type: 'vinted-connected', username: json.username }, '*'); } catch {}
-        window.close();
-      }, 1400);
-    } else {
-      btn.textContent = 'Done — close this tab';
-      btn.disabled = false;
-      btn.onclick = () => window.close();
-    }
+    showMsg('auto-msg', 'success', '✓ Connected as @' + json.username + '!');
+    _notifyDashboard(json.username);
   } catch (e) {
-    showMsg('error', 'Network error: ' + (e.message || 'please try again'));
+    showMsg('auto-msg', 'error', 'Network error: ' + (e.message || 'please try again'));
     btn.disabled = false; btn.textContent = 'Sign in & Connect';
   }
 }
 
+// ── MANUAL TAB ────────────────────────────────────────────────────────────────
+async function doManualStep1() {
+  if (!AUTH_TOKEN) return showMsg('manual-step1-msg', 'error', 'Session expired — close and try again.');
+  const username = document.getElementById('mc-user').value.trim().replace(/^@/, '');
+  if (!username) return showMsg('manual-step1-msg', 'error', 'Enter your Vinted username.');
+
+  const btn = document.getElementById('mc-step1-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Checking…';
+  showMsg('manual-step1-msg', 'info', 'Verifying username on Vinted…');
+
+  try {
+    const res = await fetch('/api/vinted/connect-username', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
+      body: JSON.stringify({ username }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      showMsg('manual-step1-msg', 'error', json.error || 'Could not verify username. Check spelling and try again.');
+      btn.disabled = false; btn.textContent = 'Continue →';
+      return;
+    }
+    _manualUsername = json.username || username;
+    // Advance to step 2
+    document.getElementById('manual-step1').classList.remove('active');
+    document.getElementById('manual-step2').classList.add('active');
+  } catch (e) {
+    showMsg('manual-step1-msg', 'error', 'Network error: ' + (e.message || 'try again'));
+    btn.disabled = false; btn.textContent = 'Continue →';
+  }
+}
+
+async function doManualStep2() {
+  if (!AUTH_TOKEN) return showMsg('manual-step2-msg', 'error', 'Session expired — close and try again.');
+  const token = document.getElementById('mc-token').value.trim();
+  if (!token || token.length < 20) {
+    return showMsg('manual-step2-msg', 'error', 'Paste the full access_token_web value (it starts with eyJ…).');
+  }
+
+  const btn = document.getElementById('mc-step2-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Saving token…';
+
+  try {
+    const res = await fetch('/api/vinted/save-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
+      body: JSON.stringify({ token }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      showMsg('manual-step2-msg', 'error', json.error || 'Could not save token.');
+      btn.disabled = false; btn.textContent = 'Save & Connect';
+      return;
+    }
+    showMsg('manual-step2-msg', 'success', '✓ Connected as @' + _manualUsername + '! You can close this window.');
+    _notifyDashboard(_manualUsername);
+  } catch (e) {
+    showMsg('manual-step2-msg', 'error', 'Network error: ' + (e.message || 'try again'));
+    btn.disabled = false; btn.textContent = 'Save & Connect';
+  }
+}
+
+function resetManual() {
+  _manualUsername = '';
+  document.getElementById('manual-step1').classList.add('active');
+  document.getElementById('manual-step2').classList.remove('active');
+  const btn = document.getElementById('mc-step1-btn');
+  btn.disabled = false; btn.textContent = 'Continue →';
+  ['manual-step1-msg','manual-step2-msg'].forEach(id => { const el=document.getElementById(id); if(el) el.style.display='none'; });
+  document.getElementById('mc-token').value = '';
+}
+
+function _notifyDashboard(username) {
+  if (window.opener) {
+    setTimeout(() => {
+      try { window.opener.postMessage({ type: 'vinted-connected', username }, '*'); } catch {}
+      window.close();
+    }, 1400);
+  } else {
+    // Mobile / popup-blocked: opened as new tab — user closes manually
+    const btns = document.querySelectorAll('.btn-primary');
+    btns.forEach(b => { b.textContent = 'Done — close this tab'; b.disabled = false; b.onclick = () => window.close(); });
+  }
+}
+
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') doLogin();
+  if (e.key === 'Enter') {
+    if (document.getElementById('tab-auto').classList.contains('active')) doLogin();
+    else if (document.getElementById('manual-step1').classList.contains('active')) doManualStep1();
+    else if (document.getElementById('manual-step2').classList.contains('active')) doManualStep2();
+  }
 });
 </script>
 </body>
