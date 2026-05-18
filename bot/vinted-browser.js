@@ -190,175 +190,74 @@ async function vintedBrowserLogin(username, password) {
     }
     console.log(`[vinted-browser-login] base=${base} (proxy_skipped=${_proxySkipped})`);
 
-    // ── Navigate to the login page ───────────────────────────────────────────
-    // Strategy: try /login directly (works on .co.uk), then fall back to
-    // homepage + header button click. Wait for full React hydration each time.
-    let onLoginPage = false;
+    // ── Load homepage so DataDome issues us a valid session cookie ──────────
+    await page.goto(`${base}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForTimeout(800);
 
-    // First attempt: direct URL
-    try {
-      await page.goto(`${base}/login`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(800);
-      onLoginPage = !!(await page.$('input[type="password"]'));
-    } catch {}
-
-    // Second attempt: homepage → click login link/button
-    if (!onLoginPage) {
-      await page.goto(`${base}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(1500); // wait for React hydration
-
-      // Try every known selector shape for the login trigger
-      const LOGIN_BTN_SELS = [
-        '[data-testid="header--login-button"]',
-        '[data-testid="header-login-button"]',
-        '[data-testid="login-button"]',
-        'a[href="/login"]',
-        'a[href*="/login"]',
-        'button:has-text("Log in")',
-        'a:has-text("Log in")',
-        '[data-testid="header--main-navigation"] a',
-      ];
-      for (const sel of LOGIN_BTN_SELS) {
-        try {
-          const el = await page.$(sel);
-          if (el) {
-            await el.click();
-            await page.waitForTimeout(1500);
-            onLoginPage = !!(await page.$('input[type="password"]'));
-            if (onLoginPage) break;
-          }
-        } catch {}
-      }
-    }
-
-    // Last resort: evaluate-click anything that looks like a login link
-    if (!onLoginPage) {
-      await page.evaluate(() => {
-        const els = Array.from(document.querySelectorAll('a, button'));
-        const hit = els.find(el => /log.?in|sign.?in/i.test(el.textContent || el.getAttribute('href') || ''));
-        if (hit) hit.click();
-      });
-      await page.waitForTimeout(1000);
-    }
-
-    // ── Dismiss cookie banner ────────────────────────────────────────────────
-    await page.click('#onetrust-accept-btn-handler', { timeout: 4000 }).catch(() => {});
-    await page.click('[data-testid="cookie-banner-accept"]', { timeout: 2000 }).catch(() => {});
-
-    // ── Check for DataDome block immediately after landing ───────────────────
-    const blockedEarly = await page.evaluate(() =>
+    // ── Check for DataDome hard block ────────────────────────────────────────
+    const blocked = await page.evaluate(() =>
       document.title?.toLowerCase().includes('blocked') ||
       !!document.querySelector('iframe[src*="captcha-delivery"], iframe[src*="datadome"], [id*="dd-challenge"]')
     ).catch(() => false);
-    if (blockedEarly) {
-      return { error: 'Vinted is blocking this server\'s IP (DataDome). A residential proxy is required. Set PROXY_URL on Railway to a UK residential proxy, e.g. http://user:pass@host:443' };
+    if (blocked) {
+      return { error: 'Vinted is blocking this server\'s IP (DataDome). A UK residential proxy is required — set PROXY_URL on Railway.' };
     }
 
-    // ── Open email login tab if Vinted is showing a provider-select screen ───
-    // Vinted sometimes shows "Log in with Facebook / Google / Email" tabs.
-    await page.click('[data-testid="auth-select-type--login"]', { timeout: 4000 }).catch(() => {});
-    // Click "Log in with email" button/link if present
-    for (const sel of [
-      'button:has-text("Log in with email")',
-      'button:has-text("Email")',
-      'a:has-text("Log in with email")',
-      '[data-testid="auth-login-with-email"]',
-    ]) {
-      const hit = await page.$(sel);
-      if (hit) { await hit.click(); break; }
-    }
+    // ── Direct OAuth API call (no UI interaction needed) ─────────────────────
+    // We call Vinted's own token endpoint from inside the browser so DataDome
+    // cookies are automatically included. This works regardless of UI changes.
+    const apiResult = await page.evaluate(async ({ user, pass }) => {
+      const tryEndpoint = async (endpoint, clientId) => {
+        const params = new URLSearchParams({ grant_type: 'password', username: user, password: pass, scope: 'user' });
+        if (clientId) params.set('client_id', clientId);
+        const r = await fetch(endpoint, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+          body: params.toString(),
+        });
+        const text = await r.text();
+        let data;
+        try { data = JSON.parse(text); } catch { return { status: r.status, raw: text.slice(0, 200) }; }
+        return { status: r.status, data };
+      };
 
-    // ── Wait for the credential form ─────────────────────────────────────────
-    // Vinted has used many different attribute shapes — try all known ones.
-    // Also handle the case where they embed the form inside a dialog/modal.
-    const USER_SELS = [
-      'input[name="username"]',
-      'input[name="login"]',
-      'input[name="email"]',
-      'input[type="email"]',
-      'input[autocomplete="username"]',
-      'input[autocomplete="email"]',
-      '[data-testid="username_or_email-input"] input',
-      '[data-testid="email-input"] input',
-      'form input[type="text"]:first-of-type',
-    ];
-    const PASS_SELS = [
-      'input[name="password"]',
-      'input[type="password"]',
-      'input[autocomplete="current-password"]',
-      '[data-testid="password-input"] input',
-    ];
+      const endpoints = ['/oauth/token', '/api/v2/oauth/token'];
+      const clientIds = ['web', 'vinted-web-2', 'vinted-web', ''];
+      const attempts  = [];
 
-    // Wait up to 20s for any password field — it's the most distinctive
-    let passField = null;
-    for (let attempt = 0; attempt < 20 && !passField; attempt++) {
-      for (const sel of PASS_SELS) {
-        passField = await page.$(sel);
-        if (passField) break;
+      for (const ep of endpoints) {
+        for (const cid of clientIds) {
+          try {
+            const res = await tryEndpoint(ep, cid);
+            attempts.push({ ep, cid, status: res.status, error: res.data?.error });
+            if (res.data?.access_token)           return { ok: true, access_token: res.data.access_token, refresh_token: res.data.refresh_token || '' };
+            if (res.data?.error === 'invalid_grant') return { invalid_credentials: true, attempts };
+            if (res.status === 404 || res.status === 405) continue;
+          } catch (e) {
+            attempts.push({ ep, cid, error: e.message });
+          }
+        }
       }
-      if (!passField) await page.waitForTimeout(500);
-    }
-    if (!passField) {
-      // Snapshot the page title to help diagnose
-      const title = await page.title().catch(() => '?');
-      return { error: `Vinted login form not found (page: "${title}"). Vinted may have changed their login UI — this usually means DataDome served a different page, or the selectors need updating.` };
-    }
+      return { api_failed: true, attempts };
+    }, { user: username, pass: password });
 
-    // Find the username/email field — try each selector, pick the first visible one
-    let userField = null;
-    for (const sel of USER_SELS) {
-      userField = await page.$(sel);
-      if (userField) break;
-    }
-    if (!userField) {
-      return { error: 'Vinted login username field not found — login UI may have changed.' };
+    if (apiResult.invalid_credentials) {
+      return { error: 'Incorrect Vinted username or password.' };
     }
 
-    await userField.fill(username);
-    await passField.fill(password);
-
-    // ── Submit ────────────────────────────────────────────────────────────────
-    const SUBMIT_SELS = [
-      'button[type="submit"]',
-      '[data-testid="auth-submit"]',
-      '[data-testid="submit-button"]',
-      'button:has-text("Log in")',
-      'button:has-text("Sign in")',
-      'form button',
-    ];
-    let submitted = false;
-    for (const sel of SUBMIT_SELS) {
-      const btn = await page.$(sel);
-      if (btn) { await btn.click(); submitted = true; break; }
-    }
-    if (!submitted) return { error: 'Could not find Vinted login submit button.' };
-
-    // ── Wait for redirect out of login pages ─────────────────────────────────
-    await page.waitForURL(
-      u => !String(u).includes('/login') && !String(u).includes('/member/general'),
-      { timeout: 25000 }
-    ).catch(() => {});
-
-    // If DataDome captcha appeared in an iframe, fail — user needs to switch proxy country
-    const captcha = await page.$('iframe[src*="captcha-delivery"], iframe[src*="datadome"]');
-    if (captcha) {
-      return { error: 'Vinted captcha challenge appeared — proxy IP is flagged. Try a different proxy region.' };
+    if (apiResult.api_failed) {
+      console.warn('[vinted-browser-login] OAuth API failed, attempts:', JSON.stringify(apiResult.attempts));
+      return { error: `Vinted OAuth API did not return a token. Attempts: ${JSON.stringify(apiResult.attempts?.slice(0,3))}` };
     }
 
-    // Pull auth cookies
-    const authToken = await cookieValue(ctx, 'access_token_web') ||
-                      await cookieValue(ctx, '_vinted_fr_session');
-    // The real API bearer lives in access_token_web cookie
-    const refreshToken = await cookieValue(ctx, 'refresh_token_web');
+    // ── Confirm token by calling /api/v2/users/me ────────────────────────────
+    // Set the token as a cookie so the /users/me call authenticates properly
+    await setAuthCookie(ctx, apiResult.access_token);
 
-    if (!authToken) {
-      return { error: 'Vinted login did not produce an access token — check credentials or try again.' };
-    }
-
-    // Fetch /api/v2/users/me from inside the page to confirm + grab username
     const me = await page.evaluate(async () => {
       try {
-        const r = await fetch('/api/v2/users/me', { credentials: 'include', headers: { 'Accept': 'application/json' } });
+        const r = await fetch('/api/v2/users/me', { credentials: 'include', headers: { Accept: 'application/json' } });
         if (!r.ok) return { ok: false, status: r.status };
         return { ok: true, data: await r.json() };
       } catch (e) { return { ok: false, error: e.message }; }
@@ -366,8 +265,8 @@ async function vintedBrowserLogin(username, password) {
 
     const u = me?.data?.user || me?.data || {};
     return {
-      access_token:      authToken,
-      refresh_token:     refreshToken || '',
+      access_token:      apiResult.access_token,
+      refresh_token:     apiResult.refresh_token || '',
       platform_user_id:  String(u.id || ''),
       platform_username: u.login || u.username || username,
     };
