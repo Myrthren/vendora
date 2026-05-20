@@ -1,7 +1,8 @@
 FROM node:20-bookworm-slim
 
 # Install Chromium system dependencies via apt-get (standard /usr/lib paths Playwright expects)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update \
+    && apt-get install -y --no-install-recommends \
   libglib2.0-0 \
   libnss3 \
   libnspr4 \
