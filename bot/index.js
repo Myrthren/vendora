@@ -4252,7 +4252,11 @@ async function doManualStep2() {
       btn.disabled = false; btn.textContent = 'Save & Connect';
       return;
     }
-    showMsg('manual-step2-msg', 'success', '✓ Connected as @' + _manualUsername + '! You can close this window.');
+    if (json.warning) {
+      showMsg('manual-step2-msg', 'info', '✓ Token saved as @' + _manualUsername + '. Note: ' + json.warning);
+    } else {
+      showMsg('manual-step2-msg', 'success', '✓ Connected as @' + _manualUsername + ' — token verified!');
+    }
     _notifyDashboard(_manualUsername);
   } catch (e) {
     showMsg('manual-step2-msg', 'error', 'Network error: ' + (e.message || 'try again'));
@@ -4780,23 +4784,40 @@ app.get('/api/vinted/proxy-test', async (req, res) => {
 app.post('/api/vinted/save-token', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const token = String(req.body?.token || '').trim();
-  if (!token || token.length < 20) {
-    return res.status(400).json({ error: 'Token looks too short — copy the full access_token_web cookie value.' });
+
+  // Structural check — access_token_web is always a JWT (three base64 segments)
+  const parts = token.split('.');
+  if (!token.startsWith('eyJ') || parts.length !== 3 || parts.some(p => p.length < 4)) {
+    return res.status(400).json({ error: 'That doesn\'t look like a valid token. The access_token_web cookie starts with "eyJ" and contains two dots. Make sure you copied the whole value.' });
   }
+
   const conn = await getPlatformConn(user.id, 'vinted');
   if (!conn) {
     return res.status(400).json({ error: 'Connect your Vinted username first, then add the token.' });
   }
+
+  // Validate against Vinted's /api/v2/users/me before saving
+  const validation = await validateVintedToken(token);
+  if (validation.valid === false) {
+    return res.status(401).json({ error: validation.error || 'Token is invalid or expired. Copy the full access_token_web value from your Vinted cookies and try again.' });
+  }
+
   const save = await upsertPlatformConn(user.id, 'vinted', {
     access_token:      encryptToken(token),
     refresh_token:     null,
-    platform_user_id:  conn.platform_user_id,
-    platform_username: conn.platform_username,
+    platform_user_id:  validation.user_id  || conn.platform_user_id,
+    platform_username: validation.username || conn.platform_username,
     connected_at:      conn.connected_at || new Date().toISOString(),
   });
   if (!save.ok) return res.status(500).json({ error: save.error || 'Could not save token.' });
-  console.log(`[vinted-token] saved for user ${user.id} (@${conn.platform_username})`);
-  res.json({ ok: true });
+  console.log(`[vinted-token] saved for user ${user.id} (@${conn.platform_username}) valid=${validation.valid}`);
+
+  // valid: true  → confirmed good
+  // valid: null  → DataDome blocked validation from Railway — token saved, will error on use if wrong
+  res.json({
+    ok:      true,
+    warning: validation.valid === null ? validation.warning : undefined,
+  });
 });
 
 // DELETE /api/vinted/save-token — clear stored token without disconnecting account
