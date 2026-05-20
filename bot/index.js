@@ -4252,10 +4252,11 @@ async function doManualStep2() {
       btn.disabled = false; btn.textContent = 'Save & Connect';
       return;
     }
+    const expStr = json.expires ? ' · expires ' + new Date(json.expires).toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '';
     if (json.warning) {
-      showMsg('manual-step2-msg', 'info', '✓ Token saved as @' + _manualUsername + '. Note: ' + json.warning);
+      showMsg('manual-step2-msg', 'info', '✓ Token saved as @' + _manualUsername + expStr + '. (Server-side check skipped — token structure is valid.)');
     } else {
-      showMsg('manual-step2-msg', 'success', '✓ Connected as @' + _manualUsername + ' — token verified!');
+      showMsg('manual-step2-msg', 'success', '✓ Connected as @' + _manualUsername + expStr + ' — token verified!');
     }
     _notifyDashboard(_manualUsername);
   } catch (e) {
@@ -4785,10 +4786,28 @@ app.post('/api/vinted/save-token', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const token = String(req.body?.token || '').trim();
 
-  // Structural check — access_token_web is always a JWT (three base64 segments)
+  // ── 1. Structural check — access_token_web is always a JWT (three base64 segments) ──
   const parts = token.split('.');
   if (!token.startsWith('eyJ') || parts.length !== 3 || parts.some(p => p.length < 4)) {
     return res.status(400).json({ error: 'That doesn\'t look like a valid token. The access_token_web cookie starts with "eyJ" and contains two dots. Make sure you copied the whole value.' });
+  }
+
+  // ── 2. JWT payload decode — no network needed ──────────────────────────────
+  // Catches expired tokens and tokens that aren't Vinted JWTs before hitting the DB.
+  let jwtPayload = null;
+  try {
+    jwtPayload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+  } catch {
+    try {
+      // Some JWTs use standard base64 (with padding) rather than base64url
+      jwtPayload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+    } catch {
+      return res.status(400).json({ error: 'Token payload could not be decoded. Make sure you copied the full access_token_web value without any extra characters.' });
+    }
+  }
+  if (jwtPayload.exp && jwtPayload.exp < Math.floor(Date.now() / 1000)) {
+    const expiredAt = new Date(jwtPayload.exp * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    return res.status(401).json({ error: `This token expired on ${expiredAt}. Log in to Vinted in your browser, copy a fresh access_token_web cookie, and paste it here.` });
   }
 
   const conn = await getPlatformConn(user.id, 'vinted');
@@ -4796,10 +4815,12 @@ app.post('/api/vinted/save-token', async (req, res) => {
     return res.status(400).json({ error: 'Connect your Vinted username first, then add the token.' });
   }
 
-  // Validate against Vinted's /api/v2/users/me before saving
+  // ── 3. Network validation against Vinted's API (best-effort) ──────────────
+  // May return valid:null if DataDome blocks the request from Railway's IP.
+  // That's acceptable — the JWT expiry check above already caught stale tokens.
   const validation = await validateVintedToken(token);
   if (validation.valid === false) {
-    return res.status(401).json({ error: validation.error || 'Token is invalid or expired. Copy the full access_token_web value from your Vinted cookies and try again.' });
+    return res.status(401).json({ error: validation.error || 'Token rejected by Vinted — it may have been revoked or is for a different region. Get a fresh access_token_web and try again.' });
   }
 
   const save = await upsertPlatformConn(user.id, 'vinted', {
@@ -4808,14 +4829,18 @@ app.post('/api/vinted/save-token', async (req, res) => {
     platform_user_id:  validation.user_id  || conn.platform_user_id,
     platform_username: validation.username || conn.platform_username,
     connected_at:      conn.connected_at || new Date().toISOString(),
+    token_expires_at:  jwtPayload.exp ? new Date(jwtPayload.exp * 1000).toISOString() : null,
   });
   if (!save.ok) return res.status(500).json({ error: save.error || 'Could not save token.' });
-  console.log(`[vinted-token] saved for user ${user.id} (@${conn.platform_username}) valid=${validation.valid}`);
 
-  // valid: true  → confirmed good
-  // valid: null  → DataDome blocked validation from Railway — token saved, will error on use if wrong
+  const expiresMsg = jwtPayload.exp
+    ? ` (expires ${new Date(jwtPayload.exp * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })})`
+    : '';
+  console.log(`[vinted-token] saved for user ${user.id} (@${conn.platform_username}) valid=${validation.valid} exp=${jwtPayload.exp || 'unknown'}`);
+
   res.json({
     ok:      true,
+    expires: jwtPayload.exp ? new Date(jwtPayload.exp * 1000).toISOString() : null,
     warning: validation.valid === null ? validation.warning : undefined,
   });
 });
