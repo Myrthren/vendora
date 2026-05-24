@@ -4829,7 +4829,7 @@ app.post('/api/vinted/save-token', async (req, res) => {
     platform_user_id:  validation.user_id  || conn.platform_user_id,
     platform_username: validation.username || conn.platform_username,
     connected_at:      conn.connected_at || new Date().toISOString(),
-    token_expires_at:  jwtPayload.exp ? new Date(jwtPayload.exp * 1000).toISOString() : null,
+    // token_expires_at omitted — column not yet in schema; expiry surfaced in API response only
   });
   if (!save.ok) return res.status(500).json({ error: save.error || 'Could not save token.' });
 
