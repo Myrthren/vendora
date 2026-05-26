@@ -4898,17 +4898,74 @@ app.get('/api/vinted/sync-profit', async (req, res) => {
 
 app.post('/api/vinted/sync-profit', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
-  const r = await syncVintedInventoryForUser(user.id);
-  if (!r.ok) return res.status(400).json({ error: r.reason || 'sync failed' });
-  const snap = (await getSetting(`vinted_sales_${user.id}`)) || { sales: [], last_synced: null };
   const conn = await getPlatformConn(user.id, 'vinted');
+  if (!conn) return res.status(400).json({ error: 'Connect your Vinted account first.' });
+
+  // ── Pull sold items directly from Vinted's API using stored token ──────────
+  // Much more reliable than "items disappeared from inventory" — gets actual
+  // historical sales and doesn't confuse deleted listings with sold ones.
+  const rawToken = decryptToken(conn.access_token || '');
+  if (!rawToken || rawToken.length < 20) {
+    return res.status(400).json({ error: 'No session token saved. Go to Platforms → paste your access_token_web cookie to enable profit sync.' });
+  }
+
+  const userId = conn.platform_user_id || 'me';
+  let fetchedSales = [];
+  let datadomBlocked = false;
+
+  try {
+    const base    = await getVintedBase();
+    const headers = VINTED_HEADERS(rawToken, base);
+
+    // Fetch sold items — Vinted returns items where status = sold
+    const r = await vFetch(
+      `${base}/api/v2/users/${userId}/items?item_statuses[]=sold&per_page=100&page=1&order=newest_first`,
+      { headers, signal: AbortSignal.timeout(15000) }
+    );
+    const text = await r.text();
+
+    if (/captcha-delivery\.com|datadome/i.test(text)) {
+      datadomBlocked = true;
+    } else {
+      let data;
+      try { data = JSON.parse(text); } catch { data = {}; }
+      fetchedSales = (data.items || []).filter(i => i.status === 'sold' || i.item_status === 'sold' || i.can_be_sold === false);
+      // If filter removed everything but Vinted returned items, keep them — endpoint already filters
+      if (!fetchedSales.length && (data.items || []).length > 0) fetchedSales = data.items || [];
+      console.log(`[sync-profit] fetched ${fetchedSales.length} sold items for user ${user.id} (userId=${userId})`);
+    }
+  } catch (e) {
+    console.warn('[sync-profit] direct fetch error:', e.message);
+  }
+
+  if (datadomBlocked) {
+    return res.status(503).json({ error: 'Vinted is blocking this request (DataDome). Make sure a residential proxy is configured in Railway (PROXY_URL).' });
+  }
+
+  // Merge with existing stored sales — don't duplicate by item ID
+  const snap       = (await getSetting(`vinted_sales_${user.id}`)) || { sales: [] };
+  const knownIds   = new Set((snap.sales || []).map(s => String(s.id)));
+  const newSales   = fetchedSales
+    .filter(i => i.id && !knownIds.has(String(i.id)))
+    .map(i => ({
+      id:       String(i.id),
+      title:    i.title || i.name || 'Vinted item',
+      price:    i.price_numeric || parseFloat(String(i.price).replace(/[^0-9.]/g, '')) || 0,
+      sold_at:  i.updated_at || i.created_at || new Date().toISOString(),
+      status:   'sold',
+    }));
+
+  snap.sales       = [...newSales, ...(snap.sales || [])].slice(0, 500);
+  snap.last_synced = new Date().toISOString();
+  await saveSetting(`vinted_sales_${user.id}`, snap);
+
   res.json({
-    ok: true,
-    connected: true,
-    username: conn?.platform_username,
+    ok:         true,
+    connected:  true,
+    username:   conn.platform_username,
     last_synced: snap.last_synced,
-    sales: snap.sales || [],
-    new_sold: r.sold_now,
+    sales:      snap.sales,
+    new_sold:   newSales.length,
   });
 });
 
