@@ -3735,38 +3735,53 @@ async function validateVintedToken(token) {
 }
 
 async function legacyValidateVintedToken(token) {
+  // Decode JWT payload to extract user_id so we can hit /api/v2/users/{id}
+  // instead of /api/v2/users/me — which does not exist on Vinted.
+  let jwtUserId = '';
+  try {
+    const parts = token.split('.');
+    if (parts.length === 3) {
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+      jwtUserId = String(payload.user_id || payload.sub || payload.id || payload.uid || '').replace(/\D/g, '');
+    }
+  } catch {}
+
+  // Use /api/v2/users/{id} if we have the ID from the JWT, otherwise try a
+  // lightweight catalog call that doesn't need a user endpoint at all.
+  const testPath = jwtUserId
+    ? `/api/v2/users/${jwtUserId}`
+    : `/api/v2/catalog/items?page=1&per_page=1`;
+
   try {
     const vintedBase = await getVintedBase();
-    const r = await vFetch(`${vintedBase}/api/v2/users/me`, {
+    const r = await vFetch(`${vintedBase}${testPath}`, {
       headers: VINTED_HEADERS(token),
       signal: AbortSignal.timeout(10000),
     });
     const text = await r.text();
     let data;
     try { data = JSON.parse(text); } catch {
-      // HTML = DataDome blocked the validation request
       if (text.includes('captcha-delivery.com') || text.includes('datadome') || text.startsWith('<!')) {
-        return { valid: null, warning: 'Could not validate token server-side (bot-protection on this endpoint). Token saved — it will fail with a clear error if incorrect when you list.' };
+        return { valid: null, warning: 'Bot-protection blocked the validation request. Token saved — it will fail with a clear error if incorrect when you use it.' };
       }
-      return { valid: false, error: 'Unexpected response from Vinted — token may be invalid.' };
+      return { valid: false, error: 'Unexpected non-JSON response from Vinted — token may be invalid.' };
     }
     if (!r.ok) {
-      // DataDome challenge returns JSON like {"url":"https://geo.captcha-delivery.com/..."}
-      // Must check this BEFORE treating it as an auth error.
       if (data?.url?.includes('captcha-delivery.com') || data?.url?.includes('datadome')) {
-        return { valid: null, warning: 'Could not validate token server-side (bot-protection on this endpoint). Token saved — it will fail with a clear error if incorrect when you list.' };
+        return { valid: null, warning: 'Bot-protection blocked the validation request. Token saved.' };
       }
       const code = data?.message_code || data?.error || '';
       if (r.status === 401 || code.includes('unauthenticated') || code.includes('invalid_auth')) {
-        return { valid: false, error: 'Token is invalid or expired. Make sure you copied the full `access_token` value from your Vinted browser cookies.' };
+        return { valid: false, error: 'Token is invalid or expired. Copy a fresh access_token_web cookie from your Vinted browser session and paste it again.' };
       }
-      // Any other non-OK response — don't block the save, just warn
-      return { valid: null, warning: `Vinted returned ${r.status} during validation — token saved, test by attempting a listing.` };
+      return { valid: null, warning: `Vinted returned ${r.status} during validation — token saved.` };
     }
+    // Success — extract user info from the response
     const u = data.user || data;
-    return { valid: true, username: u.login || u.username || '', user_id: String(u.id || '') };
+    const resolvedId = String(u.id || jwtUserId || '');
+    return { valid: true, username: u.login || u.username || '', user_id: resolvedId };
   } catch (e) {
-    return { valid: null, warning: `Could not reach Vinted to validate token (${e.message}). Token saved — test by attempting a listing.` };
+    return { valid: null, warning: `Could not reach Vinted to validate token (${e.message}). Token saved.` };
   }
 }
 
@@ -5068,15 +5083,60 @@ app.get('/api/vinted/test', async (req, res) => {
   try {
     const conn = await getPlatformConn(user.id, 'vinted');
     if (conn) {
-      const token = decryptToken(conn.access_token);
-      const t0 = Date.now();
-      const r = await legacyValidateVintedToken(token);
-      report.token_test = { ...r, ms: Date.now() - t0, username: conn.platform_username };
+      const rawToken = decryptToken(conn.access_token || '');
+      const hasToken = rawToken && rawToken.length >= 20;
+
+      // Surface stored seller ID — if this is empty, profit sync hits /users/me/items (404)
+      report.seller_id = {
+        stored:    conn.platform_user_id || null,
+        ok:        !!(conn.platform_user_id),
+        username:  conn.platform_username,
+      };
+
+      if (hasToken) {
+        const t0 = Date.now();
+        const r = await legacyValidateVintedToken(rawToken);
+        report.token_test = { ...r, ms: Date.now() - t0, username: conn.platform_username, has_token: true };
+      } else {
+        report.token_test = { skipped: 'No access_token_web saved — go to Platforms and paste your cookie', username: conn.platform_username, has_token: false };
+      }
     } else {
-      report.token_test = { skipped: 'No Vinted account connected for this user' };
+      report.seller_id = { ok: false, stored: null };
+      report.token_test = { skipped: 'No Vinted account connected — go to Platforms to connect' };
     }
   } catch (e) {
     report.token_test = { error: e.message };
+  }
+
+  // Quick profit sync test — try fetching 1 sold item to confirm the full chain works
+  try {
+    const conn = await getPlatformConn(user.id, 'vinted');
+    if (conn?.platform_user_id) {
+      const rawToken = decryptToken(conn.access_token || '');
+      if (rawToken && rawToken.length >= 20) {
+        const base    = await getVintedBase();
+        const headers = VINTED_HEADERS(rawToken, base);
+        const t0 = Date.now();
+        const r = await vFetch(
+          `${base}/api/v2/users/${conn.platform_user_id}/items?item_statuses[]=sold&per_page=1&page=1`,
+          { headers, signal: AbortSignal.timeout(10000) }
+        );
+        const text = await r.text();
+        if (/datadome|captcha/i.test(text)) {
+          report.profit_sync_test = { ok: false, error: 'DataDome blocked the sold-items request' };
+        } else {
+          let data; try { data = JSON.parse(text); } catch { data = null; }
+          const count = data?.pagination?.total_count ?? data?.items?.length ?? '?';
+          report.profit_sync_test = { ok: r.ok, status: r.status, sold_items_total: count, ms: Date.now() - t0 };
+        }
+      } else {
+        report.profit_sync_test = { skipped: 'No token saved' };
+      }
+    } else {
+      report.profit_sync_test = { skipped: 'No seller ID stored — profit sync cannot run' };
+    }
+  } catch (e) {
+    report.profit_sync_test = { ok: false, error: e.message };
   }
 
   res.json(report);

@@ -3172,18 +3172,50 @@
           : `Cannot reach Vinted: ${json.vinted_reach?.error || 'unknown error'} — DataDome is likely blocking Railway`
       ));
 
+      // Seller ID (needed for profit sync / inventory)
+      const sid = json.seller_id;
+      if (sid) {
+        html.push(row(
+          `Seller ID (@${sid.username || '?'})`,
+          sid.ok,
+          sid.ok
+            ? `Stored: ${sid.stored} — profit sync will use /users/${sid.stored}/items`
+            : 'No seller ID stored — profit sync would call /users/me/items which returns 404. Re-connect your Vinted account to fix this.'
+        ));
+      }
+
       // Token test
       if (json.token_test?.skipped) {
-        html.push(row('Stored Vinted token', null, json.token_test.skipped));
+        html.push(row(
+          `Session token (@${json.token_test?.username || '?'})`,
+          json.token_test.has_token === false ? false : null,
+          json.token_test.skipped
+        ));
       } else {
         const tOk = json.token_test?.valid;
         html.push(row(
-          `Stored token (@${json.token_test?.username || '?'})`,
+          `Session token (@${json.token_test?.username || '?'})`,
           tOk === true ? true : tOk === false ? false : null,
-          tOk === true  ? `Valid — took ${json.token_test.ms}ms`
-          : tOk === false ? `Invalid or expired: ${json.token_test.error || 'check token'}`
-          : `Could not validate: ${json.token_test.warning || 'DataDome blocked the check'}`
+          tOk === true  ? `Valid — Vinted confirmed in ${json.token_test.ms}ms`
+          : tOk === false ? `Invalid or expired — go to Platforms and paste a fresh access_token_web cookie`
+          : `Could not confirm: ${json.token_test.warning || json.token_test.error || 'unknown'}`
         ));
+      }
+
+      // Profit sync end-to-end test
+      const ps = json.profit_sync_test;
+      if (ps) {
+        if (ps.skipped) {
+          html.push(row('Profit sync (sold items API)', null, ps.skipped));
+        } else {
+          html.push(row(
+            'Profit sync (sold items API)',
+            ps.ok,
+            ps.ok
+              ? `Working — Vinted reports ${ps.sold_items_total} sold items total (${ps.ms}ms)`
+              : `Failed (HTTP ${ps.status || '?'}): ${ps.error || 'unknown error'}`
+          ));
+        }
       }
 
       rows.innerHTML = html.join('');
