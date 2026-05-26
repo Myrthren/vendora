@@ -4578,18 +4578,32 @@
   }
 
   async function syncProfit() {
-    const btn = document.getElementById('pt-sync-btn');
-    const sEl = document.getElementById('pt-sync-sub');
+    const btn  = document.getElementById('pt-sync-btn');
+    const sEl  = document.getElementById('pt-sync-sub');
+    const tEl  = document.getElementById('pt-sync-title');
     if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
     if (sEl) sEl.textContent = 'Detecting new sales from Vinted…';
     try {
       const { data: { session } } = await sb.auth.getSession();
-      await fetch(`${BOT_API}/api/vinted/sync-profit`, {
+      const res  = await fetch(`${BOT_API}/api/vinted/sync-profit`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session.access_token}` },
       });
-    } catch {}
-    if (btn) { btn.textContent = 'Sync sales'; }
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const reason = json.error || json.reason || 'unknown error';
+        if (sEl) sEl.textContent = `Sync failed: ${reason}`;
+        if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
+        return;
+      }
+      const newSold = json.new_sold || 0;
+      if (sEl) sEl.textContent = newSold > 0
+        ? `✓ ${newSold} new sale${newSold > 1 ? 's' : ''} detected!`
+        : '✓ Synced — no new sales since last check';
+    } catch (e) {
+      if (sEl) sEl.textContent = `Network error: ${e.message}`;
+    }
+    if (btn) { btn.disabled = false; btn.textContent = 'Sync sales'; }
     loadProfitSync();
   }
 
