@@ -4815,19 +4815,32 @@ app.post('/api/vinted/save-token', async (req, res) => {
     return res.status(400).json({ error: 'Connect your Vinted username first, then add the token.' });
   }
 
-  // ── 3. Network validation against Vinted's API (best-effort) ──────────────
+  // ── 3. Extract user ID from JWT payload (Vinted embeds it) ───────────────
+  // Vinted's access_token_web payload contains the numeric user ID.
+  // Extracting it here means we never have a missing platform_user_id —
+  // which is required for inventory sync (vintedBrowserFetchPublicUserItems
+  // has an early-exit guard: `if (sellerId && ...)` ).
+  const jwtUserId = String(
+    jwtPayload.user_id || jwtPayload.sub || jwtPayload.id || jwtPayload.uid || ''
+  ).replace(/\D/g, ''); // keep digits only — sub may be "user:12345"
+
+  // ── 4. Network validation against Vinted's API (best-effort) ──────────────
   // May return valid:null if DataDome blocks the request from Railway's IP.
-  // That's acceptable — the JWT expiry check above already caught stale tokens.
+  // That's acceptable — the JWT expiry + structure checks above already caught stale tokens.
   const validation = await validateVintedToken(token);
   if (validation.valid === false) {
     return res.status(401).json({ error: validation.error || 'Token rejected by Vinted — it may have been revoked or is for a different region. Get a fresh access_token_web and try again.' });
   }
 
+  const resolvedUserId   = validation.user_id || jwtUserId || conn.platform_user_id || '';
+  const resolvedUsername = validation.username || conn.platform_username;
+  if (resolvedUserId) console.log(`[vinted-token] resolved seller ID ${resolvedUserId} for @${resolvedUsername}`);
+
   const save = await upsertPlatformConn(user.id, 'vinted', {
     access_token:      encryptToken(token),
     refresh_token:     null,
-    platform_user_id:  validation.user_id  || conn.platform_user_id,
-    platform_username: validation.username || conn.platform_username,
+    platform_user_id:  resolvedUserId,
+    platform_username: resolvedUsername,
     connected_at:      conn.connected_at || new Date().toISOString(),
     // token_expires_at omitted — column not yet in schema; expiry surfaced in API response only
   });
