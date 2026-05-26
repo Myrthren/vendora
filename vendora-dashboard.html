@@ -4564,7 +4564,8 @@
       if (json.connected) {
         if (dot) dot.style.background = 'var(--green)';
         if (tEl) tEl.textContent = `Vinted connected — @${json.username || 'unknown'}`;
-        if (sEl) sEl.textContent = `${_ptAutoSales.length} auto-imported sale${_ptAutoSales.length === 1 ? '' : 's'}` + (json.last_synced ? ` · last synced ${new Date(json.last_synced).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}` : '');
+        const syncedAt = json.last_synced ? ` · synced ${new Date(json.last_synced).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}` : ' · never synced — click Sync sales';
+        if (sEl) sEl.textContent = `${_ptAutoSales.length} sale${_ptAutoSales.length !== 1 ? 's' : ''} in history${syncedAt}`;
         if (btn) btn.disabled = false;
       } else {
         if (dot) dot.style.background = 'var(--muted)';
@@ -4596,10 +4597,11 @@
         if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
         return;
       }
-      const newSold = json.new_sold || 0;
+      const newSold   = json.new_sold    || 0;
+      const totalSync = json.total_synced || json.sales?.length || 0;
       if (sEl) sEl.textContent = newSold > 0
-        ? `✓ ${newSold} new sale${newSold > 1 ? 's' : ''} detected!`
-        : '✓ Synced — no new sales since last check';
+        ? `✓ ${newSold} new sale${newSold > 1 ? 's' : ''} imported — ${totalSync} total in history`
+        : `✓ Up to date — ${totalSync} sale${totalSync !== 1 ? 's' : ''} in history`;
     } catch (e) {
       if (sEl) sEl.textContent = `Network error: ${e.message}`;
     }

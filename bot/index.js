@@ -4909,9 +4909,10 @@ app.post('/api/vinted/sync-profit', async (req, res) => {
   const conn = await getPlatformConn(user.id, 'vinted');
   if (!conn) return res.status(400).json({ error: 'Connect your Vinted account first.' });
 
-  // ── Pull sold items directly from Vinted's API using stored token ──────────
-  // Much more reliable than "items disappeared from inventory" — gets actual
-  // historical sales and doesn't confuse deleted listings with sold ones.
+  // ── Pull ALL sold items from Vinted's API using stored token ───────────────
+  // Paginates through every page so the full historical record is captured,
+  // not just the most recent 100 items. Stops at 20 pages (2000 items) max
+  // to prevent request timeouts on very large seller accounts.
   const rawToken = decryptToken(conn.access_token || '');
   if (!rawToken || rawToken.length < 20) {
     return res.status(400).json({ error: 'No session token saved. Go to Platforms → paste your access_token_web cookie to enable profit sync.' });
@@ -4920,60 +4921,78 @@ app.post('/api/vinted/sync-profit', async (req, res) => {
   const userId = conn.platform_user_id || 'me';
   let fetchedSales = [];
   let datadomBlocked = false;
+  const MAX_PAGES = 20;
 
   try {
     const base    = await getVintedBase();
     const headers = VINTED_HEADERS(rawToken, base);
 
-    // Fetch sold items — Vinted returns items where status = sold
-    const r = await vFetch(
-      `${base}/api/v2/users/${userId}/items?item_statuses[]=sold&per_page=100&page=1&order=newest_first`,
-      { headers, signal: AbortSignal.timeout(15000) }
-    );
-    const text = await r.text();
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const r = await vFetch(
+        `${base}/api/v2/users/${userId}/items?item_statuses[]=sold&per_page=100&page=${page}&order=newest_first`,
+        { headers, signal: AbortSignal.timeout(15000) }
+      );
+      const text = await r.text();
 
-    if (/captcha-delivery\.com|datadome/i.test(text)) {
-      datadomBlocked = true;
-    } else {
+      if (/captcha-delivery\.com|datadome/i.test(text)) {
+        datadomBlocked = true;
+        break;
+      }
+
       let data;
       try { data = JSON.parse(text); } catch { data = {}; }
-      fetchedSales = (data.items || []).filter(i => i.status === 'sold' || i.item_status === 'sold' || i.can_be_sold === false);
-      // If filter removed everything but Vinted returned items, keep them — endpoint already filters
-      if (!fetchedSales.length && (data.items || []).length > 0) fetchedSales = data.items || [];
-      console.log(`[sync-profit] fetched ${fetchedSales.length} sold items for user ${user.id} (userId=${userId})`);
+
+      const pageItems = data.items || [];
+      if (!pageItems.length) break; // no more pages
+
+      // Vinted's sold endpoint already filters — accept all returned items
+      fetchedSales.push(...pageItems);
+
+      // If fewer than 100 returned, we've hit the last page
+      if (pageItems.length < 100) break;
     }
+
+    console.log(`[sync-profit] fetched ${fetchedSales.length} sold items across pages (userId=${userId})`);
   } catch (e) {
-    console.warn('[sync-profit] direct fetch error:', e.message);
+    console.warn('[sync-profit] fetch error:', e.message);
+    if (!fetchedSales.length) {
+      return res.status(503).json({ error: `Could not reach Vinted: ${e.message}` });
+    }
   }
 
   if (datadomBlocked) {
-    return res.status(503).json({ error: 'Vinted is blocking this request (DataDome). Make sure a residential proxy is configured in Railway (PROXY_URL).' });
+    return res.status(503).json({ error: 'Vinted is blocking this request (DataDome). Make sure PROXY_URL is set in Railway with valid Smartproxy credentials.' });
   }
 
-  // Merge with existing stored sales — don't duplicate by item ID
-  const snap       = (await getSetting(`vinted_sales_${user.id}`)) || { sales: [] };
-  const knownIds   = new Set((snap.sales || []).map(s => String(s.id)));
-  const newSales   = fetchedSales
+  // Merge with existing stored sales — deduplicate by item ID, keep full history
+  const snap     = (await getSetting(`vinted_sales_${user.id}`)) || { sales: [] };
+  const knownIds = new Set((snap.sales || []).map(s => String(s.id)));
+
+  const newSales = fetchedSales
     .filter(i => i.id && !knownIds.has(String(i.id)))
     .map(i => ({
-      id:       String(i.id),
-      title:    i.title || i.name || 'Vinted item',
-      price:    i.price_numeric || parseFloat(String(i.price).replace(/[^0-9.]/g, '')) || 0,
-      sold_at:  i.updated_at || i.created_at || new Date().toISOString(),
-      status:   'sold',
+      id:      String(i.id),
+      title:   i.title || i.name || 'Vinted item',
+      price:   i.price_numeric ?? parseFloat(String(i.price?.amount ?? i.price ?? '0').replace(/[^0-9.]/g, '')) || 0,
+      sold_at: i.updated_at || i.created_at || new Date().toISOString(),
+      status:  'sold',
+      photo:   i.photo?.url || i.photos?.[0]?.url || null,
     }));
 
-  snap.sales       = [...newSales, ...(snap.sales || [])].slice(0, 500);
+  // Prepend new items — cap total at 2000 (enough for any realistic seller history)
+  snap.sales       = [...newSales, ...(snap.sales || [])].slice(0, 2000);
   snap.last_synced = new Date().toISOString();
+  snap.total_fetched = fetchedSales.length;
   await saveSetting(`vinted_sales_${user.id}`, snap);
 
   res.json({
-    ok:         true,
-    connected:  true,
-    username:   conn.platform_username,
-    last_synced: snap.last_synced,
-    sales:      snap.sales,
-    new_sold:   newSales.length,
+    ok:           true,
+    connected:    true,
+    username:     conn.platform_username,
+    last_synced:  snap.last_synced,
+    sales:        snap.sales,
+    new_sold:     newSales.length,
+    total_synced: snap.sales.length,
   });
 });
 
@@ -5724,12 +5743,99 @@ app.delete('/api/inventory/:id', async (req, res) => {
 });
 
 // ── Watchlist endpoints ────────────────────────────────────────────────────────
+// ── Merge stored price-baselines into watchlist items before returning ─────────
+// The watchlist cron saves fetched prices in the settings table under
+// 'watchlist_price_baselines' (keyed by watchlist row ID). The dashboard
+// reads product_meta on each row — we merge them here so the price shows
+// immediately instead of being stuck on "Pending" forever.
+async function enrichWatchlistItems(items) {
+  const baselines = (await getSetting('watchlist_price_baselines')) || {};
+  return items.map(item => {
+    const b = baselines[item.id];
+    if (!b) return item;
+    const sym = b.currency === 'GBP' ? '£' : (b.currency || '£');
+    return {
+      ...item,
+      product_meta: {
+        title:      b.productName || null,
+        price:      b.baseline != null ? `${sym}${Number(b.baseline).toFixed(2)}` : null,
+        lowestSeen: b.lowestSeen != null ? `${sym}${Number(b.lowestSeen).toFixed(2)}` : null,
+        variants:   (b.variants || []).map(v => v.size).filter(Boolean),
+        checked_at: b.checkedAt || null,
+      },
+    };
+  });
+}
+
+// ── Immediately fetch price for a newly added watchlist item ──────────────────
+// Runs in the background after POST /api/watchlist so the item shows a real
+// price right away without waiting up to 6 hours for the cron.
+async function watchlistImmediateFetch(itemId, url) {
+  try {
+    const isVintedUrl = /vinted\.(co\.uk|fr|de|be|nl|es|it|pl|pt|se|at|lu|cz|sk|hu|ro|lt|lv|ee|fi|dk)\//i.test(url);
+    if (!isVintedUrl) return; // only handle Vinted for now; other platforms use cron
+
+    const vintedItem = await apifyVintedFetchItem(url);
+    if (!vintedItem) {
+      // Apify not available — try vFetch (Smartproxy) as fallback
+      const idMatch = url.match(/\/items\/(\d+)/);
+      if (!idMatch) return;
+      const itemNumId = idMatch[1];
+      try {
+        const base = await getVintedBase();
+        const r = await vFetch(`${base}/api/v2/items/${itemNumId}`, {
+          headers: { ...VINTED_HEADERS('', base), Authorization: undefined },
+          signal:  AbortSignal.timeout(10000),
+        });
+        if (!r.ok) return;
+        const data = await r.json();
+        if (!data?.item) return;
+        const price = parseFloat(data.item.price_numeric || data.item.price?.amount || '0');
+        if (!price) return;
+        const baselines = (await getSetting('watchlist_price_baselines')) || {};
+        baselines[itemId] = {
+          productName: data.item.title || url,
+          baseline:    price,
+          lowestSeen:  price,
+          variants:    data.item.size_title ? [{ size: data.item.size_title }] : [],
+          currency:    'GBP',
+          url,
+          checkedAt:   new Date().toISOString(),
+        };
+        await saveSetting('watchlist_price_baselines', baselines);
+        console.log(`[watchlist-immediate] Fetched via Smartproxy: ${data.item.title} @ £${price}`);
+      } catch (e) {
+        console.warn('[watchlist-immediate] vFetch fallback failed:', e.message);
+      }
+      return;
+    }
+
+    const price = parseFloat(vintedItem.price || '0');
+    if (!price) return;
+    const baselines = (await getSetting('watchlist_price_baselines')) || {};
+    baselines[itemId] = {
+      productName: vintedItem.title || url,
+      baseline:    price,
+      lowestSeen:  price,
+      variants:    vintedItem.size_title ? [{ size: vintedItem.size_title }] : [],
+      currency:    vintedItem.currency || 'GBP',
+      url,
+      checkedAt:   new Date().toISOString(),
+    };
+    await saveSetting('watchlist_price_baselines', baselines);
+    console.log(`[watchlist-immediate] Fetched via Apify: ${vintedItem.title} @ £${price}`);
+  } catch (e) {
+    console.warn('[watchlist-immediate] Failed for', url, ':', e.message);
+  }
+}
+
 app.get('/api/watchlist', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const discordId = user.user_metadata?.provider_id
     || user.identities?.find(i => i.provider === 'discord')?.id || '';
   const items = await dbGetWatchlist(discordId);
-  res.json({ items });
+  const enriched = await enrichWatchlistItems(Array.isArray(items) ? items : []);
+  res.json({ items: enriched });
 });
 
 app.post('/api/watchlist', async (req, res) => {
@@ -5738,9 +5844,19 @@ app.post('/api/watchlist', async (req, res) => {
     || user.identities?.find(i => i.provider === 'discord')?.id || '';
   const { item } = req.body || {};
   if (!item?.trim()) return res.status(400).json({ error: 'item required' });
-  await dbAddWatchlist(discordId, item.trim());
+
+  // dbAddWatchlist uses Prefer:return=representation — returns [{id,...}]
+  const created = await dbAddWatchlist(discordId, item.trim());
+  const newId = Array.isArray(created) ? created[0]?.id : created?.id;
+
+  // Kick off immediate price fetch in background (don't await — fast response)
+  if (newId && item.trim().startsWith('http')) {
+    watchlistImmediateFetch(newId, item.trim()).catch(() => {});
+  }
+
   const items = await dbGetWatchlist(discordId);
-  res.json({ ok: true, items });
+  const enriched = await enrichWatchlistItems(Array.isArray(items) ? items : []);
+  res.json({ ok: true, items: enriched });
 });
 
 app.delete('/api/watchlist/:id', async (req, res) => {
