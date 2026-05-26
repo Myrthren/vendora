@@ -66,11 +66,19 @@ const CHROME_SIGALGS = 'ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256:rsa_pkcs1_sha
 let PROXY_AGENT = null;
 if (PROXY_URL && ProxyAgent) {
   try {
+    // undici ProxyAgent object-form does NOT auto-parse credentials from the URI —
+    // they must be passed explicitly via `token` as a Basic auth header.
+    const _pu = new URL(PROXY_URL);
+    const _proxyUri   = `${_pu.protocol}//${_pu.host}`;
+    const _proxyToken = (_pu.username && _pu.password)
+      ? 'Basic ' + Buffer.from(`${decodeURIComponent(_pu.username)}:${decodeURIComponent(_pu.password)}`).toString('base64')
+      : undefined;
     PROXY_AGENT = new ProxyAgent({
-      uri: PROXY_URL,
+      uri:     _proxyUri,
+      token:   _proxyToken,
       connect: { ciphers: CHROME_CIPHERS, sigalgs: CHROME_SIGALGS },
     });
-    console.log('[proxy] Proxy agent ready (Chrome TLS) — Vinted requests will route through residential proxy');
+    console.log(`[proxy] Proxy agent ready — ${_proxyUri} (auth=${!!_proxyToken})`);
   } catch (e) {
     console.error('[proxy] Failed to create ProxyAgent:', e.message);
   }
