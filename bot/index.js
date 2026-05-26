@@ -3975,7 +3975,7 @@ app.post('/api/platform/connect', async (req, res) => {
     platform_user_id:  result.platform_user_id,
     platform_username: result.platform_username,
     connected_at:      new Date().toISOString(),
-    token_expires_at:  new Date(Date.now() + 28 * 86400000).toISOString(),
+    // token_expires_at omitted — column not in schema
   });
 
   if (!saveResult.ok) {
@@ -4351,7 +4351,7 @@ app.post('/api/vinted/connect-login', async (req, res) => {
     platform_user_id:  result.platform_user_id || '',
     platform_username: result.platform_username || username,
     connected_at:      new Date().toISOString(),
-    token_expires_at:  new Date(Date.now() + 28 * 86400000).toISOString(),
+    // token_expires_at omitted — column not in schema
   });
   if (!save.ok) return res.status(500).json({ error: save.error || 'Could not save connection.' });
 
@@ -7355,7 +7355,7 @@ async function refreshVintedTokenIfNeeded(userId, conn) {
       ...(result.refresh_token && result.refresh_token !== rawRefresh
         ? { refresh_token: encryptToken(result.refresh_token) }
         : {}),
-      token_expires_at: new Date(Date.now() + (result.expires_in || 2592000) * 1000).toISOString(),
+      // token_expires_at omitted — column not in schema
     });
 
     console.log(`[token-refresh] Token refreshed for user ${userId}`);
@@ -7374,7 +7374,7 @@ cron.schedule('45 * * * *', async () => {
   if (!SUPABASE_KEY || !vintedBrowser?.refreshVintedAccessToken) return;
   try {
     const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/platform_connections?platform=eq.vinted&select=user_id,refresh_token,token_expires_at`,
+      `${SUPABASE_URL}/rest/v1/platform_connections?platform=eq.vinted&select=user_id,refresh_token`,
       { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
     );
     const conns = await r.json();
