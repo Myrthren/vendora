@@ -4988,7 +4988,7 @@ app.post('/api/vinted/sync-profit', async (req, res) => {
     .map(i => ({
       id:      String(i.id),
       title:   i.title || i.name || 'Vinted item',
-      price:   i.price_numeric ?? parseFloat(String(i.price?.amount ?? i.price ?? '0').replace(/[^0-9.]/g, '')) || 0,
+      price:   (i.price_numeric ?? parseFloat(String(i.price?.amount ?? i.price ?? '0').replace(/[^0-9.]/g, ''))) || 0,
       sold_at: i.updated_at || i.created_at || new Date().toISOString(),
       status:  'sold',
       photo:   i.photo?.url || i.photos?.[0]?.url || null,
