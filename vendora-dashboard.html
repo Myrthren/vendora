@@ -1311,15 +1311,38 @@
     <div class="section" id="section-inventory">
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
-        <div class="page-title">Inventory <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--muted2);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Coming Soon</span></div>
-        <div class="page-sub">Your Vinted listings will sync here automatically once the feature goes live.</div>
+        <div class="page-title">Inventory</div>
+        <div class="page-sub">Your live Vinted listings — synced automatically every 6 hours. Photos, prices, and status all in one place.</div>
       </div>
-      <div class="card" style="text-align:center;padding:64px 24px;">
-        <div style="width:56px;height:56px;border-radius:50%;background:rgba(232,33,122,0.08);border:1px solid rgba(232,33,122,0.2);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+
+      <!-- Status card -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div id="inv-status-dot" style="width:10px;height:10px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:background .3s;"></div>
+          <div style="flex:1;min-width:0;">
+            <div id="inv-status-title" style="font-size:13px;font-weight:600;">Loading…</div>
+            <div id="inv-status-sub" style="font-size:12px;color:var(--muted);margin-top:2px;"></div>
+          </div>
+          <button id="inv-sync-btn" class="btn btn-pink btn-sm" onclick="syncInventory()" disabled>Sync now</button>
         </div>
-        <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;margin-bottom:8px;">Inventory is coming soon</div>
-        <div style="font-size:13px;color:var(--muted2);max-width:380px;margin:0 auto;line-height:1.65;">Connect your Vinted account and your live listings will sync here automatically — photos, prices, status, and sold history all in one place.</div>
+      </div>
+
+      <!-- Listings table -->
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:48px;"></th>
+              <th>Title</th>
+              <th>Price</th>
+              <th>Status</th>
+              <th>Last seen</th>
+            </tr>
+          </thead>
+          <tbody id="inventory-tbody">
+            <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Loading…</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -2038,37 +2061,12 @@
     <div class="section" id="section-autobuy">
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
-        <div class="page-title">Auto-Buy <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--muted2);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Coming Soon</span></div>
-        <div class="page-sub">Set keyword rules and a max price — Vendora monitors Vinted and alerts you the instant a match appears.</div>
+        <div class="page-title">Auto-Buy</div>
+        <div class="page-sub">Set keyword rules and a max price — Vendora monitors Vinted every 30 minutes and DMs you on Discord the instant a matching listing appears.</div>
       </div>
 
-      <div class="card" style="text-align:center;padding:64px 24px;">
-        <div style="width:56px;height:56px;border-radius:50%;background:rgba(232,33,122,0.08);border:1px solid rgba(232,33,122,0.2);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        </div>
-        <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;margin-bottom:8px;">Auto-Buy is coming soon</div>
-        <div style="font-size:13px;color:var(--muted2);max-width:420px;margin:0 auto;line-height:1.65;">Set keyword rules and a max price. Vendora will monitor Vinted around the clock and send you a Discord DM the moment a matching listing appears — before anyone else sees it.</div>
-        <div style="display:flex;gap:20px;justify-content:center;margin-top:32px;flex-wrap:wrap;">
-          <div style="text-align:center;">
-            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--pink);">30 min</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.06em;text-transform:uppercase;">Scan interval</div>
-          </div>
-          <div style="width:1px;background:var(--border-dim);"></div>
-          <div style="text-align:center;">
-            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);">Unlimited</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.06em;text-transform:uppercase;">Keywords (Elite)</div>
-          </div>
-          <div style="width:1px;background:var(--border-dim);"></div>
-          <div style="text-align:center;">
-            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);">Instant</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.06em;text-transform:uppercase;">Discord DM alert</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- hidden gate/tool divs kept so initAutobuyAccess() doesn't crash -->
       <div id="autobuy-gate" style="display:none;"></div>
-      <div id="autobuy-tool" style="display:none;">
+      <div id="autobuy-tool">
         <!-- Add rule -->
         <div class="card" style="margin-bottom:20px;">
           <div class="card-title">Add Buy Alert</div>
@@ -4741,7 +4739,10 @@
   // ── Listings access gate ─────────────────────────────────────────────────────
   // ── Auto-Buy (coming soon — Apify removed) ───────────────────────────────────
   function initAutobuyAccess(tier) {
-    // Feature is coming soon — gate + tool divs kept hidden, coming soon card shown
+    // Feature is live — show the tool and load existing alerts
+    const tool = document.getElementById('autobuy-tool');
+    if (tool) tool.style.display = '';
+    autobuyLoad();
   }
 
   async function autobuyLoad() {
@@ -4798,12 +4799,12 @@
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed');
-      showMsg(msg, `✓ Alert added — ${json.baselined || 0} existing listings baselined. You'll be DM'd on Discord when new matches appear.`, 'success');
+      showMsg(msg, 'success', `✓ Alert added — ${json.baselined || 0} existing listings baselined. You'll be DM'd on Discord when new matches appear.`);
       document.getElementById('ab-keyword').value = '';
       document.getElementById('ab-maxprice').value = '';
       await autobuyLoad();
     } catch (e) {
-      showMsg(msg, e.message, 'error');
+      showMsg(msg, 'error', e.message);
     } finally {
       if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Alert'; }
     }
