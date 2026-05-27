@@ -839,7 +839,7 @@ async function refreshVintedAccessToken(refreshToken) {
     // correct TLS fingerprint and cookies are in place).
     const result = await page.evaluate(async ({ base, rt }) => {
       try {
-        const r = await fetch(`${base}/api/v2/oauth/token`, {
+        const r = await fetch(`${base}/oauth/token`, {
           method: 'POST',
           credentials: 'include',
           headers: {

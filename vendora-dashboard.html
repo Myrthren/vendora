@@ -4657,9 +4657,11 @@
     const btn = document.getElementById('pt-clear-imported-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Clearing…'; }
     try {
+      const { data: { session: freshSession } } = await sb.auth.getSession();
+      if (!freshSession) { alert('Not signed in.'); return; }
       const res = await fetch(`${BOT_API}/api/vinted/sales`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${session?.access_token}` },
+        headers: { 'Authorization': `Bearer ${freshSession.access_token}` },
       });
       if (!res.ok) throw new Error(`Server error ${res.status}`);
       _ptAutoSales = [];
@@ -4784,7 +4786,7 @@
     const keyword  = document.getElementById('ab-keyword')?.value?.trim();
     const maxPrice = parseFloat(document.getElementById('ab-maxprice')?.value) || null;
     const msg      = document.getElementById('ab-add-msg');
-    if (!keyword) { showMsg(msg, 'Enter a keyword first.', 'error'); return; }
+    if (!keyword) { showMsg(msg, 'error', 'Enter a keyword first.'); return; }
     const btn = document.querySelector('#section-autobuy .btn-pink');
     if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
     try {

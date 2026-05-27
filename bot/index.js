@@ -403,7 +403,7 @@ async function sendCreditsDM(discordId, creditsAdded, newBalance, source = 'purc
 }
 
 // ── AI helper ─────────────────────────────────────────────────────────────────
-async function callAI(system, user, model = 'claude-haiku-4-5-20251001', maxTokens = 800) {
+async function callAI(system, user, model = 'claude-3-5-haiku-20241022', maxTokens = 800) {
   if (!ai) return null;
   try {
     const msg = await ai.messages.create({
@@ -1407,8 +1407,8 @@ async function executeCommand(interaction, commandName, tier, profile) {
       const product = await scrapeProductPage(rawUrl);
 
       // Save URL to watchlist
-      await dbAddWatchlist(user.id, rawUrl);
-      const wl = await dbGetWatchlist(user.id);
+      await dbAddWatchlist(interaction.user.id, rawUrl);
+      const wl = await dbGetWatchlist(interaction.user.id);
 
       // Persist baseline + full variant data
       const baselineKey = 'watchlist_price_baselines';
@@ -1479,7 +1479,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
           .setDescription('Vinted alert monitoring requires the Apify API. Please contact the server owner.')] });
       }
 
-      const existing = await dbGetVintedAlerts(user.id);
+      const existing = await dbGetVintedAlerts(interaction.user.id);
       const MAX_ALERTS = TIER_RANK[profile.tier] >= 3 ? 10 : 5;
       if (existing.length >= MAX_ALERTS) {
         return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Alert Limit Reached')
@@ -1493,9 +1493,9 @@ async function executeCommand(interaction, commandName, tier, profile) {
       const initialItems = await apifyVintedSearch(keyword, 20);
       const seenIds = (initialItems || []).map(i => i.id).filter(Boolean);
 
-      await dbAddVintedAlert(user.id, keyword, maxPrice);
+      await dbAddVintedAlert(interaction.user.id, keyword, maxPrice);
       // Grab the newly created alert and patch its seen_ids
-      const alerts = await dbGetVintedAlerts(user.id);
+      const alerts = await dbGetVintedAlerts(interaction.user.id);
       const newAlert = alerts.find(a => a.keyword === keyword && (!a.seen_ids?.length));
       if (newAlert) await dbUpdateVintedAlertSeenIds(newAlert.id, seenIds);
 
@@ -1515,7 +1515,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
     }
 
     if (sub === 'list') {
-      const alerts = await dbGetVintedAlerts(user.id);
+      const alerts = await dbGetVintedAlerts(interaction.user.id);
       if (!alerts.length) {
         return interaction.editReply({ embeds: [baseEmbed().setTitle('No Vinted Alerts')
           .setDescription('You have no active Vinted alerts.\n\nUse `/vinted-alert add` to monitor a keyword.')] });
@@ -1532,7 +1532,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
 
     if (sub === 'remove') {
       const num    = opts.getInteger('number');
-      const alerts = await dbGetVintedAlerts(user.id);
+      const alerts = await dbGetVintedAlerts(interaction.user.id);
       const target = alerts[num - 1];
       if (!target) {
         return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Not Found')
@@ -1743,7 +1743,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
         `4. **3 Specific Actions** — things they can do THIS WEEK to improve results\n` +
         `Keep it direct, practical, UK-focused. Use £ not $. Bold the section headers.`,
         aiCtx,
-        'claude-haiku-4-5-20251001', 750
+        'claude-3-5-haiku-20241022', 750
       );
       if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
 
@@ -1844,7 +1844,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
 
     let report = null;
     try {
-      const raw = await callAI(systemPrompt, `Item: ${item}\n\n${liveContext}${webCtx}${newsCtx}`, 'claude-haiku-4-5-20251001', 600);
+      const raw = await callAI(systemPrompt, `Item: ${item}\n\n${liveContext}${webCtx}${newsCtx}`, 'claude-3-5-haiku-20241022', 600);
       if (raw) { const m = raw.match(/\{[\s\S]*\}/); if (m) report = JSON.parse(m[0]); }
     } catch (e) { console.error('[price] JSON parse failed:', e.message); }
 
@@ -1889,7 +1889,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
       const text = await callAI(
         `You are Vendora's scan engine. Analyse ${platformLabel} for underpriced listings of the given item. Include: typical price range, what underpriced looks like (specific £ threshold), best search terms, and 3-5 listing types to target.`,
         `Platform: ${platformLabel}\nItem: ${item}`,
-        'claude-haiku-4-5-20251001', 700
+        'claude-3-5-haiku-20241022', 700
       );
       if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
       return interaction.editReply({ embeds: [
@@ -1932,7 +1932,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
     try {
       const raw = await callAI(systemPrompt,
         `Item: ${item}\nPlatform: ${platformLabel}\n\nLIVE: ${platformResults.length} listings, avg £${avg.toFixed(2)}, median £${median.toFixed(2)}, range £${prices[0]?.toFixed(2) || '?'}–£${prices[prices.length-1]?.toFixed(2) || '?'}\n\nDEALS (≤ £${dealThreshold.toFixed(2)}):\n${dealsText}${webCtx}`,
-        'claude-haiku-4-5-20251001', 600);
+        'claude-3-5-haiku-20241022', 600);
       if (raw) { const m = raw.match(/\{[\s\S]*\}/); if (m) report = JSON.parse(m[0]); }
     } catch (e) { console.error('[scan] JSON parse failed:', e.message); }
 
@@ -2115,7 +2115,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
     try {
       const raw = await callAI(systemPrompt,
         `Item: ${item}\n\n${liveCtx}${webCtx}\n\nCALCULATED:\n- Buy: £${targetBuy} | Depop sell: £${depopSell} fee £${depopFee} profit £${depopProfit} (${depopROI}% ROI) | Vinted sell: £${vintedSell} fee £${vintedFee} profit £${vintedProfit} (${vintedROI}% ROI) | Shipping: £${shipping}`,
-        'claude-haiku-4-5-20251001', 500);
+        'claude-3-5-haiku-20241022', 500);
       if (raw) { const m = raw.match(/\{[\s\S]*\}/); if (m) report = JSON.parse(m[0]); }
     } catch (e) { console.error('[margins] JSON parse failed:', e.message); }
 
@@ -2179,7 +2179,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
     const text = await callAI(
       `You are Vendora's trend analyst for the UK resale market. You have current live listing and web data.\n\n${liveCtx}${webCtx}\n\nBased on all data, provide:\n**Demand Level** — High/Medium/Low with reasoning from the data\n**Price Trend** — rising/stable/falling (use the price distribution and web signals as evidence)\n**Top Items** — 5 most sought-after items in this category right now\n**Best Platforms** — where it performs best and why\n**Buying Opportunity** — rating out of 10 with justification\n**Source Now** — 3 specific items/variations to look for immediately`,
       `Category/Brand: ${category}`,
-      'claude-haiku-4-5-20251001', 900
+      'claude-3-5-haiku-20241022', 900
     );
     if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
     const sources = [allP.length >= 3 ? `${allP.length} listings` : null, webR?.length ? 'web search' : null].filter(Boolean);
@@ -2694,7 +2694,7 @@ Return JSON with this exact structure:
 
   try {
     const msg = await ai.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: 1600,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -5671,6 +5671,35 @@ app.post('/api/photo/photoroom', async (req, res) => {
   }
 });
 
+// POST /api/photo/instruct — interpret natural-language editing instructions on an image
+// Returns { ok, settings, message } where settings is an object that maps instruction
+// keywords to PhotoRoom-compatible parameters the dashboard can pass to /api/photo/photoroom.
+app.post('/api/photo/instruct', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const { image, instructions } = req.body || {};
+  if (!instructions?.trim()) return res.status(400).json({ error: 'instructions required' });
+
+  const systemPrompt = `You are a photo editing assistant for resellers. Given a user's editing instruction, extract structured settings for a product photo editor.
+Respond ONLY with valid JSON (no markdown, no explanation). The JSON object may include any of these optional keys:
+- "background": one of: "white-studio", "light-grey", "cream", "soft-pink", "black", "navy", "forest-green", "gradient-pink", "gradient-blue", "studio-dark"
+- "lighting": one of: "studio", "soft", "dramatic", "natural", "sharp"
+- "remove_background": true/false
+- "message": a short friendly confirmation of what you're doing (max 80 chars)
+Only include keys relevant to the instruction. If nothing specific is requested, return { "message": "No changes detected" }.`;
+
+  try {
+    const aiResp = await callAI(systemPrompt, instructions.trim(), 'claude-3-5-haiku-20241022', 300);
+    let settings = {};
+    try { settings = JSON.parse(aiResp); } catch { settings = { message: aiResp?.slice(0, 200) }; }
+    const message = settings.message || 'Settings applied from your instructions.';
+    delete settings.message;
+    res.json({ ok: true, settings, message });
+  } catch (e) {
+    console.error('[photo/instruct]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Admin — get/set user credits ──────────────────────────────────────────────
 app.post('/api/admin/credits/adjust', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
@@ -5776,15 +5805,10 @@ app.get('/api/usage', async (req, res) => {
   res.json({ usage });
 });
 
-// ── Inventory endpoints ────────────────────────────────────────────────────────
-app.get('/api/inventory', async (req, res) => {
-  const user = await requireAuth(req, res); if (!user) return;
-  const discordId = user.user_metadata?.provider_id
-    || user.identities?.find(i => i.provider === 'discord')?.id || '';
-  const items = await dbGetInventory(discordId);
-  res.json({ items });
-});
-
+// ── Tracker (manual inventory) endpoints ─────────────────────────────────────
+// Note: GET /api/inventory is defined above (line ~2743) for the Vinted auto-synced
+// inventory snapshot. The POST / DELETE routes below handle the manual tracker items
+// used by the /tracker Discord command (stored via dbAddInventory / dbRemoveInventory).
 app.post('/api/inventory', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const discordId = user.user_metadata?.provider_id
@@ -7192,7 +7216,7 @@ Give 4-7 suggestions. Return ONLY the JSON, no markdown.`;
 
     if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
     const aiRes = await ai.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: 1200,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -7241,7 +7265,7 @@ No markdown, just the JSON.`;
   try {
     if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
     const aiRes = await ai.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -7300,7 +7324,7 @@ No markdown, just JSON.`;
 
     if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
     const aiRes = await ai.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: 1200,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -7360,7 +7384,7 @@ No markdown, just JSON.`;
 
     if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
     const aiRes = await ai.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: 800,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -7419,7 +7443,7 @@ No markdown, just JSON.`;
 
     if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
     const aiRes = await ai.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -7491,7 +7515,7 @@ No markdown, just JSON.`;
 
     if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
     const aiRes = await ai.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: 1800,
       messages: [{ role: 'user', content: prompt }],
     });
