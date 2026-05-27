@@ -5254,6 +5254,66 @@ app.get('/api/vinted/test', async (req, res) => {
     report.profit_sync_test = { ok: false, error: e.message };
   }
 
+  // Catalog inventory test — this is the actual endpoint used by syncVintedInventoryForUser
+  try {
+    const conn = await getPlatformConn(user.id, 'vinted');
+    if (conn?.platform_user_id) {
+      const sellerId  = conn.platform_user_id;
+      const rawToken  = conn.access_token ? decryptToken(conn.access_token) : '';
+      const vintedBase = await getVintedBase();
+      const catalogUrl = `${vintedBase}/api/v2/catalog/items?seller_ids[]=${sellerId}&per_page=10&page=1&order=newest_first`;
+
+      // Test 1: with auth
+      const hdrs1 = rawToken ? VINTED_HEADERS(rawToken, vintedBase)
+        : { 'User-Agent': VINTED_UA, 'Accept': 'application/json', 'Accept-Language': 'en-GB' };
+      const t1 = Date.now();
+      const r1 = await vFetch(catalogUrl, { headers: hdrs1, signal: AbortSignal.timeout(12000) });
+      const text1 = await r1.text();
+      const blocked1 = /datadome|captcha/i.test(text1);
+      let data1; try { data1 = JSON.parse(text1); } catch { data1 = null; }
+      report.catalog_test = {
+        url: catalogUrl,
+        with_auth: { status: r1.status, blocked: blocked1, items_count: data1?.items?.length ?? 0, keys: data1 ? Object.keys(data1).join(',') : 'parse_error', ms: Date.now() - t1 },
+      };
+
+      // Test 2: without auth (anonymous)
+      const hdrs2 = { 'User-Agent': VINTED_UA, 'Accept': 'application/json', 'Accept-Language': 'en-GB', 'Origin': vintedBase, 'Referer': `${vintedBase}/` };
+      const t2 = Date.now();
+      const r2 = await vFetch(catalogUrl, { headers: hdrs2, signal: AbortSignal.timeout(12000) });
+      const text2 = await r2.text();
+      const blocked2 = /datadome|captcha/i.test(text2);
+      let data2; try { data2 = JSON.parse(text2); } catch { data2 = null; }
+      report.catalog_test.without_auth = { status: r2.status, blocked: blocked2, items_count: data2?.items?.length ?? 0, keys: data2 ? Object.keys(data2).join(',') : 'parse_error', ms: Date.now() - t2 };
+
+      // If both return 0, show a snippet of the raw response so we can debug
+      if ((data1?.items?.length || 0) === 0 && (data2?.items?.length || 0) === 0) {
+        report.catalog_test.raw_snippet = text1.slice(0, 300);
+      }
+    } else {
+      report.catalog_test = { skipped: 'No seller ID stored' };
+    }
+  } catch (e) {
+    report.catalog_test = { error: e.message };
+  }
+
+  // Apify actor test — checks whether the configured actor/task is reachable
+  try {
+    const rawId = APIFY_VINTED_ACTOR;
+    const tildeId = rawId.replace('/', '~');
+    report.apify_test = { actor_id: rawId, token_set: !!APIFY_TOKEN };
+    if (APIFY_TOKEN) {
+      // Quick check: just hit the actor metadata (not a run) to see if it exists
+      const r1 = await fetch(`https://api.apify.com/v2/acts/${rawId}?token=${APIFY_TOKEN}`, { signal: AbortSignal.timeout(8000) });
+      report.apify_test.actor_endpoint = { status: r1.status, found: r1.ok };
+      if (!r1.ok) {
+        const r2 = await fetch(`https://api.apify.com/v2/actor-tasks/${tildeId}?token=${APIFY_TOKEN}`, { signal: AbortSignal.timeout(8000) });
+        report.apify_test.task_endpoint = { status: r2.status, found: r2.ok, id_used: tildeId };
+      }
+    }
+  } catch (e) {
+    report.apify_test = { ...report.apify_test, error: e.message };
+  }
+
   res.json(report);
 });
 
