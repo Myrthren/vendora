@@ -4928,19 +4928,33 @@ app.post('/api/vinted/sync-profit', async (req, res) => {
   // Paginates through every page so the full historical record is captured,
   // not just the most recent 100 items. Stops at 20 pages (2000 items) max
   // to prevent request timeouts on very large seller accounts.
-  const rawToken = decryptToken(conn.access_token || '');
+  let rawToken = decryptToken(conn.access_token || '');
   if (!rawToken || rawToken.length < 20) {
-    return res.status(400).json({ error: 'No session token saved. Go to Platforms → paste your access_token_web cookie to enable profit sync.' });
+    return res.status(400).json({ error: 'No session token saved. Go to Platforms → connect your Vinted account to enable profit sync.' });
   }
 
-  const userId = conn.platform_user_id || 'me';
-  let fetchedSales = [];
-  let datadomBlocked = false;
-  const MAX_PAGES = 20;
+  // Resolve seller ID — use stored value, fall back to decoding the JWT payload
+  let userId = conn.platform_user_id || '';
+  if (!userId) {
+    try {
+      const parts = rawToken.split('.');
+      if (parts.length === 3) {
+        const p = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+        userId = String(p.user_id || p.sub || p.id || p.uid || '').replace(/\D/g, '');
+      }
+    } catch {}
+  }
+  if (!userId) {
+    return res.status(400).json({ error: 'Could not determine your Vinted seller ID. Please disconnect and reconnect your Vinted account from the Platforms page.' });
+  }
 
-  try {
+  // Helper: fetch all sold-item pages using a given token
+  async function fetchAllSoldPages(token) {
     const base    = await getVintedBase();
-    const headers = VINTED_HEADERS(rawToken, base);
+    const headers = VINTED_HEADERS(token, base);
+    const sales   = [];
+    let blocked   = false;
+    const MAX_PAGES = 20;
 
     for (let page = 1; page <= MAX_PAGES; page++) {
       const r = await vFetch(
@@ -4949,25 +4963,49 @@ app.post('/api/vinted/sync-profit', async (req, res) => {
       );
       const text = await r.text();
 
-      if (/captcha-delivery\.com|datadome/i.test(text)) {
-        datadomBlocked = true;
-        break;
-      }
+      if (/captcha-delivery\.com|datadome/i.test(text)) { blocked = true; break; }
+
+      // Expired / revoked token — signal caller to refresh and retry
+      if (r.status === 401 || r.status === 403) return { authError: r.status };
 
       let data;
       try { data = JSON.parse(text); } catch { data = {}; }
 
       const pageItems = data.items || [];
-      if (!pageItems.length) break; // no more pages
-
-      // Vinted's sold endpoint already filters — accept all returned items
-      fetchedSales.push(...pageItems);
-
-      // If fewer than 100 returned, we've hit the last page
+      if (!pageItems.length) break;
+      sales.push(...pageItems);
       if (pageItems.length < 100) break;
     }
 
-    console.log(`[sync-profit] fetched ${fetchedSales.length} sold items across pages (userId=${userId})`);
+    return { sales, blocked };
+  }
+
+  let fetchedSales = [];
+  let datadomBlocked = false;
+
+  try {
+    const result = await fetchAllSoldPages(rawToken);
+
+    // Token expired — try to refresh once and retry
+    if (result.authError) {
+      console.log(`[sync-profit] Token returned ${result.authError}, attempting refresh…`);
+      const newToken = await refreshVintedTokenIfNeeded(user.id, conn);
+      if (!newToken) {
+        return res.status(401).json({ error: 'Your Vinted session has expired and could not be refreshed. Please reconnect your Vinted account from the Platforms page.' });
+      }
+      rawToken = newToken;
+      const retry = await fetchAllSoldPages(newToken);
+      if (retry.authError) {
+        return res.status(401).json({ error: 'Your Vinted session has expired. Please reconnect your Vinted account from the Platforms page.' });
+      }
+      fetchedSales   = retry.sales   || [];
+      datadomBlocked = retry.blocked || false;
+    } else {
+      fetchedSales   = result.sales   || [];
+      datadomBlocked = result.blocked || false;
+    }
+
+    console.log(`[sync-profit] fetched ${fetchedSales.length} sold items (userId=${userId})`);
   } catch (e) {
     console.warn('[sync-profit] fetch error:', e.message);
     if (!fetchedSales.length) {
@@ -7546,6 +7584,25 @@ async function refreshVintedTokenIfNeeded(userId, conn) {
 
     if (result.error) {
       console.warn(`[token-refresh] Failed for user ${userId}:`, result.error);
+      // DM the user so they know to reconnect — don't let the failure be silent
+      try {
+        const profile = await fetchProfile(userId);
+        const discordId = profile?.discord_id;
+        if (discordId && discordClient?.users) {
+          const du = await discordClient.users.fetch(discordId).catch(() => null);
+          if (du) {
+            await du.send({
+              embeds: [baseEmbed('#e8a121')
+                .setTitle('⚠️ Vinted Session Expired')
+                .setDescription(
+                  'Your Vinted session token has expired and could not be automatically refreshed.\n\n' +
+                  '**To restore profit tracking, auto-buy alerts, and listing features:**\n' +
+                  '→ Go to your [Vendora dashboard](https://vendora.app) → **Platforms** → disconnect and reconnect your Vinted account.'
+                )],
+            }).catch(() => {});
+          }
+        }
+      } catch {}
       return null;
     }
 
@@ -7574,28 +7631,42 @@ cron.schedule('45 * * * *', async () => {
   if (!SUPABASE_KEY || !vintedBrowser?.refreshVintedAccessToken) return;
   try {
     const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/platform_connections?platform=eq.vinted&select=user_id,refresh_token`,
+      `${SUPABASE_URL}/rest/v1/platform_connections?platform=eq.vinted&select=user_id,access_token,refresh_token`,
       { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
     );
     const conns = await r.json();
     if (!Array.isArray(conns) || !conns.length) return;
 
-    const twoDaysFromNow = Date.now() + 2 * 86400000;
+    const twoDaysMs = 2 * 86400000;
     const toRefresh = conns.filter(c => {
-      if (!c.refresh_token) return false; // no refresh token stored — can't refresh
-      if (!c.token_expires_at) return true; // no expiry stored — refresh as a safety measure
-      return new Date(c.token_expires_at).getTime() < twoDaysFromNow;
+      if (!c.refresh_token) return false; // no refresh token — can't refresh
+      // Parse expiry from the JWT 'exp' claim (seconds since epoch)
+      try {
+        if (c.access_token) {
+          const raw  = decryptToken(c.access_token);
+          const parts = raw?.split('.');
+          if (parts?.length === 3) {
+            const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+            if (payload.exp) {
+              const expiresAt = payload.exp * 1000; // convert to ms
+              // Refresh if expiring within 2 days
+              return expiresAt < Date.now() + twoDaysMs;
+            }
+          }
+        }
+      } catch {}
+      // No exp in JWT — refresh as a precaution (token age unknown)
+      return true;
     });
 
     if (!toRefresh.length) {
-      console.log('[cron:token-refresh] All Vinted tokens still valid, skipping');
+      console.log('[cron:token-refresh] All Vinted tokens valid for >2 days, skipping');
       return;
     }
 
     console.log(`[cron:token-refresh] Refreshing ${toRefresh.length} expiring token(s)…`);
     for (const conn of toRefresh) {
       await refreshVintedTokenIfNeeded(conn.user_id, conn);
-      // Space requests so we don't hammer the shared Playwright browser
       await new Promise(r => setTimeout(r, 3000));
     }
     console.log('[cron:token-refresh] Done');

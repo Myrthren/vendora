@@ -310,19 +310,21 @@ async function vintedBrowserLogin(username, password) {
           const formToken = await cookieValue(ctx, 'access_token_web') || await cookieValue(ctx, '_vinted_fr_session');
           if (formToken) {
             console.log('[vinted-browser-login] form-based login succeeded');
-            const me2 = await page.evaluate(async () => {
-              try {
-                const r = await fetch('/api/v2/users/me', { credentials: 'include', headers: { Accept: 'application/json' } });
-                if (!r.ok) return {};
-                return await r.json();
-              } catch { return {}; }
-            });
-            const u2 = me2?.user || me2 || {};
+            // Decode JWT for user ID — avoids a /users/me call that may not exist
+            let formUserId = '', formUsername = username;
+            try {
+              const parts = formToken.split('.');
+              if (parts.length === 3) {
+                const p = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+                formUserId   = String(p.user_id || p.sub || p.id || p.uid || '').replace(/\D/g, '');
+                formUsername = p.username || p.login || p.preferred_username || username;
+              }
+            } catch {}
             return {
               access_token:      formToken,
               refresh_token:     await cookieValue(ctx, 'refresh_token_web') || '',
-              platform_user_id:  String(u2.id || ''),
-              platform_username: u2.login || u2.username || username,
+              platform_user_id:  formUserId,
+              platform_username: formUsername,
             };
           }
         }
@@ -335,24 +337,43 @@ async function vintedBrowserLogin(username, password) {
       return { error: `Vinted login failed. API attempts: ${JSON.stringify(apiResult.attempts?.slice(0,2))}` };
     }
 
-    // ── Confirm token by calling /api/v2/users/me ────────────────────────────
-    // Set the token as a cookie so the /users/me call authenticates properly
+    // ── Extract user ID — JWT first, /users/me as confirmation ─────────────────
+    // JWT payload always contains the numeric user ID — extract it without an
+    // extra network hop. /users/me is only used to confirm the username.
+    let jwtUserId = '';
+    let jwtUsername = '';
+    try {
+      const parts = apiResult.access_token.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+        jwtUserId   = String(payload.user_id || payload.sub || payload.id || payload.uid || '').replace(/\D/g, '');
+        jwtUsername = payload.username || payload.login || payload.preferred_username || '';
+      }
+    } catch {}
+    console.log(`[vinted-browser-login] JWT user_id=${jwtUserId || 'not-found'}`);
+
+    // Try /users/{id} if we got the ID from JWT (avoids /users/me which may 404)
     await setAuthCookie(ctx, apiResult.access_token);
-
-    const me = await page.evaluate(async () => {
+    let confirmedUsername = jwtUsername || username;
+    if (jwtUserId) {
       try {
-        const r = await fetch('/api/v2/users/me', { credentials: 'include', headers: { Accept: 'application/json' } });
-        if (!r.ok) return { ok: false, status: r.status };
-        return { ok: true, data: await r.json() };
-      } catch (e) { return { ok: false, error: e.message }; }
-    });
+        const me = await page.evaluate(async (uid) => {
+          try {
+            const r = await fetch(`/api/v2/users/${uid}`, { credentials: 'include', headers: { Accept: 'application/json' } });
+            if (!r.ok) return null;
+            const d = await r.json();
+            return d?.user || d || null;
+          } catch { return null; }
+        }, jwtUserId);
+        if (me?.login || me?.username) confirmedUsername = me.login || me.username;
+      } catch {}
+    }
 
-    const u = me?.data?.user || me?.data || {};
     return {
       access_token:      apiResult.access_token,
-      refresh_token:     apiResult.refresh_token || '',
-      platform_user_id:  String(u.id || ''),
-      platform_username: u.login || u.username || username,
+      refresh_token:     apiResult.refresh_token || await cookieValue(ctx, 'refresh_token_web') || '',
+      platform_user_id:  jwtUserId,
+      platform_username: confirmedUsername,
     };
   } catch (e) {
     console.error('[vinted-browser-login] error:', e);
