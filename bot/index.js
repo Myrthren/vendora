@@ -477,49 +477,53 @@ const APIFY_VINTED_USER_ACTOR = process.env.APIFY_VINTED_USER_ACTOR || 'kazkn~vi
 
 async function apifyVintedSearch(query, maxItems = 12) {
   if (!APIFY_TOKEN) return null;
-  try {
-    const res = await fetch(
-      `https://api.apify.com/v2/acts/${APIFY_VINTED_ACTOR}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=90`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // Send the query under several common input keys so this works across
-        // different Vinted Apify actors (kamilkrzyz, epicscrapers, etc.) — actors
-        // ignore unknown fields, and missing fields default sensibly.
-        body: JSON.stringify({
-          search: query,
-          keyword: query,
-          keywords: [query],
-          query,
-          maxItems,
-          maxResults: maxItems,
-          country: 'gb',
-          countryCode: 'gb',
-          startUrls: [`https://www.vinted.co.uk/catalog?search_text=${encodeURIComponent(query)}`],
-        }),
-        signal: AbortSignal.timeout(95000),
-      }
-    );
-    if (!res.ok) {
-      console.warn(`[apify] Vinted search failed (${res.status}) for "${query}"`);
+
+  const body = JSON.stringify({
+    search: query, keyword: query, keywords: [query], query,
+    maxItems, maxResults: maxItems,
+    country: 'gb', countryCode: 'gb',
+    startUrls: [`https://www.vinted.co.uk/catalog?search_text=${encodeURIComponent(query)}`],
+  });
+  const fetchOpts = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    signal: AbortSignal.timeout(95000),
+  };
+
+  // Build candidate URLs — try as Actor first, then as Task.
+  // Apify actor IDs use tilde: "user~name". If the env var uses a slash ("user/name")
+  // or has a "-task" suffix, it's likely an Apify Task — tasks use /v2/actor-tasks/.
+  const rawId   = APIFY_VINTED_ACTOR;
+  const tildeId = rawId.replace('/', '~');               // "user/name" → "user~name"
+  const candidates = [
+    `https://api.apify.com/v2/acts/${rawId}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=90`,
+    `https://api.apify.com/v2/actor-tasks/${tildeId}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=90`,
+  ];
+
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, fetchOpts);
+      if (res.status === 404) { console.warn(`[apify] 404 for ${url.split('?')[0]} — trying next`); continue; }
+      if (!res.ok) { console.warn(`[apify] Vinted search failed (${res.status}) for "${query}"`); return null; }
+      const items = await res.json();
+      if (!Array.isArray(items)) return null;
+      return items.slice(0, maxItems).map(i => ({
+        id:        String(i.id || i.itemId || ''),
+        title:     i.title || i.name || '',
+        price:     i.price != null ? `£${parseFloat(i.price).toFixed(2)}` : (i.priceNumeric ? `£${parseFloat(i.priceNumeric).toFixed(2)}` : '—'),
+        priceNum:  parseFloat(i.price || i.priceNumeric || 0) || 0,
+        url:       i.url || i.itemUrl || '',
+        brand:     i.brand || i.brandTitle || '',
+        condition: i.status || i.condition || '',
+        photo:     i.photo || i.photoUrl || i.thumbnailUrl || '',
+      }));
+    } catch (e) {
+      console.warn('[apify] Vinted search error:', e.message);
       return null;
     }
-    const items = await res.json();
-    if (!Array.isArray(items)) return null;
-    return items.slice(0, maxItems).map(i => ({
-      id:        String(i.id || i.itemId || ''),
-      title:     i.title || i.name || '',
-      price:     i.price != null ? `£${parseFloat(i.price).toFixed(2)}` : (i.priceNumeric ? `£${parseFloat(i.priceNumeric).toFixed(2)}` : '—'),
-      priceNum:  parseFloat(i.price || i.priceNumeric || 0) || 0,
-      url:       i.url || i.itemUrl || '',
-      brand:     i.brand || i.brandTitle || '',
-      condition: i.status || i.condition || '',
-      photo:     i.photo || i.photoUrl || i.thumbnailUrl || '',
-    }));
-  } catch (e) {
-    console.warn('[apify] Vinted search error:', e.message);
-    return null;
   }
+  return null;
 }
 
 // Fetch a specific Vinted item by URL or ID via Apify residential proxy.
@@ -4392,18 +4396,27 @@ app.post('/api/vinted/connect-login', async (req, res) => {
 
 // Helper: run any Apify actor and return the dataset array, or [] on error.
 async function apifyRunActor(actorId, input, timeoutSec = 90) {
-  const res = await fetch(
+  // Support both Actor IDs ("user~name") and Task IDs ("user/name" or "user~name-task").
+  // Try actor endpoint first; if 404, try task endpoint with tilde notation.
+  const tildeId = actorId.replace('/', '~');
+  const fetchOpts = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+    signal: AbortSignal.timeout((timeoutSec + 5) * 1000),
+  };
+  const candidates = [
     `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=${timeoutSec}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-      signal: AbortSignal.timeout((timeoutSec + 5) * 1000),
-    }
-  );
-  if (!res.ok) { console.warn(`[apify] ${actorId} → HTTP ${res.status}`); return []; }
-  const data = await res.json();
-  return Array.isArray(data) ? data : [];
+    `https://api.apify.com/v2/actor-tasks/${tildeId}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=${timeoutSec}`,
+  ];
+  for (const url of candidates) {
+    const res = await fetch(url, fetchOpts);
+    if (res.status === 404) { console.warn(`[apify] 404 for ${url.split('?')[0]} — trying task endpoint`); continue; }
+    if (!res.ok) { console.warn(`[apify] ${actorId} → HTTP ${res.status}`); return []; }
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  }
+  return [];
 }
 
 // Resolve a Vinted username → numeric user ID.
@@ -4653,49 +4666,67 @@ async function syncVintedInventoryForUser(userId) {
   console.log(`[sync-inventory] fetching items with identifier=${identifier}`);
 
   // ── Fetch active listings via REST API (vFetch → residential proxy) ───────────
-  // Fastest and most reliable path: call /api/v2/users/{id}/items with the stored
-  // access token. Same proxy that the profit sync uses — DataDome bypassed.
-  // Only falls back to Playwright browser scraping if the API returns 0 or errors.
+  // The catalog search endpoint is PUBLIC — no auth required. We send the stored
+  // access token as a bonus if available, but always attempt the fetch with or
+  // without it. If the token causes a 401/403 we retry anonymously.
   let raw = [];
 
   if (sellerId) {
     const rawToken = conn.access_token ? decryptToken(conn.access_token) : '';
-    if (rawToken) {
-      try {
-        const vintedBase = await getVintedBase();
-        const headers    = VINTED_HEADERS(rawToken, vintedBase);
-        // Use the public catalog search filtered by seller_id — works for any
-        // user's listings, not just the authenticated user's own items.
-        for (let page = 1; page <= 3; page++) {
-          const r = await vFetch(
-            `${vintedBase}/api/v2/catalog/items?seller_ids[]=${sellerId}&per_page=96&page=${page}&order=newest_first`,
-            { headers, signal: AbortSignal.timeout(12000) }
-          );
-          const text = await r.text();
-          if (/datadome|captcha/i.test(text)) {
-            console.warn('[sync-inventory] DataDome blocked REST API — falling back to Playwright');
-            break;
-          }
-          if (r.status === 401 || r.status === 403) {
-            console.warn(`[sync-inventory] REST API auth error ${r.status} — token may be expired`);
-            break;
-          }
-          let data; try { data = JSON.parse(text); } catch { data = {}; }
-          // Catalog endpoint returns items under 'items' key
-          const pageItems = data.items || data.catalog_items || [];
-          if (!pageItems.length) break;
-          raw.push(...pageItems);
-          console.log(`[sync-inventory] REST API page ${page}: ${pageItems.length} items`);
-          if (pageItems.length < 96) break;
+
+    const catalogFetch = async (withAuth) => {
+      const vintedBase = await getVintedBase();
+      const headers = withAuth && rawToken
+        ? VINTED_HEADERS(rawToken, vintedBase)
+        : { 'User-Agent': VINTED_UA, 'Accept': 'application/json, text/plain, */*', 'Accept-Language': 'en-GB,en;q=0.9', 'Origin': vintedBase, 'Referer': `${vintedBase}/` };
+      let authFailed = false;
+      const pageItems_all = [];
+      for (let page = 1; page <= 3; page++) {
+        const r = await vFetch(
+          `${vintedBase}/api/v2/catalog/items?seller_ids[]=${sellerId}&per_page=96&page=${page}&order=newest_first`,
+          { headers, signal: AbortSignal.timeout(12000) }
+        );
+        const text = await r.text();
+        if (/datadome|captcha/i.test(text)) {
+          console.warn('[sync-inventory] DataDome blocked catalog request');
+          break;
         }
-        if (raw.length > 0) {
-          console.log(`[sync-inventory] REST API: ${raw.length} active items for seller ${sellerId}`);
-        } else {
-          console.log(`[sync-inventory] REST API returned 0 items — falling back to Playwright`);
+        if (r.status === 401 || r.status === 403) {
+          authFailed = true;
+          console.warn(`[sync-inventory] catalog auth error ${r.status}${withAuth ? ' — will retry without token' : ''}`);
+          break;
         }
-      } catch (e) {
-        console.warn('[sync-inventory] REST API error:', e.message, '— falling back to Playwright');
+        let data; try { data = JSON.parse(text); } catch { data = {}; }
+        const page_items = data.items || data.catalog_items || [];
+        if (!page_items.length) break;
+        pageItems_all.push(...page_items);
+        console.log(`[sync-inventory] catalog page ${page}: ${page_items.length} items (auth=${withAuth})`);
+        if (page_items.length < 96) break;
       }
+      return { items: pageItems_all, authFailed };
+    };
+
+    try {
+      // First attempt: with auth token (gives richer data if token is valid)
+      const attempt1 = await catalogFetch(true);
+      if (attempt1.items.length > 0) {
+        raw = attempt1.items;
+        console.log(`[sync-inventory] catalog (auth): ${raw.length} items for seller ${sellerId}`);
+      } else if (attempt1.authFailed || !rawToken) {
+        // Retry anonymously — catalog is public, no token needed
+        console.log('[sync-inventory] retrying catalog without auth token');
+        const attempt2 = await catalogFetch(false);
+        raw = attempt2.items;
+        if (raw.length > 0) {
+          console.log(`[sync-inventory] catalog (anon): ${raw.length} items for seller ${sellerId}`);
+        } else {
+          console.log('[sync-inventory] catalog returned 0 items (both auth and anon)');
+        }
+      } else {
+        console.log(`[sync-inventory] catalog returned 0 items for seller ${sellerId}`);
+      }
+    } catch (e) {
+      console.warn('[sync-inventory] catalog fetch error:', e.message);
     }
   }
 
