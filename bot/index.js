@@ -4664,10 +4664,11 @@ async function syncVintedInventoryForUser(userId) {
       try {
         const vintedBase = await getVintedBase();
         const headers    = VINTED_HEADERS(rawToken, vintedBase);
-        // Paginate up to 3 pages (300 items) for the active listings
+        // Use the public catalog search filtered by seller_id — works for any
+        // user's listings, not just the authenticated user's own items.
         for (let page = 1; page <= 3; page++) {
           const r = await vFetch(
-            `${vintedBase}/api/v2/users/${sellerId}/items?per_page=100&page=${page}&order=newest_first`,
+            `${vintedBase}/api/v2/catalog/items?seller_ids[]=${sellerId}&per_page=96&page=${page}&order=newest_first`,
             { headers, signal: AbortSignal.timeout(12000) }
           );
           const text = await r.text();
@@ -4680,10 +4681,12 @@ async function syncVintedInventoryForUser(userId) {
             break;
           }
           let data; try { data = JSON.parse(text); } catch { data = {}; }
-          const pageItems = data.items || [];
+          // Catalog endpoint returns items under 'items' key
+          const pageItems = data.items || data.catalog_items || [];
           if (!pageItems.length) break;
           raw.push(...pageItems);
-          if (pageItems.length < 100) break;
+          console.log(`[sync-inventory] REST API page ${page}: ${pageItems.length} items`);
+          if (pageItems.length < 96) break;
         }
         if (raw.length > 0) {
           console.log(`[sync-inventory] REST API: ${raw.length} active items for seller ${sellerId}`);
