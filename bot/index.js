@@ -403,7 +403,7 @@ async function sendCreditsDM(discordId, creditsAdded, newBalance, source = 'purc
 }
 
 // ── AI helper ─────────────────────────────────────────────────────────────────
-async function callAI(system, user, model = 'claude-3-5-haiku-20241022', maxTokens = 800) {
+async function callAI(system, user, model = 'claude-haiku-4-5-20251001', maxTokens = 800) {
   if (!ai) return null;
   try {
     const msg = await ai.messages.create({
@@ -1128,7 +1128,9 @@ async function dbGetVintedAlerts(discordId) {
       ? `${SUPABASE_URL}/rest/v1/vinted_alerts?discord_id=eq.${discordId}&order=created_at.asc`
       : `${SUPABASE_URL}/rest/v1/vinted_alerts?order=created_at.asc`;
     const r = await fetch(url, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
-    return await r.json();
+    const data = await r.json();
+    // Supabase returns an error object (not array) if the table doesn't exist
+    return Array.isArray(data) ? data : [];
   } catch { return []; }
 }
 
@@ -1743,7 +1745,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
         `4. **3 Specific Actions** — things they can do THIS WEEK to improve results\n` +
         `Keep it direct, practical, UK-focused. Use £ not $. Bold the section headers.`,
         aiCtx,
-        'claude-3-5-haiku-20241022', 750
+        'claude-haiku-4-5-20251001', 750
       );
       if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
 
@@ -1844,7 +1846,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
 
     let report = null;
     try {
-      const raw = await callAI(systemPrompt, `Item: ${item}\n\n${liveContext}${webCtx}${newsCtx}`, 'claude-3-5-haiku-20241022', 600);
+      const raw = await callAI(systemPrompt, `Item: ${item}\n\n${liveContext}${webCtx}${newsCtx}`, 'claude-haiku-4-5-20251001', 600);
       if (raw) { const m = raw.match(/\{[\s\S]*\}/); if (m) report = JSON.parse(m[0]); }
     } catch (e) { console.error('[price] JSON parse failed:', e.message); }
 
@@ -1889,7 +1891,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
       const text = await callAI(
         `You are Vendora's scan engine. Analyse ${platformLabel} for underpriced listings of the given item. Include: typical price range, what underpriced looks like (specific £ threshold), best search terms, and 3-5 listing types to target.`,
         `Platform: ${platformLabel}\nItem: ${item}`,
-        'claude-3-5-haiku-20241022', 700
+        'claude-haiku-4-5-20251001', 700
       );
       if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
       return interaction.editReply({ embeds: [
@@ -1932,7 +1934,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
     try {
       const raw = await callAI(systemPrompt,
         `Item: ${item}\nPlatform: ${platformLabel}\n\nLIVE: ${platformResults.length} listings, avg £${avg.toFixed(2)}, median £${median.toFixed(2)}, range £${prices[0]?.toFixed(2) || '?'}–£${prices[prices.length-1]?.toFixed(2) || '?'}\n\nDEALS (≤ £${dealThreshold.toFixed(2)}):\n${dealsText}${webCtx}`,
-        'claude-3-5-haiku-20241022', 600);
+        'claude-haiku-4-5-20251001', 600);
       if (raw) { const m = raw.match(/\{[\s\S]*\}/); if (m) report = JSON.parse(m[0]); }
     } catch (e) { console.error('[scan] JSON parse failed:', e.message); }
 
@@ -2115,7 +2117,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
     try {
       const raw = await callAI(systemPrompt,
         `Item: ${item}\n\n${liveCtx}${webCtx}\n\nCALCULATED:\n- Buy: £${targetBuy} | Depop sell: £${depopSell} fee £${depopFee} profit £${depopProfit} (${depopROI}% ROI) | Vinted sell: £${vintedSell} fee £${vintedFee} profit £${vintedProfit} (${vintedROI}% ROI) | Shipping: £${shipping}`,
-        'claude-3-5-haiku-20241022', 500);
+        'claude-haiku-4-5-20251001', 500);
       if (raw) { const m = raw.match(/\{[\s\S]*\}/); if (m) report = JSON.parse(m[0]); }
     } catch (e) { console.error('[margins] JSON parse failed:', e.message); }
 
@@ -2179,7 +2181,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
     const text = await callAI(
       `You are Vendora's trend analyst for the UK resale market. You have current live listing and web data.\n\n${liveCtx}${webCtx}\n\nBased on all data, provide:\n**Demand Level** — High/Medium/Low with reasoning from the data\n**Price Trend** — rising/stable/falling (use the price distribution and web signals as evidence)\n**Top Items** — 5 most sought-after items in this category right now\n**Best Platforms** — where it performs best and why\n**Buying Opportunity** — rating out of 10 with justification\n**Source Now** — 3 specific items/variations to look for immediately`,
       `Category/Brand: ${category}`,
-      'claude-3-5-haiku-20241022', 900
+      'claude-haiku-4-5-20251001', 900
     );
     if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
     const sources = [allP.length >= 3 ? `${allP.length} listings` : null, webR?.length ? 'web search' : null].filter(Boolean);
@@ -2694,7 +2696,7 @@ Return JSON with this exact structure:
 
   try {
     const msg = await ai.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1600,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -5767,7 +5769,7 @@ Respond ONLY with valid JSON (no markdown, no explanation). The JSON object may 
 Only include keys relevant to the instruction. If nothing specific is requested, return { "message": "No changes detected" }.`;
 
   try {
-    const aiResp = await callAI(systemPrompt, instructions.trim(), 'claude-3-5-haiku-20241022', 300);
+    const aiResp = await callAI(systemPrompt, instructions.trim(), 'claude-haiku-4-5-20251001', 300);
     let settings = {};
     try { settings = JSON.parse(aiResp); } catch { settings = { message: aiResp?.slice(0, 200) }; }
     const message = settings.message || 'Settings applied from your instructions.';
@@ -7295,7 +7297,7 @@ Give 4-7 suggestions. Return ONLY the JSON, no markdown.`;
 
     if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
     const aiRes = await ai.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1200,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -7344,7 +7346,7 @@ No markdown, just the JSON.`;
   try {
     if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
     const aiRes = await ai.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -7403,7 +7405,7 @@ No markdown, just JSON.`;
 
     if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
     const aiRes = await ai.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1200,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -7463,7 +7465,7 @@ No markdown, just JSON.`;
 
     if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
     const aiRes = await ai.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 800,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -7522,7 +7524,7 @@ No markdown, just JSON.`;
 
     if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
     const aiRes = await ai.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -7594,7 +7596,7 @@ No markdown, just JSON.`;
 
     if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
     const aiRes = await ai.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1800,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -7762,7 +7764,7 @@ async function generateInventorySuggestionsForUser(userId, items) {
       const text = await callAI(
         'You are Vendora\'s listing optimization expert for Vinted UK. Analyze this listing and give exactly 2 specific, actionable improvement suggestions to increase views and speed up the sale. Each suggestion must be concrete — mention exact words to add/change, specific price points, or precise description edits. Do NOT give generic advice.',
         context,
-        'claude-3-5-haiku-20241022',
+        'claude-haiku-4-5-20251001',
         250,
       );
 
