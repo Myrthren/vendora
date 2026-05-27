@@ -4665,83 +4665,82 @@ async function syncVintedInventoryForUser(userId) {
   const base = 'https://www.vinted.co.uk';
   console.log(`[sync-inventory] fetching items with identifier=${identifier}`);
 
-  // ── Fetch active listings via REST API (vFetch → residential proxy) ───────────
-  // The catalog search endpoint is PUBLIC — no auth required. We send the stored
-  // access token as a bonus if available, but always attempt the fetch with or
-  // without it. If the token causes a 401/403 we retry anonymously.
+  // ── Fetch active listings ─────────────────────────────────────────────────────
+  // Three strategies, in order of speed / reliability:
+  //   1. REST API with stored token (fast, but token expires after ~1 day)
+  //   2. Apify actor scrape (no token needed — scrapes public profile via residential proxy)
+  //   3. Playwright browser fallback (slowest, often unavailable on Railway)
   let raw = [];
 
+  // ── Strategy 1: Direct REST API ──────────────────────────────────────────────
   if (sellerId) {
     const rawToken = conn.access_token ? decryptToken(conn.access_token) : '';
-
-    const catalogFetch = async (withAuth) => {
-      const vintedBase = await getVintedBase();
-      const headers = withAuth && rawToken
-        ? VINTED_HEADERS(rawToken, vintedBase)
-        : { 'User-Agent': VINTED_UA, 'Accept': 'application/json, text/plain, */*', 'Accept-Language': 'en-GB,en;q=0.9', 'Origin': vintedBase, 'Referer': `${vintedBase}/` };
-      let authFailed = false;
-      const pageItems_all = [];
-      for (let page = 1; page <= 3; page++) {
-        const r = await vFetch(
-          `${vintedBase}/api/v2/catalog/items?seller_ids[]=${sellerId}&per_page=96&page=${page}&order=newest_first`,
-          { headers, signal: AbortSignal.timeout(12000) }
-        );
-        const text = await r.text();
-        if (/datadome|captcha/i.test(text)) {
-          console.warn('[sync-inventory] DataDome blocked catalog request');
-          break;
+    if (rawToken && rawToken.length >= 20) {
+      try {
+        const vintedBase = await getVintedBase();
+        const headers    = VINTED_HEADERS(rawToken, vintedBase);
+        for (let page = 1; page <= 3; page++) {
+          const r = await vFetch(
+            `${vintedBase}/api/v2/catalog/items?seller_ids[]=${sellerId}&per_page=96&page=${page}&order=newest_first`,
+            { headers, signal: AbortSignal.timeout(12000) }
+          );
+          const text = await r.text();
+          if (/datadome|captcha/i.test(text)) {
+            console.warn('[sync-inventory] DataDome blocked REST catalog');
+            break;
+          }
+          if (r.status === 401 || r.status === 403) {
+            console.warn(`[sync-inventory] REST catalog ${r.status} — token expired, falling back to Apify`);
+            break;
+          }
+          let data; try { data = JSON.parse(text); } catch { data = {}; }
+          const page_items = data.items || data.catalog_items || [];
+          if (!page_items.length) break;
+          raw.push(...page_items);
+          console.log(`[sync-inventory] REST catalog page ${page}: ${page_items.length} items`);
+          if (page_items.length < 96) break;
         }
-        if (r.status === 401 || r.status === 403) {
-          authFailed = true;
-          console.warn(`[sync-inventory] catalog auth error ${r.status}${withAuth ? ' — will retry without token' : ''}`);
-          break;
-        }
-        let data; try { data = JSON.parse(text); } catch { data = {}; }
-        const page_items = data.items || data.catalog_items || [];
-        if (!page_items.length) break;
-        pageItems_all.push(...page_items);
-        console.log(`[sync-inventory] catalog page ${page}: ${page_items.length} items (auth=${withAuth})`);
-        if (page_items.length < 96) break;
-      }
-      return { items: pageItems_all, authFailed };
-    };
-
-    try {
-      // First attempt: with auth token (gives richer data if token is valid)
-      const attempt1 = await catalogFetch(true);
-      if (attempt1.items.length > 0) {
-        raw = attempt1.items;
-        console.log(`[sync-inventory] catalog (auth): ${raw.length} items for seller ${sellerId}`);
-      } else if (attempt1.authFailed || !rawToken) {
-        // Retry anonymously — catalog is public, no token needed
-        console.log('[sync-inventory] retrying catalog without auth token');
-        const attempt2 = await catalogFetch(false);
-        raw = attempt2.items;
         if (raw.length > 0) {
-          console.log(`[sync-inventory] catalog (anon): ${raw.length} items for seller ${sellerId}`);
-        } else {
-          console.log('[sync-inventory] catalog returned 0 items (both auth and anon)');
+          console.log(`[sync-inventory] REST API: ${raw.length} items for seller ${sellerId}`);
         }
-      } else {
-        console.log(`[sync-inventory] catalog returned 0 items for seller ${sellerId}`);
+      } catch (e) {
+        console.warn('[sync-inventory] REST API error:', e.message);
       }
-    } catch (e) {
-      console.warn('[sync-inventory] catalog fetch error:', e.message);
+    } else {
+      console.log('[sync-inventory] no valid token — skipping REST API, trying Apify');
     }
   }
 
-  // Playwright fallback — browser-based catalog scrape (slower, heavier)
+  // ── Strategy 2: Apify actor scrape (no token needed) ─────────────────────────
+  // Uses the configured Apify actor/task to scrape the user's public profile page.
+  // Works even when the access token is expired — residential proxy bypasses DataDome.
+  if (!raw.length && APIFY_TOKEN && (sellerId || conn.platform_username)) {
+    try {
+      console.log(`[sync-inventory] trying Apify for ${sellerId || conn.platform_username}`);
+      const apifyItems = await apifyVintedFetchUserItems(sellerId || conn.platform_username, base);
+      if (apifyItems.length > 0) {
+        raw = apifyItems;
+        console.log(`[sync-inventory] Apify: ${raw.length} items for ${sellerId || conn.platform_username}`);
+      } else {
+        console.log('[sync-inventory] Apify returned 0 items');
+      }
+    } catch (e) {
+      console.warn('[sync-inventory] Apify error:', e.message);
+    }
+  }
+
+  // ── Strategy 3: Playwright fallback ──────────────────────────────────────────
   if (!raw.length && sellerId && vintedBrowser?.vintedBrowserFetchPublicUserItems) {
     try {
       const br = await vintedBrowser.vintedBrowserFetchPublicUserItems(sellerId);
       if (br.items?.length > 0) {
         raw = br.items;
-        console.log(`[sync-inventory] Playwright fallback: ${raw.length} items for seller ${sellerId}`);
+        console.log(`[sync-inventory] Playwright: ${raw.length} items for seller ${sellerId}`);
       } else {
-        console.warn('[sync-inventory] Playwright fallback also returned 0 items');
+        console.warn('[sync-inventory] Playwright also returned 0 items');
       }
     } catch (e) {
-      console.warn('[sync-inventory] Playwright fallback threw:', e.message);
+      console.warn('[sync-inventory] Playwright error:', e.message);
     }
   }
 
@@ -4767,15 +4766,22 @@ async function syncVintedInventoryForUser(userId) {
 
   console.log(`[sync-inventory] ${live.length}/${raw.length} items kept for @${connUsername}`);
 
-  // If actor returned nothing, preserve the existing snapshot items but still
-  // stamp last_synced so the dashboard stops showing "syncing" indefinitely.
+  // If all fetch strategies returned nothing, preserve the existing snapshot
+  // items but still stamp last_synced so the dashboard stops showing "syncing".
   if (raw.length === 0) {
-    console.warn(`[sync-inventory] actor returned 0 items for @${connUsername}`);
+    const rawToken = conn.access_token ? decryptToken(conn.access_token) : '';
+    const hasToken = rawToken && rawToken.length >= 20;
+    const note = !hasToken
+      ? 'no valid Vinted token — paste a fresh access_token_web on the Platforms page'
+      : !APIFY_TOKEN
+        ? 'token may be expired and no Apify fallback configured'
+        : 'all fetch strategies returned 0 items — check Apify actor and proxy config';
+    console.warn(`[sync-inventory] 0 items for @${connUsername}: ${note}`);
     const prevSnap0 = (await getSetting(`vinted_inventory_${userId}`)) || { items: [] };
     await saveSetting(`vinted_inventory_${userId}`, {
       items: prevSnap0.items || [],
       last_synced: new Date().toISOString(),
-      sync_note: 'actor returned 0 items',
+      sync_note: note,
     });
     return { ok: true, count: 0, sold_now: 0, actor_empty: true };
   }
