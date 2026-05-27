@@ -4650,26 +4650,67 @@ async function syncVintedInventoryForUser(userId) {
   const base = 'https://www.vinted.co.uk';
   console.log(`[sync-inventory] fetching items with identifier=${identifier}`);
 
-  // ── Fetch items: Playwright first (no Apify dependency), fall back to Apify ──
-  // Playwright loads the catalog page through a real browser (DataDome bypassed)
-  // and intercepts the XHR Vinted's frontend makes — the most reliable path.
-  // Apify is only used if Playwright returns nothing (e.g., browser not started yet).
+  // ── Fetch active listings via REST API (vFetch → residential proxy) ───────────
+  // Fastest and most reliable path: call /api/v2/users/{id}/items with the stored
+  // access token. Same proxy that the profit sync uses — DataDome bypassed.
+  // Only falls back to Playwright browser scraping if the API returns 0 or errors.
   let raw = [];
-  if (sellerId && vintedBrowser?.vintedBrowserFetchPublicUserItems) {
+
+  if (sellerId) {
+    const rawToken = conn.access_token ? decryptToken(conn.access_token) : '';
+    if (rawToken) {
+      try {
+        const vintedBase = await getVintedBase();
+        const headers    = VINTED_HEADERS(rawToken, vintedBase);
+        // Paginate up to 3 pages (300 items) for the active listings
+        for (let page = 1; page <= 3; page++) {
+          const r = await vFetch(
+            `${vintedBase}/api/v2/users/${sellerId}/items?per_page=100&page=${page}&order=newest_first`,
+            { headers, signal: AbortSignal.timeout(12000) }
+          );
+          const text = await r.text();
+          if (/datadome|captcha/i.test(text)) {
+            console.warn('[sync-inventory] DataDome blocked REST API — falling back to Playwright');
+            break;
+          }
+          if (r.status === 401 || r.status === 403) {
+            console.warn(`[sync-inventory] REST API auth error ${r.status} — token may be expired`);
+            break;
+          }
+          let data; try { data = JSON.parse(text); } catch { data = {}; }
+          const pageItems = data.items || [];
+          if (!pageItems.length) break;
+          raw.push(...pageItems);
+          if (pageItems.length < 100) break;
+        }
+        if (raw.length > 0) {
+          console.log(`[sync-inventory] REST API: ${raw.length} active items for seller ${sellerId}`);
+        } else {
+          console.log(`[sync-inventory] REST API returned 0 items — falling back to Playwright`);
+        }
+      } catch (e) {
+        console.warn('[sync-inventory] REST API error:', e.message, '— falling back to Playwright');
+      }
+    }
+  }
+
+  // Playwright fallback — browser-based catalog scrape (slower, heavier)
+  if (!raw.length && sellerId && vintedBrowser?.vintedBrowserFetchPublicUserItems) {
     try {
       const br = await vintedBrowser.vintedBrowserFetchPublicUserItems(sellerId);
       if (br.items?.length > 0) {
         raw = br.items;
-        console.log(`[sync-inventory] Playwright fetch: ${raw.length} items for seller ${sellerId}`);
-      } else if (br.error) {
-        console.warn(`[sync-inventory] Playwright fetch error: ${br.error}`);
+        console.log(`[sync-inventory] Playwright fallback: ${raw.length} items for seller ${sellerId}`);
+      } else {
+        console.warn('[sync-inventory] Playwright fallback also returned 0 items');
       }
     } catch (e) {
-      console.warn('[sync-inventory] Playwright fetch threw:', e.message);
+      console.warn('[sync-inventory] Playwright fallback threw:', e.message);
     }
   }
+
   if (!raw.length) {
-    console.log(`[sync-inventory] Playwright returned nothing — no Apify fallback, aborting sync`);
+    console.log(`[sync-inventory] all fetch methods returned 0 items for seller ${sellerId || conn.platform_username}`);
   }
 
   // Filter items to the connected user only when the actor returns seller info.
