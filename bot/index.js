@@ -4972,15 +4972,43 @@ app.post('/api/vinted/save-token', async (req, res) => {
   });
   if (!save.ok) return res.status(500).json({ error: save.error || 'Could not save token.' });
 
-  const expiresMsg = jwtPayload.exp
-    ? ` (expires ${new Date(jwtPayload.exp * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })})`
-    : '';
   console.log(`[vinted-token] saved for user ${user.id} (@${conn.platform_username}) valid=${validation.valid} exp=${jwtPayload.exp || 'unknown'}`);
+
+  // ── 5. Live probe — confirm the FULL chain (token + residential proxy) works ──
+  // Hit the catalog endpoint once with the fresh token. This is exactly what the
+  // inventory sync does, so the result tells the user immediately whether their
+  // account-linked features will work — or whether the proxy is the blocker.
+  let probe = { ok: null };
+  if (resolvedUserId) {
+    try {
+      const vintedBase = await getVintedBase();
+      const r = await vFetch(
+        `${vintedBase}/api/v2/catalog/items?seller_ids[]=${resolvedUserId}&per_page=20&page=1&order=newest_first`,
+        { headers: VINTED_HEADERS(token, vintedBase), signal: AbortSignal.timeout(12000) }
+      );
+      const text = await r.text();
+      if (/datadome|captcha/i.test(text)) {
+        probe = { ok: false, reason: 'datadome', message: 'Token works, but Vinted (DataDome) blocked the request from the server. This is a residential-proxy issue (PROXY_URL), not your token.' };
+      } else if (r.status === 401 || r.status === 403) {
+        probe = { ok: false, reason: 'auth', message: 'Vinted rejected the token immediately. Copy a fresh access_token_web (you may have grabbed an old/partial value).' };
+      } else {
+        let data; try { data = JSON.parse(text); } catch { data = {}; }
+        const n = (data.items || data.catalog_items || []).length;
+        probe = { ok: true, items_found: n, message: n > 0 ? `Found ${n} active listing${n !== 1 ? 's' : ''}.` : 'Token works, but no active listings were returned.' };
+      }
+    } catch (e) {
+      probe = { ok: false, reason: 'network', message: `Couldn't reach Vinted: ${e.message}` };
+    }
+  }
+
+  // Kick off full inventory + profit sync in the background so data populates now.
+  syncVintedInventoryForUser(user.id).catch(e => console.warn('[save-token] inventory sync:', e.message));
 
   res.json({
     ok:      true,
     expires: jwtPayload.exp ? new Date(jwtPayload.exp * 1000).toISOString() : null,
     warning: validation.valid === null ? validation.warning : undefined,
+    probe,
   });
 });
 

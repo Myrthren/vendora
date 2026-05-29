@@ -4863,9 +4863,19 @@
       const json = await res.json();
       if (!res.ok) showMsg(msgEl, 'error', json.error || 'Could not save token.');
       else {
-        showMsg(msgEl, 'success', 'Token saved — auto-listing is now enabled.');
         if (input) input.value = '';
+        // The backend now live-probes the full chain (token + proxy) and returns it.
+        const p = json.probe || {};
+        if (p.ok === true) {
+          showMsg(msgEl, 'success', `✓ Token saved and verified. ${p.message || ''} Inventory & Profit are syncing now.`);
+        } else if (p.ok === false) {
+          showMsg(msgEl, 'error', `Token saved, but a test fetch failed: ${p.message || 'unknown'}`);
+        } else {
+          showMsg(msgEl, 'success', 'Token saved. Inventory & Profit will sync shortly.');
+        }
         loadPlatformStatus();
+        // Refresh the data panels after the background sync has had a moment.
+        setTimeout(() => { try { loadInventory(); loadProfitSync(); } catch {} }, 6000);
       }
     } catch { showMsg(msgEl, 'error', 'Network error.'); }
     if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
