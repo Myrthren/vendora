@@ -475,55 +475,74 @@ async function searchDepop(query) {
 const APIFY_VINTED_ACTOR      = process.env.APIFY_VINTED_ACTOR      || 'epicscrapers~vinted-search-scraper';
 const APIFY_VINTED_USER_ACTOR = process.env.APIFY_VINTED_USER_ACTOR || 'kazkn~vinted-smart-scraper';
 
-async function apifyVintedSearch(query, maxItems = 12) {
+// Run the configured Apify Vinted actor/task with a given input object.
+// Handles both Actor ("user~name") and Task ("user~name-task") endpoints —
+// tries the actor endpoint first, falls back to the task endpoint on 404.
+// Returns the dataset array, or null on failure.
+async function apifyRunVinted(input, timeoutSec = 90) {
   if (!APIFY_TOKEN) return null;
-
-  const body = JSON.stringify({
-    search: query, keyword: query, keywords: [query], query,
-    maxItems, maxResults: maxItems,
-    country: 'gb', countryCode: 'gb',
-    startUrls: [`https://www.vinted.co.uk/catalog?search_text=${encodeURIComponent(query)}`],
-  });
+  const rawId   = APIFY_VINTED_ACTOR;
+  const tildeId = rawId.replace('/', '~');
   const fetchOpts = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body,
-    signal: AbortSignal.timeout(95000),
+    body: JSON.stringify(input),
+    signal: AbortSignal.timeout((timeoutSec + 5) * 1000),
   };
-
-  // Build candidate URLs — try as Actor first, then as Task.
-  // Apify actor IDs use tilde: "user~name". If the env var uses a slash ("user/name")
-  // or has a "-task" suffix, it's likely an Apify Task — tasks use /v2/actor-tasks/.
-  const rawId   = APIFY_VINTED_ACTOR;
-  const tildeId = rawId.replace('/', '~');               // "user/name" → "user~name"
   const candidates = [
-    `https://api.apify.com/v2/acts/${rawId}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=90`,
-    `https://api.apify.com/v2/actor-tasks/${tildeId}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=90`,
+    `https://api.apify.com/v2/acts/${rawId}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=${timeoutSec}`,
+    `https://api.apify.com/v2/actor-tasks/${tildeId}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=${timeoutSec}`,
   ];
-
   for (const url of candidates) {
     try {
       const res = await fetch(url, fetchOpts);
-      if (res.status === 404) { console.warn(`[apify] 404 for ${url.split('?')[0]} — trying next`); continue; }
-      if (!res.ok) { console.warn(`[apify] Vinted search failed (${res.status}) for "${query}"`); return null; }
-      const items = await res.json();
-      if (!Array.isArray(items)) return null;
-      return items.slice(0, maxItems).map(i => ({
-        id:        String(i.id || i.itemId || ''),
-        title:     i.title || i.name || '',
-        price:     i.price != null ? `£${parseFloat(i.price).toFixed(2)}` : (i.priceNumeric ? `£${parseFloat(i.priceNumeric).toFixed(2)}` : '—'),
-        priceNum:  parseFloat(i.price || i.priceNumeric || 0) || 0,
-        url:       i.url || i.itemUrl || '',
-        brand:     i.brand || i.brandTitle || '',
-        condition: i.status || i.condition || '',
-        photo:     i.photo || i.photoUrl || i.thumbnailUrl || '',
-      }));
+      if (res.status === 404) { console.warn(`[apify] 404 for ${url.split('?')[0]} — trying next endpoint`); continue; }
+      if (!res.ok) { console.warn(`[apify] run failed (${res.status})`); return null; }
+      const data = await res.json();
+      return Array.isArray(data) ? data : null;
     } catch (e) {
-      console.warn('[apify] Vinted search error:', e.message);
+      console.warn('[apify] run error:', e.message);
       return null;
     }
   }
   return null;
+}
+
+// Map a kazkn/vinted-smart-scraper output item to our internal shape.
+function mapApifyVintedItem(i) {
+  const photo = Array.isArray(i.photos) ? (i.photos[0] || '')
+    : (i.photo || i.photoUrl || i.thumbnailUrl || '');
+  const cur = (i.currency || '').toUpperCase();
+  const sym = cur === 'GBP' ? '£' : cur === 'EUR' ? '€' : (cur ? cur + ' ' : '£');
+  const num = parseFloat(i.price ?? i.priceNumeric ?? 0) || 0;
+  return {
+    id:        String(i.id || i.itemId || ''),
+    title:     i.title || i.name || '',
+    price:     num ? `${sym}${num.toFixed(2)}` : '—',
+    priceNum:  num,
+    currency:  cur || 'GBP',
+    url:       i.url || i.itemUrl || '',
+    brand:     i.brand || i.brandTitle || '',
+    condition: i.condition || i.status || '',
+    photo,
+    sellerName: i.seller?.username || '',
+    sellerId:   String(i.seller?.id || ''),
+  };
+}
+
+// Keyword search via the Vinted actor's SEARCH mode (no Vinted token needed —
+// uses Apify residential proxies). Powers Auto-Buy, /vinted-alert, /scan.
+async function apifyVintedSearch(query, maxItems = 12) {
+  if (!APIFY_TOKEN) return null;
+  const items = await apifyRunVinted({
+    mode: 'SEARCH',
+    query,
+    countries: ['uk'],
+    maxItems,
+    includePhotos: true,
+  }, 90);
+  if (!Array.isArray(items)) return null;
+  return items.slice(0, maxItems).map(mapApifyVintedItem);
 }
 
 // Fetch a specific Vinted item by URL or ID via Apify residential proxy.
@@ -2963,6 +2982,11 @@ function encryptToken(text) {
 }
 
 function decryptToken(enc) {
+  if (!enc) return '';
+  // Encrypted values are "ivHex:tagHex:dataHex" (three hex segments, no dots).
+  // A raw/plaintext token (e.g. a JWT) contains dots and no colons — pass it through.
+  const looksEncrypted = enc.includes(':') && !enc.includes('.');
+  if (!looksEncrypted) return enc; // plaintext / legacy token
   try {
     const [ivHex, tagHex, dataHex] = enc.split(':');
     const iv      = Buffer.from(ivHex, 'hex');
@@ -2971,7 +2995,14 @@ function decryptToken(enc) {
     const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPT_KEY, iv);
     decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
-  } catch { return enc; }
+  } catch {
+    // Decryption failed — almost always means ENCRYPT_KEY (derived from
+    // SUPABASE_SERVICE_KEY) changed since the token was saved. Return empty
+    // so callers treat it as "no token / reconnect" instead of sending the
+    // ciphertext as a Bearer token (which causes confusing 401s).
+    console.warn('[decrypt] token decryption failed — key may have changed; treating as missing');
+    return '';
+  }
 }
 
 // ── Platform connection DB helpers ────────────────────────────────────────────
@@ -4711,25 +4742,14 @@ async function syncVintedInventoryForUser(userId) {
     }
   }
 
-  // ── Strategy 2: Apify actor scrape (no token needed) ─────────────────────────
-  // Uses the configured Apify actor/task to scrape the user's public profile page.
-  // Works even when the access token is expired — residential proxy bypasses DataDome.
-  if (!raw.length && APIFY_TOKEN && (sellerId || conn.platform_username)) {
-    try {
-      console.log(`[sync-inventory] trying Apify for ${sellerId || conn.platform_username}`);
-      const apifyItems = await apifyVintedFetchUserItems(sellerId || conn.platform_username, base);
-      if (apifyItems.length > 0) {
-        raw = apifyItems;
-        console.log(`[sync-inventory] Apify: ${raw.length} items for ${sellerId || conn.platform_username}`);
-      } else {
-        console.log('[sync-inventory] Apify returned 0 items');
-      }
-    } catch (e) {
-      console.warn('[sync-inventory] Apify error:', e.message);
-    }
-  }
+  // NOTE: The Apify "kazkn/vinted-smart-scraper" actor CANNOT list a specific
+  // seller's active items — SELLER_PROFILE mode returns profile stats with an
+  // empty items[] array, and SEARCH/SOLD modes ignore the seller filter.
+  // So there is NO token-free way to fetch a seller's listings. Inventory
+  // depends on the REST API path above (valid token + residential proxy).
+  // Playwright is the only non-token fallback, and it usually fails on Railway.
 
-  // ── Strategy 3: Playwright fallback ──────────────────────────────────────────
+  // ── Strategy 2: Playwright fallback (last resort) ────────────────────────────
   if (!raw.length && sellerId && vintedBrowser?.vintedBrowserFetchPublicUserItems) {
     try {
       const br = await vintedBrowser.vintedBrowserFetchPublicUserItems(sellerId);
