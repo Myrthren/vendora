@@ -1223,7 +1223,7 @@
             <button id="vinted-token-clear-btn" onclick="clearVintedToken()" class="btn btn-ghost btn-sm" style="display:none;font-size:11px;padding:5px 10px;color:var(--red);border-color:rgba(248,113,113,0.25);">Clear</button>
           </div>
           <div style="font-size:12px;color:var(--muted2);line-height:1.6;margin-bottom:12px;">
-            Paste your <code style="background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px;font-size:11px;">access_token_web</code> cookie to enable auto-listing. Get it from <strong style="color:var(--text);">F12 → Application → Cookies → www.vinted.co.uk</strong>. Tokens last ~30 days.
+            Paste your <code style="background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px;font-size:11px;">access_token_web</code> cookie to enable <strong style="color:var(--text);">Inventory sync, Profit tracking and auto-listing</strong>. Get it from <strong style="color:var(--text);">F12 → Application → Cookies → www.vinted.co.uk</strong>. Vinted login tokens are short-lived — if a sync says "token expired", just paste a fresh one here.
           </div>
           <div style="display:flex;gap:8px;">
             <input id="vinted-token-input" type="password" placeholder="Paste access_token_web cookie value (eyJ…)" style="flex:1;background:var(--bg4);border:1px solid var(--border-dim);border-radius:6px;padding:9px 12px;font-size:12px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;transition:border .15s;" onfocus="this.style.borderColor='rgba(9,177,186,0.4)'" onblur="this.style.borderColor=''" onkeydown="if(event.key==='Enter')saveVintedToken()">
@@ -4369,12 +4369,22 @@
     if (!tbody) return;
     if (!items || items.length === 0) {
       let msg;
+      const tok = window._vintedTokenState || {};
+      const platLink = `<a href="#" onclick="showSection('platforms',document.querySelector('[onclick*=platforms]'));return false;" style="color:var(--pink);text-decoration:none;font-weight:600;">Platforms → paste a fresh token</a>`;
+      const tokenExpired = tok.has_token && tok.token_valid === false;
+      const noToken      = connected && !tok.has_token;
       if (!connected) {
         msg = 'Connect Vinted on the Platforms page to populate your inventory automatically.';
       } else if (syncing) {
         msg = '<span style="color:var(--pink);">⟳ Fetching your Vinted listings… this takes up to 60 seconds.</span>';
+      } else if (tokenExpired) {
+        msg = `<span style="color:#f87171;">⚠ Your Vinted token has expired.</span><br>Vinted login tokens are short-lived. Go to ${platLink} to restore inventory sync.`;
+      } else if (noToken) {
+        msg = `Inventory needs your Vinted login token (the public API can't list your items without it). Go to ${platLink} to enable it.`;
+      } else if (sync_note && /token/i.test(sync_note)) {
+        msg = `<span style="color:#f87171;">⚠ ${sync_note}.</span><br>Go to ${platLink}.`;
       } else if (sync_note) {
-        msg = `No listings found during last sync. This can happen if your Vinted account has no public items, or if the scraper couldn't reach your profile. <a href="#" onclick="syncInventory();return false;" style="color:var(--pink);">Try syncing again</a>.`;
+        msg = `No listings found during last sync (${sync_note}). <a href="#" onclick="syncInventory();return false;" style="color:var(--pink);">Try again</a>.`;
       } else {
         msg = 'No active Vinted listings found. Click <strong>Sync now</strong> to retry.';
       }
@@ -4720,7 +4730,13 @@
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         const reason = json.error || json.reason || 'unknown error';
-        if (sEl) sEl.textContent = `Sync failed: ${reason}`;
+        if (sEl) {
+          if (json.token_expired) {
+            sEl.innerHTML = `<span style="color:#f87171;">${reason}</span> <a href="#" onclick="showSection('platforms',document.querySelector('[onclick*=platforms]'));return false;" style="color:var(--pink);font-weight:600;">Go to Platforms</a>`;
+          } else {
+            sEl.textContent = `Sync failed: ${reason}`;
+          }
+        }
         if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
         return;
       }
@@ -4942,12 +4958,28 @@
           const input    = document.getElementById('vinted-token-input');
           if (card) card.style.display = connected ? '' : 'none';
           if (statusEl) {
-            const has = !!(info && info.has_token);
-            statusEl.textContent = has ? '● Token saved' : '○ Not set';
-            statusEl.style.color = has ? 'var(--green)' : 'var(--muted)';
+            const has     = !!(info && info.has_token);
+            const valid   = info && info.token_valid;        // true / false / null
+            const expISO  = info && info.token_expires_at;
+            const expTxt  = expISO ? new Date(expISO).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+            if (!has) {
+              statusEl.textContent = '○ No token — paste one to enable Inventory & Profit sync';
+              statusEl.style.color = 'var(--muted)';
+            } else if (valid === false) {
+              statusEl.textContent = `⚠ Token EXPIRED${expTxt ? ' ('+expTxt+')' : ''} — paste a fresh one to restore Inventory & Profit`;
+              statusEl.style.color = '#f87171';
+            } else if (valid === true) {
+              statusEl.textContent = `● Token active${expTxt ? ' · expires '+expTxt : ''}`;
+              statusEl.style.color = 'var(--green)';
+            } else {
+              statusEl.textContent = '● Token saved';
+              statusEl.style.color = 'var(--green)';
+            }
             if (clearBtn) clearBtn.style.display = has ? '' : 'none';
             if (input && has) input.placeholder = 'Token saved — paste a new one to replace';
           }
+          // Expose token state globally so Inventory/Profit sections can warn too
+          window._vintedTokenState = { has_token: !!(info && info.has_token), token_valid: info && info.token_valid, token_expires_at: info && info.token_expires_at };
         }
       });
     } catch (e) {

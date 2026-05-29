@@ -5033,20 +5033,26 @@ app.post('/api/vinted/sync-profit', async (req, res) => {
   // to prevent request timeouts on very large seller accounts.
   let rawToken = decryptToken(conn.access_token || '');
   if (!rawToken || rawToken.length < 20) {
-    return res.status(400).json({ error: 'No session token saved. Go to Platforms → connect your Vinted account to enable profit sync.' });
+    return res.status(400).json({ error: 'No valid Vinted session token. Go to Platforms → paste a fresh access_token_web to enable profit sync.', token_expired: true });
   }
 
-  // Resolve seller ID — use stored value, fall back to decoding the JWT payload
+  // Resolve seller ID + check expiry — decode the JWT payload once.
   let userId = conn.platform_user_id || '';
-  if (!userId) {
-    try {
-      const parts = rawToken.split('.');
-      if (parts.length === 3) {
-        const p = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-        userId = String(p.user_id || p.sub || p.id || p.uid || '').replace(/\D/g, '');
+  try {
+    const parts = rawToken.split('.');
+    if (parts.length === 3) {
+      const p = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+      if (!userId) userId = String(p.user_id || p.sub || p.id || p.uid || '').replace(/\D/g, '');
+      // Reject expired tokens up front with a clear, actionable message.
+      if (p.exp && p.exp < Math.floor(Date.now() / 1000)) {
+        const when = new Date(p.exp * 1000).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+        return res.status(401).json({
+          error: `Your Vinted token expired (${when}). Vinted login tokens are short-lived — go to Platforms and paste a fresh access_token_web cookie to sync your sales.`,
+          token_expired: true,
+        });
       }
-    } catch {}
-  }
+    }
+  } catch {}
   if (!userId) {
     return res.status(400).json({ error: 'Could not determine your Vinted seller ID. Please disconnect and reconnect your Vinted account from the Platforms page.' });
   }
@@ -5168,15 +5174,33 @@ app.get('/api/platform/status', async (req, res) => {
     const conn = await getPlatformConn(user.id, p);
     if (conn) {
       let hasToken = false;
+      let tokenValid = null;      // true / false / null(unknown)
+      let tokenExpiresAt = null;
       try {
         const tok = decryptToken(conn.access_token || '');
         hasToken = !!(tok && tok.length >= 20);
+        // For Vinted, decode the JWT exp claim so the dashboard can warn the
+        // user before/after the token expires (Vinted access_token_web is short-lived).
+        if (hasToken && p === 'vinted') {
+          const parts = tok.split('.');
+          if (parts.length === 3) {
+            try {
+              const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+              if (payload.exp) {
+                tokenExpiresAt = new Date(payload.exp * 1000).toISOString();
+                tokenValid = payload.exp > Math.floor(Date.now() / 1000);
+              }
+            } catch {}
+          }
+        }
       } catch { hasToken = false; }
       connections[p] = {
         connected: true,
         username:  conn.platform_username,
         connected_at: conn.connected_at,
         has_token: hasToken,
+        token_valid: tokenValid,
+        token_expires_at: tokenExpiresAt,
       };
     } else {
       connections[p] = { connected: false };
