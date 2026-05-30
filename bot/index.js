@@ -2781,6 +2781,8 @@ function discordIdFromUser(user) {
 // a background sync and returns syncing:true so the dashboard can show a spinner.
 app.get('/api/inventory', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
+  const profile = await getProfileByUserId(user.id);
+  if (!profile || TIER_RANK[profile.tier] < TIER_RANK.pro) return res.status(403).json({ error: 'Pro subscription required.' });
   const conn = await getPlatformConn(user.id, 'vinted');
   if (!conn) return res.json({ ok: true, items: [], connected: false });
   const snap = (await getSetting(`vinted_inventory_${user.id}`)) || { items: [], last_synced: null };
@@ -5045,6 +5047,8 @@ app.delete('/api/vinted/save-token', async (req, res) => {
 // POST /api/vinted/sync-inventory — force an immediate sync
 app.post('/api/vinted/sync-inventory', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
+  const profile = await getProfileByUserId(user.id);
+  if (!profile || TIER_RANK[profile.tier] < TIER_RANK.pro) return res.status(403).json({ error: 'Pro subscription required.' });
   const r = await syncVintedInventoryForUser(user.id);
   if (!r.ok) return res.status(400).json({ error: r.reason || 'sync failed' });
   res.json({ ok: true, ...r });
@@ -6113,6 +6117,8 @@ async function watchlistImmediateFetch(itemId, url) {
 
 app.get('/api/watchlist', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
+  const profile = await getProfileByUserId(user.id);
+  if (!profile || TIER_RANK[profile.tier] < TIER_RANK.basic) return res.status(403).json({ error: 'Subscription required.' });
   const discordId = user.user_metadata?.provider_id
     || user.identities?.find(i => i.provider === 'discord')?.id || '';
   const items = await dbGetWatchlist(discordId);
@@ -6122,6 +6128,8 @@ app.get('/api/watchlist', async (req, res) => {
 
 app.post('/api/watchlist', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
+  const profile = await getProfileByUserId(user.id);
+  if (!profile || TIER_RANK[profile.tier] < TIER_RANK.basic) return res.status(403).json({ error: 'Subscription required.' });
   const discordId = user.user_metadata?.provider_id
     || user.identities?.find(i => i.provider === 'discord')?.id || '';
   const { item } = req.body || {};
@@ -6741,6 +6749,62 @@ app.post('/api/admin/announce/channel', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// GET /api/_debug/diag2 — service-key-gated. Probes sold-items endpoints (profit)
+// and watchlist enrichment. Temporary; removed once profit/watchlist confirmed.
+const BUILD_MARKER2 = 'diag2-2026-05-30-a';
+app.get('/api/_debug/diag2', async (req, res) => {
+  const key = req.headers['x-debug-key'] || req.query.key;
+  if (!SUPABASE_KEY || key !== SUPABASE_KEY) return res.status(403).json({ error: 'forbidden' });
+  const out = { build_marker: BUILD_MARKER2 };
+
+  // Find the vinted connection + token
+  let sid = '', tok = '', uid = '';
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/platform_connections?platform=eq.vinted&select=user_id,platform_user_id,access_token&limit=1`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
+    const rows = await r.json();
+    if (rows?.[0]) { sid = rows[0].platform_user_id; uid = rows[0].user_id; tok = decryptToken(rows[0].access_token || ''); }
+  } catch (e) { out.conn_error = e.message; }
+
+  if (sid && tok) {
+    const base = await getVintedBase();
+    const hdrs = VINTED_HEADERS(tok, base);
+    const probe = async (path) => {
+      try {
+        const r = await vFetch(`${base}${path}`, { headers: hdrs, signal: AbortSignal.timeout(12000) });
+        const text = await r.text();
+        if (/datadome|captcha/i.test(text)) return { status: r.status, blocked: true };
+        let d; try { d = JSON.parse(text); } catch { d = null; }
+        const items = d?.items || d?.orders || d?.feedbacks || [];
+        const statuses = [...new Set(items.slice(0,20).map(it => it.is_sold ?? it.status ?? it.state))].slice(0,5);
+        return { status: r.status, count: items.length, statuses, keys: d ? Object.keys(d).slice(0,6) : null };
+      } catch (e) { return { error: e.message }; }
+    };
+    out.sold_probes = {
+      wardrobe_filter:  await probe(`/api/v2/wardrobe/${sid}/items?status=sold&per_page=20`),
+      user_feedbacks:   await probe(`/api/v2/users/${sid}/feedbacks?per_page=20&page=1`),
+      my_orders:        await probe(`/api/v2/my_orders?per_page=20&type=sold`),
+      transactions:     await probe(`/api/v2/transactions?per_page=20`),
+    };
+  } else {
+    out.sold_probes = { skipped: 'no decryptable token/seller' };
+  }
+
+  // Watchlist test
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/watchlist?select=*&limit=50`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
+    const rows = await r.json();
+    out.watchlist = { total_rows: Array.isArray(rows) ? rows.length : rows };
+    if (Array.isArray(rows) && rows.length) {
+      const enriched = await enrichWatchlistItems(rows.slice(0, 3));
+      out.watchlist.sample = (enriched || []).map(e => ({ item: (e.item||'').slice(0,40), price: e.current_price ?? e.price ?? null, name: e.product_name || e.title || null }));
+    }
+  } catch (e) { out.watchlist = { error: e.message }; }
+
+  res.json(out);
 });
 
 // GET /api/announcement — public, returns active site banner or null
@@ -7658,7 +7722,7 @@ No markdown, just JSON.`;
 app.get('/api/resell/calendar', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const profile = await getProfileByUserId(user.id);
-  if (!profile || TIER_RANK[profile.tier] < TIER_RANK.pro) return res.status(403).json({ error: 'Pro subscription required.' });
+  if (!profile || TIER_RANK[profile.tier] < TIER_RANK.basic) return res.status(403).json({ error: 'Subscription required.' });
 
   const category = req.query.category || 'all';
   const catQuery = category === 'all' ? 'sneakers streetwear luxury' : category;

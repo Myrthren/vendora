@@ -773,15 +773,15 @@
       Auto-List
       <span style="margin-left:auto;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);">Soon</span>
     </div>
-    <div class="nav-item" id="inventory-nav-item" onclick="showSection('inventory', this)" style="opacity:0.38;">
+    <div class="nav-item" id="inventory-nav-item" onclick="showSection('inventory', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
       Inventory
-      <span style="margin-left:auto;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);">Soon</span>
+      <span class="nav-item-badge" style="margin-left:auto;font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(232,33,122,0.15);color:var(--pink);font-weight:700;letter-spacing:.04em;">PRO</span>
     </div>
-    <div class="nav-item" id="autobuy-nav-item" onclick="showSection('autobuy', this)" style="opacity:0.38;">
+    <div class="nav-item" id="autobuy-nav-item" onclick="showSection('autobuy', this)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       Auto-Buy
-      <span style="margin-left:auto;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);">Soon</span>
+      <span class="nav-item-badge" style="margin-left:auto;font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(232,33,122,0.15);color:var(--pink);font-weight:700;letter-spacing:.04em;">PRO</span>
     </div>
 
     <!-- Active tools -->
@@ -1311,38 +1311,58 @@
     <div class="section" id="section-inventory">
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
-        <div class="page-title">Inventory</div>
-        <div class="page-sub">Your live Vinted listings — synced automatically every 6 hours. Photos, prices, and status all in one place.</div>
+        <div class="page-title">Inventory <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(232,33,122,0.14);color:var(--pink);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Pro+</span></div>
+        <div class="page-sub">Your live Vinted listings — synced automatically every 6 hours. Tap <strong style="color:var(--pink);">AI</strong> on any listing for pricing &amp; visibility tips.</div>
       </div>
 
-      <!-- Status card -->
-      <div class="card" style="margin-bottom:16px;">
-        <div style="display:flex;align-items:center;gap:12px;">
-          <div id="inv-status-dot" style="width:10px;height:10px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:background .3s;"></div>
-          <div style="flex:1;min-width:0;">
-            <div id="inv-status-title" style="font-size:13px;font-weight:600;">Loading…</div>
-            <div id="inv-status-sub" style="font-size:12px;color:var(--muted);margin-top:2px;"></div>
+      <div id="inv-gate" style="display:none;"><div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px;text-align:center;"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">Pro Feature</div><div style="font-size:13px;color:var(--muted2);max-width:320px;">Inventory sync and AI listing analysis are available on the Pro and Elite plans.</div><button class="btn btn-primary btn-sm" onclick="showSection('subscription',document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Pro</button></div></div>
+
+      <div id="inv-tool">
+        <!-- Status card -->
+        <div class="card" style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div id="inv-status-dot" style="width:10px;height:10px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:background .3s;"></div>
+            <div style="flex:1;min-width:0;">
+              <div id="inv-status-title" style="font-size:13px;font-weight:600;">Loading…</div>
+              <div id="inv-status-sub" style="font-size:12px;color:var(--muted);margin-top:2px;"></div>
+            </div>
+            <button id="inv-sync-btn" class="btn btn-pink btn-sm" onclick="syncInventory()" disabled>Sync now</button>
           </div>
-          <button id="inv-sync-btn" class="btn btn-pink btn-sm" onclick="syncInventory()" disabled>Sync now</button>
+        </div>
+
+        <!-- Listings table -->
+        <div class="card" style="padding:0;overflow:hidden;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:48px;"></th>
+                <th>Title</th>
+                <th>Price</th>
+                <th>Status</th>
+                <th style="width:64px;text-align:center;">AI</th>
+              </tr>
+            </thead>
+            <tbody id="inventory-tbody">
+              <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Loading…</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <!-- Listings table -->
-      <div class="card" style="padding:0;overflow:hidden;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th style="width:48px;"></th>
-              <th>Title</th>
-              <th>Price</th>
-              <th>Status</th>
-              <th>Last seen</th>
-            </tr>
-          </thead>
-          <tbody id="inventory-tbody">
-            <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;">Loading…</td></tr>
-          </tbody>
-        </table>
+      <!-- AI suggestions modal -->
+      <div id="inv-ai-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.72);align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)closeInvAi()">
+        <div class="card" style="max-width:560px;width:100%;max-height:85vh;overflow-y:auto;">
+          <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;">
+            <div id="inv-ai-score" style="width:52px;height:52px;border-radius:50%;border:3px solid var(--pink);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:var(--pink);">—</div>
+            <div style="flex:1;min-width:0;">
+              <div id="inv-ai-title" style="font-size:14px;font-weight:700;color:var(--text);">Analysing…</div>
+              <div id="inv-ai-meta" style="font-size:12px;color:var(--muted);margin-top:2px;"></div>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="closeInvAi()" style="font-size:16px;line-height:1;">✕</button>
+          </div>
+          <div id="inv-ai-loading" style="padding:40px 20px;text-align:center;"><div class="spinner" style="width:26px;height:26px;margin:0 auto 12px;"></div><div style="font-size:13px;color:var(--muted);">Scanning your listing — pricing, title, photos, visibility…</div></div>
+          <div id="inv-ai-suggestions" style="display:flex;flex-direction:column;gap:10px;"></div>
+        </div>
       </div>
     </div>
 
@@ -1350,10 +1370,13 @@
     <div class="section" id="section-watchlist">
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
-        <div class="page-title">Smart Watchlist</div>
+        <div class="page-title">Smart Watchlist <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(96,165,250,0.14);color:#60a5fa;vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Basic+</span></div>
         <div class="page-sub">Paste a product link from Vinted, Depop, or eBay. Vendora tracks the price, sizes, and variants — and alerts you on Discord the moment anything changes.</div>
       </div>
 
+      <div id="wl-gate" style="display:none;"><div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px;text-align:center;"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">Subscription Required</div><div style="font-size:13px;color:var(--muted2);max-width:320px;">Smart Watchlist is available on all Vendora plans (Basic, Pro and Elite).</div><button class="btn btn-primary btn-sm" onclick="showSection('subscription',document.querySelector('.nav-item[onclick*=subscription]'))">View Plans</button></div></div>
+
+      <div id="wl-tool">
       <div class="card" style="margin-bottom:16px;">
         <div class="card-title" style="margin-bottom:6px;">Track a Product</div>
         <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5;">Paste a direct listing URL below. Works with Vinted, eBay, Depop, Shopify stores, and most resale platforms.</div>
@@ -1391,6 +1414,7 @@
           </tbody>
         </table>
       </div>
+      </div><!-- /wl-tool -->
     </div>
 
     <!-- ── CROSS-LIST ── -->
@@ -2061,7 +2085,7 @@
     <div class="section" id="section-autobuy">
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
-        <div class="page-title">Auto-Buy</div>
+        <div class="page-title">Auto-Buy <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(232,33,122,0.14);color:var(--pink);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Pro+</span></div>
         <div class="page-sub">Set keyword rules and a max price — Vendora monitors Vinted every 30 minutes and DMs you on Discord the instant a matching listing appears.</div>
       </div>
 
@@ -2961,14 +2985,17 @@
     initToolAccess('sintel-gate','sintel-tool', tier, 'basic', 'seller-intel-nav-item');
     initToolAccess('fscore-gate','fscore-tool', tier, 'pro', 'flip-score-nav-item');
     initToolAccess('pelast-gate','pelast-tool', tier, 'pro', 'price-elasticity-nav-item');
-    initToolAccess('rcal-gate','rcal-tool', tier, 'pro', 'resell-calendar-nav-item');
-    if (tier === 'pro' || tier === 'elite') rcalLoad();
+    initToolAccess('rcal-gate','rcal-tool', tier, 'basic', 'resell-calendar-nav-item');
+    initToolAccess('inv-gate','inv-tool', tier, 'pro', 'inventory-nav-item');
+    initToolAccess('wl-gate','wl-tool', tier, 'basic', 'watchlist-nav-item');
+    const rankNow = TIER_RANK_CLIENT[tier] || 0;
+    if (rankNow >= TIER_RANK_CLIENT.basic) rcalLoad();
     loadPlatformStatus();
     loadSiteBanner();
     loadNotificationPrefs();
     loadUsageStats();
-    loadInventory();
-    loadWatchlist();
+    if (rankNow >= TIER_RANK_CLIENT.pro)   loadInventory();
+    if (rankNow >= TIER_RANK_CLIENT.basic) loadWatchlist();
     ptRefresh();
     loadProfitSync();
     loadCreditsBalance(session);
@@ -4397,16 +4424,61 @@
       const status = item.status === 'sold'   ? `<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(232,33,122,0.15);color:var(--pink);font-weight:600;letter-spacing:.04em;">SOLD</span>`
                    : item.status === 'active' ? `<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(74,222,128,0.15);color:var(--green);font-weight:600;letter-spacing:.04em;">ACTIVE</span>`
                    : `<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--muted);font-weight:600;letter-spacing:.04em;">${(item.status || 'unknown').toUpperCase()}</span>`;
-      const seen   = item.last_seen_at ? new Date(item.last_seen_at).toLocaleDateString('en-GB',{ day:'2-digit', month:'short' }) : '—';
       const titleHtml = item.url ? `<a href="${item.url}" target="_blank" style="color:var(--text);text-decoration:none;">${item.title || item.item || '(untitled)'}</a>` : (item.title || item.item || '(untitled)');
+      const aiBtn = item.url
+        ? `<button class="btn btn-ghost btn-sm" title="AI listing analysis" onclick='openInvAi(${JSON.stringify(item.url)}, ${JSON.stringify(item.title || "Listing")})' style="padding:3px 9px;font-size:11px;font-weight:700;color:var(--pink);border:1px solid rgba(232,33,122,0.35);border-radius:5px;">AI</button>`
+        : `<span style="color:var(--muted);font-size:11px;">—</span>`;
       return `<tr>
         <td>${photo}</td>
         <td style="font-size:13px;">${titleHtml}</td>
         <td style="font-size:13px;color:var(--text);white-space:nowrap;">${price}</td>
         <td>${status}</td>
-        <td style="font-size:12px;color:var(--muted2);white-space:nowrap;">${seen}</td>
+        <td style="text-align:center;">${aiBtn}</td>
       </tr>`;
     }).join('');
+  }
+
+  // ── Inventory AI analysis (reuses the listing optimiser) ─────────────────────
+  function closeInvAi() { const m = document.getElementById('inv-ai-modal'); if (m) m.style.display = 'none'; }
+  async function openInvAi(url, title) {
+    const modal = document.getElementById('inv-ai-modal');
+    const loading = document.getElementById('inv-ai-loading');
+    const sugEl = document.getElementById('inv-ai-suggestions');
+    const scoreEl = document.getElementById('inv-ai-score');
+    const titleEl = document.getElementById('inv-ai-title');
+    const metaEl  = document.getElementById('inv-ai-meta');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    if (loading) loading.style.display = '';
+    if (sugEl) sugEl.innerHTML = '';
+    if (scoreEl) scoreEl.textContent = '—';
+    if (titleEl) titleEl.textContent = title || 'Analysing…';
+    if (metaEl) metaEl.textContent = '';
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const r = await fetch(`${BOT_API}/api/listing/optimise`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ url }),
+      });
+      const j = await r.json();
+      if (loading) loading.style.display = 'none';
+      if (!r.ok) { if (sugEl) sugEl.innerHTML = `<div style="color:var(--red);font-size:13px;">${j.error || 'Could not analyse this listing.'}</div>`; return; }
+      if (scoreEl) scoreEl.textContent = j.score ?? '—';
+      if (titleEl) titleEl.textContent = j.title || title || 'Listing';
+      if (metaEl)  metaEl.textContent  = j.meta || '';
+      const CAT = { Title:'#60a5fa', Description:'#34d399', Pricing:'#f59e0b', Photos:'#a78bfa', Keywords:'#fb7185', General:'var(--pink)' };
+      if (sugEl) sugEl.innerHTML = (j.suggestions || []).map(s => {
+        const cat = s.category || 'General'; const col = CAT[cat] || 'var(--pink)';
+        const text = typeof s === 'string' ? s : (s.text || s.suggestion || '');
+        return `<div style="border-left:3px solid ${col};padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:0 6px 6px 0;">
+          <div style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:${col};margin-bottom:3px;">${cat}</div>
+          <div style="font-size:13px;color:var(--text);line-height:1.5;">${text}</div></div>`;
+      }).join('') || '<div style="font-size:13px;color:var(--muted);">No suggestions — this listing looks well optimised.</div>';
+    } catch (e) {
+      if (loading) loading.style.display = 'none';
+      if (sugEl) sugEl.innerHTML = `<div style="color:var(--red);font-size:13px;">Network error: ${e.message}</div>`;
+    }
   }
 
   async function syncInventory() {
@@ -4752,13 +4824,19 @@
     loadProfitSync();
   }
 
-  // ── Listings access gate ─────────────────────────────────────────────────────
-  // ── Auto-Buy (coming soon — Apify removed) ───────────────────────────────────
+  // ── Auto-Buy access gate (Pro+) ──────────────────────────────────────────────
   function initAutobuyAccess(tier) {
-    // Feature is live — show the tool and load existing alerts
+    const gate = document.getElementById('autobuy-gate');
     const tool = document.getElementById('autobuy-tool');
-    if (tool) tool.style.display = '';
-    autobuyLoad();
+    const nav  = document.getElementById('autobuy-nav-item');
+    const ok   = (TIER_RANK_CLIENT[tier] || 0) >= TIER_RANK_CLIENT.pro;
+    if (gate) {
+      gate.style.display = ok ? 'none' : '';
+      if (!ok) gate.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px;text-align:center;"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">Pro Feature</div><div style="font-size:13px;color:var(--muted2);max-width:320px;">Auto-Buy keyword alerts are available on the Pro and Elite plans.</div><button class="btn btn-primary btn-sm" onclick="showSection('subscription',document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Pro</button></div>`;
+    }
+    if (tool) tool.style.display = ok ? '' : 'none';
+    if (nav)  { nav.style.opacity = ok ? '' : '0.5'; }
+    if (ok) autobuyLoad();
   }
 
   async function autobuyLoad() {
