@@ -4717,51 +4717,52 @@ async function syncVintedInventoryForUser(userId) {
   //   3. Playwright browser fallback (slowest, often unavailable on Railway)
   let raw = [];
 
-  // ── Strategy 1: Direct REST API ──────────────────────────────────────────────
+  // ── Strategy 1: Direct REST API via the WARDROBE endpoint ────────────────────
+  // CONFIRMED via live probe: /api/v2/wardrobe/{id}/items returns the seller's
+  // OWN listings (correct seller, correct count). The old /catalog/items?seller_ids[]
+  // path silently ignored the filter and returned random sellers (→ everything
+  // got discarded by the username filter → 0 inventory). /users/{id}/items 404s.
   if (sellerId) {
     const rawToken = conn.access_token ? decryptToken(conn.access_token) : '';
     if (rawToken && rawToken.length >= 20) {
       try {
         const vintedBase = await getVintedBase();
         const headers    = VINTED_HEADERS(rawToken, vintedBase);
-        for (let page = 1; page <= 3; page++) {
+        for (let page = 1; page <= 5; page++) {
           const r = await vFetch(
-            `${vintedBase}/api/v2/catalog/items?seller_ids[]=${sellerId}&per_page=96&page=${page}&order=newest_first`,
+            `${vintedBase}/api/v2/wardrobe/${sellerId}/items?per_page=96&page=${page}&order=newest_first`,
             { headers, signal: AbortSignal.timeout(12000) }
           );
           const text = await r.text();
           if (/datadome|captcha/i.test(text)) {
-            console.warn('[sync-inventory] DataDome blocked REST catalog');
+            console.warn('[sync-inventory] DataDome blocked wardrobe request');
             break;
           }
           if (r.status === 401 || r.status === 403) {
-            console.warn(`[sync-inventory] REST catalog ${r.status} — token expired, falling back to Apify`);
+            console.warn(`[sync-inventory] wardrobe ${r.status} — token expired`);
             break;
           }
           let data; try { data = JSON.parse(text); } catch { data = {}; }
-          const page_items = data.items || data.catalog_items || [];
+          const page_items = data.items || [];
           if (!page_items.length) break;
           raw.push(...page_items);
-          console.log(`[sync-inventory] REST catalog page ${page}: ${page_items.length} items`);
+          console.log(`[sync-inventory] wardrobe page ${page}: ${page_items.length} items`);
           if (page_items.length < 96) break;
         }
         if (raw.length > 0) {
-          console.log(`[sync-inventory] REST API: ${raw.length} items for seller ${sellerId}`);
+          console.log(`[sync-inventory] wardrobe API: ${raw.length} items for seller ${sellerId}`);
         }
       } catch (e) {
-        console.warn('[sync-inventory] REST API error:', e.message);
+        console.warn('[sync-inventory] wardrobe API error:', e.message);
       }
     } else {
-      console.log('[sync-inventory] no valid token — skipping REST API, trying Apify');
+      console.log('[sync-inventory] no valid token — cannot fetch wardrobe');
     }
   }
 
-  // NOTE: The Apify "kazkn/vinted-smart-scraper" actor CANNOT list a specific
-  // seller's active items — SELLER_PROFILE mode returns profile stats with an
-  // empty items[] array, and SEARCH/SOLD modes ignore the seller filter.
-  // So there is NO token-free way to fetch a seller's listings. Inventory
-  // depends on the REST API path above (valid token + residential proxy).
-  // Playwright is the only non-token fallback, and it usually fails on Railway.
+  // NOTE: There is no token-free way to fetch a seller's listings — the Apify
+  // actor's SELLER_PROFILE mode returns stats with an empty items[] array.
+  // Inventory depends on the wardrobe REST path above (valid token + proxy).
 
   // ── Strategy 2: Playwright fallback (last resort) ────────────────────────────
   if (!raw.length && sellerId && vintedBrowser?.vintedBrowserFetchPublicUserItems) {
@@ -6816,7 +6817,7 @@ app.post('/api/admin/announce/channel', async (req, res) => {
 // service key (x-debug-key header). Reveals deploy marker, Apify/proxy config
 // presence, a live Apify search, and per-connection token decrypt status.
 // Returns NO secret values — only booleans, lengths, and the non-secret actor name.
-const BUILD_MARKER = 'diag-2026-05-30-c';
+const BUILD_MARKER = 'diag-2026-05-30-d';
 app.get('/api/_debug/diag', async (req, res) => {
   const key = req.headers['x-debug-key'] || req.query.key;
   if (!SUPABASE_KEY || key !== SUPABASE_KEY) return res.status(403).json({ error: 'forbidden' });
@@ -6918,12 +6919,23 @@ app.get('/api/_debug/diag', async (req, res) => {
         return { status: r.status, blocked, items: items.length, sellers, ms: Date.now() - t0, snippet: data ? null : text.slice(0,140) };
       };
       const sid = first.seller_id;
+      // Probe that also returns the status fields of returned items
+      const probeStatus = async (path) => {
+        const t0 = Date.now();
+        const r = await vFetch(`${base}${path}`, { headers: hdrs, signal: AbortSignal.timeout(12000) });
+        const text = await r.text();
+        let data; try { data = JSON.parse(text); } catch { data = null; }
+        const items = (data?.items || []).slice(0, 8).map(it => ({
+          id: it.id, sold: it.is_sold ?? it.sold, reserved: it.is_reserved,
+          status: it.status, price: it.price?.amount ?? it.price,
+        }));
+        return { status: r.status, count: (data?.items||[]).length, items, ms: Date.now() - t0 };
+      };
       out.endpoint_probes = {
-        users_items:        await probe(`/api/v2/users/${sid}/items?per_page=20&page=1&order=newest_first`),
-        wardrobe_items:     await probe(`/api/v2/wardrobe/${sid}/items?per_page=20&page=1&order=newest_first`),
-        catalog_user_id:    await probe(`/api/v2/catalog/items?user_id=${sid}&per_page=20&page=1&order=newest_first`),
-        catalog_seller_arr: await probe(`/api/v2/catalog/items?seller_ids[]=${sid}&per_page=20&page=1`),
-        users_sold:         await probe(`/api/v2/users/${sid}/items?item_statuses[]=sold&per_page=20&page=1`),
+        wardrobe_items:     await probeStatus(`/api/v2/wardrobe/${sid}/items?per_page=40&page=1&order=newest_first`),
+        wardrobe_sold_arr:  await probe(`/api/v2/wardrobe/${sid}/items?status[]=sold&per_page=20&page=1`),
+        wardrobe_istatus:   await probe(`/api/v2/wardrobe/${sid}/items?item_statuses[]=sold&per_page=20&page=1`),
+        wardrobe_sold_str:  await probe(`/api/v2/wardrobe/${sid}/items?status=sold&per_page=20&page=1`),
       };
     } else {
       out.catalog_probe = { skipped: 'no connection with a decryptable token' };
