@@ -6803,6 +6803,43 @@ app.post('/api/admin/announce/channel', async (req, res) => {
   }
 });
 
+// GET /api/_debug/diag3 — service-key-gated. Verifies the Apify token works for
+// Auto-Buy (search) and Watchlist (item detail). Temporary.
+const BUILD_MARKER3 = 'diag3-2026-05-30-a';
+app.get('/api/_debug/diag3', async (req, res) => {
+  const key = req.headers['x-debug-key'] || req.query.key;
+  if (!SUPABASE_KEY || key !== SUPABASE_KEY) return res.status(403).json({ error: 'forbidden' });
+  const out = { build_marker: BUILD_MARKER3, APIFY_VINTED_ACTOR, apify_token_set: !!APIFY_TOKEN };
+
+  try {
+    const r = await fetch(`https://api.apify.com/v2/users/me?token=${APIFY_TOKEN}`, { signal: AbortSignal.timeout(8000) });
+    const d = await r.json().catch(() => ({}));
+    out.apify_whoami = { status: r.status, username: d?.data?.username || null, plan: d?.data?.plan?.id || d?.data?.plan || null };
+  } catch (e) { out.apify_whoami = { error: e.message }; }
+
+  // Auto-Buy path
+  try {
+    const t0 = Date.now();
+    const items = await apifyVintedSearch('nike air max', 3);
+    out.auto_buy_search = { ok: Array.isArray(items) && items.length > 0, count: items?.length ?? null, sample: items?.[0]?.title || null, price: items?.[0]?.price || null, ms: Date.now() - t0 };
+  } catch (e) { out.auto_buy_search = { error: e.message }; }
+
+  // Watchlist path — get a live url via search, then ITEM_DETAIL it
+  try {
+    const s = await apifyVintedSearch('nike air max', 1);
+    const url = s?.[0]?.url;
+    out.watchlist_item = { test_url: url || null };
+    if (url) {
+      const t0 = Date.now();
+      const item = await apifyVintedItemDetail(url);
+      out.watchlist_item.result = item;
+      out.watchlist_item.ms = Date.now() - t0;
+    }
+  } catch (e) { out.watchlist_item = { error: e.message }; }
+
+  res.json(out);
+});
+
 // GET /api/announcement — public, returns active site banner or null
 app.get('/api/announcement', async (req, res) => {
   try {

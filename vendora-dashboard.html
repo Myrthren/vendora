@@ -4469,11 +4469,13 @@
       if (metaEl)  metaEl.textContent  = j.meta || '';
       const CAT = { Title:'#60a5fa', Description:'#34d399', Pricing:'#f59e0b', Photos:'#a78bfa', Keywords:'#fb7185', General:'var(--pink)' };
       if (sugEl) sugEl.innerHTML = (j.suggestions || []).map(s => {
-        const cat = s.category || 'General'; const col = CAT[cat] || 'var(--pink)';
-        const text = typeof s === 'string' ? s : (s.text || s.suggestion || '');
-        return `<div style="border-left:3px solid ${col};padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:0 6px 6px 0;">
-          <div style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:${col};margin-bottom:3px;">${cat}</div>
-          <div style="font-size:13px;color:var(--text);line-height:1.5;">${text}</div></div>`;
+        const cat = (s && s.category) || 'General'; const col = CAT[cat] || 'var(--pink)';
+        const heading = typeof s === 'string' ? '' : (s.heading || '');
+        const detail  = typeof s === 'string' ? s : (s.detail || s.text || s.suggestion || s.tip || '');
+        return `<div style="border-left:3px solid ${col};padding:9px 13px;background:rgba(255,255,255,0.03);border-radius:0 6px 6px 0;">
+          <div style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:${col};margin-bottom:4px;">${cat}</div>
+          ${heading ? `<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;">${heading}</div>` : ''}
+          <div style="font-size:12.5px;color:var(--muted2);line-height:1.55;">${detail}</div></div>`;
       }).join('') || '<div style="font-size:13px;color:var(--muted);">No suggestions — this listing looks well optimised.</div>';
     } catch (e) {
       if (loading) loading.style.display = 'none';
