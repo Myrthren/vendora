@@ -489,22 +489,36 @@ async function apifyRunVinted(input, timeoutSec = 90) {
     body: JSON.stringify(input),
     signal: AbortSignal.timeout((timeoutSec + 5) * 1000),
   };
-  const candidates = [
-    `https://api.apify.com/v2/acts/${rawId}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=${timeoutSec}`,
-    `https://api.apify.com/v2/actor-tasks/${tildeId}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=${timeoutSec}`,
-  ];
+  // Try, in order: configured actor → configured task → configured+"-task" →
+  // the canonical kazkn actor (always available; the account rents it).
+  // This survives a misconfigured APIFY_VINTED_ACTOR env var (e.g. the name
+  // set to the actor slug when only the Task exists, or vice-versa).
+  const ids = [...new Set([
+    tildeId,
+    tildeId.endsWith('-task') ? tildeId : `${tildeId}-task`,
+    'kazkn~vinted-smart-scraper',
+  ])];
+  const candidates = [];
+  for (const id of ids) {
+    candidates.push(`https://api.apify.com/v2/acts/${id}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=${timeoutSec}`);
+    candidates.push(`https://api.apify.com/v2/actor-tasks/${id}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=${timeoutSec}`);
+  }
   for (const url of candidates) {
     try {
       const res = await fetch(url, fetchOpts);
-      if (res.status === 404) { console.warn(`[apify] 404 for ${url.split('?')[0]} — trying next endpoint`); continue; }
-      if (!res.ok) { console.warn(`[apify] run failed (${res.status})`); return null; }
+      if (res.status === 404) { continue; } // wrong endpoint type for this id — try next
+      if (!res.ok) { console.warn(`[apify] run failed (${res.status}) at ${url.split('?')[0]}`); continue; }
       const data = await res.json();
-      return Array.isArray(data) ? data : null;
+      if (Array.isArray(data)) {
+        if (!url.includes(rawId.replace('/','~'))) console.warn(`[apify] note: fell back to ${url.split('/').slice(5,6)} — fix APIFY_VINTED_ACTOR`);
+        return data;
+      }
     } catch (e) {
       console.warn('[apify] run error:', e.message);
-      return null;
     }
   }
+  console.warn('[apify] all actor/task candidates failed');
+  return null;
   return null;
 }
 
@@ -6802,7 +6816,7 @@ app.post('/api/admin/announce/channel', async (req, res) => {
 // service key (x-debug-key header). Reveals deploy marker, Apify/proxy config
 // presence, a live Apify search, and per-connection token decrypt status.
 // Returns NO secret values — only booleans, lengths, and the non-secret actor name.
-const BUILD_MARKER = 'diag-2026-05-30-a';
+const BUILD_MARKER = 'diag-2026-05-30-b';
 app.get('/api/_debug/diag', async (req, res) => {
   const key = req.headers['x-debug-key'] || req.query.key;
   if (!SUPABASE_KEY || key !== SUPABASE_KEY) return res.status(403).json({ error: 'forbidden' });
@@ -6865,13 +6879,23 @@ app.get('/api/_debug/diag', async (req, res) => {
         { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
       const rows = await r.json();
       const tok = decryptToken(rows?.[0]?.access_token || '');
-      const t0 = Date.now();
-      const cr = await vFetch(`${base}/api/v2/catalog/items?seller_ids[]=${first.seller_id}&per_page=10&page=1`,
-        { headers: VINTED_HEADERS(tok, base), signal: AbortSignal.timeout(12000) });
-      const text = await cr.text();
-      const blocked = /datadome|captcha/i.test(text);
-      let data; try { data = JSON.parse(text); } catch { data = null; }
-      out.catalog_probe = { seller_id: first.seller_id, status: cr.status, blocked, items: data?.items?.length ?? 0, ms: Date.now() - t0, snippet: (data ? null : text.slice(0,160)) };
+      const hdrs = VINTED_HEADERS(tok, base);
+      const probe = async (path) => {
+        const t0 = Date.now();
+        const r = await vFetch(`${base}${path}`, { headers: hdrs, signal: AbortSignal.timeout(12000) });
+        const text = await r.text();
+        const blocked = /datadome|captcha/i.test(text);
+        let data; try { data = JSON.parse(text); } catch { data = null; }
+        const items = data?.items || data?.catalog_items || [];
+        const sellers = [...new Set(items.map(it => String((it.user||it.seller||{}).id || (it.user||it.seller||{}).login || '')).filter(Boolean))].slice(0,4);
+        return { status: r.status, blocked, items: items.length, sellers, ms: Date.now() - t0, snippet: data ? null : text.slice(0,140) };
+      };
+      const sid = first.seller_id;
+      out.endpoint_probes = {
+        users_items:      await probe(`/api/v2/users/${sid}/items?per_page=20&page=1&order=newest_first`),
+        users_sold:       await probe(`/api/v2/users/${sid}/items?item_statuses[]=sold&per_page=20&page=1`),
+        catalog_seller:   await probe(`/api/v2/catalog/items?seller_ids[]=${sid}&per_page=20&page=1`),
+      };
     } else {
       out.catalog_probe = { skipped: 'no connection with a decryptable token' };
     }
