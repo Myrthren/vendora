@@ -6798,6 +6798,88 @@ app.post('/api/admin/announce/channel', async (req, res) => {
   }
 });
 
+// GET /api/_debug/diag — diagnostic snapshot, authenticated by the Supabase
+// service key (x-debug-key header). Reveals deploy marker, Apify/proxy config
+// presence, a live Apify search, and per-connection token decrypt status.
+// Returns NO secret values — only booleans, lengths, and the non-secret actor name.
+const BUILD_MARKER = 'diag-2026-05-30-a';
+app.get('/api/_debug/diag', async (req, res) => {
+  const key = req.headers['x-debug-key'] || req.query.key;
+  if (!SUPABASE_KEY || key !== SUPABASE_KEY) return res.status(403).json({ error: 'forbidden' });
+
+  const out = {
+    build_marker: BUILD_MARKER,
+    node: process.version,
+    uptime_s: Math.round(process.uptime()),
+    env: {
+      APIFY_VINTED_ACTOR,                       // non-secret actor/task name
+      APIFY_TOKEN_set: !!APIFY_TOKEN,
+      APIFY_PROXY_PASSWORD_set: !!process.env.APIFY_PROXY_PASSWORD,
+      APIFY_PROXY_READY,
+      PROXY_URL_set: !!PROXY_URL,
+      PROXY_AGENT_ready: !!PROXY_AGENT,
+      SUPABASE_KEY_len: (SUPABASE_KEY || '').length,
+    },
+  };
+
+  // Live Apify keyword search (Auto-Buy path)
+  try {
+    const t0 = Date.now();
+    const items = await apifyVintedSearch('nike air max', 3);
+    out.apify_search = { ok: Array.isArray(items), count: items?.length ?? null, ms: Date.now() - t0, sample: items?.[0]?.title || null };
+  } catch (e) { out.apify_search = { ok: false, error: e.message }; }
+
+  // Per-connection token state (Vinted)
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/platform_connections?platform=eq.vinted&select=user_id,platform_username,platform_user_id,access_token`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
+    const conns = await r.json();
+    out.vinted_connections = (Array.isArray(conns) ? conns : []).map(c => {
+      const dec = decryptToken(c.access_token || '');
+      let decryptOk = !!(dec && dec.length >= 20);
+      let tokenExp = null, expired = null, isJwt = false;
+      if (decryptOk) {
+        const parts = dec.split('.');
+        isJwt = parts.length === 3;
+        if (isJwt) { try { const p = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')); if (p.exp) { tokenExp = new Date(p.exp*1000).toISOString(); expired = p.exp < Math.floor(Date.now()/1000); } } catch {} }
+      }
+      return {
+        username: c.platform_username,
+        seller_id: c.platform_user_id,
+        stored_len: (c.access_token || '').length,
+        decrypt_ok: decryptOk,     // false => key mismatch / orphaned token
+        is_jwt: isJwt,
+        token_exp: tokenExp,
+        expired,
+      };
+    });
+  } catch (e) { out.vinted_connections = { error: e.message }; }
+
+  // Live catalog probe for the first connection that decrypts (inventory path)
+  try {
+    const first = (out.vinted_connections || []).find(c => c.decrypt_ok && c.seller_id);
+    if (first) {
+      const base = await getVintedBase();
+      // re-fetch token to actually call
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/platform_connections?platform=eq.vinted&platform_user_id=eq.${first.seller_id}&select=access_token`,
+        { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
+      const rows = await r.json();
+      const tok = decryptToken(rows?.[0]?.access_token || '');
+      const t0 = Date.now();
+      const cr = await vFetch(`${base}/api/v2/catalog/items?seller_ids[]=${first.seller_id}&per_page=10&page=1`,
+        { headers: VINTED_HEADERS(tok, base), signal: AbortSignal.timeout(12000) });
+      const text = await cr.text();
+      const blocked = /datadome|captcha/i.test(text);
+      let data; try { data = JSON.parse(text); } catch { data = null; }
+      out.catalog_probe = { seller_id: first.seller_id, status: cr.status, blocked, items: data?.items?.length ?? 0, ms: Date.now() - t0, snippet: (data ? null : text.slice(0,160)) };
+    } else {
+      out.catalog_probe = { skipped: 'no connection with a decryptable token' };
+    }
+  } catch (e) { out.catalog_probe = { error: e.message }; }
+
+  res.json(out);
+});
+
 // GET /api/announcement — public, returns active site banner or null
 app.get('/api/announcement', async (req, res) => {
   try {
