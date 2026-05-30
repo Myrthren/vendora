@@ -6785,7 +6785,7 @@ app.post('/api/admin/announce/channel', async (req, res) => {
 
 // GET /api/_debug/diag2 — service-key-gated. Probes sold-items endpoints (profit)
 // and watchlist enrichment. Temporary; removed once profit/watchlist confirmed.
-const BUILD_MARKER2 = 'diag2-2026-05-30-b';
+const BUILD_MARKER2 = 'diag2-2026-05-30-c';
 app.get('/api/_debug/diag2', async (req, res) => {
   const key = req.headers['x-debug-key'] || req.query.key;
   if (!SUPABASE_KEY || key !== SUPABASE_KEY) return res.status(403).json({ error: 'forbidden' });
@@ -6823,6 +6823,25 @@ app.get('/api/_debug/diag2', async (req, res) => {
   } else {
     out.sold_probes = { skipped: 'no decryptable token/seller' };
   }
+
+  // Item-detail endpoint sanity check on a KNOWN-LIVE listing + raw status
+  try {
+    const tok = await getAnyVintedToken();
+    out.item_detail_check = { token: !!tok };
+    if (tok) {
+      const base = await getVintedBase();
+      const r = await vFetch(`${base}/api/v2/items/8004221870`, { headers: VINTED_HEADERS(tok, base), signal: AbortSignal.timeout(12000) });
+      const text = await r.text();
+      out.item_detail_check.status = r.status;
+      out.item_detail_check.blocked = /datadome|captcha/i.test(text);
+      let d; try { d = JSON.parse(text); } catch { d = null; }
+      out.item_detail_check.has_item = !!d?.item;
+      out.item_detail_check.title = d?.item?.title || null;
+      out.item_detail_check.price = d?.item?.price_numeric ?? d?.item?.price?.amount ?? null;
+      out.item_detail_check.snippet = d ? null : text.slice(0, 160);
+      out.item_detail_check.via_helper = await fetchVintedItemDirect('8004221870');
+    }
+  } catch (e) { out.item_detail_check = { error: e.message }; }
 
   // Watchlist test — trigger a live fetch on a Vinted row, then enrich
   try {
