@@ -2813,14 +2813,34 @@ app.get('/api/inventory', async (req, res) => {
     });
   }
 
+  // Enrich with days-listed + stale flag (Elite stale-listing detection).
+  const now = Date.now();
+  const isElite = TIER_RANK[profile.tier] >= TIER_RANK.elite;
+  const analysis = isElite ? ((await getSetting(`inventory_analysis_${user.id}`)) || {}) : {};
+  const analysisById = {};
+  for (const a of (analysis.items || [])) if (a.id) analysisById[a.id] = a;
+  const enriched = items.map(it => {
+    const daysListed = it.first_seen_at ? Math.floor((now - new Date(it.first_seen_at).getTime()) / 86400000) : null;
+    const a = analysisById[it.id];
+    return {
+      ...it,
+      days_listed: daysListed,
+      stale: isElite && daysListed != null && daysListed >= STALE_LISTING_DAYS && (it.status || 'active') === 'active',
+      score: a?.score ?? null,
+      suggested_price: a?.suggested_price ?? null,
+    };
+  });
+
   return res.json({
     ok: true,
     connected: true,
     syncing: false,
+    tier: profile.tier,
     username: conn.platform_username,
     last_synced: snap.last_synced,
     sync_note: snap.sync_note || null,
-    items,
+    analysis_at: analysis.generated_at || null,
+    items: enriched,
   });
 });
 
@@ -4851,10 +4871,19 @@ async function syncVintedInventoryForUser(userId) {
     return { ok: true, count: 0, sold_now: 0, all_filtered: true };
   }
 
-  const fresh = live.map(it => normaliseVintedItem(it, base));
-
   const prevSnap = (await getSetting(`vinted_inventory_${userId}`)) || { items: [] };
   const prev     = prevSnap.items || [];
+
+  // Preserve first_seen_at across syncs so we can measure how long a listing has
+  // been live (used for Elite stale-listing detection). New items get "now".
+  const prevFirstSeen = {};
+  for (const p of prev) if (p.id) prevFirstSeen[p.id] = p.first_seen_at || p.last_seen_at;
+  const nowIso = new Date().toISOString();
+  const fresh = live.map(it => {
+    const n = normaliseVintedItem(it, base);
+    n.first_seen_at = (n.id && prevFirstSeen[n.id]) ? prevFirstSeen[n.id] : nowIso;
+    return n;
+  });
 
   // Detect sales: items in prev (active) that are missing from fresh.
   // ONLY run sale detection when we have a confirmed numeric seller ID —
@@ -8269,6 +8298,53 @@ app.get('/api/inventory/suggestions', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const suggestions = (await getSetting(`inventory_suggestions_${user.id}`)) || {};
   res.json({ ok: true, suggestions });
+});
+
+const STALE_LISTING_DAYS = 14;
+
+// POST /api/inventory/analyse-all — Elite-only. Scores every active listing in
+// one pass and flags stale ones with a suggested price drop. Returns results
+// sorted worst-first so the seller sees what to fix first.
+app.post('/api/inventory/analyse-all', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const profile = await getProfileByUserId(user.id);
+  if (!profile || TIER_RANK[profile.tier] < TIER_RANK.elite) return res.status(403).json({ error: 'Elite plan required.' });
+  if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
+
+  const snap  = (await getSetting(`vinted_inventory_${user.id}`)) || { items: [] };
+  const items = (snap.items || []).filter(i => (i.status || 'active') === 'active').slice(0, 30);
+  if (!items.length) return res.json({ ok: true, analysed: 0, items: [], note: 'No active listings to analyse — sync your inventory first.' });
+
+  const now = Date.now();
+  const results = [];
+  for (const item of items) {
+    const price      = parseFloat(item.price) || 0;
+    const daysListed = item.first_seen_at ? Math.floor((now - new Date(item.first_seen_at).getTime()) / 86400000) : 0;
+    const stale      = daysListed >= STALE_LISTING_DAYS;
+    let score = null, suggested_price = null, tips = [];
+    try {
+      const raw = await callAI(
+        'You are Vendora\'s Vinted listing analyst. Return ONLY a JSON object: {"score": <0-100 listing quality>, "suggested_price": <number, a realistic price to sell faster — may equal current price if already good>, "tips": ["<specific tip>", "<specific tip>"]}. Tips must be concrete (exact title words, price points, photo/description fixes). No markdown.',
+        `Title: ${item.title || '—'}\nCurrent price: £${price.toFixed(2)}\nDays listed: ${daysListed}\nBrand: ${item.brand || '—'}\nCondition: ${item.condition || '—'}`,
+        'claude-haiku-4-5-20251001',
+        300,
+      );
+      const j = JSON.parse((raw || '{}').replace(/^```json?\s*/, '').replace(/\s*```$/, ''));
+      score = typeof j.score === 'number' ? j.score : null;
+      suggested_price = typeof j.suggested_price === 'number' ? j.suggested_price : null;
+      tips = Array.isArray(j.tips) ? j.tips.slice(0, 3) : [];
+    } catch (e) { /* skip item on parse/AI error */ }
+
+    results.push({
+      id: item.id, title: item.title || '(untitled)', url: item.url || null,
+      price, days_listed: daysListed, stale, score, suggested_price, tips,
+    });
+    await new Promise(r => setTimeout(r, 400));
+  }
+
+  results.sort((a, b) => (a.score ?? 101) - (b.score ?? 101)); // worst first
+  await saveSetting(`inventory_analysis_${user.id}`, { items: results, generated_at: new Date().toISOString() });
+  res.json({ ok: true, analysed: results.length, items: results });
 });
 
 // ── Avatar refresh ─────────────────────────────────────────────────────────────
