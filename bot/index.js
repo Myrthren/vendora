@@ -6816,7 +6816,7 @@ app.post('/api/admin/announce/channel', async (req, res) => {
 // service key (x-debug-key header). Reveals deploy marker, Apify/proxy config
 // presence, a live Apify search, and per-connection token decrypt status.
 // Returns NO secret values — only booleans, lengths, and the non-secret actor name.
-const BUILD_MARKER = 'diag-2026-05-30-b';
+const BUILD_MARKER = 'diag-2026-05-30-c';
 app.get('/api/_debug/diag', async (req, res) => {
   const key = req.headers['x-debug-key'] || req.query.key;
   if (!SUPABASE_KEY || key !== SUPABASE_KEY) return res.status(403).json({ error: 'forbidden' });
@@ -6842,6 +6842,33 @@ app.get('/api/_debug/diag', async (req, res) => {
     const items = await apifyVintedSearch('nike air max', 3);
     out.apify_search = { ok: Array.isArray(items), count: items?.length ?? null, ms: Date.now() - t0, sample: items?.[0]?.title || null };
   } catch (e) { out.apify_search = { ok: false, error: e.message }; }
+
+  // Apify token identity — is Railway's APIFY_TOKEN valid + which account?
+  try {
+    const r = await fetch(`https://api.apify.com/v2/users/me?token=${APIFY_TOKEN}`, { signal: AbortSignal.timeout(8000) });
+    const d = await r.json().catch(() => ({}));
+    out.apify_whoami = { status: r.status, username: d?.data?.username || null, plan: d?.data?.plan?.id || d?.data?.plan || null };
+  } catch (e) { out.apify_whoami = { error: e.message }; }
+
+  // Raw run of each candidate actor/task to see exact statuses (no 90s wait —
+  // use a tiny maxItems and short timeout to just confirm reachability/auth).
+  try {
+    const tryRun = async (kind, id) => {
+      const u = `https://api.apify.com/v2/${kind}/${id}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=60`;
+      const t0 = Date.now();
+      try {
+        const r = await fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'SEARCH', query: 'nike', countries: ['uk'], maxItems: 2 }),
+          signal: AbortSignal.timeout(70000) });
+        let n = null; try { const j = await r.json(); n = Array.isArray(j) ? j.length : null; } catch {}
+        return { status: r.status, count: n, ms: Date.now() - t0 };
+      } catch (e) { return { error: e.message, ms: Date.now() - t0 }; }
+    };
+    out.apify_candidates = {
+      act_kazkn:  await tryRun('acts', 'kazkn~vinted-smart-scraper'),
+      task_aero:  await tryRun('actor-tasks', 'aerocart~vinted-smart-scraper-task'),
+    };
+  } catch (e) { out.apify_candidates = { error: e.message }; }
 
   // Per-connection token state (Vinted)
   try {
@@ -6892,9 +6919,11 @@ app.get('/api/_debug/diag', async (req, res) => {
       };
       const sid = first.seller_id;
       out.endpoint_probes = {
-        users_items:      await probe(`/api/v2/users/${sid}/items?per_page=20&page=1&order=newest_first`),
-        users_sold:       await probe(`/api/v2/users/${sid}/items?item_statuses[]=sold&per_page=20&page=1`),
-        catalog_seller:   await probe(`/api/v2/catalog/items?seller_ids[]=${sid}&per_page=20&page=1`),
+        users_items:        await probe(`/api/v2/users/${sid}/items?per_page=20&page=1&order=newest_first`),
+        wardrobe_items:     await probe(`/api/v2/wardrobe/${sid}/items?per_page=20&page=1&order=newest_first`),
+        catalog_user_id:    await probe(`/api/v2/catalog/items?user_id=${sid}&per_page=20&page=1&order=newest_first`),
+        catalog_seller_arr: await probe(`/api/v2/catalog/items?seller_ids[]=${sid}&per_page=20&page=1`),
+        users_sold:         await probe(`/api/v2/users/${sid}/items?item_statuses[]=sold&per_page=20&page=1`),
       };
     } else {
       out.catalog_probe = { skipped: 'no connection with a decryptable token' };
