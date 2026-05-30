@@ -6085,11 +6085,15 @@ async function getAnyVintedToken() {
 
 // Fetch a Vinted item's current price/title via the item detail API, using a
 // valid connected token + residential proxy. Returns { title, price, size } or null.
-async function fetchVintedItemDirect(itemNumId) {
+// IMPORTANT: items are domain-specific. A UK item only resolves on vinted.co.uk —
+// it 404s on vinted.fr (which is where the proxy often geo-resolves to). So we use
+// the item's OWN domain (from its URL) rather than the geo-detected base.
+async function fetchVintedItemDirect(itemNumId, baseUrl = 'https://www.vinted.co.uk') {
   const tok = await getAnyVintedToken();
   if (!tok) return null;
+  let base;
+  try { base = new URL(baseUrl).origin; } catch { base = 'https://www.vinted.co.uk'; }
   try {
-    const base = await getVintedBase();
     const r = await vFetch(`${base}/api/v2/items/${itemNumId}`, {
       headers: VINTED_HEADERS(tok, base),
       signal:  AbortSignal.timeout(12000),
@@ -6117,7 +6121,8 @@ async function watchlistImmediateFetch(itemId, url) {
     const itemNumId = idMatch[1];
 
     // Primary: item detail API with a connected token + proxy (reliable).
-    let item = await fetchVintedItemDirect(itemNumId);
+    // Use the item's own domain (the watchlist URL) — items are region-specific.
+    let item = await fetchVintedItemDirect(itemNumId, url);
     // Fallback: Apify item fetch (only works if a paid Apify account is configured).
     if (!item || !item.price) {
       const ai = await apifyVintedFetchItem(url).catch(() => null);
@@ -6785,7 +6790,7 @@ app.post('/api/admin/announce/channel', async (req, res) => {
 
 // GET /api/_debug/diag2 — service-key-gated. Probes sold-items endpoints (profit)
 // and watchlist enrichment. Temporary; removed once profit/watchlist confirmed.
-const BUILD_MARKER2 = 'diag2-2026-05-30-c';
+const BUILD_MARKER2 = 'diag2-2026-05-30-d';
 app.get('/api/_debug/diag2', async (req, res) => {
   const key = req.headers['x-debug-key'] || req.query.key;
   if (!SUPABASE_KEY || key !== SUPABASE_KEY) return res.status(403).json({ error: 'forbidden' });
@@ -6829,7 +6834,7 @@ app.get('/api/_debug/diag2', async (req, res) => {
     const tok = await getAnyVintedToken();
     out.item_detail_check = { token: !!tok };
     if (tok) {
-      const base = await getVintedBase();
+      const base = 'https://www.vinted.co.uk';
       const r = await vFetch(`${base}/api/v2/items/8004221870`, { headers: VINTED_HEADERS(tok, base), signal: AbortSignal.timeout(12000) });
       const text = await r.text();
       out.item_detail_check.status = r.status;
@@ -6837,9 +6842,7 @@ app.get('/api/_debug/diag2', async (req, res) => {
       let d; try { d = JSON.parse(text); } catch { d = null; }
       out.item_detail_check.has_item = !!d?.item;
       out.item_detail_check.title = d?.item?.title || null;
-      out.item_detail_check.price = d?.item?.price_numeric ?? d?.item?.price?.amount ?? null;
-      out.item_detail_check.snippet = d ? null : text.slice(0, 160);
-      out.item_detail_check.via_helper = await fetchVintedItemDirect('8004221870');
+      out.item_detail_check.via_helper = await fetchVintedItemDirect('8004221870', 'https://www.vinted.co.uk');
     }
   } catch (e) { out.item_detail_check = { error: e.message }; }
 
@@ -7100,7 +7103,7 @@ cron.schedule('0 */6 * * *', async () => {
           if (isVintedUrl) {
             // ── Vinted URL: item detail API with connected token + proxy ──────
             const idM = wl.item.match(/\/items\/(\d+)/);
-            let vintedItem = idM ? await fetchVintedItemDirect(idM[1]) : null;
+            let vintedItem = idM ? await fetchVintedItemDirect(idM[1], wl.item) : null;
             if (!vintedItem || !vintedItem.price) {
               const ai = await apifyVintedFetchItem(wl.item).catch(() => null);
               if (ai && parseFloat(ai.price || 0)) vintedItem = { title: ai.title, price: parseFloat(ai.price), size: ai.size_title, currency: ai.currency || 'GBP' };
