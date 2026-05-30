@@ -6053,6 +6053,57 @@ async function enrichWatchlistItems(items) {
   });
 }
 
+// Return a decrypted, non-expired Vinted access token from ANY connected
+// account. Used for read-only public item fetches (watchlist price tracking)
+// where we just need a valid token to bypass DataDome via the proxy.
+let _anyVintedTokenCache = { token: '', exp: 0 };
+async function getAnyVintedToken() {
+  if (_anyVintedTokenCache.token && _anyVintedTokenCache.exp > Math.floor(Date.now() / 1000) + 60) {
+    return _anyVintedTokenCache.token;
+  }
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/platform_connections?platform=eq.vinted&select=access_token`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
+    const rows = await r.json();
+    if (!Array.isArray(rows)) return '';
+    for (const row of rows) {
+      const tok = decryptToken(row.access_token || '');
+      if (!tok || tok.length < 20) continue;
+      const parts = tok.split('.');
+      if (parts.length !== 3) continue;
+      try {
+        const p = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+        if (p.exp && p.exp > Math.floor(Date.now() / 1000) + 60) {
+          _anyVintedTokenCache = { token: tok, exp: p.exp };
+          return tok;
+        }
+      } catch {}
+    }
+  } catch (e) { console.warn('[getAnyVintedToken]', e.message); }
+  return '';
+}
+
+// Fetch a Vinted item's current price/title via the item detail API, using a
+// valid connected token + residential proxy. Returns { title, price, size } or null.
+async function fetchVintedItemDirect(itemNumId) {
+  const tok = await getAnyVintedToken();
+  if (!tok) return null;
+  try {
+    const base = await getVintedBase();
+    const r = await vFetch(`${base}/api/v2/items/${itemNumId}`, {
+      headers: VINTED_HEADERS(tok, base),
+      signal:  AbortSignal.timeout(12000),
+    });
+    const text = await r.text();
+    if (/datadome|captcha/i.test(text) || !r.ok) return null;
+    let data; try { data = JSON.parse(text); } catch { return null; }
+    const it = data?.item;
+    if (!it) return null;
+    const price = parseFloat(it.price_numeric ?? it.price?.amount ?? it.price ?? 0) || 0;
+    return { title: it.title || '', price, size: it.size_title || '', currency: it.price?.currency_code || 'GBP' };
+  } catch { return null; }
+}
+
 // ── Immediately fetch price for a newly added watchlist item ──────────────────
 // Runs in the background after POST /api/watchlist so the item shows a real
 // price right away without waiting up to 6 hours for the cron.
@@ -6061,55 +6112,36 @@ async function watchlistImmediateFetch(itemId, url) {
     const isVintedUrl = /vinted\.(co\.uk|fr|de|be|nl|es|it|pl|pt|se|at|lu|cz|sk|hu|ro|lt|lv|ee|fi|dk)\//i.test(url);
     if (!isVintedUrl) return; // only handle Vinted for now; other platforms use cron
 
-    const vintedItem = await apifyVintedFetchItem(url);
-    if (!vintedItem) {
-      // Apify not available — try vFetch (Smartproxy) as fallback
-      const idMatch = url.match(/\/items\/(\d+)/);
-      if (!idMatch) return;
-      const itemNumId = idMatch[1];
-      try {
-        const base = await getVintedBase();
-        const r = await vFetch(`${base}/api/v2/items/${itemNumId}`, {
-          headers: { ...VINTED_HEADERS('', base), Authorization: undefined },
-          signal:  AbortSignal.timeout(10000),
-        });
-        if (!r.ok) return;
-        const data = await r.json();
-        if (!data?.item) return;
-        const price = parseFloat(data.item.price_numeric || data.item.price?.amount || '0');
-        if (!price) return;
-        const baselines = (await getSetting('watchlist_price_baselines')) || {};
-        baselines[itemId] = {
-          productName: data.item.title || url,
-          baseline:    price,
-          lowestSeen:  price,
-          variants:    data.item.size_title ? [{ size: data.item.size_title }] : [],
-          currency:    'GBP',
-          url,
-          checkedAt:   new Date().toISOString(),
-        };
-        await saveSetting('watchlist_price_baselines', baselines);
-        console.log(`[watchlist-immediate] Fetched via Smartproxy: ${data.item.title} @ £${price}`);
-      } catch (e) {
-        console.warn('[watchlist-immediate] vFetch fallback failed:', e.message);
+    const idMatch = url.match(/\/items\/(\d+)/);
+    if (!idMatch) return;
+    const itemNumId = idMatch[1];
+
+    // Primary: item detail API with a connected token + proxy (reliable).
+    let item = await fetchVintedItemDirect(itemNumId);
+    // Fallback: Apify item fetch (only works if a paid Apify account is configured).
+    if (!item || !item.price) {
+      const ai = await apifyVintedFetchItem(url).catch(() => null);
+      if (ai && parseFloat(ai.price || 0)) {
+        item = { title: ai.title || '', price: parseFloat(ai.price), size: ai.size_title || '', currency: ai.currency || 'GBP' };
       }
+    }
+    if (!item || !item.price) {
+      console.warn(`[watchlist-immediate] could not fetch price for ${url}`);
       return;
     }
 
-    const price = parseFloat(vintedItem.price || '0');
-    if (!price) return;
     const baselines = (await getSetting('watchlist_price_baselines')) || {};
     baselines[itemId] = {
-      productName: vintedItem.title || url,
-      baseline:    price,
-      lowestSeen:  price,
-      variants:    vintedItem.size_title ? [{ size: vintedItem.size_title }] : [],
-      currency:    vintedItem.currency || 'GBP',
+      productName: item.title || url,
+      baseline:    item.price,
+      lowestSeen:  item.price,
+      variants:    item.size ? [{ size: item.size }] : [],
+      currency:    item.currency || 'GBP',
       url,
       checkedAt:   new Date().toISOString(),
     };
     await saveSetting('watchlist_price_baselines', baselines);
-    console.log(`[watchlist-immediate] Fetched via Apify: ${vintedItem.title} @ £${price}`);
+    console.log(`[watchlist-immediate] ${item.title} @ £${item.price}`);
   } catch (e) {
     console.warn('[watchlist-immediate] Failed for', url, ':', e.message);
   }
@@ -6753,7 +6785,7 @@ app.post('/api/admin/announce/channel', async (req, res) => {
 
 // GET /api/_debug/diag2 — service-key-gated. Probes sold-items endpoints (profit)
 // and watchlist enrichment. Temporary; removed once profit/watchlist confirmed.
-const BUILD_MARKER2 = 'diag2-2026-05-30-a';
+const BUILD_MARKER2 = 'diag2-2026-05-30-b';
 app.get('/api/_debug/diag2', async (req, res) => {
   const key = req.headers['x-debug-key'] || req.query.key;
   if (!SUPABASE_KEY || key !== SUPABASE_KEY) return res.status(403).json({ error: 'forbidden' });
@@ -6792,15 +6824,22 @@ app.get('/api/_debug/diag2', async (req, res) => {
     out.sold_probes = { skipped: 'no decryptable token/seller' };
   }
 
-  // Watchlist test
+  // Watchlist test — trigger a live fetch on a Vinted row, then enrich
   try {
+    out.any_vinted_token = !!(await getAnyVintedToken());
     const r = await fetch(`${SUPABASE_URL}/rest/v1/watchlist?select=*&limit=50`,
       { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
     const rows = await r.json();
     out.watchlist = { total_rows: Array.isArray(rows) ? rows.length : rows };
     if (Array.isArray(rows) && rows.length) {
+      const vrow = rows.find(x => /vinted\.[a-z.]+\/items\/\d+/.test(x.item || ''));
+      if (vrow) {
+        const idM = vrow.item.match(/\/items\/(\d+)/);
+        out.watchlist.direct_fetch = idM ? await fetchVintedItemDirect(idM[1]) : null;
+        await watchlistImmediateFetch(vrow.id, vrow.item);
+      }
       const enriched = await enrichWatchlistItems(rows.slice(0, 3));
-      out.watchlist.sample = (enriched || []).map(e => ({ item: (e.item||'').slice(0,40), price: e.current_price ?? e.price ?? null, name: e.product_name || e.title || null }));
+      out.watchlist.sample = (enriched || []).map(e => ({ item: (e.item||'').slice(0,40), meta: e.product_meta || null }));
     }
   } catch (e) { out.watchlist = { error: e.message }; }
 
@@ -7040,8 +7079,13 @@ cron.schedule('0 */6 * * *', async () => {
           const isVintedUrl = /vinted\.(co\.uk|fr|de|be|nl|es|it|pl|pt|se|at|lu|cz|sk|hu|ro|lt|lv|ee|fi|dk)\//i.test(wl.item);
 
           if (isVintedUrl) {
-            // ── Vinted URL: fetch via Apify proxy (no Playwright) ──────────────
-            const vintedItem = await apifyVintedFetchItem(wl.item);
+            // ── Vinted URL: item detail API with connected token + proxy ──────
+            const idM = wl.item.match(/\/items\/(\d+)/);
+            let vintedItem = idM ? await fetchVintedItemDirect(idM[1]) : null;
+            if (!vintedItem || !vintedItem.price) {
+              const ai = await apifyVintedFetchItem(wl.item).catch(() => null);
+              if (ai && parseFloat(ai.price || 0)) vintedItem = { title: ai.title, price: parseFloat(ai.price), size: ai.size_title, currency: ai.currency || 'GBP' };
+            }
             if (!vintedItem) {
               console.warn(`[cron:watchlist] Vinted fetch failed for ${wl.item}`);
               continue;
@@ -7053,7 +7097,7 @@ cron.schedule('0 */6 * * *', async () => {
             currentAvg = price;
             currency   = vintedItem.currency || 'GBP';
             const vintedName     = vintedItem.title || wl.item;
-            const vintedVariants = [{ size: vintedItem.size_title || null, price }];
+            const vintedVariants = [{ size: vintedItem.size || vintedItem.size_title || null, price }];
 
             if (!stored) {
               baselines[wl.id] = { platform: 'vinted', productName: vintedName, baseline: price, lowestSeen: price, variants: vintedVariants, currency, url: wl.item, checkedAt: new Date().toISOString() };

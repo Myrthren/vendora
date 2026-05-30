@@ -1538,7 +1538,7 @@
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
         <div class="page-title">Profit Tracker</div>
-        <div class="page-sub">Vinted sales auto-detected when inventory syncs. Log buy-prices to see real margins.</div>
+        <div class="page-sub">New Vinted sales are auto-detected when a listing sells. Log past sales and buy-prices below to see your real margins and ROI.</div>
       </div>
 
       <!-- Vinted auto-sync banner -->
@@ -4773,8 +4773,14 @@
       if (json.connected) {
         if (dot) dot.style.background = 'var(--green)';
         if (tEl) tEl.textContent = `Vinted connected — @${json.username || 'unknown'}`;
-        const syncedAt = json.last_synced ? ` · synced ${new Date(json.last_synced).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}` : ' · never synced — click Sync sales';
-        if (sEl) sEl.textContent = `${_ptAutoSales.length} sale${_ptAutoSales.length !== 1 ? 's' : ''} in history${syncedAt}`;
+        if (sEl) {
+          if (_ptAutoSales.length > 0) {
+            const syncedAt = json.last_synced ? ` · synced ${new Date(json.last_synced).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}` : '';
+            sEl.textContent = `${_ptAutoSales.length} auto-detected sale${_ptAutoSales.length !== 1 ? 's' : ''}${syncedAt}`;
+          } else {
+            sEl.textContent = 'Watching your listings — a sale is logged automatically when an item sells. Add past sales manually below.';
+          }
+        }
         if (btn) btn.disabled = false;
       } else {
         if (dot) dot.style.background = 'var(--muted)';
