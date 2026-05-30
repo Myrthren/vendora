@@ -1535,7 +1535,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
       }
 
       const existing = await dbGetVintedAlerts(interaction.user.id);
-      const MAX_ALERTS = TIER_RANK[profile.tier] >= 3 ? 10 : 5;
+      const MAX_ALERTS = TIER_RANK[profile.tier] >= 3 ? 30 : 5;
       if (existing.length >= MAX_ALERTS) {
         return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Alert Limit Reached')
           .setDescription(`You can have up to **${MAX_ALERTS}** active Vinted alerts on your plan.\n\nRemove one with \`/vinted-alert remove\` to add a new one.`)] });
@@ -6227,7 +6227,7 @@ app.get('/api/vinted-alerts', async (req, res) => {
     || user.identities?.find(i => i.provider === 'discord')?.id || '';
   const profile = await getProfileByDiscordId(discordId);
   const tier    = profile?.tier || 'none';
-  const max     = TIER_RANK[tier] >= 3 ? 10 : 5;
+  const max     = TIER_RANK[tier] >= 3 ? 30 : 5;
   const alerts  = await dbGetVintedAlerts(discordId);
   res.json({ alerts, max });
 });
@@ -6243,7 +6243,7 @@ app.post('/api/vinted-alerts', async (req, res) => {
   const tier    = profile?.tier || 'none';
   if (TIER_RANK[tier] < 2) return res.status(403).json({ error: 'Pro required' });
 
-  const max      = TIER_RANK[tier] >= 3 ? 10 : 5;
+  const max      = TIER_RANK[tier] >= 3 ? 30 : 5;
   const existing = await dbGetVintedAlerts(discordId);
   if (existing.length >= max) return res.status(400).json({ error: `Alert limit reached (${max})` });
 
@@ -6984,46 +6984,75 @@ cron.schedule('0 * * * *', async () => {
 // For every connected Vinted user, pulls live listings via Playwright browser
 // (DataDome already solved) and diffs against the last snapshot.
 // Items that vanish from the live feed are recorded as sales.
-cron.schedule('17 */6 * * *', async () => {
+// Map a list of profile UUIDs → their active subscription tier in one query.
+async function getTiersForUserIds(userIds) {
+  const map = {};
+  if (!SUPABASE_KEY || !userIds.length) return map;
+  try {
+    const list = userIds.map(encodeURIComponent).join(',');
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=in.(${list})&select=id,tier,subscription_status`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
+    const rows = await r.json();
+    if (Array.isArray(rows)) for (const p of rows) {
+      map[p.id] = (p.subscription_status === 'active') ? (p.tier || 'none') : 'none';
+    }
+  } catch (e) { console.warn('[getTiersForUserIds]', e.message); }
+  return map;
+}
+
+// Inventory + sales sync. allowedTiers=null → every connected user (6-hourly
+// baseline). allowedTiers=['elite'] → Elite only (hourly — faster sync perk).
+async function runVintedInventorySync(allowedTiers, label) {
   if (!SUPABASE_KEY) return;
-  console.log('[cron:vinted-sync] Starting inventory + sales sync…');
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/platform_connections?platform=eq.vinted&select=user_id,platform_user_id,platform_username`, {
       headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
     });
     const conns = await r.json();
-    if (!Array.isArray(conns)) { console.warn('[cron:vinted-sync] Unexpected response:', conns); return; }
+    if (!Array.isArray(conns)) return;
+    let pool = conns.filter(c => c.platform_user_id);
+    if (allowedTiers) {
+      const tierMap = await getTiersForUserIds([...new Set(pool.map(c => c.user_id))]);
+      pool = pool.filter(c => allowedTiers.includes(tierMap[c.user_id]));
+    }
+    if (!pool.length) return;
     let synced = 0, sales = 0;
-    for (const c of conns) {
-      if (!c.platform_user_id) continue;
+    for (const c of pool) {
       try {
         const out = await syncVintedInventoryForUser(c.user_id);
         if (out.ok) { synced++; sales += out.sold_now || 0; }
       } catch (e) {
-        console.warn(`[cron:vinted-sync] failed for ${c.platform_username}:`, e.message);
+        console.warn(`[cron:vinted-sync:${label}] failed for ${c.platform_username}:`, e.message);
       }
-      // Spread requests so we don't hammer Apify proxy
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise(r => setTimeout(r, 1500)); // spread Apify/proxy load
     }
-    console.log(`[cron:vinted-sync] Done. Synced ${synced}/${conns.length} accounts, ${sales} new sale(s).`);
+    console.log(`[cron:vinted-sync:${label}] Synced ${synced}/${pool.length}, ${sales} new sale(s).`);
   } catch (e) {
-    console.error('[cron:vinted-sync] Fatal:', e.message);
+    console.error(`[cron:vinted-sync:${label}] Fatal:`, e.message);
   }
-});
+}
+
+// Everyone every 6h; Elite additionally every hour (faster inventory + profit).
+cron.schedule('17 */6 * * *', () => runVintedInventorySync(null, 'all'));
+cron.schedule('37 * * * *',   () => runVintedInventorySync(['elite'], 'elite'));
 
 // ── Price drop watchlist cron — runs every 6 hours ───────────────────────────
 // Checks live Depop + Vinted prices for all watched items, DMs users when a
 // significant drop is detected (≥10% below their stored baseline).
-cron.schedule('0 */6 * * *', async () => {
-  console.log('[cron:watchlist] Starting live price-drop check...');
+async function runWatchlistCheck(allowedTiers, label) {
   if (!SUPABASE_KEY) return;
 
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/watchlist?select=*&order=added_at.asc`, {
       headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
     });
-    const items = await r.json();
-    if (!items?.length) { console.log('[cron:watchlist] No watchlist items.'); return; }
+    let items = await r.json();
+    if (!Array.isArray(items) || !items.length) return;
+    if (allowedTiers) {
+      const tierMap = await getTiersForDiscordIds([...new Set(items.map(w => w.discord_id))]);
+      items = items.filter(w => allowedTiers.includes(tierMap[w.discord_id]));
+    }
+    if (!items.length) return;
 
     // Load price baselines from settings table (keyed by watchlist item id)
     const baselineKey = 'watchlist_price_baselines';
@@ -7177,11 +7206,15 @@ cron.schedule('0 */6 * * *', async () => {
 
     // Persist updated baselines
     await saveSetting(baselineKey, baselines);
-    console.log(`[cron:watchlist] Done. Checked ${checkedCount}/${items.length} items, sent ${alertCount} alerts.`);
+    console.log(`[cron:watchlist:${label}] Done. Checked ${checkedCount}/${items.length}, sent ${alertCount} alerts.`);
   } catch (e) {
-    console.error('[cron:watchlist] Fatal error:', e.message);
+    console.error(`[cron:watchlist:${label}] Fatal error:`, e.message);
   }
-});
+}
+
+// Everyone every 6h; Elite additionally every hour (faster price-drop alerts).
+cron.schedule('0 */6 * * *', () => runWatchlistCheck(null, 'all'));
+cron.schedule('53 * * * *',  () => runWatchlistCheck(['elite'], 'elite'));
 
 // ── Monthly credits grant ──────────────────────────────────────────────────────
 // Called by dashboard on login — idempotent per calendar month
@@ -8127,14 +8160,34 @@ cron.schedule('*/2 * * * *', async () => {
   }
 });
 
-cron.schedule('*/30 * * * *', async () => {
-  if (!APIFY_TOKEN || !SUPABASE_KEY) return;
-  console.log('[cron:vinted-alerts] Running Vinted keyword alert checks...');
+// Map a list of Discord IDs → their active subscription tier in one query.
+async function getTiersForDiscordIds(discordIds) {
+  const map = {};
+  if (!SUPABASE_KEY || !discordIds.length) return map;
+  try {
+    const list = discordIds.map(encodeURIComponent).join(',');
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/profiles?discord_id=in.(${list})&select=discord_id,tier,subscription_status`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
+    const rows = await r.json();
+    if (Array.isArray(rows)) for (const p of rows) {
+      map[p.discord_id] = (p.subscription_status === 'active') ? (p.tier || 'none') : 'none';
+    }
+  } catch (e) { console.warn('[getTiersForDiscordIds]', e.message); }
+  return map;
+}
 
+// Process Vinted keyword alerts for users whose tier is in `allowedTiers`.
+// Shared by the Elite (5-min) and Pro (30-min) crons so each tier gets a
+// different check cadence — speed is the core Elite differentiator.
+async function processVintedAlerts(allowedTiers, label) {
+  if (!APIFY_TOKEN || !SUPABASE_KEY) return;
   let alertCount = 0;
   try {
-    const alerts = await dbGetVintedAlerts(null); // all users
-    if (!alerts?.length) return;
+    const all = await dbGetVintedAlerts(null);
+    if (!all?.length) return;
+    const tierMap = await getTiersForDiscordIds([...new Set(all.map(a => a.discord_id))]);
+    const alerts = all.filter(a => allowedTiers.includes(tierMap[a.discord_id]));
+    if (!alerts.length) return;
 
     for (const alert of alerts) {
       try {
@@ -8143,8 +8196,6 @@ cron.schedule('*/30 * * * *', async () => {
 
         const seenIds  = new Set(alert.seen_ids || []);
         const newItems = items.filter(i => i.id && !seenIds.has(i.id));
-
-        // Apply max_price filter if set
         const filtered = alert.max_price
           ? newItems.filter(i => i.priceNum > 0 && i.priceNum <= alert.max_price)
           : newItems;
@@ -8165,23 +8216,25 @@ cron.schedule('*/30 * * * *', async () => {
             await discordUser.send({ embeds: [embed] });
             alertCount++;
           } catch (e) {
-            console.warn(`[cron:vinted-alerts] DM failed for ${alert.discord_id}:`, e.message);
+            console.warn(`[cron:vinted-alerts:${label}] DM failed for ${alert.discord_id}:`, e.message);
           }
         }
 
-        // Update seen_ids with all current item IDs (so we don't re-alert)
         const allIds = [...new Set([...seenIds, ...items.map(i => i.id).filter(Boolean)])];
-        await dbUpdateVintedAlertSeenIds(alert.id, allIds.slice(-500)); // cap to 500
+        await dbUpdateVintedAlertSeenIds(alert.id, allIds.slice(-500));
       } catch (e) {
-        console.warn(`[cron:vinted-alerts] Error checking alert "${alert.keyword}":`, e.message);
+        console.warn(`[cron:vinted-alerts:${label}] Error checking "${alert.keyword}":`, e.message);
       }
     }
-
-    console.log(`[cron:vinted-alerts] Done. Checked ${alerts.length} alerts, sent ${alertCount} DMs.`);
+    if (alertCount) console.log(`[cron:vinted-alerts:${label}] Checked ${alerts.length} alerts, sent ${alertCount} DMs.`);
   } catch (e) {
-    console.error('[cron:vinted-alerts] Fatal error:', e.message);
+    console.error(`[cron:vinted-alerts:${label}] Fatal:`, e.message);
   }
-});
+}
+
+// Elite alerts every 5 minutes (wins items first); Pro alerts every 30 minutes.
+cron.schedule('*/5 * * * *',  () => processVintedAlerts(['elite'], 'elite'));
+cron.schedule('*/30 * * * *', () => processVintedAlerts(['pro'],   'pro'));
 
 // ── Vinted alert toggle (auto_buy, max_price) ────────────────────────────────
 // PATCH /api/vinted/alert/:id — update fields on a Vinted alert owned by the user.
