@@ -5087,6 +5087,8 @@ app.get('/api/vinted/sync-profit', async (req, res) => {
 
 app.post('/api/vinted/sync-profit', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
+  const profile = await getProfileByUserId(user.id);
+  if (!profile || TIER_RANK[profile.tier] < TIER_RANK.basic) return res.status(403).json({ error: 'Subscription required.' });
   const conn = await getPlatformConn(user.id, 'vinted');
   if (!conn) return res.status(400).json({ error: 'Connect your Vinted account first.' });
 
