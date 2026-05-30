@@ -559,6 +559,17 @@ async function apifyVintedSearch(query, maxItems = 12) {
   return items.slice(0, maxItems).map(mapApifyVintedItem);
 }
 
+// Fetch a single Vinted item's live details via the actor's ITEM_DETAIL mode.
+// Returns { title, price, size, currency } or null. Powers watchlist tracking.
+async function apifyVintedItemDetail(url) {
+  if (!APIFY_TOKEN || !url) return null;
+  const items = await apifyRunVinted({ mode: 'ITEM_DETAIL', itemUrls: [url], includePhotos: false }, 60);
+  if (!Array.isArray(items) || !items.length) return null;
+  const m = mapApifyVintedItem(items[0]);
+  if (!m.priceNum) return null;
+  return { title: m.title, price: m.priceNum, size: items[0].size || '', currency: m.currency || 'GBP' };
+}
+
 // Fetch a specific Vinted item by URL or ID via Apify residential proxy.
 // Used by the watchlist cron to track price changes on individual Vinted listings.
 async function apifyVintedFetchItem(itemIdOrUrl) {
@@ -6120,10 +6131,14 @@ async function watchlistImmediateFetch(itemId, url) {
     if (!idMatch) return;
     const itemNumId = idMatch[1];
 
-    // Primary: item detail API with a connected token + proxy (reliable).
-    // Use the item's own domain (the watchlist URL) — items are region-specific.
-    let item = await fetchVintedItemDirect(itemNumId, url);
-    // Fallback: Apify item fetch (only works if a paid Apify account is configured).
+    // Primary: Apify actor ITEM_DETAIL mode (purpose-built, residential proxy).
+    let item = await apifyVintedItemDetail(url);
+    // Fallback: direct item-detail API with a connected token (Vinted often 404s this).
+    if (!item || !item.price) {
+      const d = await fetchVintedItemDirect(itemNumId, url);
+      if (d && d.price) item = d;
+    }
+    // Last resort: legacy Apify proxy item fetch.
     if (!item || !item.price) {
       const ai = await apifyVintedFetchItem(url).catch(() => null);
       if (ai && parseFloat(ai.price || 0)) {
@@ -6788,86 +6803,6 @@ app.post('/api/admin/announce/channel', async (req, res) => {
   }
 });
 
-// GET /api/_debug/diag2 — service-key-gated. Probes sold-items endpoints (profit)
-// and watchlist enrichment. Temporary; removed once profit/watchlist confirmed.
-const BUILD_MARKER2 = 'diag2-2026-05-30-d';
-app.get('/api/_debug/diag2', async (req, res) => {
-  const key = req.headers['x-debug-key'] || req.query.key;
-  if (!SUPABASE_KEY || key !== SUPABASE_KEY) return res.status(403).json({ error: 'forbidden' });
-  const out = { build_marker: BUILD_MARKER2 };
-
-  // Find the vinted connection + token
-  let sid = '', tok = '', uid = '';
-  try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/platform_connections?platform=eq.vinted&select=user_id,platform_user_id,access_token&limit=1`,
-      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
-    const rows = await r.json();
-    if (rows?.[0]) { sid = rows[0].platform_user_id; uid = rows[0].user_id; tok = decryptToken(rows[0].access_token || ''); }
-  } catch (e) { out.conn_error = e.message; }
-
-  if (sid && tok) {
-    const base = await getVintedBase();
-    const hdrs = VINTED_HEADERS(tok, base);
-    const probe = async (path) => {
-      try {
-        const r = await vFetch(`${base}${path}`, { headers: hdrs, signal: AbortSignal.timeout(12000) });
-        const text = await r.text();
-        if (/datadome|captcha/i.test(text)) return { status: r.status, blocked: true };
-        let d; try { d = JSON.parse(text); } catch { d = null; }
-        const items = d?.items || d?.orders || d?.feedbacks || [];
-        const statuses = [...new Set(items.slice(0,20).map(it => it.is_sold ?? it.status ?? it.state))].slice(0,5);
-        return { status: r.status, count: items.length, statuses, keys: d ? Object.keys(d).slice(0,6) : null };
-      } catch (e) { return { error: e.message }; }
-    };
-    out.sold_probes = {
-      wardrobe_filter:  await probe(`/api/v2/wardrobe/${sid}/items?status=sold&per_page=20`),
-      user_feedbacks:   await probe(`/api/v2/users/${sid}/feedbacks?per_page=20&page=1`),
-      my_orders:        await probe(`/api/v2/my_orders?per_page=20&type=sold`),
-      transactions:     await probe(`/api/v2/transactions?per_page=20`),
-    };
-  } else {
-    out.sold_probes = { skipped: 'no decryptable token/seller' };
-  }
-
-  // Item-detail endpoint sanity check on a KNOWN-LIVE listing + raw status
-  try {
-    const tok = await getAnyVintedToken();
-    out.item_detail_check = { token: !!tok };
-    if (tok) {
-      const base = 'https://www.vinted.co.uk';
-      const r = await vFetch(`${base}/api/v2/items/8004221870`, { headers: VINTED_HEADERS(tok, base), signal: AbortSignal.timeout(12000) });
-      const text = await r.text();
-      out.item_detail_check.status = r.status;
-      out.item_detail_check.blocked = /datadome|captcha/i.test(text);
-      let d; try { d = JSON.parse(text); } catch { d = null; }
-      out.item_detail_check.has_item = !!d?.item;
-      out.item_detail_check.title = d?.item?.title || null;
-      out.item_detail_check.via_helper = await fetchVintedItemDirect('8004221870', 'https://www.vinted.co.uk');
-    }
-  } catch (e) { out.item_detail_check = { error: e.message }; }
-
-  // Watchlist test — trigger a live fetch on a Vinted row, then enrich
-  try {
-    out.any_vinted_token = !!(await getAnyVintedToken());
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/watchlist?select=*&limit=50`,
-      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
-    const rows = await r.json();
-    out.watchlist = { total_rows: Array.isArray(rows) ? rows.length : rows };
-    if (Array.isArray(rows) && rows.length) {
-      const vrow = rows.find(x => /vinted\.[a-z.]+\/items\/\d+/.test(x.item || ''));
-      if (vrow) {
-        const idM = vrow.item.match(/\/items\/(\d+)/);
-        out.watchlist.direct_fetch = idM ? await fetchVintedItemDirect(idM[1]) : null;
-        await watchlistImmediateFetch(vrow.id, vrow.item);
-      }
-      const enriched = await enrichWatchlistItems(rows.slice(0, 3));
-      out.watchlist.sample = (enriched || []).map(e => ({ item: (e.item||'').slice(0,40), meta: e.product_meta || null }));
-    }
-  } catch (e) { out.watchlist = { error: e.message }; }
-
-  res.json(out);
-});
-
 // GET /api/announcement — public, returns active site banner or null
 app.get('/api/announcement', async (req, res) => {
   try {
@@ -7103,7 +7038,11 @@ cron.schedule('0 */6 * * *', async () => {
           if (isVintedUrl) {
             // ── Vinted URL: item detail API with connected token + proxy ──────
             const idM = wl.item.match(/\/items\/(\d+)/);
-            let vintedItem = idM ? await fetchVintedItemDirect(idM[1], wl.item) : null;
+            let vintedItem = await apifyVintedItemDetail(wl.item);
+            if ((!vintedItem || !vintedItem.price) && idM) {
+              const d = await fetchVintedItemDirect(idM[1], wl.item);
+              if (d && d.price) vintedItem = d;
+            }
             if (!vintedItem || !vintedItem.price) {
               const ai = await apifyVintedFetchItem(wl.item).catch(() => null);
               if (ai && parseFloat(ai.price || 0)) vintedItem = { title: ai.title, price: parseFloat(ai.price), size: ai.size_title, currency: ai.currency || 'GBP' };
