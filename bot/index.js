@@ -5100,104 +5100,34 @@ app.post('/api/vinted/sync-profit', async (req, res) => {
     return res.status(400).json({ error: 'Could not determine your Vinted seller ID. Please disconnect and reconnect your Vinted account from the Platforms page.' });
   }
 
-  // Helper: fetch all sold-item pages using a given token
-  async function fetchAllSoldPages(token) {
-    const base    = await getVintedBase();
-    const headers = VINTED_HEADERS(token, base);
-    const sales   = [];
-    let blocked   = false;
-    const MAX_PAGES = 20;
-
-    for (let page = 1; page <= MAX_PAGES; page++) {
-      const r = await vFetch(
-        `${base}/api/v2/users/${userId}/items?item_statuses[]=sold&per_page=100&page=${page}&order=newest_first`,
-        { headers, signal: AbortSignal.timeout(15000) }
-      );
-      const text = await r.text();
-
-      if (/captcha-delivery\.com|datadome/i.test(text)) { blocked = true; break; }
-
-      // Expired / revoked token — signal caller to refresh and retry
-      if (r.status === 401 || r.status === 403) return { authError: r.status };
-
-      let data;
-      try { data = JSON.parse(text); } catch { data = {}; }
-
-      const pageItems = data.items || [];
-      if (!pageItems.length) break;
-      sales.push(...pageItems);
-      if (pageItems.length < 100) break;
-    }
-
-    return { sales, blocked };
-  }
-
-  let fetchedSales = [];
-  let datadomBlocked = false;
-
+  // Vinted retired the public sold-items API (/api/v2/users/{id}/items?item_statuses[]=sold
+  // now 404s). The only reliable way to record sales is to diff the active
+  // wardrobe over time: when a previously-active listing disappears, it sold.
+  // syncVintedInventoryForUser() does exactly that and appends to vinted_sales_${id}.
+  let syncResult = { ok: false };
   try {
-    const result = await fetchAllSoldPages(rawToken);
-
-    // Token expired — try to refresh once and retry
-    if (result.authError) {
-      console.log(`[sync-profit] Token returned ${result.authError}, attempting refresh…`);
-      const newToken = await refreshVintedTokenIfNeeded(user.id, conn);
-      if (!newToken) {
-        return res.status(401).json({ error: 'Your Vinted session has expired and could not be refreshed. Please reconnect your Vinted account from the Platforms page.' });
-      }
-      rawToken = newToken;
-      const retry = await fetchAllSoldPages(newToken);
-      if (retry.authError) {
-        return res.status(401).json({ error: 'Your Vinted session has expired. Please reconnect your Vinted account from the Platforms page.' });
-      }
-      fetchedSales   = retry.sales   || [];
-      datadomBlocked = retry.blocked || false;
-    } else {
-      fetchedSales   = result.sales   || [];
-      datadomBlocked = result.blocked || false;
-    }
-
-    console.log(`[sync-profit] fetched ${fetchedSales.length} sold items (userId=${userId})`);
+    syncResult = await syncVintedInventoryForUser(user.id);
   } catch (e) {
-    console.warn('[sync-profit] fetch error:', e.message);
-    if (!fetchedSales.length) {
-      return res.status(503).json({ error: `Could not reach Vinted: ${e.message}` });
-    }
+    console.warn('[sync-profit] inventory diff failed:', e.message);
   }
 
-  if (datadomBlocked) {
-    return res.status(503).json({ error: 'Vinted is blocking this request (DataDome). Make sure PROXY_URL is set in Railway with valid Smartproxy credentials.' });
-  }
-
-  // Merge with existing stored sales — deduplicate by item ID, keep full history
-  const snap     = (await getSetting(`vinted_sales_${user.id}`)) || { sales: [] };
-  const knownIds = new Set((snap.sales || []).map(s => String(s.id)));
-
-  const newSales = fetchedSales
-    .filter(i => i.id && !knownIds.has(String(i.id)))
-    .map(i => ({
-      id:      String(i.id),
-      title:   i.title || i.name || 'Vinted item',
-      price:   (i.price_numeric ?? parseFloat(String(i.price?.amount ?? i.price ?? '0').replace(/[^0-9.]/g, ''))) || 0,
-      sold_at: i.updated_at || i.created_at || new Date().toISOString(),
-      status:  'sold',
-      photo:   i.photo?.url || i.photos?.[0]?.url || null,
-    }));
-
-  // Prepend new items — cap total at 2000 (enough for any realistic seller history)
-  snap.sales       = [...newSales, ...(snap.sales || [])].slice(0, 2000);
+  const snap = (await getSetting(`vinted_sales_${user.id}`)) || { sales: [], last_synced: null };
   snap.last_synced = new Date().toISOString();
-  snap.total_fetched = fetchedSales.length;
   await saveSetting(`vinted_sales_${user.id}`, snap);
+
+  const note = (syncResult && syncResult.ok)
+    ? 'Sales are detected automatically when a listing sells (disappears from your active items). Historical sales from before you connected can\'t be imported — Vinted no longer exposes them.'
+    : 'Could not reach your Vinted listings — check that your token is valid on the Platforms page.';
 
   res.json({
     ok:           true,
     connected:    true,
     username:     conn.platform_username,
     last_synced:  snap.last_synced,
-    sales:        snap.sales,
-    new_sold:     newSales.length,
-    total_synced: snap.sales.length,
+    sales:        snap.sales || [],
+    new_sold:     (syncResult && syncResult.sold_now) || 0,
+    total_synced: (snap.sales || []).length,
+    note,
   });
 });
 
@@ -6817,7 +6747,7 @@ app.post('/api/admin/announce/channel', async (req, res) => {
 // service key (x-debug-key header). Reveals deploy marker, Apify/proxy config
 // presence, a live Apify search, and per-connection token decrypt status.
 // Returns NO secret values — only booleans, lengths, and the non-secret actor name.
-const BUILD_MARKER = 'diag-2026-05-30-d';
+const BUILD_MARKER = 'diag-2026-05-30-e';
 app.get('/api/_debug/diag', async (req, res) => {
   const key = req.headers['x-debug-key'] || req.query.key;
   if (!SUPABASE_KEY || key !== SUPABASE_KEY) return res.status(403).json({ error: 'forbidden' });
@@ -6941,6 +6871,25 @@ app.get('/api/_debug/diag', async (req, res) => {
       out.catalog_probe = { skipped: 'no connection with a decryptable token' };
     }
   } catch (e) { out.catalog_probe = { error: e.message }; }
+
+  // End-to-end inventory sync test — runs the real sync and reports the result.
+  try {
+    const conns = out.vinted_connections;
+    const c = Array.isArray(conns) ? conns.find(x => x.decrypt_ok && x.seller_id) : null;
+    if (c) {
+      // find the user_id for this connection
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/platform_connections?platform=eq.vinted&platform_user_id=eq.${c.seller_id}&select=user_id`,
+        { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
+      const rows = await r.json();
+      const uid = rows?.[0]?.user_id;
+      if (uid) {
+        const t0 = Date.now();
+        const sr = await syncVintedInventoryForUser(uid);
+        const snap = (await getSetting(`vinted_inventory_${uid}`)) || {};
+        out.inventory_sync = { result: sr, stored_items: (snap.items || []).length, sample: (snap.items || [])[0]?.title || null, ms: Date.now() - t0 };
+      }
+    }
+  } catch (e) { out.inventory_sync = { error: e.message }; }
 
   res.json(out);
 });
