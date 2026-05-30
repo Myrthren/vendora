@@ -7973,6 +7973,75 @@ cron.schedule('45 * * * *', async () => {
   }
 });
 
+// ── Token-expiry DM notifier — runs hourly ───────────────────────────────────
+// Vinted's access_token_web is short-lived and the cookie-paste flow stores no
+// refresh token, so most tokens just silently expire — breaking Inventory,
+// Profit, Auto-Buy and listing features. This DMs the user (once per token) to
+// paste a fresh one. Connections WITH a refresh token are handled by the
+// refresh cron above, so we skip them here to avoid double-notifying.
+cron.schedule('25 * * * *', async () => {
+  if (!SUPABASE_KEY || !client) return;
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/platform_connections?platform=eq.vinted&select=user_id,access_token,refresh_token`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    const conns = await r.json();
+    if (!Array.isArray(conns) || !conns.length) return;
+
+    const SOON_MS = 12 * 3600 * 1000;
+    let notified = 0;
+    for (const c of conns) {
+      try {
+        if (c.refresh_token) continue; // handled by refresh cron
+        const raw = decryptToken(c.access_token || '');
+        const parts = raw?.split('.');
+        if (!raw || parts?.length !== 3) continue;
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+        if (!payload.exp) continue;
+
+        const expMs = payload.exp * 1000;
+        if (expMs >= Date.now() + SOON_MS) continue; // not expiring soon
+        const expired = expMs < Date.now();
+
+        // Dedup: only one DM per distinct token expiry.
+        const notifyKey = `vinted_token_notified_${c.user_id}`;
+        if ((await getSetting(notifyKey)) === payload.exp) continue;
+
+        const profile   = await getProfileByUserId(c.user_id);
+        const discordId = profile?.discord_id;
+        if (!discordId) continue;
+        const du = await client.users.fetch(discordId).catch(() => null);
+        if (!du) continue;
+
+        const whenStr = new Date(expMs).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+        await du.send({ embeds: [ new EmbedBuilder()
+          .setColor(expired ? '#f87171' : '#e8a121')
+          .setTitle(expired ? '⚠️ Vinted Token Expired' : '⏳ Vinted Token Expiring Soon')
+          .setDescription(
+            `Your Vinted session token ${expired ? '**has expired**' : `expires around **${whenStr}**`}.\n\n` +
+            `While it's expired, **Inventory, Profit Tracker, Auto-Buy and listing features won't update.**\n\n` +
+            `**Fix it in ~30 seconds:**\n` +
+            `→ Open Vinted in your browser (logged in)\n` +
+            `→ F12 → Application → Cookies → \`www.vinted.co.uk\`\n` +
+            `→ Copy the **access_token_web** value\n` +
+            `→ Paste it on your [Vendora dashboard](${DASHBOARD_URL}) → **Platforms**`
+          )
+          .setFooter({ text: 'Vendora · sent once per token' })
+          .setTimestamp() ] }).catch(() => {});
+
+        await saveSetting(notifyKey, payload.exp);
+        notified++;
+        console.log(`[cron:token-expiry] notified ${discordId} (exp ${whenStr})`);
+        await new Promise(r => setTimeout(r, 1500));
+      } catch {}
+    }
+    if (notified) console.log(`[cron:token-expiry] Done — ${notified} DM(s) sent.`);
+  } catch (e) {
+    console.error('[cron:token-expiry] Fatal:', e.message);
+  }
+});
+
 // ── AI inventory suggestions cron — every 8 hours ────────────────────────────
 // For every connected Vinted user, loads their inventory snapshot and asks the
 // AI for specific improvement suggestions on stale listings (listed > 3 days).
