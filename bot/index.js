@@ -522,12 +522,17 @@ async function apifyRunVinted(input, timeoutSec = 90) {
   return null;
 }
 
+// Build currency symbols from char codes so they're immune to any source-file
+// encoding issue at runtime (the deployed runtime mangles non-ASCII literals).
+const SYM_GBP = String.fromCharCode(163);   // £
+const SYM_EUR = String.fromCharCode(8364);  // €
+
 // Map a kazkn/vinted-smart-scraper output item to our internal shape.
 function mapApifyVintedItem(i) {
   const photo = Array.isArray(i.photos) ? (i.photos[0] || '')
     : (i.photo || i.photoUrl || i.thumbnailUrl || '');
   const cur = (i.currency || '').toUpperCase();
-  const sym = cur === 'GBP' ? '£' : cur === 'EUR' ? '€' : (cur ? cur + ' ' : '£');
+  const sym = cur === 'GBP' ? SYM_GBP : cur === 'EUR' ? SYM_EUR : (cur ? cur + ' ' : SYM_GBP);
   const num = parseFloat(i.price ?? i.priceNumeric ?? 0) || 0;
   return {
     id:        String(i.id || i.itemId || ''),
@@ -6805,11 +6810,12 @@ app.post('/api/admin/announce/channel', async (req, res) => {
 
 // GET /api/_debug/diag3 — service-key-gated. Verifies the Apify token works for
 // Auto-Buy (search) and Watchlist (item detail). Temporary.
-const BUILD_MARKER3 = 'diag3-2026-05-30-a';
+const BUILD_MARKER3 = 'diag3-2026-05-30-b';
 app.get('/api/_debug/diag3', async (req, res) => {
   const key = req.headers['x-debug-key'] || req.query.key;
   if (!SUPABASE_KEY || key !== SUPABASE_KEY) return res.status(403).json({ error: 'forbidden' });
   const out = { build_marker: BUILD_MARKER3, APIFY_VINTED_ACTOR, apify_token_set: !!APIFY_TOKEN };
+  out.enc_test = { literal: '£', charcode: String.fromCharCode(163) };
 
   try {
     const r = await fetch(`https://api.apify.com/v2/users/me?token=${APIFY_TOKEN}`, { signal: AbortSignal.timeout(8000) });
