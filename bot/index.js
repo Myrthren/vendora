@@ -6846,6 +6846,125 @@ app.post('/api/admin/announce/channel', async (req, res) => {
   }
 });
 
+// ── Cross-Country Arbitrage Finder (credit-powered) ──────────────────────────
+// Uses the Vinted scraper's CROSS_COUNTRY mode to compare the same item across
+// EU markets, converts everything to GBP, and surfaces where it's cheapest to
+// buy vs the UK resale price.
+const ARBITRAGE_CREDIT_COST = 60;
+const ARBITRAGE_COUNTRIES   = ['uk', 'fr', 'de', 'es', 'it'];
+const COUNTRY_NAMES = { uk: '🇬🇧 UK', fr: '🇫🇷 France', de: '🇩🇪 Germany', es: '🇪🇸 Spain', it: '🇮🇹 Italy', nl: '🇳🇱 Netherlands', pl: '🇵🇱 Poland', be: '🇧🇪 Belgium' };
+
+// GBP per 1 unit of currency. Live (open.er-api.com, no key) with 12h cache + fallback.
+let _fxCache = { at: 0, rates: null };
+async function getGbpRates() {
+  if (_fxCache.rates && Date.now() - _fxCache.at < 12 * 3600 * 1000) return _fxCache.rates;
+  const fallback = { GBP: 1, EUR: 0.85, PLN: 0.20, USD: 0.79, SEK: 0.075, DKK: 0.114, CZK: 0.034, RON: 0.17, HUF: 0.0022 };
+  try {
+    const r = await fetch('https://open.er-api.com/v6/latest/GBP', { signal: AbortSignal.timeout(8000) });
+    const d = await r.json();
+    if (d?.rates) {
+      const rates = { GBP: 1 };
+      for (const [cur, perGbp] of Object.entries(d.rates)) if (perGbp > 0) rates[cur] = 1 / perGbp;
+      _fxCache = { at: Date.now(), rates };
+      return rates;
+    }
+  } catch {}
+  return fallback;
+}
+
+app.post('/api/arbitrage', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const profile = await getProfileByUserId(user.id);
+  if (!profile || TIER_RANK[profile.tier] < TIER_RANK.basic) return res.status(403).json({ error: 'Subscription required.' });
+  if (!APIFY_TOKEN) return res.status(503).json({ error: 'Scraper not configured.' });
+
+  const query = String(req.body?.query || '').trim();
+  if (query.length < 2) return res.status(400).json({ error: 'Enter a product to search (e.g. "nike air max 90").' });
+  let countries = Array.isArray(req.body?.countries) && req.body.countries.length ? req.body.countries : ARBITRAGE_COUNTRIES;
+  countries = countries.filter(c => COUNTRY_NAMES[c]).slice(0, 6);
+  if (!countries.includes('uk')) countries.unshift('uk'); // always need UK as the resale benchmark
+
+  // Check balance up front (don't deduct until we have results).
+  const balance = await getCredits(user.id);
+  if (balance < ARBITRAGE_CREDIT_COST) {
+    return res.status(402).json({ error: `This scan costs ${ARBITRAGE_CREDIT_COST} credits — you have ${balance}.`, balance, cost: ARBITRAGE_CREDIT_COST });
+  }
+
+  let items;
+  try {
+    items = await apifyRunVinted({ mode: 'CROSS_COUNTRY', query, countries, maxItems: 48, includePhotos: false }, 120);
+  } catch (e) {
+    return res.status(502).json({ error: `Scan failed: ${e.message}` });
+  }
+  if (!Array.isArray(items) || !items.length) {
+    return res.status(404).json({ error: 'No live listings found for that search across those markets. Try a broader or differently-worded query.' });
+  }
+
+  // Charge only now that we have results.
+  let creditsLeft;
+  try { creditsLeft = await deductCredits(user.id, ARBITRAGE_CREDIT_COST); }
+  catch (e) { return res.status(402).json({ error: e.message, balance: e.balance }); }
+
+  const rates = await getGbpRates();
+  const toGbp = (price, cur) => (parseFloat(price) || 0) * (rates[(cur || 'GBP').toUpperCase()] || 1);
+
+  // Group by country
+  const byCountry = {};
+  for (const it of items) {
+    if (it.isSold) continue;
+    const c = (it.country || '').toLowerCase();
+    if (!COUNTRY_NAMES[c]) continue;
+    const gbp = toGbp(it.price, it.currency);
+    if (!gbp) continue;
+    (byCountry[c] = byCountry[c] || []).push({
+      title: it.title || '', url: it.url || '', size: it.size || '',
+      price: parseFloat(it.price) || 0, currency: (it.currency || 'GBP').toUpperCase(), gbp,
+    });
+  }
+
+  const median = arr => { const s = [...arr].sort((a, b) => a - b); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+  const countriesOut = Object.entries(byCountry).map(([c, list]) => {
+    list.sort((a, b) => a.gbp - b.gbp);
+    return {
+      country: c, name: COUNTRY_NAMES[c], count: list.length,
+      cheapest: list[0], median_gbp: Math.round(median(list.map(i => i.gbp))),
+    };
+  });
+
+  // UK resale benchmark = median UK price (fallback: overall median)
+  const ukList = byCountry.uk || [];
+  const allGbp = items.map(i => toGbp(i.price, i.currency)).filter(Boolean);
+  const ukBenchmark = ukList.length ? Math.round(median(ukList.map(i => i.gbp))) : Math.round(median(allGbp));
+
+  // Opportunities: non-UK cheapest vs UK benchmark
+  const opportunities = countriesOut
+    .filter(c => c.country !== 'uk' && c.cheapest)
+    .map(c => {
+      const buy = c.cheapest.gbp;
+      const grossMargin = ukBenchmark - buy;
+      return {
+        ...c,
+        buy_gbp: Math.round(buy),
+        uk_resale_gbp: ukBenchmark,
+        gross_margin_gbp: Math.round(grossMargin),
+        margin_pct: buy > 0 ? Math.round((grossMargin / buy) * 100) : 0,
+      };
+    })
+    .sort((a, b) => b.gross_margin_gbp - a.gross_margin_gbp);
+
+  res.json({
+    ok: true,
+    query,
+    credits_left: creditsLeft,
+    cost: ARBITRAGE_CREDIT_COST,
+    uk_benchmark_gbp: ukBenchmark,
+    countries: countriesOut.sort((a, b) => (a.cheapest?.gbp || 1e9) - (b.cheapest?.gbp || 1e9)),
+    opportunities,
+    scanned: items.length,
+  });
+});
+
 // POST /api/admin/post-promo — service-key-gated. Posts the Vendora promo embed
 // (with a "Buy here" link button) to a Discord channel. Defaults to the promo channel.
 app.post('/api/admin/post-promo', async (req, res) => {
