@@ -4998,16 +4998,14 @@ app.post('/api/vinted/save-token', async (req, res) => {
     return res.status(401).json({ error: `This token expired on ${expiredAt}. Log in to Vinted in your browser, copy a fresh access_token_web cookie, and paste it here.` });
   }
 
+  // Token IS the connection now — no separate username-connect step. If there's
+  // no existing connection we create one from the token's embedded user ID.
   const conn = await getPlatformConn(user.id, 'vinted');
-  if (!conn) {
-    return res.status(400).json({ error: 'Connect your Vinted username first, then add the token.' });
-  }
+  const isFirstConnect = !conn;
 
   // ── 3. Extract user ID from JWT payload (Vinted embeds it) ───────────────
-  // Vinted's access_token_web payload contains the numeric user ID.
-  // Extracting it here means we never have a missing platform_user_id —
-  // which is required for inventory sync (vintedBrowserFetchPublicUserItems
-  // has an early-exit guard: `if (sellerId && ...)` ).
+  // Vinted's access_token_web payload contains the numeric seller ID — required
+  // for inventory + profit sync.
   const jwtUserId = String(
     jwtPayload.user_id || jwtPayload.sub || jwtPayload.id || jwtPayload.uid || ''
   ).replace(/\D/g, ''); // keep digits only — sub may be "user:12345"
@@ -5020,21 +5018,30 @@ app.post('/api/vinted/save-token', async (req, res) => {
     return res.status(401).json({ error: validation.error || 'Token rejected by Vinted — it may have been revoked or is for a different region. Get a fresh access_token_web and try again.' });
   }
 
-  const resolvedUserId   = validation.user_id || jwtUserId || conn.platform_user_id || '';
-  const resolvedUsername = validation.username || conn.platform_username;
-  if (resolvedUserId) console.log(`[vinted-token] resolved seller ID ${resolvedUserId} for @${resolvedUsername}`);
+  const resolvedUserId   = validation.user_id || jwtUserId || conn?.platform_user_id || '';
+  const resolvedUsername = validation.username || conn?.platform_username || jwtPayload.username || (resolvedUserId ? `seller_${resolvedUserId}` : 'vinted');
+  if (!resolvedUserId) {
+    return res.status(400).json({ error: 'Could not read your Vinted seller ID from that token. Make sure you copied the full access_token_web value.' });
+  }
+  console.log(`[vinted-token] resolved seller ID ${resolvedUserId} for @${resolvedUsername}`);
 
   const save = await upsertPlatformConn(user.id, 'vinted', {
     access_token:      encryptToken(token),
     refresh_token:     null,
     platform_user_id:  resolvedUserId,
     platform_username: resolvedUsername,
-    connected_at:      conn.connected_at || new Date().toISOString(),
+    connected_at:      conn?.connected_at || new Date().toISOString(),
     // token_expires_at omitted — column not yet in schema; expiry surfaced in API response only
   });
   if (!save.ok) return res.status(500).json({ error: save.error || 'Could not save token.' });
 
-  console.log(`[vinted-token] saved for user ${user.id} (@${conn.platform_username}) valid=${validation.valid} exp=${jwtPayload.exp || 'unknown'}`);
+  // Fresh connection — clear any stale inventory/sales from a previous account.
+  if (isFirstConnect) {
+    await saveSetting(`vinted_inventory_${user.id}`, { items: [], last_synced: null });
+    await saveSetting(`vinted_sales_${user.id}`,     { sales: [], last_synced: null });
+  }
+
+  console.log(`[vinted-token] saved for user ${user.id} (@${resolvedUsername}) valid=${validation.valid} firstConnect=${isFirstConnect} exp=${jwtPayload.exp || 'unknown'}`);
 
   // ── 5. Live probe — confirm the FULL chain (token + residential proxy) works ──
   // Hit the catalog endpoint once with the fresh token. This is exactly what the
