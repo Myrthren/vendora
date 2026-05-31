@@ -6846,6 +6846,51 @@ app.post('/api/admin/announce/channel', async (req, res) => {
   }
 });
 
+// POST /api/admin/post-promo — service-key-gated. Posts the Vendora promo embed
+// (with a "Buy here" link button) to a Discord channel. Defaults to the promo channel.
+app.post('/api/admin/post-promo', async (req, res) => {
+  const key = req.headers['x-debug-key'] || req.query.key;
+  if (!SUPABASE_KEY || key !== SUPABASE_KEY) return res.status(403).json({ error: 'forbidden' });
+  const channelId = String(req.query.channel || '1510201320018018364');
+  const PRICING = 'https://vendora.site/#pricing';
+  try {
+    const guild   = await client.guilds.fetch(GUILD_ID);
+    const channel = await guild.channels.fetch(channelId).catch(() => null);
+    if (!channel || typeof channel.send !== 'function') {
+      return res.status(404).json({ error: `Channel ${channelId} not found or not text-postable` });
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor('#e8217a')
+      .setTitle('⚡ Vendora — The Reseller\'s Edge')
+      .setThumbnail('https://vendora.site/favicon.png')
+      .setDescription(
+        'Vendora is the all-in-one toolkit for Vinted resellers — built right into Vendor Village.\n\n' +
+        '**Stop guessing. Start flipping smarter.** Vendora does the grind for you: it watches Vinted for underpriced listings and DMs you the moment a deal drops, writes & optimises your listings with AI, syncs your live inventory and real profit, and tells you what to restock before the market moves.'
+      )
+      .addFields(
+        { name: '🔎 Find & win deals', value: 'Auto-Buy keyword alerts ping you on Discord the instant a matching listing appears — **Elite scans every 5 minutes.**' },
+        { name: '🤖 List smarter', value: 'AI Listing Optimiser, Auto-Draft copywriting, and one-tap Photo Enhancer so every listing converts.' },
+        { name: '📦 Run your shop', value: 'Live inventory sync, automatic profit tracking, price-drop watchlist, and a resell calendar of upcoming drops.' },
+        { name: '💷 Plans', value: '**Basic** £9.99  ·  **Pro** £24.99  ·  **Elite** £49.99 / month — annual saves ~2 months.' },
+        { name: '​', value: `**→ [Buy here](${PRICING})** and get your edge today.` },
+      )
+      .setFooter({ text: 'Vendora — The Reseller\'s Edge' })
+      .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('🛒 Buy here').setURL(PRICING),
+    );
+
+    const sent = await channel.send({ embeds: [embed], components: [row] });
+    console.log(`[promo] Posted Vendora promo to #${channel.name} (${channelId})`);
+    res.json({ ok: true, channel: channel.name, message_id: sent.id });
+  } catch (e) {
+    console.error('[promo] post failed:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // GET /api/announcement — public, returns active site banner or null
 app.get('/api/announcement', async (req, res) => {
   try {
