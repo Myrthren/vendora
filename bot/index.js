@@ -472,7 +472,7 @@ async function searchDepop(query) {
 //   APIFY_VINTED_ACTOR      — keyword search (Auto-Buy, /vinted-alert, /scan)
 //   APIFY_VINTED_USER_ACTOR — user profile/member page item fetching (inventory)
 // Override either via Railway env vars. Format: "username~actor-name".
-const APIFY_VINTED_ACTOR      = process.env.APIFY_VINTED_ACTOR      || 'epicscrapers~vinted-search-scraper';
+const APIFY_VINTED_ACTOR      = process.env.APIFY_VINTED_ACTOR      || 'kazkn~vinted-smart-scraper';
 const APIFY_VINTED_USER_ACTOR = process.env.APIFY_VINTED_USER_ACTOR || 'kazkn~vinted-smart-scraper';
 
 // Run the configured Apify Vinted actor/task with a given input object.
