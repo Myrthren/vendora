@@ -808,7 +808,7 @@
 <header class="topnav">
   <a href="index.html" class="topnav-brand">
     <div class="topnav-mark">
-      <img src="3308A32C-1B75-45FE-A803-B1332BE91390.png" alt="Vendora">
+      <img src="vendora-icon.png" alt="Vendora">
     </div>
     <span class="topnav-brand-name">Vendora</span>
   </a>
@@ -3154,13 +3154,23 @@
         .toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
     }
 
-    if (avatarUrl) {
-      ['sidebar-avi','account-avi'].forEach(id => {
-        const el = document.getElementById(id);
-        Object.assign(el.style, { backgroundImage:`url(${avatarUrl})`, backgroundSize:'cover', backgroundPosition:'center' });
-        el.textContent = '';
-      });
-    }
+    // Try each candidate avatar URL in order; only apply one that actually loads
+    // (stale Discord CDN hashes 404 after the user changes their avatar)
+    const avatarCandidates = [profile?.avatar_url, u.user_metadata?.avatar_url].filter(Boolean);
+    (function tryAvatar(i) {
+      if (i >= avatarCandidates.length) return; // keep initials
+      const url = avatarCandidates[i];
+      const probe = new Image();
+      probe.onload = () => {
+        ['sidebar-avi','account-avi'].forEach(id => {
+          const el = document.getElementById(id);
+          Object.assign(el.style, { backgroundImage:`url(${url})`, backgroundSize:'cover', backgroundPosition:'center' });
+          el.textContent = '';
+        });
+      };
+      probe.onerror = () => tryAvatar(i + 1);
+      probe.src = url;
+    })(0);
 
     const subTierEl = document.getElementById('sub-tier-name');
     if (subTierEl) { subTierEl.textContent = td.label; subTierEl.style.color = td.color; }
