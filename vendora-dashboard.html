@@ -317,6 +317,40 @@
     display: flex; flex-direction: column;
   }
 
+  /* ─── OVERVIEW + MICRO-MOTION ─── */
+  .ov-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 22px; }
+  .ov-card { transition: transform .18s ease, border-color .18s ease; }
+  .ov-card:hover { transform: translateY(-2px); border-color: rgba(232,33,122,0.3); }
+  .ov-stat-label {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 8px;
+  }
+  .ov-stat-val {
+    font-family: 'Syne', sans-serif;
+    font-size: 26px; font-weight: 800; color: var(--text);
+    line-height: 1.1; font-variant-numeric: tabular-nums;
+  }
+  .ov-action {
+    display: flex; align-items: center; gap: 11px;
+    padding: 10px 12px; border-radius: 7px;
+    cursor: pointer; color: var(--muted);
+    font-size: 12.5px;
+    transition: background .15s, color .15s, transform .15s;
+  }
+  .ov-action:hover { background: rgba(232,33,122,0.07); color: var(--text); transform: translateX(3px); }
+  .ov-action svg { flex-shrink: 0; }
+  .skel {
+    color: transparent !important;
+    border-radius: 6px; min-width: 80px; user-select: none;
+    background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.04) 75%);
+    background-size: 200% 100%;
+    animation: skelshine 1.2s linear infinite;
+  }
+  @keyframes skelshine { to { background-position: -200% 0; } }
+  .card { transition: border-color .18s ease; }
+  .card:hover { border-color: rgba(232,33,122,0.18); }
+
   /* ─── FOCUS VISIBILITY (keyboard nav) ─── */
   .nav-item:focus-visible, .nav-group-btn:focus-visible, .user-menu-btn:focus-visible, .cmdk-hint:focus-visible {
     outline: 1px solid var(--pink); outline-offset: 1px;
@@ -862,6 +896,8 @@
 
   <nav class="topnav-menus">
 
+    <button type="button" class="nav-group-btn active" id="overview-nav-btn" onclick="showSection('overview', this)">Overview</button>
+
     <div class="nav-group">
       <button type="button" class="nav-group-btn" onclick="toggleNavGroup(this)">Sourcing <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
       <div class="nav-dropdown">
@@ -981,9 +1017,9 @@
     </div>
 
     <div class="nav-group">
-      <button type="button" class="nav-group-btn active" onclick="toggleNavGroup(this)">Account <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+      <button type="button" class="nav-group-btn" onclick="toggleNavGroup(this)">Account <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
       <div class="nav-dropdown">
-        <div class="nav-item active" onclick="showSection('account', this)">
+        <div class="nav-item" onclick="showSection('account', this)">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           <div class="nav-item-text">
             <div class="nav-item-name">Account</div>
@@ -1093,8 +1129,71 @@
 
   <div class="content">
 
+    <!-- ── OVERVIEW ── -->
+    <div class="section active" id="section-overview">
+      <div class="page-header">
+        <div class="page-eyebrow">Overview</div>
+        <div class="page-title">Your Edge Today</div>
+        <div class="page-sub">Profit, listings and what to do next — at a glance.</div>
+      </div>
+
+      <div class="ov-grid">
+        <div class="card ov-card">
+          <div class="ov-stat-label">Profit · 30 days</div>
+          <div class="ov-stat-val skel" id="ov-profit">&nbsp;</div>
+          <div id="ov-profit-trend" style="font-size:11px;margin-top:5px;min-height:14px;"></div>
+          <div id="ov-spark" style="margin-top:10px;min-height:36px;"></div>
+        </div>
+        <div class="card ov-card">
+          <div class="ov-stat-label">Sales · 30 days</div>
+          <div class="ov-stat-val skel" id="ov-sales">&nbsp;</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:5px;">auto-detected + logged</div>
+        </div>
+        <div class="card ov-card">
+          <div class="ov-stat-label">Active listings</div>
+          <div class="ov-stat-val skel" id="ov-active">&nbsp;</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:5px;">synced from Vinted</div>
+        </div>
+        <div class="card ov-card" style="border-color:rgba(232,161,33,0.2);cursor:pointer;" onclick="showSection('credits', document.querySelector('.nav-item[onclick*=credits]'))">
+          <div class="ov-stat-label" style="color:var(--gold);">Credits</div>
+          <div class="ov-stat-val skel" id="ov-credits" style="color:var(--gold);">&nbsp;</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:5px;">powers scans &amp; enhancements</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;">
+        <div class="card">
+          <div class="card-title" style="margin-bottom:4px;">Recent sales</div>
+          <div id="ov-recent"><div class="skel" style="height:14px;margin:12px 0;"></div><div class="skel" style="height:14px;margin:12px 0;"></div><div class="skel" style="height:14px;margin:12px 0;"></div></div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="margin-bottom:8px;">Quick actions</div>
+          <div class="ov-action" onclick="showSection('arbitrage', document.getElementById('arbitrage-nav-item'))">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+            Find cross-border deals
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto;"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+          <div class="ov-action" onclick="showSection('inventory', document.getElementById('inventory-nav-item'))">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+            Review your inventory
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto;"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+          <div class="ov-action" onclick="showSection('watchlist', document.getElementById('watchlist-nav-item'))">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+            Track a new item
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto;"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+          <div class="ov-action" onclick="showSection('enhancer', document.getElementById('enhancer-nav-item'))">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Enhance a product photo
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto;"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── ACCOUNT ── -->
-    <div class="section active" id="section-account">
+    <div class="section" id="section-account">
       <div class="page-header">
         <div class="page-eyebrow">Account</div>
         <div class="page-title">Your Profile</div>
@@ -3956,11 +4055,111 @@
     if (el) {
       const grp = el.closest('.nav-group');
       if (grp) grp.querySelector('.nav-group-btn').classList.add('active');
+      else if (el.classList.contains('nav-group-btn')) el.classList.add('active'); // top-level buttons (Overview)
     }
     closeNavMenus();
     document.getElementById('topbar-title').textContent = sectionTitles[id] || id;
     // Auto-load calendar when switching to it and not yet loaded
     if (id === 'resell-calendar' && !_rcalLoaded) rcalLoad();
+    if (id === 'overview') loadOverview();
+  }
+
+  // ── Overview page ────────────────────────────────────────────────────────────
+  function sparklineSVG(values, color, w = 150, h = 36) {
+    if (!values || values.length < 2) return '';
+    const min = Math.min(...values), max = Math.max(...values), span = (max - min) || 1;
+    const pt = (v, i) => `${(i / (values.length - 1) * w).toFixed(1)},${(h - 3 - ((v - min) / span) * (h - 6)).toFixed(1)}`;
+    const pts = values.map(pt).join(' ');
+    const [lx, ly] = pt(values[values.length - 1], values.length - 1).split(',');
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;overflow:visible;" aria-hidden="true">
+      <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="${lx}" cy="${ly}" r="2.5" fill="${color}"/>
+    </svg>`;
+  }
+
+  function countUp(el, target, { prefix = '', suffix = '', decimals = 0, dur = 650 } = {}) {
+    if (!el) return;
+    const start = performance.now();
+    const done = () => { el.textContent = prefix + target.toFixed(decimals) + suffix; };
+    // rAF is suspended in hidden tabs — guarantee the final value regardless
+    const fallback = setTimeout(done, dur + 100);
+    (function frame(t) {
+      const p = Math.min(1, (t - start) / dur);
+      const eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = prefix + (target * eased).toFixed(decimals) + suffix;
+      if (p < 1) requestAnimationFrame(frame);
+      else { clearTimeout(fallback); done(); }
+    })(performance.now());
+  }
+
+  let _ovLast = {};
+  function loadOverview() {
+    if (!document.getElementById('section-overview')) return;
+    const auto = (typeof _ptAutoSales !== 'undefined' && Array.isArray(_ptAutoSales)) ? _ptAutoSales : [];
+    const manual = (typeof ptLoad === 'function') ? ptLoad() : [];
+    const entries = [...auto, ...manual];
+    const DAY = 86400000, now = Date.now();
+    const pOf = e => (parseFloat(e.sell) || 0) - (parseFloat(e.buy) || 0) - (parseFloat(e.fees) || 0) - (parseFloat(e.shipping) || 0);
+    const dated = entries.filter(e => e.date && !isNaN(new Date(e.date)));
+    const between = (e, a, b) => { const t = new Date(e.date).getTime(); return t >= a && t < b; };
+    const cur  = dated.filter(e => between(e, now - 30 * DAY, now + DAY));
+    const prev = dated.filter(e => between(e, now - 60 * DAY, now - 30 * DAY));
+    const profit30   = cur.reduce((a, e) => a + pOf(e), 0);
+    const profitPrev = prev.reduce((a, e) => a + pOf(e), 0);
+
+    const trendEl = document.getElementById('ov-profit-trend');
+    if (trendEl) {
+      if (cur.length || prev.length) {
+        const up  = profit30 >= profitPrev;
+        const pct = profitPrev !== 0 ? Math.abs(Math.round(((profit30 - profitPrev) / Math.abs(profitPrev)) * 100)) : null;
+        trendEl.innerHTML = `<span style="color:${up ? 'var(--green)' : 'var(--red)'};">${up ? '▲' : '▼'}${pct != null ? ' ' + pct + '%' : ''}</span> <span style="color:var(--muted);">vs previous 30 days</span>`;
+      } else {
+        trendEl.innerHTML = '<span style="color:var(--muted);">No sales in the last 30 days</span>';
+      }
+    }
+
+    // Cumulative daily profit over the last 30 days
+    const daily = new Array(30).fill(0);
+    cur.forEach(e => {
+      const idx = Math.min(29, Math.max(0, Math.floor((new Date(e.date).getTime() - (now - 30 * DAY)) / DAY)));
+      daily[idx] += pOf(e);
+    });
+    let acc = 0;
+    const cumu = daily.map(v => (acc += v));
+    const sp = document.getElementById('ov-spark');
+    if (sp) sp.innerHTML = cur.length
+      ? sparklineSVG(cumu, profit30 >= 0 ? '#4ade80' : '#f87171')
+      : '<div style="font-size:11px;color:var(--muted);padding:8px 0;">Sync or log sales to see your trend</div>';
+
+    const setStat = (id, val, opts) => {
+      const el = document.getElementById(id); if (!el) return;
+      const key = String(val);
+      el.classList.remove('skel');
+      if (_ovLast[id] === key) return;
+      _ovLast[id] = key;
+      countUp(el, val, opts);
+    };
+    setStat('ov-profit', profit30, { prefix: '£', decimals: 2 });
+    const pEl = document.getElementById('ov-profit');
+    if (pEl) pEl.style.color = profit30 >= 0 ? 'var(--green)' : 'var(--red)';
+    setStat('ov-sales', cur.length, {});
+    setStat('ov-active', window._invActiveCount || 0, {});
+    if (typeof window._creditsBal === 'number') setStat('ov-credits', window._creditsBal, {});
+
+    const rec = document.getElementById('ov-recent');
+    if (rec) {
+      const latest = [...dated].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+      rec.innerHTML = latest.length
+        ? latest.map(e => {
+            const p = pOf(e);
+            return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid rgba(255,255,255,0.05);">
+              <span style="flex:1;font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(e.item || 'Item')}</span>
+              <span style="font-size:11px;color:var(--muted);white-space:nowrap;">${new Date(e.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>
+              <span style="font-size:12.5px;font-weight:600;color:${p >= 0 ? 'var(--green)' : 'var(--red)'};white-space:nowrap;">${p >= 0 ? '+' : ''}£${p.toFixed(2)}</span>
+            </div>`;
+          }).join('')
+        : '<div style="font-size:12px;color:var(--muted);padding:12px 0;">No sales yet — connect Vinted on Platforms or log one in the Profit Tracker.</div>';
+    }
   }
 
   // ── Top nav dropdowns ────────────────────────────────────────────────────────
@@ -3995,6 +4194,8 @@
 
   function cmdkCollect() {
     const items = [];
+    const ovBtn = document.getElementById('overview-nav-btn');
+    if (ovBtn) items.push({ el: ovBtn, name: 'Overview', desc: "Today's profit, listings and quick actions", group: 'Home', icon: '' });
     document.querySelectorAll('.topnav-menus .nav-item').forEach(el => {
       if (el.style.display === 'none') return; // e.g. admin item for non-owners
       const name = (el.querySelector('.nav-item-name') || {}).textContent || '';
@@ -4104,6 +4305,11 @@
     } catch { ok = false; }
     if (banner) banner.classList.toggle('show', !ok);
     window._apiDown = !ok;
+    if (!ok) {
+      // Resolve any stat still waiting on API data so skeletons don't shimmer forever
+      const cr = document.getElementById('ov-credits');
+      if (cr && cr.classList.contains('skel')) { cr.classList.remove('skel'); cr.textContent = '—'; }
+    }
     return ok;
   }
   async function apiHealthLoop() {
@@ -4117,6 +4323,7 @@
     if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
   }
   apiHealthLoop();
+  setTimeout(loadOverview, 0); // first paint with local data once the script is fully evaluated; refreshed again when API data lands
 
   // ── Keyboard accessibility ───────────────────────────────────────────────────
   (function initA11y() {
@@ -4852,6 +5059,7 @@
       window._invActiveCount = (items || []).filter(i => (i.status || 'active') === 'active').length;
       renderInventoryTable(items, connected, syncing, sync_note);
       if (typeof ptAnalytics === 'function') ptAnalytics();
+      if (typeof loadOverview === 'function') loadOverview();
     } catch {
       tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">Error loading inventory.</td></tr>`;
     }
@@ -5296,6 +5504,7 @@
     if (profEl) { profEl.textContent = `£${netProfit.toFixed(2)}`; profEl.style.color = netProfit >= 0 ? 'var(--green)' : 'var(--red)'; }
     if (roiEl)  roiEl.textContent  = `${roi}% ROI`;
     ptAnalytics();
+    if (typeof loadOverview === 'function') loadOverview();
   }
 
   // ── Elite sales analytics (client-side from logged + auto-detected sales) ────
@@ -6913,6 +7122,9 @@
     const topbarVal = document.getElementById('topbar-credits-val');
     const bigBal = document.getElementById('credits-balance-big');
     const navBadge = document.getElementById('nav-credits-badge');
+    window._creditsBal = bal;
+    const ovCred = document.getElementById('ov-credits');
+    if (ovCred) { ovCred.classList.remove('skel'); countUp(ovCred, bal, {}); }
     if (topbar)    topbar.style.display    = 'flex';
     if (topbarVal) topbarVal.textContent   = fmt;
     if (bigBal)    bigBal.textContent      = bal.toLocaleString();
