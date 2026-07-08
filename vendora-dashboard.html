@@ -292,10 +292,57 @@
     50% { box-shadow: 0 0 0 4px rgba(74,222,128,0); }
   }
 
+  /* ─── API HEALTH BANNER ─── */
+  .api-banner {
+    display: none;
+    align-items: center; justify-content: center; gap: 12px;
+    padding: 9px 20px;
+    background: rgba(248,113,113,0.08);
+    border-bottom: 1px solid rgba(248,113,113,0.25);
+    font-size: 12px; color: var(--red);
+  }
+  .api-banner.show { display: flex; }
+  .api-banner button {
+    background: none; cursor: pointer;
+    border: 1px solid rgba(248,113,113,0.4);
+    border-radius: 4px; padding: 3px 12px;
+    font-family: 'DM Sans', sans-serif; font-size: 11px; color: var(--red);
+    transition: background .15s;
+  }
+  .api-banner button:hover { background: rgba(248,113,113,0.12); }
+
   /* ─── MAIN ─── */
   .main {
     min-height: calc(100vh - var(--topnav-h));
     display: flex; flex-direction: column;
+  }
+
+  /* ─── FOCUS VISIBILITY (keyboard nav) ─── */
+  .nav-item:focus-visible, .nav-group-btn:focus-visible, .user-menu-btn:focus-visible, .cmdk-hint:focus-visible {
+    outline: 1px solid var(--pink); outline-offset: 1px;
+  }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 900px) {
+    .topnav { padding: 0 14px; }
+    .topnav-brand { margin-right: 10px; }
+    .topnav-brand-name { display: none; }
+    .cmdk-hint .cmdk-kbd { display: none; }
+    .topbar-status { display: none; }
+    .topbar-discord-tag { display: none; }
+    .content { padding: 20px 14px 48px; }
+  }
+  @media (max-width: 700px) {
+    .topnav-menus { overflow-x: auto; scrollbar-width: none; }
+    .topnav-menus::-webkit-scrollbar { display: none; }
+    .nav-group { position: static; }
+    .nav-dropdown {
+      left: 10px; right: 10px; min-width: 0;
+      top: calc(var(--banner-h, 0px) + var(--topnav-h) + 4px);
+      position: fixed;
+    }
+    .user-menu { width: calc(100vw - 20px); max-width: 280px; }
+    .card { overflow-x: auto; }
   }
 
   /* ─── CONTENT ─── */
@@ -1039,6 +1086,10 @@
 
 <!-- MAIN -->
 <div class="main">
+  <div class="api-banner" id="api-banner" role="alert">
+    <span>⚠ Vendora services are unreachable right now — tools may not load or update.</span>
+    <button type="button" onclick="retryApiHealth(this)">Retry</button>
+  </div>
 
   <div class="content">
 
@@ -3065,9 +3116,6 @@
   </div><!-- /content -->
 </div><!-- /main -->
 
-  </div><!-- /content -->
-</div><!-- /main -->
-
 <script>
   const SUPABASE_URL      = 'https://fqfanqtybvnurhzkoxwr.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxZmFucXR5YnZudXJoemtveHdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2OTcxNjMsImV4cCI6MjA5MTI3MzE2M30.aoqhW8hXgRVfX8JI27jfN7QBfyY-ev6PQ52xvUz-X-E';
@@ -3156,7 +3204,9 @@
 
     // Try each candidate avatar URL in order; only apply one that actually loads
     // (stale Discord CDN hashes 404 after the user changes their avatar)
-    const avatarCandidates = [profile?.avatar_url, u.user_metadata?.avatar_url].filter(Boolean);
+    const avatarCandidates = [...new Set(
+      [profile?.avatar_url, u.user_metadata?.avatar_url, u.user_metadata?.picture].filter(Boolean)
+    )];
     (function tryAvatar(i) {
       if (i >= avatarCandidates.length) return; // keep initials
       const url = avatarCandidates[i];
@@ -3167,6 +3217,10 @@
           Object.assign(el.style, { backgroundImage:`url(${url})`, backgroundSize:'cover', backgroundPosition:'center' });
           el.textContent = '';
         });
+        // Repair the stored URL so bot DMs etc. stop using the dead one
+        if (url !== profile?.avatar_url) {
+          sb.from('profiles').update({ avatar_url: url }).eq('id', u.id).then(() => {}, () => {});
+        }
       };
       probe.onerror = () => tryAvatar(i + 1);
       probe.src = url;
@@ -3712,6 +3766,16 @@
   const BOT_API = 'https://vendora-production-8a47.up.railway.app';
   window._BOT_API = BOT_API;
 
+  // ── HTML escaping for scraped/user-supplied strings ──────────────────────────
+  // Vinted titles, watchlist metadata etc. are attacker-controllable text; they
+  // must never reach innerHTML unescaped.
+  function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  }
+  function safeUrl(u) {
+    return (typeof u === 'string' && /^https?:\/\//i.test(u)) ? esc(u) : '';
+  }
+
   function refreshCrossListBadges() {
     const badges = document.getElementById('cl-platform-badges');
     if (!badges) return;
@@ -3902,12 +3966,16 @@
   // ── Top nav dropdowns ────────────────────────────────────────────────────────
   function closeNavMenus() {
     document.querySelectorAll('.nav-group.open, .user-menu-wrap.open').forEach(g => g.classList.remove('open'));
+    document.querySelectorAll('.nav-group-btn[aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded', 'false'));
   }
   function toggleNavGroup(btn) {
     const group = btn.closest('.nav-group');
     const wasOpen = group.classList.contains('open');
     closeNavMenus();
-    if (!wasOpen) group.classList.add('open');
+    if (!wasOpen) {
+      group.classList.add('open');
+      btn.setAttribute('aria-expanded', 'true');
+    }
   }
   function toggleUserMenu(btn) {
     const wrap = btn.closest('.user-menu-wrap');
@@ -4020,6 +4088,53 @@
     const el = document.querySelector('#cmdk-list .nav-item.sel');
     if (el) el.scrollIntoView({ block: 'nearest' });
   }
+
+  // ── API health check ─────────────────────────────────────────────────────────
+  // The bot root returns {status:'ok'} when alive; Railway's fallback 404s.
+  async function checkApiHealth() {
+    const banner = document.getElementById('api-banner');
+    let ok = false;
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 8000);
+      const r = await fetch(`${BOT_API}/`, { signal: ctrl.signal });
+      clearTimeout(timer);
+      const j = await r.json().catch(() => ({}));
+      ok = r.ok && j.status === 'ok';
+    } catch { ok = false; }
+    if (banner) banner.classList.toggle('show', !ok);
+    window._apiDown = !ok;
+    return ok;
+  }
+  async function apiHealthLoop() {
+    const ok = await checkApiHealth();
+    if (!ok) setTimeout(apiHealthLoop, 60000); // keep re-checking while down
+  }
+  async function retryApiHealth(btn) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
+    const ok = await checkApiHealth();
+    if (ok) { window.location.reload(); return; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
+  }
+  apiHealthLoop();
+
+  // ── Keyboard accessibility ───────────────────────────────────────────────────
+  (function initA11y() {
+    document.querySelectorAll('.topnav-menus .nav-item, .user-menu .nav-item').forEach(el => {
+      el.setAttribute('tabindex', '0');
+      el.setAttribute('role', 'menuitem');
+    });
+    document.querySelectorAll('.nav-group-btn').forEach(b => {
+      b.setAttribute('aria-haspopup', 'true');
+      b.setAttribute('aria-expanded', 'false');
+    });
+    document.addEventListener('keydown', (e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('nav-item')) {
+        e.preventDefault();
+        e.target.click();
+      }
+    });
+  })();
 
   // ── Changelog data ───────────────────────────────────────────────────────────
   const CHANGELOG = [
@@ -4770,11 +4885,11 @@
       return;
     }
     tbody.innerHTML = items.map((item) => {
-      const photo  = item.photo  ? `<img src="${item.photo}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;background:var(--surface2);">` : `<div style="width:36px;height:36px;border-radius:6px;background:var(--surface2);"></div>`;
+      const photo  = safeUrl(item.photo) ? `<img src="${safeUrl(item.photo)}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;background:var(--surface2);">` : `<div style="width:36px;height:36px;border-radius:6px;background:var(--surface2);"></div>`;
       const price  = item.price ? `£${parseFloat(item.price).toFixed(2)}` : '—';
       const status = item.status === 'sold'   ? `<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(232,33,122,0.15);color:var(--pink);font-weight:600;letter-spacing:.04em;">SOLD</span>`
                    : item.status === 'active' ? `<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(74,222,128,0.15);color:var(--green);font-weight:600;letter-spacing:.04em;">ACTIVE</span>`
-                   : `<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--muted);font-weight:600;letter-spacing:.04em;">${(item.status || 'unknown').toUpperCase()}</span>`;
+                   : `<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--muted);font-weight:600;letter-spacing:.04em;">${esc((item.status || 'unknown').toUpperCase())}</span>`;
       // Elite: stale-listing flag + AI suggested price drop
       const staleBadge = item.stale
         ? `<span title="Listed ${item.days_listed} days" style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(232,161,33,0.15);color:var(--gold);font-weight:700;letter-spacing:.04em;margin-left:6px;">STALE ${item.days_listed}d</span>`
@@ -4785,9 +4900,10 @@
       const priceCell = (item.suggested_price && Math.abs(item.suggested_price - parseFloat(item.price)) >= 1)
         ? `${price} <span title="AI suggested price to sell faster" style="color:var(--gold);font-size:11px;white-space:nowrap;">→ £${Number(item.suggested_price).toFixed(2)}</span>`
         : price;
-      const titleHtml = item.url ? `<a href="${item.url}" target="_blank" style="color:var(--text);text-decoration:none;">${item.title || item.item || '(untitled)'}</a>` : (item.title || item.item || '(untitled)');
-      const aiBtn = item.url
-        ? `<button class="btn btn-ghost btn-sm" title="AI listing analysis" onclick='openInvAi(${JSON.stringify(item.url)}, ${JSON.stringify(item.title || "Listing")})' style="padding:3px 9px;font-size:11px;font-weight:700;color:var(--pink);border:1px solid rgba(232,33,122,0.35);border-radius:5px;">AI</button>`
+      const safeTitle = esc(item.title || item.item || '(untitled)');
+      const titleHtml = safeUrl(item.url) ? `<a href="${safeUrl(item.url)}" target="_blank" style="color:var(--text);text-decoration:none;">${safeTitle}</a>` : safeTitle;
+      const aiBtn = safeUrl(item.url)
+        ? `<button class="btn btn-ghost btn-sm" title="AI listing analysis" onclick='openInvAi(${esc(JSON.stringify(item.url))}, ${esc(JSON.stringify(item.title || "Listing"))})' style="padding:3px 9px;font-size:11px;font-weight:700;color:var(--pink);border:1px solid rgba(232,33,122,0.35);border-radius:5px;">AI</button>`
         : `<span style="color:var(--muted);font-size:11px;">—</span>`;
       return `<tr>
         <td>${photo}</td>
@@ -4857,11 +4973,11 @@
           Buy in <strong>${best.name}</strong> for <strong style="color:var(--green);">£${best.buy_gbp}</strong>, resell in the UK for ~<strong>£${best.uk_resale_gbp}</strong>
           → <strong style="color:var(--green);">~£${best.gross_margin_gbp} gross</strong> <span style="color:var(--muted);">(${best.margin_pct}%)</span>
         </div>
-        ${best.cheapest?.url ? `<a href="${best.cheapest.url}" target="_blank" style="display:inline-block;margin-top:8px;font-size:12px;color:var(--pink);text-decoration:none;">View the cheapest listing →</a>` : ''}
+        ${safeUrl(best.cheapest?.url) ? `<a href="${safeUrl(best.cheapest.url)}" target="_blank" style="display:inline-block;margin-top:8px;font-size:12px;color:var(--pink);text-decoration:none;">View the cheapest listing →</a>` : ''}
         <div style="font-size:11px;color:var(--muted);margin-top:8px;">Gross margin — before Vinted/buyer fees, shipping and any import costs.</div>
       </div>` : `
       <div class="card" style="margin-bottom:16px;">
-        <div style="font-size:13px;color:var(--muted);">No clear cross-border profit on "<strong>${j.query}</strong>" right now — the cheapest market isn't far enough below the UK price. Try another item.</div>
+        <div style="font-size:13px;color:var(--muted);">No clear cross-border profit on "<strong>${esc(j.query)}</strong>" right now — the cheapest market isn't far enough below the UK price. Try another item.</div>
       </div>`;
 
     const rows = (j.countries || []).map(c => {
@@ -4872,7 +4988,7 @@
         <td style="font-size:13px;color:var(--green);font-weight:600;white-space:nowrap;">£${Math.round(ch.gbp || 0)} ${ch.currency && ch.currency!=='GBP' ? `<span style="color:var(--muted);font-weight:400;font-size:11px;">(${ch.currency} ${ch.price})</span>` : ''}</td>
         <td style="font-size:13px;color:var(--muted2);white-space:nowrap;">£${c.median_gbp}</td>
         <td style="font-size:12px;color:var(--muted);">${c.count}</td>
-        <td>${ch.url ? `<a href="${ch.url}" target="_blank" style="color:var(--pink);text-decoration:none;font-size:12px;">View →</a>` : '—'}</td>
+        <td>${safeUrl(ch.url) ? `<a href="${safeUrl(ch.url)}" target="_blank" style="color:var(--pink);text-decoration:none;font-size:12px;">View →</a>` : '—'}</td>
       </tr>`;
     }).join('');
 
@@ -4880,7 +4996,7 @@
       ${bestCard}
       <div class="card" style="padding:0;overflow:hidden;">
         <div style="padding:14px 20px;border-bottom:1px solid var(--border-dim);display:flex;align-items:center;justify-content:space-between;">
-          <div class="card-title" style="margin:0;">"${j.query}" by market</div>
+          <div class="card-title" style="margin:0;">"${esc(j.query)}" by market</div>
           <span style="font-size:11px;color:var(--muted);">UK benchmark £${j.uk_benchmark_gbp} · ${j.scanned} listings scanned</span>
         </div>
         <table class="data-table">
@@ -4915,7 +5031,7 @@
             <div><span style="font-size:18px;font-weight:800;font-family:'Syne',sans-serif;color:var(--text);">${items.length}</span><span style="font-size:11px;color:var(--muted);"> analysed</span></div>
           </div>
           <div style="font-size:11px;color:var(--muted2);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Needs attention first</div>
-          ${worst.map(w => `<div style="font-size:12px;color:var(--text);padding:6px 0;border-top:1px solid rgba(255,255,255,0.04);"><strong>${(w.title||'').slice(0,48)}</strong> <span style="color:#60a5fa;">${w.score ?? '—'}/100</span>${w.suggested_price && Math.abs(w.suggested_price-w.price)>=1 ? ` · <span style="color:var(--gold);">drop to £${Number(w.suggested_price).toFixed(2)}</span>` : ''}${(w.tips||[]).length ? `<div style="color:var(--muted2);font-size:11.5px;line-height:1.5;margin-top:2px;">${w.tips.map(t=>'• '+t).join('<br>')}</div>` : ''}</div>`).join('')}`;
+          ${worst.map(w => `<div style="font-size:12px;color:var(--text);padding:6px 0;border-top:1px solid rgba(255,255,255,0.04);"><strong>${esc((w.title||'').slice(0,48))}</strong> <span style="color:#60a5fa;">${w.score ?? '—'}/100</span>${w.suggested_price && Math.abs(w.suggested_price-w.price)>=1 ? ` · <span style="color:var(--gold);">drop to £${Number(w.suggested_price).toFixed(2)}</span>` : ''}${(w.tips||[]).length ? `<div style="color:var(--muted2);font-size:11.5px;line-height:1.5;margin-top:2px;">${w.tips.map(t=>'• '+esc(t)).join('<br>')}</div>` : ''}</div>`).join('')}`;
       }
       loadInventory(); // refresh table with new scores/stale flags
     } catch (e) {
@@ -4960,9 +5076,9 @@
         const heading = typeof s === 'string' ? '' : (s.heading || '');
         const detail  = typeof s === 'string' ? s : (s.detail || s.text || s.suggestion || s.tip || '');
         return `<div style="border-left:3px solid ${col};padding:9px 13px;background:rgba(255,255,255,0.03);border-radius:0 6px 6px 0;">
-          <div style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:${col};margin-bottom:4px;">${cat}</div>
-          ${heading ? `<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;">${heading}</div>` : ''}
-          <div style="font-size:12.5px;color:var(--muted2);line-height:1.55;">${detail}</div></div>`;
+          <div style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:${col};margin-bottom:4px;">${esc(cat)}</div>
+          ${heading ? `<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;">${esc(heading)}</div>` : ''}
+          <div style="font-size:12.5px;color:var(--muted2);line-height:1.55;">${esc(detail)}</div></div>`;
       }).join('') || '<div style="font-size:13px;color:var(--muted);">No suggestions — this listing looks well optimised.</div>';
     } catch (e) {
       if (loading) loading.style.display = 'none';
@@ -5059,13 +5175,13 @@
         ? `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.05);color:${plat.color};">${plat.abbr} ${plat.name}</span>`
         : `<span style="font-size:11px;color:var(--muted);">—</span>`;
       const nameCell = meta.title
-        ? `<div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:2px;">${meta.title}</div><a href="${item.item}" target="_blank" style="font-size:11px;color:var(--muted);text-decoration:none;word-break:break-all;" onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='var(--muted)'">${item.item.slice(0,60)}${item.item.length>60?'…':''}</a>`
+        ? `<div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:2px;">${esc(meta.title)}</div><a href="${safeUrl(item.item)}" target="_blank" style="font-size:11px;color:var(--muted);text-decoration:none;word-break:break-all;" onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='var(--muted)'">${esc(item.item.slice(0,60))}${item.item.length>60?'…':''}</a>`
         : isUrl
-          ? `<a href="${item.item}" target="_blank" style="font-size:12px;color:var(--pink);text-decoration:none;word-break:break-all;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${item.item.slice(0,70)}${item.item.length>70?'…':''}</a>`
-          : `<span style="font-size:13px;">${item.item}</span>`;
-      const priceCell = meta.price ? `<span style="font-size:13px;font-weight:600;color:var(--green);">${meta.price}</span>` : `<span style="font-size:12px;color:var(--muted);">Pending</span>`;
+          ? `<a href="${safeUrl(item.item)}" target="_blank" style="font-size:12px;color:var(--pink);text-decoration:none;word-break:break-all;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(item.item.slice(0,70))}${item.item.length>70?'…':''}</a>`
+          : `<span style="font-size:13px;">${esc(item.item)}</span>`;
+      const priceCell = meta.price ? `<span style="font-size:13px;font-weight:600;color:var(--green);">${esc(meta.price)}</span>` : `<span style="font-size:12px;color:var(--muted);">Pending</span>`;
       const variantsCell = meta.variants && meta.variants.length
-        ? `<div style="display:flex;flex-wrap:wrap;gap:4px;">${meta.variants.slice(0,5).map(v=>`<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--muted2);">${v}</span>`).join('')}${meta.variants.length>5?`<span style="font-size:10px;color:var(--muted);">+${meta.variants.length-5}</span>`:''}</div>`
+        ? `<div style="display:flex;flex-wrap:wrap;gap:4px;">${meta.variants.slice(0,5).map(v=>`<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--muted2);">${esc(v)}</span>`).join('')}${meta.variants.length>5?`<span style="font-size:10px;color:var(--muted);">+${meta.variants.length-5}</span>`:''}</div>`
         : `<span style="font-size:12px;color:var(--muted);">—</span>`;
       const addedCell = `<span style="font-size:12px;color:var(--muted2);white-space:nowrap;">${new Date(item.added_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</span>`;
       return `<tr>
@@ -5074,7 +5190,7 @@
         <td>${priceCell}</td>
         <td>${variantsCell}</td>
         <td>${addedCell}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="removeWatchlistItem('${item.id}')">Remove</button></td>
+        <td><button class="btn btn-danger btn-sm" onclick="removeWatchlistItem('${esc(item.id)}')">Remove</button></td>
       </tr>`;
     }).join('');
   }
@@ -5892,7 +6008,7 @@
       tbody.innerHTML = listings.map(l => {
         const plats = (l.platforms || []).map(p =>
           `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
-            <span style="width:6px;height:6px;border-radius:50%;background:${platformColors[p] || '#888'};display:inline-block;"></span>${p}
+            <span style="width:6px;height:6px;border-radius:50%;background:${platformColors[p] || '#888'};display:inline-block;"></span>${esc(p)}
           </span>`
         ).join(' ');
 
@@ -5902,16 +6018,16 @@
           : `<span style="color:var(--muted);font-size:11px;">Off</span>`;
 
         return `<tr>
-          <td style="font-size:13px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${l.title}">${l.title}</td>
+          <td style="font-size:13px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(l.title)}">${esc(l.title)}</td>
           <td style="white-space:nowrap;">${plats}</td>
           <td style="font-size:13px;">£${parseFloat(l.price).toFixed(2)}</td>
-          <td style="font-size:12px;color:var(--muted2);">${l.condition || '—'}</td>
+          <td style="font-size:12px;color:var(--muted2);">${esc(l.condition || '—')}</td>
           <td>${autoRelistBadge}</td>
           <td style="font-size:12px;color:var(--muted2);white-space:nowrap;">${listed}</td>
           <td style="white-space:nowrap;">
             <div style="display:flex;gap:6px;">
-              <button class="btn btn-ghost btn-sm" onclick="relistNow('${l.id}')" title="Relist now">Relist</button>
-              <button class="btn btn-danger btn-sm" onclick="deleteListing('${l.id}', '${l.title.replace(/'/g,"\\'")}')">Delete</button>
+              <button class="btn btn-ghost btn-sm" onclick="relistNow('${esc(l.id)}')" title="Relist now">Relist</button>
+              <button class="btn btn-danger btn-sm" onclick='deleteListing(${esc(JSON.stringify(String(l.id)))}, ${esc(JSON.stringify(l.title || ""))})'>Delete</button>
             </div>
           </td>
         </tr>`;
