@@ -2698,6 +2698,20 @@
           </div>
         </div>
 
+        <!-- ── Update Log (auto-tracked) ── -->
+        <div class="card" style="margin-bottom:24px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div>
+              <div class="card-title" style="margin:0;">Update Log <span style="font-size:9px;padding:2px 7px;border-radius:4px;background:rgba(232,33,122,0.14);color:var(--pink);font-weight:700;letter-spacing:.08em;vertical-align:middle;margin-left:6px;">AUTO</span></div>
+              <div style="font-size:11px;color:var(--muted);margin-top:3px;">Watches every deploy and drafts announcements ready to paste into Discord. Small fixes fold into the previous version instead of creating a new entry.</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="ulogCopyLatest(this)" style="flex-shrink:0;">Copy latest</button>
+          </div>
+          <div id="ulog-entries" style="display:flex;flex-direction:column;gap:12px;margin-top:14px;">
+            <div style="font-size:12px;color:var(--muted);">No updates tracked yet — entries appear automatically as deploys go live while you have the dashboard open.</div>
+          </div>
+        </div>
+
         <!-- Revenue strip -->
         <div class="grid-3" style="margin-bottom:24px;">
           <div class="stat-card">
@@ -3303,9 +3317,12 @@
 
     // Try each candidate avatar URL in order; only apply one that actually loads
     // (stale Discord CDN hashes 404 after the user changes their avatar)
-    const avatarCandidates = [...new Set(
-      [profile?.avatar_url, u.user_metadata?.avatar_url, u.user_metadata?.picture].filter(Boolean)
-    )];
+    const avatarCandidates = [...new Set([
+      profile?.avatar_url,
+      u.user_metadata?.avatar_url,
+      u.user_metadata?.picture,
+      u.identities?.find(i => i.provider === 'discord')?.identity_data?.avatar_url,
+    ].filter(Boolean))];
     (function tryAvatar(i) {
       if (i >= avatarCandidates.length) return; // keep initials
       const url = avatarCandidates[i];
@@ -3402,6 +3419,7 @@
       document.getElementById('admin-denied').style.display        = 'none';
       loadAdminData();
       loadAdminCoupons();
+      ulogTrack();
     } else {
       document.getElementById('admin-content').style.display = 'none';
       document.getElementById('admin-denied').style.display  = '';
@@ -4160,6 +4178,98 @@
           }).join('')
         : '<div style="font-size:12px;color:var(--muted);padding:12px 0;">No sales yet — connect Vinted on Platforms or log one in the Profit Tracker.</div>';
     }
+  }
+
+  // ── Owner update log (auto-tracked from version.json deploys) ────────────────
+  const ULOG_KEY = 'vendora_update_log_v1';
+  function ulogLoad() {
+    try { return JSON.parse(localStorage.getItem(ULOG_KEY) || '{"lastSha":null,"entries":[]}'); }
+    catch { return { lastSha: null, entries: [] }; }
+  }
+  function ulogSave(s) { localStorage.setItem(ULOG_KEY, JSON.stringify(s)); }
+
+  // feat/major commits get their own announcement; everything else is treated as
+  // a small change and folded into the previous entry (bumping its version forward)
+  function ulogClassify(msg) {
+    return /^(feat|feature|major)[:(! ]/i.test((msg || '').trim()) ? 'feature' : 'minor';
+  }
+  function ulogClean(msg) {
+    let s = (msg || '').trim().split('\n')[0];
+    s = s.replace(/^(feat|feature|major|fix|hotfix|chore|docs|style|refactor|perf|test|build|ci)(\([^)]*\))?!?:\s*/i, '');
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Update';
+  }
+
+  async function ulogTrack() {
+    try {
+      const r = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
+      if (!r.ok) { ulogRender(); return; }
+      const v = await r.json();
+      const state = ulogLoad();
+      if (state.lastSha === v.sha) { ulogRender(); return; }
+      const today = new Date().toISOString().slice(0, 10);
+      const kind = ulogClassify(v.message);
+      const text = ulogClean(v.message);
+      if (kind === 'minor' && state.entries.length) {
+        const last = state.entries[0];
+        last.version = v.version; // the previous announcement absorbs the small change
+        last.date = today;
+        if (!last.bullets.includes(text)) last.bullets.push(text);
+      } else {
+        state.entries.unshift({ version: v.version, date: today, title: text, bullets: [text], type: kind });
+        if (state.entries.length > 30) state.entries.length = 30;
+      }
+      state.lastSha = v.sha;
+      ulogSave(state);
+      ulogRender();
+    } catch { ulogRender(); }
+  }
+
+  function ulogRender() {
+    const box = document.getElementById('ulog-entries');
+    if (!box) return;
+    const { entries } = ulogLoad();
+    if (!entries.length) {
+      box.innerHTML = '<div style="font-size:12px;color:var(--muted);">No updates tracked yet — entries appear automatically as deploys go live while you have the dashboard open.</div>';
+      return;
+    }
+    box.innerHTML = entries.map((e, i) => {
+      const extras = e.bullets.filter(b => b !== e.title);
+      return `
+      <div style="border:1px solid var(--border-dim);border-radius:8px;padding:12px 14px;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--pink);">${esc(e.version)}</span>
+          <span style="font-size:9px;padding:2px 7px;border-radius:4px;background:${e.type === 'feature' ? 'rgba(74,222,128,0.12)' : 'rgba(255,255,255,0.06)'};color:${e.type === 'feature' ? 'var(--green)' : 'var(--muted2)'};font-weight:700;letter-spacing:.06em;">${e.type === 'feature' ? 'FEATURE' : 'FIXES'}</span>
+          <span style="font-size:11px;color:var(--muted);">${esc(e.date)}</span>
+          <span style="margin-left:auto;display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-sm" onclick="ulogCopy(${i}, this)">Copy</button>
+            <button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="ulogDelete(${i})" title="Remove entry">✕</button>
+          </span>
+        </div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-top:6px;">${esc(e.title)}</div>
+        ${extras.length ? `<ul style="margin:6px 0 0 16px;font-size:12px;color:var(--muted2);line-height:1.7;">${extras.map(b => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  function ulogFormat(e) {
+    const lines = [`📦 **Vendora ${e.version}** — ${e.title}`];
+    e.bullets.filter(b => b !== e.title).forEach(b => lines.push(`• ${b}`));
+    return lines.join('\n');
+  }
+  function ulogCopy(i, btn) {
+    const { entries } = ulogLoad();
+    if (!entries[i]) return;
+    navigator.clipboard.writeText(ulogFormat(entries[i])).then(() => {
+      if (btn) { const t = btn.textContent; btn.textContent = 'Copied ✓'; setTimeout(() => btn.textContent = t, 1400); }
+    });
+  }
+  function ulogCopyLatest(btn) { ulogCopy(0, btn); }
+  function ulogDelete(i) {
+    if (!confirm('Remove this log entry?')) return;
+    const s = ulogLoad();
+    s.entries.splice(i, 1);
+    ulogSave(s);
+    ulogRender();
   }
 
   // ── Top nav dropdowns ────────────────────────────────────────────────────────
