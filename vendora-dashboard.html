@@ -403,7 +403,7 @@
 
   /* ─── ANIMATED SHEEN ON ACCENT TEXT ─── */
   /* A lighter highlight band sweeps across, keeping each colour's meaning. */
-  .sheen-pink, .sheen-green, .sheen-gold, .sheen-red, .page-eyebrow {
+  .sheen-pink, .sheen-green, .sheen-gold, .sheen-red, .sheen-blue, .page-eyebrow {
     background-size: 220% 100%;
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -415,11 +415,12 @@
   .sheen-green { background-image: linear-gradient(100deg, #4ade80 0%, #4ade80 38%, #d4ffe4 50%, #4ade80 62%, #4ade80 100%); }
   .sheen-gold  { background-image: linear-gradient(100deg, #e8a121 0%, #e8a121 38%, #ffde9e 50%, #e8a121 62%, #e8a121 100%); }
   .sheen-red   { background-image: linear-gradient(100deg, #f87171 0%, #f87171 38%, #ffc9c9 50%, #f87171 62%, #f87171 100%); }
+  .sheen-blue  { background-image: linear-gradient(100deg, #60a5fa 0%, #60a5fa 38%, #cfe4ff 50%, #60a5fa 62%, #60a5fa 100%); }
   .page-eyebrow::before { -webkit-text-fill-color: initial; } /* keep the little dash solid */
   @keyframes sheenmove { from { background-position: 200% 0; } to { background-position: -60% 0; } }
   @media (prefers-reduced-motion: reduce) {
-    .sheen-pink, .sheen-green, .sheen-gold, .sheen-red, .page-eyebrow { animation: none; background-image: none; -webkit-text-fill-color: currentColor; }
-    .sheen-green { color: var(--green); } .sheen-gold { color: var(--gold); } .sheen-red { color: var(--red); }
+    .sheen-pink, .sheen-green, .sheen-gold, .sheen-red, .sheen-blue, .page-eyebrow { animation: none; background-image: none; -webkit-text-fill-color: currentColor; }
+    .sheen-pink { color: var(--pink); } .sheen-green { color: var(--green); } .sheen-gold { color: var(--gold); } .sheen-red { color: var(--red); } .sheen-blue { color: var(--blue); }
   }
   .page-title {
     font-family: 'Syne', sans-serif;
@@ -4455,6 +4456,37 @@
   }
   apiHealthLoop();
   setTimeout(loadOverview, 0); // first paint with local data once the script is fully evaluated; refreshed again when API data lands
+
+  // ── Accent-text sheen (applied to all colored text in the dashboard) ─────────
+  // Detects text whose inline color is a brand accent and swaps in the matching
+  // animated gradient. Skips pills/badges (their inline background would fight
+  // the text-clip) and skeletons (still loading).
+  const SHEEN_MAP = [
+    { keys: ['var(--pink)', '#e8217a'], cls: 'sheen-pink' },
+    { keys: ['var(--green)', '#4ade80'], cls: 'sheen-green' },
+    { keys: ['var(--gold)', '#e8a121'], cls: 'sheen-gold' },
+    { keys: ['var(--red)', '#f87171'], cls: 'sheen-red' },
+    { keys: ['var(--blue)', '#60a5fa'], cls: 'sheen-blue' },
+  ];
+  const SHEEN_SEL = SHEEN_MAP.flatMap(m => m.keys.flatMap(k => [`[style*="color:${k}"]`, `[style*="color: ${k}"]`])).join(',');
+  function applyAccentSheen(root) {
+    (root || document).querySelectorAll(SHEEN_SEL).forEach(el => {
+      if (el.dataset.sheened || el.classList.contains('skel')) return;
+      if (el.classList.contains('sheen-pink') || el.classList.contains('sheen-green') || el.classList.contains('sheen-gold') || el.classList.contains('sheen-red') || el.classList.contains('sheen-blue')) return;
+      // Skip elements sitting on a colored fill (badges/pills) — text-clip needs a transparent bg
+      const bg = getComputedStyle(el).backgroundColor;
+      if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') return;
+      const style = el.getAttribute('style') || '';
+      const hit = SHEEN_MAP.find(m => m.keys.some(k => style.includes('color:' + k) || style.includes('color: ' + k)));
+      if (hit) { el.classList.add(hit.cls); el.dataset.sheened = '1'; }
+    });
+  }
+  applyAccentSheen();
+  let _sheenTimer;
+  new MutationObserver(() => {
+    clearTimeout(_sheenTimer);
+    _sheenTimer = setTimeout(() => applyAccentSheen(), 180);
+  }).observe(document.querySelector('.main') || document.body, { childList: true, subtree: true });
 
   // ── Keyboard accessibility ───────────────────────────────────────────────────
   (function initA11y() {
