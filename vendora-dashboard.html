@@ -400,6 +400,27 @@
     display: flex; align-items: center; gap: 8px;
   }
   .page-eyebrow::before { content: ''; display: block; width: 16px; height: 1px; background: var(--pink); }
+
+  /* ─── ANIMATED SHEEN ON ACCENT TEXT ─── */
+  /* A lighter highlight band sweeps across, keeping each colour's meaning. */
+  .sheen-pink, .sheen-green, .sheen-gold, .sheen-red, .page-eyebrow {
+    background-size: 220% 100%;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: sheenmove 4.5s linear infinite;
+  }
+  .page-eyebrow, .sheen-pink {
+    background-image: linear-gradient(100deg, #e8217a 0%, #e8217a 38%, #ff8fc4 50%, #e8217a 62%, #e8217a 100%);
+  }
+  .sheen-green { background-image: linear-gradient(100deg, #4ade80 0%, #4ade80 38%, #d4ffe4 50%, #4ade80 62%, #4ade80 100%); }
+  .sheen-gold  { background-image: linear-gradient(100deg, #e8a121 0%, #e8a121 38%, #ffde9e 50%, #e8a121 62%, #e8a121 100%); }
+  .sheen-red   { background-image: linear-gradient(100deg, #f87171 0%, #f87171 38%, #ffc9c9 50%, #f87171 62%, #f87171 100%); }
+  .page-eyebrow::before { -webkit-text-fill-color: initial; } /* keep the little dash solid */
+  @keyframes sheenmove { from { background-position: 200% 0; } to { background-position: -60% 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .sheen-pink, .sheen-green, .sheen-gold, .sheen-red, .page-eyebrow { animation: none; background-image: none; -webkit-text-fill-color: currentColor; }
+    .sheen-green { color: var(--green); } .sheen-gold { color: var(--gold); } .sheen-red { color: var(--red); }
+  }
   .page-title {
     font-family: 'Syne', sans-serif;
     font-size: 26px; font-weight: 800;
@@ -1156,7 +1177,7 @@
         </div>
         <div class="card ov-card" style="border-color:rgba(232,161,33,0.2);cursor:pointer;" onclick="showSection('credits', document.querySelector('.nav-item[onclick*=credits]'))">
           <div class="ov-stat-label" style="color:var(--gold);">Credits</div>
-          <div class="ov-stat-val skel" id="ov-credits" style="color:var(--gold);">&nbsp;</div>
+          <div class="ov-stat-val skel" id="ov-credits">&nbsp;</div>
           <div style="font-size:11px;color:var(--muted);margin-top:5px;">powers scans &amp; enhancements</div>
         </div>
       </div>
@@ -2716,7 +2737,7 @@
         <div class="grid-3" style="margin-bottom:24px;">
           <div class="stat-card">
             <div class="stat-label">Monthly Recurring Revenue</div>
-            <div class="stat-val" id="admin-mrr" style="color:var(--green);">—</div>
+            <div class="stat-val sheen-green" id="admin-mrr">—</div>
             <div class="stat-delta delta-up" id="admin-mrr-delta"></div>
           </div>
           <div class="stat-card">
@@ -4159,7 +4180,7 @@
     };
     setStat('ov-profit', profit30, { prefix: '£', decimals: 2 });
     const pEl = document.getElementById('ov-profit');
-    if (pEl) pEl.style.color = profit30 >= 0 ? 'var(--green)' : 'var(--red)';
+    if (pEl) { pEl.classList.toggle('sheen-green', profit30 >= 0); pEl.classList.toggle('sheen-red', profit30 < 0); }
     setStat('ov-sales', cur.length, {});
     setStat('ov-active', window._invActiveCount || 0, {});
     if (typeof window._creditsBal === 'number') setStat('ov-credits', window._creditsBal, {});
@@ -7234,7 +7255,7 @@
     const navBadge = document.getElementById('nav-credits-badge');
     window._creditsBal = bal;
     const ovCred = document.getElementById('ov-credits');
-    if (ovCred) { ovCred.classList.remove('skel'); countUp(ovCred, bal, {}); }
+    if (ovCred) { ovCred.classList.remove('skel'); ovCred.classList.add('sheen-gold'); countUp(ovCred, bal, {}); }
     if (topbar)    topbar.style.display    = 'flex';
     if (topbarVal) topbarVal.textContent   = fmt;
     if (bigBal)    bigBal.textContent      = bal.toLocaleString();
