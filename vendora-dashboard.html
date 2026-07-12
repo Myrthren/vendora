@@ -73,7 +73,19 @@
   .topnav-brand { display: flex; align-items: center; gap: 9px; text-decoration: none; margin-right: 22px; }
   .topnav-mark {
     width: 28px; height: 28px;
-    filter: drop-shadow(0 0 6px rgba(232,33,122,0.38));
+    filter:
+      drop-shadow(0 0 3px rgba(232,33,122,0.5))
+      drop-shadow(0 0 7px rgba(232,33,122,0.4))
+      drop-shadow(0 0 15px rgba(232,33,122,0.25))
+      drop-shadow(0 0 28px rgba(232,33,122,0.13));
+    transition: filter .35s ease;
+  }
+  .topnav-brand:hover .topnav-mark {
+    filter:
+      drop-shadow(0 0 4px rgba(232,33,122,0.6))
+      drop-shadow(0 0 11px rgba(232,33,122,0.5))
+      drop-shadow(0 0 22px rgba(232,33,122,0.35))
+      drop-shadow(0 0 42px rgba(232,33,122,0.2));
   }
   .topnav-mark img { width: 28px; height: 28px; object-fit: contain; border-radius: 4px; display: block; }
   .topnav-brand-name {
@@ -605,11 +617,11 @@
   .btn-pink, .btn-primary {
     background: linear-gradient(135deg, #e8217a 0%, #f52e8a 100%);
     color: #fff;
-    box-shadow: 0 2px 12px rgba(232,33,122,0.25);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.28), 0 2px 12px rgba(232,33,122,0.25);
   }
   .btn-pink:hover, .btn-primary:hover {
     background: linear-gradient(135deg, #f52e8a 0%, #ff3d96 100%);
-    box-shadow: 0 0 0 1px rgba(232,33,122,0.5), 0 0 24px rgba(232,33,122,0.45), 0 4px 16px rgba(232,33,122,0.3);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.36), 0 0 0 1px rgba(232,33,122,0.5), 0 0 24px rgba(232,33,122,0.45), 0 4px 16px rgba(232,33,122,0.3);
     transform: translateY(-1px);
   }
   .btn-pink:active, .btn-primary:active { transform: translateY(0); }

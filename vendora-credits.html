@@ -53,7 +53,8 @@
   }
   .topnav-left { display: flex; align-items: center; gap: 20px; }
   .brand-link { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-  .brand-mark { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .brand-mark { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; filter: drop-shadow(0 0 3px rgba(232,33,122,0.5)) drop-shadow(0 0 7px rgba(232,33,122,0.4)) drop-shadow(0 0 16px rgba(232,33,122,0.25)) drop-shadow(0 0 30px rgba(232,33,122,0.13)); transition: filter .35s ease; }
+  .brand-link:hover .brand-mark { filter: drop-shadow(0 0 4px rgba(232,33,122,0.6)) drop-shadow(0 0 11px rgba(232,33,122,0.5)) drop-shadow(0 0 23px rgba(232,33,122,0.35)) drop-shadow(0 0 44px rgba(232,33,122,0.2)); }
   .brand-name { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text); }
   .nav-divider { width: 1px; height: 20px; background: var(--border); }
   .back-link { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); text-decoration: none; transition: color .18s; }
@@ -99,8 +100,8 @@
   .pkg-per-credit { font-size: 11px; color: var(--muted); margin-top: -6px; }
   .pkg-divider { height: 1px; background: var(--border); }
 
-  .btn-buy { display: block; width: 100%; padding: 11px 0; background: var(--pink); color: white; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; border: none; border-radius: 10px; cursor: pointer; transition: background .18s, transform .12s, box-shadow .18s; text-align: center; letter-spacing: 0.02em; }
-  .btn-buy:hover { background: #c91968; box-shadow: 0 4px 18px rgba(232,33,122,0.32); transform: translateY(-1px); }
+  .btn-buy { display: block; width: 100%; padding: 11px 0; background: linear-gradient(135deg, #e8217a, #f52e8a); color: white; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; border: none; border-radius: 10px; cursor: pointer; box-shadow: inset 0 1px 0 rgba(255,255,255,0.28), 0 2px 12px rgba(232,33,122,0.22); transition: background .18s, transform .12s, box-shadow .18s; text-align: center; letter-spacing: 0.02em; }
+  .btn-buy:hover { background: linear-gradient(135deg, #f52e8a, #ff3d96); box-shadow: inset 0 1px 0 rgba(255,255,255,0.36), 0 4px 20px rgba(232,33,122,0.4); transform: translateY(-1px); }
   .btn-buy:active { transform: translateY(0); }
   .best-value .btn-buy { background: var(--gold); color: #090909; }
   .best-value .btn-buy:hover { background: #d4921a; box-shadow: 0 4px 18px rgba(232,161,33,0.35); }
@@ -113,8 +114,8 @@
   .redeem-input { flex: 1; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; padding: 11px 16px; outline: none; transition: border-color .18s; letter-spacing: 0.06em; }
   .redeem-input::placeholder { color: var(--muted); }
   .redeem-input:focus { border-color: var(--pink); }
-  .btn-redeem { padding: 11px 22px; background: var(--pink); color: white; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; border: none; border-radius: 10px; cursor: pointer; transition: background .18s, box-shadow .18s; white-space: nowrap; }
-  .btn-redeem:hover { background: #c91968; box-shadow: 0 4px 18px rgba(232,33,122,0.3); }
+  .btn-redeem { padding: 11px 22px; background: linear-gradient(135deg, #e8217a, #f52e8a); color: white; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; border: none; border-radius: 10px; cursor: pointer; box-shadow: inset 0 1px 0 rgba(255,255,255,0.28), 0 2px 12px rgba(232,33,122,0.22); transition: background .18s, box-shadow .18s; white-space: nowrap; }
+  .btn-redeem:hover { background: linear-gradient(135deg, #f52e8a, #ff3d96); box-shadow: inset 0 1px 0 rgba(255,255,255,0.36), 0 4px 20px rgba(232,33,122,0.38); }
   .btn-redeem:disabled { opacity: 0.5; cursor: not-allowed; }
   .redeem-msg { margin-top: 12px; font-size: 13px; font-weight: 500; min-height: 18px; display: none; }
   .redeem-msg.success { color: var(--green); display: block; }
@@ -159,7 +160,7 @@
   <div class="topnav-left">
     <a href="vendora-dashboard.html" class="brand-link">
       <div class="brand-mark">
-        <img src="favicon.png" alt="Vendora" style="width:26px;height:26px;object-fit:contain;display:block;">
+        <img src="vendora-icon.png" alt="Vendora" style="width:26px;height:26px;object-fit:contain;display:block;">
       </div>
       <span class="brand-name">Vendora</span>
     </a>
