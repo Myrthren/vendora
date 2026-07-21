@@ -1313,9 +1313,18 @@
         <div>
           <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--pink);margin-bottom:4px;">Selected Plan</div>
           <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--text);" class="banner-plan">Pro — £24.99/mo</div>
-          <div style="font-size:12px;color:var(--muted);font-weight:300;margin-top:3px;">You'll be redirected to PayPal to complete payment. Your Discord role is assigned instantly on confirmation.</div>
+          <div style="font-size:12px;color:var(--muted);font-weight:300;margin-top:3px;">Pay with PayPal or Whop — either way your Discord role is assigned instantly on confirmation.</div>
         </div>
-        <div id="paypal-button-mount" style="min-width:200px;"></div>
+        <div style="min-width:200px;">
+          <div id="paypal-button-mount"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin:10px 0;">
+            <div style="flex:1;height:1px;background:rgba(255,255,255,0.08);"></div>
+            <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted2);">or</div>
+            <div style="flex:1;height:1px;background:rgba(255,255,255,0.08);"></div>
+          </div>
+          <button id="whop-pay-btn" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;" onclick="payWithWhop()">Pay with Whop</button>
+          <div id="whop-pay-error" style="display:none;font-size:11px;color:var(--red);margin-top:6px;"></div>
+        </div>
       </div>
 
       <div class="sub-current">
@@ -1410,6 +1419,19 @@
             <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5;">Everything in Pro · <span style="color:var(--gold);font-weight:600;">1,500 credits/mo</span> · 5-min Auto-Buy + 30 alerts · Hourly sync · Bulk AI analysis · Stale-listing alerts · Sales analytics · Unlimited commands · Priority support</div>
             <button class="btn btn-gold btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('elite')">Get Elite</button>
           </div>
+        </div>
+
+        <!-- Whop purchases made outside the dashboard arrive without a Discord id,
+             so the buyer binds them to their account here with a claim code. -->
+        <div style="margin-top:28px;padding:18px 20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:4px;">
+          <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Bought on Whop?</div>
+          <div style="font-size:12px;color:var(--muted2);font-weight:300;margin-bottom:12px;">If you purchased through Whop directly rather than from this dashboard, enter the claim code from your Whop receipt to link it to this account.</div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <input id="whop-claim-code" type="text" maxlength="10" placeholder="e.g. 4F2A9C7B1D" autocomplete="off"
+              style="flex:1;min-width:180px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:monospace;letter-spacing:0.08em;text-transform:uppercase;">
+            <button id="whop-claim-btn" class="btn btn-ghost btn-sm" onclick="claimWhopPurchase()">Claim</button>
+          </div>
+          <div id="whop-claim-msg" style="display:none;font-size:12px;margin-top:10px;"></div>
         </div>
       </div>
     </div>
@@ -3535,6 +3557,20 @@
     mount.innerHTML = '';
     banner.scrollIntoView({ behavior:'smooth', block:'nearest' });
 
+    // Remember the selection for the Whop path, and reset that button's state.
+    selectedPlan = plan;
+    const whopBtn = document.getElementById('whop-pay-btn');
+    const whopErr = document.getElementById('whop-pay-error');
+    if (whopBtn) { whopBtn.disabled = false; whopBtn.textContent = 'Pay with Whop'; }
+    if (whopErr) { whopErr.style.display = 'none'; }
+    // Whop currently only carries the three monthly packages. Rather than
+    // silently charging monthly when annual is selected, say so.
+    if (isAnnual && whopBtn && whopErr) {
+      whopBtn.disabled = true;
+      whopErr.textContent = 'Whop offers monthly billing only — use PayPal for annual.';
+      whopErr.style.display = 'block';
+    }
+
     paypal.Buttons({
       style: { shape:'rect', color:'black', layout:'vertical', label:'subscribe' },
       createSubscription: (_d, actions) => actions.subscription.create({ plan_id: isAnnual ? (PLAN_IDS[plan + '_annual'] || PLAN_IDS[plan]) : PLAN_IDS[plan] }),
@@ -3545,6 +3581,9 @@
             tier: plan,
             paypal_subscription_id: data.subscriptionID,
             subscription_status: 'active',
+            // Marks PayPal as the owner of this entitlement so a Whop
+            // cancellation webhook can never revoke it (and vice versa).
+            subscription_source: 'paypal',
           }).eq('id', session.user.id);
         }
         mount.innerHTML = '';
@@ -3558,6 +3597,83 @@
         console.error('PayPal error:', err);
       },
     }).render('#paypal-button-mount');
+  }
+
+  // Plan chosen in the upgrade cards, shared by the PayPal and Whop paths.
+  let selectedPlan = null;
+
+  // Whop checkout. The backend mints a checkout configuration carrying this
+  // user's Discord id as metadata, so the Whop webhook can match the purchase
+  // back to them automatically. If that fails we still send them to a plain
+  // plan link — they just have to claim the purchase afterwards.
+  async function payWithWhop() {
+    const btn = document.getElementById('whop-pay-btn');
+    const err = document.getElementById('whop-pay-error');
+    if (!selectedPlan) return;
+    btn.disabled = true; btn.textContent = 'Opening Whop…';
+    err.style.display = 'none';
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) throw new Error('Your session expired — please sign in again.');
+
+      const r = await fetch(`${BOT_API}/api/whop/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ tier: selectedPlan }),
+      });
+      const out = await r.json().catch(() => ({}));
+      if (!r.ok || !out.url) throw new Error(out.error || 'Could not start Whop checkout.');
+
+      // Opened in a new tab so the dashboard session stays put behind it.
+      window.open(out.url, '_blank', 'noopener');
+      btn.disabled = false;
+      btn.textContent = 'Reopen Whop checkout';
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'Pay with Whop';
+      err.textContent = e.message;
+      err.style.display = 'block';
+    }
+  }
+
+  // Claim a Whop purchase made outside the dashboard (e.g. from Whop's own
+  // marketplace), where we never got the buyer's Discord id at checkout.
+  async function claimWhopPurchase() {
+    const input = document.getElementById('whop-claim-code');
+    const btn   = document.getElementById('whop-claim-btn');
+    const msg   = document.getElementById('whop-claim-msg');
+    const code  = (input?.value || '').trim();
+    if (!code) return;
+
+    btn.disabled = true; btn.textContent = 'Checking…';
+    msg.style.display = 'none';
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) throw new Error('Your session expired — please sign in again.');
+
+      const r = await fetch(`${BOT_API}/api/whop/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ code }),
+      });
+      const out = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(out.error || 'Could not claim this purchase.');
+
+      msg.style.color = 'var(--green)';
+      msg.textContent = `Claimed — your ${out.tier} plan is now active.`;
+      msg.style.display = 'block';
+      input.value = '';
+      setTimeout(() => init(), 1500);
+    } catch (e) {
+      msg.style.color = 'var(--red)';
+      msg.textContent = e.message;
+      msg.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Claim';
+    }
   }
 
   async function runDiagnostics() {

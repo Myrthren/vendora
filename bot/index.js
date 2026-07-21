@@ -48,6 +48,9 @@ const PHOTOROOM_KEY    = process.env.PHOTOROOM_API_KEY;
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
 const PAYPAL_SECRET    = process.env.PAYPAL_CLIENT_SECRET;
 const PAYPAL_MODE      = process.env.PAYPAL_MODE || 'live'; // 'sandbox' or 'live'
+// Whop — alternative checkout, runs alongside PayPal. See sql/whop-integration.sql
+const WHOP_API_KEY        = process.env.WHOP_API_KEY;        // server-side API key (checkout sessions)
+const WHOP_WEBHOOK_SECRET = process.env.WHOP_WEBHOOK_SECRET; // "whsec_..." from the Whop dashboard
 const PROXY_URL        = process.env.PROXY_URL; // optional residential proxy e.g. http://user:pass@host:port
 const APIFY_TOKEN      = process.env.APIFY_API_TOKEN; // Apify API key for Vinted Scraper & Monitor
 
@@ -116,6 +119,8 @@ if (!PHOTOROOM_KEY)    console.warn('[warn] PHOTOROOM_API_KEY not set — PhotoR
 if (!PAYPAL_CLIENT_ID) console.warn('[warn] PAYPAL_CLIENT_ID not set — credit purchases will fail');
 if (!PAYPAL_SECRET)    console.warn('[warn] PAYPAL_CLIENT_SECRET not set — credit purchases will fail');
 if (!APIFY_TOKEN)      console.warn('[warn] APIFY_API_TOKEN not set — Vinted Apify scraping disabled');
+if (!WHOP_WEBHOOK_SECRET) console.warn('[warn] WHOP_WEBHOOK_SECRET not set — Whop webhooks will be REJECTED');
+if (!WHOP_API_KEY)        console.warn('[warn] WHOP_API_KEY not set — Whop checkout falls back to unmatched plan links');
 
 // ── Anthropic ─────────────────────────────────────────────────────────────────
 const ai = ANTHROPIC_KEY ? new Anthropic({ apiKey: ANTHROPIC_KEY }) : null;
@@ -140,6 +145,22 @@ const TIER_NAMES  = { none: 'Free', basic: 'Basic', pro: 'Pro', elite: 'Elite' }
 const TIER_PRICES = { basic: '£9.99', pro: '£24.99', elite: '£49.99' };
 const TIER_RANK   = { none: 0, basic: 1, pro: 2, elite: 3 };
 const TIER_COLOR  = { basic: '#60a5fa', pro: '#e8217a', elite: '#e8a121' };
+
+// Whop plan id -> Vendora tier. Env-driven so plan ids can change without a redeploy.
+// Find these on the plan inside your Whop product (they look like "plan_XXXXXXXX").
+const WHOP_PLAN_TIERS = {
+  [process.env.WHOP_PLAN_BASIC || '']: 'basic',
+  [process.env.WHOP_PLAN_PRO   || '']: 'pro',
+  [process.env.WHOP_PLAN_ELITE || '']: 'elite',
+};
+delete WHOP_PLAN_TIERS['']; // drop the placeholder key when a plan id is unset
+
+// Whop membership statuses that mean "this person has paid and should have access".
+// Full enum: trialing, active, past_due, completed, canceled, expired, unresolved,
+// drafted, canceling. Note "canceling" IS entitled — they cancelled but the period
+// they already paid for has not ended yet. Whop sends membership.deactivated when
+// it actually lapses. "past_due" is deliberately NOT entitled.
+const WHOP_ACTIVE_STATUSES = new Set(['trialing', 'active', 'completed', 'canceling']);
 
 // ── Rate limits ───────────────────────────────────────────────────────────────
 const RATE_LIMITS = {
@@ -2693,6 +2714,11 @@ app.use((req, res, next) => {
   next();
 });
 
+// Whop signs the EXACT bytes it sent, so this route must keep its raw body.
+// It has to be registered before express.json() below, or the JSON parser
+// consumes the stream first and the signature can never be reproduced.
+app.use('/whop-webhook', express.raw({ type: '*/*', limit: '1mb' }));
+
 // Increase body size limit to 25 MB to handle base64-encoded image uploads
 app.use(express.json({ limit: '25mb' }));
 
@@ -2961,6 +2987,339 @@ app.post('/paypal-webhook', async (req, res) => {
   if (error) { console.error('[paypal] Profile update failed:', error); return res.status(500).json({ error }); }
   console.log(`[paypal] Marked ${subId} inactive — rows: ${data?.length || 0}`);
   res.json({ ok: true });
+});
+
+// ── Whop ──────────────────────────────────────────────────────────────────────
+// Whop is an ALTERNATIVE way to buy a plan, running alongside PayPal — not a
+// replacement. Both providers write the same two entitlement fields on profiles
+// (tier + subscription_status). The Supabase DB webhook above then assigns the
+// Discord role and DMs the user, so nothing here touches roles directly:
+// granting a tier is a single PATCH.
+//
+// IMPORTANT: Whop's own Discord role automation must stay OFF for these plans.
+// assignRole() strips every other tier role when it runs, so two systems
+// managing the same role ids will fight and flap the user's roles.
+//
+// Identity is the hard part: Whop's webhook payload contains no Discord id.
+// Two paths, in order of preference:
+//   1. metadata.discord_id — set when checkout started from the dashboard
+//      (see POST /api/whop/checkout), so the buyer is known immediately.
+//   2. a claim code — for purchases made from Whop's own marketplace, where we
+//      never controlled the checkout. The membership is still recorded; the
+//      buyer binds it to their Discord account later via POST /api/whop/claim.
+// A purchase is NEVER dropped just because we can't identify the buyer yet.
+
+const WHOP_API_BASE = 'https://api.whop.com/api/v1';
+const WHOP_SB_HEADERS = () => ({
+  apikey: SUPABASE_KEY,
+  Authorization: `Bearer ${SUPABASE_KEY}`,
+  'Content-Type': 'application/json',
+});
+
+// Whop follows the Standard Webhooks spec: HMAC-SHA256 over "{id}.{timestamp}.{body}"
+// using the base64-decoded secret, compared against the base64 signature.
+function verifyWhopSignature(rawBody, headers) {
+  if (!WHOP_WEBHOOK_SECRET) return { ok: false, reason: 'WHOP_WEBHOOK_SECRET not set' };
+
+  const id  = headers['webhook-id'];
+  const ts  = headers['webhook-timestamp'];
+  const sig = headers['webhook-signature'];
+  if (!id || !ts || !sig) return { ok: false, reason: 'missing webhook-* headers' };
+
+  // Reject replays. Standard Webhooks recommends a 5 minute tolerance.
+  const age = Math.abs(Date.now() / 1000 - Number(ts));
+  if (!Number.isFinite(age) || age > 300) return { ok: false, reason: `timestamp outside 5m window (${Math.round(age)}s)` };
+
+  const key = Buffer.from(String(WHOP_WEBHOOK_SECRET).replace(/^whsec_/, ''), 'base64');
+  const expected = crypto.createHmac('sha256', key)
+    .update(`${id}.${ts}.${rawBody.toString('utf8')}`)
+    .digest('base64');
+
+  // The header is a space-separated list of "v1,<sig>" pairs — more than one is
+  // present while a secret is being rotated, and any single match is valid.
+  const provided = String(sig).split(' ').map(p => p.split(',')[1]).filter(Boolean);
+  const expectedBuf = Buffer.from(expected);
+  const ok = provided.some(p => {
+    const got = Buffer.from(p);
+    return got.length === expectedBuf.length && crypto.timingSafeEqual(got, expectedBuf);
+  });
+
+  return ok ? { ok: true } : { ok: false, reason: 'signature mismatch' };
+}
+
+// Pull the fields we care about out of a membership payload. Whop nests some of
+// these as objects and some as bare ids depending on the event, so each field
+// checks a couple of shapes rather than assuming one.
+function parseWhopMembership(data) {
+  const pick = (...vals) => vals.find(v => typeof v === 'string' && v) || null;
+  const planId = pick(data?.plan?.id, data?.plan_id, data?.plan);
+  return {
+    membership_id: pick(data?.id, data?.membership_id, data?.membership?.id),
+    whop_user_id:  pick(data?.user?.id, data?.user_id, data?.user),
+    whop_email:    pick(data?.user?.email, data?.email),
+    plan_id:       planId,
+    product_id:    pick(data?.product?.id, data?.product_id, data?.access_pass?.id),
+    status:        pick(data?.status, data?.membership?.status),
+    tier:          planId ? (WHOP_PLAN_TIERS[planId] || null) : null,
+    metadata:      data?.metadata || {},
+  };
+}
+
+async function upsertWhopMembership(row) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/whop_memberships?on_conflict=membership_id`, {
+    method: 'POST',
+    headers: { ...WHOP_SB_HEADERS(), Prefer: 'resolution=merge-duplicates,return=representation' },
+    body: JSON.stringify([{ ...row, updated_at: new Date().toISOString() }]),
+  });
+  const text = await res.text();
+  if (!res.ok) { console.error('[whop] membership upsert failed:', text); return null; }
+  return JSON.parse(text || '[]')[0] || null;
+}
+
+// Write the tier onto the user's profile. Everything downstream (Discord role,
+// welcome DM, dashboard unlock) is triggered by the Supabase DB webhook.
+async function grantWhopTier(discordId, membershipId, tier) {
+  const profile = await getProfileByDiscordId(discordId);
+  if (!profile) return { error: 'no profile for discord_id ' + discordId };
+
+  // Conflict case: this user already has an ACTIVE subscription from another
+  // provider (almost always PayPal). We don't silently clobber it — we grant
+  // whichever tier is higher so the customer is never worse off, and flag it to
+  // the owner, because they are now being billed twice and need a refund or a
+  // cancellation on one side. Only a human can decide which.
+  const otherSource = profile.subscription_source && profile.subscription_source !== 'whop';
+  const doubleBilled = profile.subscription_status === 'active' &&
+                       (otherSource || (!profile.subscription_source && profile.paypal_subscription_id));
+
+  let finalTier = tier;
+  if (doubleBilled) {
+    const existing = profile.tier || 'none';
+    if ((TIER_RANK[existing] || 0) > (TIER_RANK[tier] || 0)) finalTier = existing;
+    console.warn(`[whop] DOUBLE BILLING — ${discordId} has an active ${profile.subscription_source || 'paypal'} sub (${existing}) and bought ${tier} on Whop. Granting ${finalTier}.`);
+    const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
+    if (guild) {
+      await sendOwnerDM(guild, { embeds: [
+        new EmbedBuilder().setColor('#e8a121')
+          .setTitle('Double subscription detected')
+          .setDescription(
+            `<@${discordId}> just bought **${TIER_NAMES[tier]}** on Whop but already has an active ` +
+            `**${TIER_NAMES[existing] || existing}** subscription via ${profile.subscription_source || 'PayPal'}.\n\n` +
+            `They are being billed twice. Granted **${TIER_NAMES[finalTier]}** (the higher tier) — ` +
+            `refund or cancel one side manually.`
+          )
+          .addFields({ name: 'Whop membership', value: membershipId, inline: true })
+      ]});
+    }
+  }
+
+  const { data, error } = await updateProfile('discord_id', discordId, {
+    tier: finalTier,
+    subscription_status: 'active',
+    subscription_source: 'whop',
+    whop_membership_id: membershipId,
+  });
+  if (error) return { error };
+  console.log(`[whop] Granted ${finalTier} to ${discordId} (membership ${membershipId})`);
+  return { data };
+}
+
+// Revoke ONLY if this membership is the one currently granting access. The
+// whop_membership_id filter is what keeps a Whop cancellation from touching a
+// PayPal subscriber — and stops a stale membership from revoking a newer one.
+async function revokeWhopTier(membershipId) {
+  const { data, error } = await updateProfile('whop_membership_id', membershipId, {
+    tier: 'none',
+    subscription_status: 'inactive',
+    subscription_source: null,
+    whop_membership_id: null,
+  });
+  if (error) { console.error('[whop] revoke failed:', error); return; }
+  console.log(`[whop] Revoked membership ${membershipId} — rows: ${data?.length || 0}`);
+}
+
+app.post('/whop-webhook', async (req, res) => {
+  const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from(JSON.stringify(req.body || {}));
+
+  const verdict = verifyWhopSignature(raw, req.headers);
+  if (!verdict.ok) {
+    console.warn('[whop] Rejected webhook —', verdict.reason);
+    return res.status(401).json({ error: 'Invalid signature' });
+  }
+
+  let body;
+  try { body = JSON.parse(raw.toString('utf8')); }
+  catch { return res.status(400).json({ error: 'Bad JSON' }); }
+
+  const event = body?.action || body?.event || body?.type;
+  const data  = body?.data || body?.payload || body;
+  console.log('[whop] Event:', event);
+
+  // Ack fast. Whop retries on non-2xx, and we've already verified + parsed;
+  // any failure past this point is ours to fix from logs, not worth a retry storm.
+  res.json({ ok: true });
+
+  try {
+    const m = parseWhopMembership(data);
+    if (!m.membership_id) { console.warn('[whop] No membership id in payload — ignoring'); return; }
+
+    // Unmapped plan = a plan id env var is wrong or a new plan was added in Whop.
+    // Record it anyway so the purchase is recoverable, and shout about it.
+    if (!m.tier) {
+      console.error(`[whop] UNMAPPED PLAN "${m.plan_id}" on membership ${m.membership_id} — check WHOP_PLAN_BASIC/PRO/ELITE. Full payload:`, JSON.stringify(data));
+    }
+
+    const metaDiscordId = typeof m.metadata?.discord_id === 'string' ? m.metadata.discord_id : null;
+    const entitled = WHOP_ACTIVE_STATUSES.has(String(m.status || '').toLowerCase());
+    const deactivating = /deactivat|cancel|expire|invalid/i.test(String(event || ''));
+
+    // Existing row wins for discord_id — a membership already claimed by a user
+    // must never be re-pointed at someone else by a later webhook.
+    const existingRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/whop_memberships?membership_id=eq.${encodeURIComponent(m.membership_id)}&select=*`,
+      { headers: WHOP_SB_HEADERS() }
+    ).catch(() => null);
+    const existing = existingRes?.ok ? (await existingRes.json())[0] : null;
+
+    // Checkout metadata is only trustworthy if it actually resolves to a profile.
+    // A stale, hand-made or test checkout link can carry a discord_id that no
+    // longer exists — binding to it would leave the buyer with no tier AND no
+    // claim code, i.e. paid and permanently stuck. Fall back to the claim flow.
+    let discordId = existing?.discord_id || null;
+    if (!discordId && metaDiscordId) {
+      if (await getProfileByDiscordId(metaDiscordId)) discordId = metaDiscordId;
+      else console.warn(`[whop] metadata.discord_id ${metaDiscordId} has no profile — falling back to claim code`);
+    }
+
+    const stored = await upsertWhopMembership({
+      membership_id: m.membership_id,
+      whop_user_id:  m.whop_user_id,
+      whop_email:    m.whop_email,
+      plan_id:       m.plan_id,
+      product_id:    m.product_id,
+      status:        m.status,
+      tier:          m.tier,
+      discord_id:    discordId,
+      // Only mint a claim code when we genuinely can't identify the buyer.
+      claim_code:    existing?.claim_code || (discordId ? null : crypto.randomBytes(5).toString('hex').toUpperCase()),
+      claimed_at:    existing?.claimed_at || (discordId ? new Date().toISOString() : null),
+      raw:           data,
+    });
+
+    if (deactivating || !entitled) { await revokeWhopTier(m.membership_id); return; }
+    if (!m.tier) return; // entitled but we don't know to what — owner must fix the mapping
+
+    if (!discordId) {
+      console.log(`[whop] Membership ${m.membership_id} (${m.tier}) unclaimed — claim code ${stored?.claim_code}`);
+      const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
+      if (guild) {
+        await sendOwnerDM(guild, { embeds: [
+          new EmbedBuilder().setColor('#e8217a')
+            .setTitle('Unclaimed Whop purchase')
+            .setDescription(
+              `Someone bought **${TIER_NAMES[m.tier]}** on Whop without going through the dashboard, ` +
+              `so we don't know their Discord account yet.\n\n` +
+              `They need to sign in at ${SITE_URL} and enter their claim code.`
+            )
+            .addFields(
+              { name: 'Claim code', value: stored?.claim_code || 'n/a', inline: true },
+              { name: 'Email',      value: m.whop_email || 'unknown',   inline: true }
+            )
+        ]});
+      }
+      return;
+    }
+
+    await grantWhopTier(discordId, m.membership_id, m.tier);
+  } catch (e) {
+    console.error('[whop] Handler error:', e);
+  }
+});
+
+// POST /api/whop/checkout — mint a Whop checkout link that carries the buyer's
+// Discord id as metadata, so the webhook can identify them without a claim step.
+// Metadata cannot be added as a plain URL query param; it has to be baked into a
+// server-created checkout configuration.
+app.post('/api/whop/checkout', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = user.user_metadata?.provider_id || user.identities?.find(i => i.provider === 'discord')?.id;
+  if (!discordId) return res.status(400).json({ error: 'No Discord identity on this account' });
+
+  const { tier } = req.body || {};
+  if (!['basic', 'pro', 'elite'].includes(tier)) return res.status(400).json({ error: 'Invalid tier' });
+
+  const planId = Object.keys(WHOP_PLAN_TIERS).find(k => WHOP_PLAN_TIERS[k] === tier);
+  if (!planId) return res.status(503).json({ error: 'Whop checkout is not configured for this tier' });
+  if (!WHOP_API_KEY) return res.status(503).json({ error: 'Whop checkout unavailable' });
+
+  try {
+    const r = await fetch(`${WHOP_API_BASE}/checkout_configurations`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${WHOP_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        plan_id: planId,
+        metadata: { discord_id: discordId, source: 'vendora_dashboard' },
+        redirect_url: DASHBOARD_URL, // land back on the dashboard after paying
+      }),
+    });
+    const out = await r.json().catch(() => ({}));
+
+    if (!r.ok || !out?.purchase_url) {
+      // Fall back to the bare plan link. The buyer can still pay — they just land
+      // in the claim flow afterwards instead of being matched automatically.
+      console.error('[whop] checkout config failed:', r.status, JSON.stringify(out));
+      return res.json({ url: `https://whop.com/checkout/${planId}`, matched: false });
+    }
+
+    const url = out.purchase_url.startsWith('http') ? out.purchase_url : `https://whop.com${out.purchase_url}`;
+    return res.json({ url, matched: true });
+  } catch (e) {
+    console.error('[whop] checkout error:', e.message);
+    return res.status(502).json({ error: 'Could not start Whop checkout' });
+  }
+});
+
+// POST /api/whop/claim — bind a Whop purchase made outside the dashboard to the
+// signed-in Discord account. The claim code is effectively a bearer token for a
+// paid plan, so it is single-use and never returned by any read endpoint.
+app.post('/api/whop/claim', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = user.user_metadata?.provider_id || user.identities?.find(i => i.provider === 'discord')?.id;
+  if (!discordId) return res.status(400).json({ error: 'No Discord identity on this account' });
+
+  const code = String(req.body?.code || '').trim().toUpperCase();
+  if (!/^[0-9A-F]{10}$/.test(code)) return res.status(400).json({ error: 'Invalid claim code' });
+
+  const r = await fetch(
+    `${SUPABASE_URL}/rest/v1/whop_memberships?claim_code=eq.${encodeURIComponent(code)}&select=*`,
+    { headers: WHOP_SB_HEADERS() }
+  ).catch(() => null);
+  const row = r?.ok ? (await r.json())[0] : null;
+
+  if (!row)             return res.status(404).json({ error: 'Claim code not found' });
+  if (row.discord_id)   return res.status(409).json({ error: 'This purchase has already been claimed' });
+  if (!row.tier)        return res.status(409).json({ error: 'This plan is not set up yet — contact support' });
+  if (!WHOP_ACTIVE_STATUSES.has(String(row.status || '').toLowerCase())) {
+    return res.status(409).json({ error: 'This membership is no longer active' });
+  }
+
+  // Burn the code as we bind it. The claim_code=is.null guard makes this atomic:
+  // two racing requests cannot both match, so a code can only ever be spent once.
+  const claimRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/whop_memberships?membership_id=eq.${encodeURIComponent(row.membership_id)}&discord_id=is.null`,
+    {
+      method: 'PATCH',
+      headers: { ...WHOP_SB_HEADERS(), Prefer: 'return=representation' },
+      body: JSON.stringify({ discord_id: discordId, claim_code: null, claimed_at: new Date().toISOString() }),
+    }
+  );
+  const claimed = claimRes.ok ? await claimRes.json() : [];
+  if (!claimed.length) return res.status(409).json({ error: 'This purchase has already been claimed' });
+
+  const { error } = await grantWhopTier(discordId, row.membership_id, row.tier);
+  if (error) { console.error('[whop] claim grant failed:', error); return res.status(500).json({ error: 'Could not apply your plan' }); }
+
+  console.log(`[whop] ${discordId} claimed membership ${row.membership_id} (${row.tier})`);
+  res.json({ ok: true, tier: row.tier });
 });
 
 // ── Crosslist job scheduler ────────────────────────────────────────────────────
