@@ -3030,21 +3030,41 @@ function verifyWhopSignature(rawBody, headers) {
   const age = Math.abs(Date.now() / 1000 - Number(ts));
   if (!Number.isFinite(age) || age > 300) return { ok: false, reason: `timestamp outside 5m window (${Math.round(age)}s)` };
 
-  const key = Buffer.from(String(WHOP_WEBHOOK_SECRET).replace(/^whsec_/, ''), 'base64');
-  const expected = crypto.createHmac('sha256', key)
-    .update(`${id}.${ts}.${rawBody.toString('utf8')}`)
-    .digest('base64');
+  // Standard Webhooks says the secret is base64. Whop issues secrets prefixed
+  // "ws_" (not the spec's "whsec_") and does not document how the remainder is
+  // encoded — and a hex string is also valid base64 input, so it cannot be told
+  // apart by inspection. Rather than guess, try each plausible derivation and
+  // report which one matched, so the encoding can be pinned from the logs.
+  // This is not a security weakening: every candidate is derived from the real
+  // secret, so anyone without it can still forge none of them.
+  const body = String(WHOP_WEBHOOK_SECRET).replace(/^(whsec_|ws_)/, '');
+  const candidates = [
+    ['base64', Buffer.from(body, 'base64')],
+    ['hex',    /^[0-9a-fA-F]+$/.test(body) && body.length % 2 === 0 ? Buffer.from(body, 'hex') : null],
+    ['utf8',   Buffer.from(body, 'utf8')],
+    ['utf8-with-prefix', Buffer.from(String(WHOP_WEBHOOK_SECRET), 'utf8')],
+  ].filter(([, k]) => k && k.length);
 
   // The header is a space-separated list of "v1,<sig>" pairs — more than one is
   // present while a secret is being rotated, and any single match is valid.
   const provided = String(sig).split(' ').map(p => p.split(',')[1]).filter(Boolean);
-  const expectedBuf = Buffer.from(expected);
-  const ok = provided.some(p => {
-    const got = Buffer.from(p);
-    return got.length === expectedBuf.length && crypto.timingSafeEqual(got, expectedBuf);
-  });
+  const signedContent = `${id}.${ts}.${rawBody.toString('utf8')}`;
 
-  return ok ? { ok: true } : { ok: false, reason: 'signature mismatch' };
+  const seen = new Set();
+  for (const [label, key] of candidates) {
+    const fingerprint = key.toString('hex');
+    if (seen.has(fingerprint)) continue; // two encodings collapsed to the same bytes
+    seen.add(fingerprint);
+
+    const expected = Buffer.from(crypto.createHmac('sha256', key).update(signedContent).digest('base64'));
+    const hit = provided.some(p => {
+      const got = Buffer.from(p);
+      return got.length === expected.length && crypto.timingSafeEqual(got, expected);
+    });
+    if (hit) return { ok: true, encoding: label };
+  }
+
+  return { ok: false, reason: 'signature mismatch' };
 }
 
 // Pull the fields we care about out of a membership payload. Whop nests some of
@@ -3145,6 +3165,9 @@ app.post('/whop-webhook', async (req, res) => {
     console.warn('[whop] Rejected webhook —', verdict.reason);
     return res.status(401).json({ error: 'Invalid signature' });
   }
+  // Which secret encoding Whop actually signs with — see verifyWhopSignature.
+  // Once this is consistent across real events, drop the other candidates.
+  console.log('[whop] Signature verified (secret encoding:', verdict.encoding + ')');
 
   let body;
   try { body = JSON.parse(raw.toString('utf8')); }
