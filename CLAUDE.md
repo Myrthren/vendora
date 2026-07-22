@@ -172,6 +172,28 @@ Payload field names were coded defensively (several shapes accepted); unmapped p
 logged with the full payload and DM'd to the owner. Confirm mapping against the first
 REAL customer purchase (the test used plan_y0lLH82DL3OlF -> basic, which worked).
 
+BUYER ONBOARDING — three separate problems, don't conflate them:
+1. IDENTITY (who is this buyer?). Dashboard purchases carry metadata.discord_id and match
+   automatically. Marketplace purchases don't, and fall back to a claim code. NOTE the
+   claim code is currently DM'd to the OWNER only — the buyer never receives it, so that
+   path is manual, not self-serve. Whop OAuth (api.whop.com/oauth, returns a whop user id
+   we already store on whop_memberships.whop_user_id) is the proper fix and would let the
+   claim-code UI be deleted. NOT BUILT YET.
+2. DISCOVERY (how does a marketplace buyer know Vendora exists?). No code can fix this —
+   it's Whop-side config: post-purchase redirect, product copy, and Whop's native
+   automated message on the "User joined" trigger (which can send an email; chosen over
+   building our own sending, since Vendora has NO email infrastructure at all — no
+   Resend/SendGrid/nodemailer/SMTP anywhere). Dashboard purchases already redirect:
+   /api/whop/checkout sets redirect_url to DASHBOARD_URL (verified accepted by the API).
+   The PLAN object has no redirect field in the v2 API, so the marketplace redirect can
+   only be set from the Whop dashboard.
+3. DISCORD MEMBERSHIP. Fixed 2026-07-22. A buyer can pay before joining the server (the
+   normal case for Whop marketplace). /webhook tried to assign the role, found no member,
+   logged member_not_in_server and gave up forever — and guildMemberAdd then sent them the
+   "Plans from £9.99/month" pitch for the plan they'd just bought. guildMemberAdd now
+   checks for an active subscription and assigns the role + welcomes them instead. This
+   also affected PayPal subscribers who paid before joining.
+
 Reference Files
 - /docs/vendora-product-document.pdf — Full product spec (27 pages)
 - /index.html — Landing page
