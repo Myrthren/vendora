@@ -4089,12 +4089,6 @@
   init();
   handleWhopReturn();
 
-  // Only offer Whop linking once the backend actually has an OAuth app configured;
-  // otherwise the button would just error. The claim-code fallback stays either way.
-  fetch(`${BOT_API}/`).then(r => r.json()).then(h => {
-    if (h?.whop_oauth) document.getElementById('whop-connect-btn').style.display = '';
-  }).catch(() => {});
-
   sb.auth.onAuthStateChange((event, session) => {
     if (event === 'SIGNED_OUT' || (!session && event !== 'INITIAL_SESSION')) {
       window.location.href = '/vendora-login';
@@ -4106,6 +4100,18 @@
   // ── Cross-list tool ──────────────────────────────────────────────────────────
   const BOT_API = 'https://vendora-production-8a47.up.railway.app';
   window._BOT_API = BOT_API;
+
+  // Only offer Whop linking once the backend actually has an OAuth app configured;
+  // otherwise the button would just error. The claim-code fallback stays either way.
+  // MUST stay below the BOT_API declaration: `const` is in the temporal dead zone
+  // until this line runs, and a top-level read before it throws synchronously and
+  // kills every statement after it in this script.
+  fetch(`${BOT_API}/`).then(r => r.json()).then(h => {
+    if (h?.whop_oauth) {
+      const btn = document.getElementById('whop-connect-btn');
+      if (btn) btn.style.display = '';
+    }
+  }).catch(() => {});
 
   // ── HTML escaping for scraped/user-supplied strings ──────────────────────────
   // Vinted titles, watchlist metadata etc. are attacker-controllable text; they
