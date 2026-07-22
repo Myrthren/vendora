@@ -174,11 +174,20 @@ REAL customer purchase (the test used plan_y0lLH82DL3OlF -> basic, which worked)
 
 BUYER ONBOARDING — three separate problems, don't conflate them:
 1. IDENTITY (who is this buyer?). Dashboard purchases carry metadata.discord_id and match
-   automatically. Marketplace purchases don't, and fall back to a claim code. NOTE the
-   claim code is currently DM'd to the OWNER only — the buyer never receives it, so that
-   path is manual, not self-serve. Whop OAuth (api.whop.com/oauth, returns a whop user id
-   we already store on whop_memberships.whop_user_id) is the proper fix and would let the
-   claim-code UI be deleted. NOT BUILT YET.
+   automatically. Marketplace purchases don't — solved by Whop OAuth, BUILT 2026-07-22.
+   POST /api/whop/oauth/start (auth required) stashes the Discord id from the verified
+   Supabase token against a single-use state + PKCE verifier; GET /api/whop/oauth/callback
+   is an unauthenticated browser redirect, so it must NEVER read a discord_id from the URL
+   — the state is the only honest source. State is consumed immediately, expires in 10 min.
+   The whop_user_id -> discord_id link is saved permanently (settings key whop_user_<id>),
+   so later purchases/renewals from that Whop account auto-match; the webhook consults it
+   when metadata is absent. Claim code remains only as a fallback for anyone already sent
+   one — it is still owner-DM'd only, which is why OAuth is the primary path.
+   NEEDS: WHOP_OAUTH_CLIENT_ID (+ WHOP_OAUTH_CLIENT_SECRET if the app is confidential) on
+   Railway, and the app's redirect URI must exactly equal
+   https://vendora-production-8a47.up.railway.app/api/whop/oauth/callback
+   Until CLIENT_ID is set, GET / reports whop_oauth:false and the dashboard hides the
+   Connect button rather than showing one that 503s.
 2. DISCOVERY (how does a marketplace buyer know Vendora exists?). No code can fix this —
    it's Whop-side config: post-purchase redirect, product copy, and Whop's native
    automated message on the "User joined" trigger (which can send an email; chosen over
