@@ -152,19 +152,25 @@ Supabase migration: APPLIED 2026-07-21 (columns, indexes and RLS verified live).
 Verified working: POST /api/v1/checkout_configurations with the Vendora key returns a
 purchase_url with metadata intact, so the auto-match path is good.
 
-DEPLOYED 2026-07-21: code is on main, Railway redeployed, /whop-webhook is live and
-returning 401 to unsigned requests (correct). WHOP_API_KEY + WHOP_PLAN_BASIC/PRO/ELITE
-are set on Railway.
+LIVE as of 2026-07-22: fully deployed, all 5 env vars set on Railway
+(WHOP_API_KEY, WHOP_PLAN_BASIC/PRO/ELITE, WHOP_WEBHOOK_SECRET), webhook created in the
+Whop dashboard pointing at /whop-webhook. End-to-end tested with a signed
+membership.activated event: signature verified, membership recorded, claim code minted,
+owner DM'd, test row cleaned up. The integration is working.
 
-ONE STEP LEFT — WHOP_WEBHOOK_SECRET. The webhook MUST be created from the Whop dashboard
-(Developer tab -> Create Webhook), because the signing secret is only issued there. The
-legacy v2 REST API (POST /api/v2/webhooks) can create a hook but exposes no secret and no
-event selection, so hooks made that way are unverifiable and get 401'd — one was created
-and deleted again during setup. Don't retry that path.
-Until the secret is set, every Whop event is rejected: the integration is inert, not broken.
+SECRET ENCODING GOTCHA (confirmed by live test 2026-07-22): Whop issues webhook secrets
+prefixed "ws_" (NOT the Standard Webhooks "whsec_"), and the remainder is HEX-encoded —
+NOT base64 as Whop's own docs claim. verifyWhopSignature currently tries multiple
+encodings (base64/hex/utf8) and logs which one matched ("[whop] Signature verified
+(secret encoding: hex)"). Now that hex is confirmed, the other candidates can be dropped
+to simplify — but only after a couple more real events confirm it stays hex. The webhook
+MUST be created from the dashboard (Developer tab): the signing secret is only issued
+there. The legacy v2 REST API (POST /api/v2/webhooks) creates a hook with no secret and
+no event selection, so hooks made that way are unverifiable — don't use that path.
 
 Payload field names were coded defensively (several shapes accepted); unmapped plans are
-logged with the full payload and DM'd to the owner. Confirm against the first real event.
+logged with the full payload and DM'd to the owner. Confirm mapping against the first
+REAL customer purchase (the test used plan_y0lLH82DL3OlF -> basic, which worked).
 
 Reference Files
 - /docs/vendora-product-document.pdf — Full product spec (27 pages)
