@@ -2576,8 +2576,42 @@ client.once('ready', async () => {
 });
 
 client.on('guildMemberAdd', async (member) => {
-  // Send Vendora pitch DM to new server members
   try {
+    // Someone can pay BEFORE joining the server — normal for Whop marketplace
+    // buyers, who have no Discord relationship at purchase time. The subscription
+    // webhook tries to assign their role, finds no member, and gives up; nothing
+    // ever retried it. So catch it here: if they arrive with an active plan,
+    // assign the role now and welcome them, instead of pitching them the thing
+    // they have already paid for.
+    const profile = await getProfileByDiscordId(member.id);
+    const tier = profile?.tier;
+    if (profile?.subscription_status === 'active' && tier && ROLE_IDS[tier]) {
+      // Don't let this ride the outer catch — that one exists to swallow "DMs
+      // closed", and a silent role failure would leave a paying customer with
+      // no access and nothing in the logs to explain it.
+      try {
+        await assignRole(member, tier);
+        console.log(`[join] ${member.user.tag} joined with an active ${tier} plan — role assigned`);
+      } catch (e) {
+        console.error(`[join] FAILED to assign ${tier} role to ${member.user.tag} (paid, active):`, e.message);
+      }
+      await sendDM(member, { embeds: [
+        new EmbedBuilder().setColor(TIER_COLOR[tier] || '#e8217a')
+          .setTitle(`Vendora ${TIER_NAMES[tier]} Active`)
+          .setDescription(
+            `Welcome to Vendor Village — your **${TIER_NAMES[tier]}** plan is active and your role has been assigned.\n\n` +
+            `Head to the dashboard to connect your accounts and start using your tools:\n${DASHBOARD_URL}`
+          )
+          .addFields(
+            { name: 'Plan',    value: `${TIER_NAMES[tier]} — ${TIER_PRICES[tier]}/mo`, inline: true },
+            { name: 'Channel', value: '#use-vendora', inline: true }
+          )
+          .setFooter({ text: 'Vendora — The Reseller\'s Edge' })
+      ]});
+      return;
+    }
+
+    // No active plan — send the standard Vendora pitch.
     await member.send({ embeds: [
       new EmbedBuilder().setColor('#e8217a')
         .setTitle('Welcome to Vendor Village')
