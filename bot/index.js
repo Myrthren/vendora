@@ -51,6 +51,13 @@ const PAYPAL_MODE      = process.env.PAYPAL_MODE || 'live'; // 'sandbox' or 'liv
 // Whop — alternative checkout, runs alongside PayPal. See sql/whop-integration.sql
 const WHOP_API_KEY        = process.env.WHOP_API_KEY;        // server-side API key (checkout sessions)
 const WHOP_WEBHOOK_SECRET = process.env.WHOP_WEBHOOK_SECRET; // "whsec_..." from the Whop dashboard
+// Whop OAuth — lets a marketplace buyer prove which Whop account is theirs, so we can
+// match their purchase to their Discord account without a claim code. App id + secret
+// come from the Whop developer dashboard (the app's redirect URI must match exactly).
+const WHOP_OAUTH_CLIENT_ID     = process.env.WHOP_OAUTH_CLIENT_ID;     // "app_..."
+const WHOP_OAUTH_CLIENT_SECRET = process.env.WHOP_OAUTH_CLIENT_SECRET;
+const WHOP_OAUTH_REDIRECT_URI  = process.env.WHOP_OAUTH_REDIRECT_URI
+  || 'https://vendora-production-8a47.up.railway.app/api/whop/oauth/callback';
 const PROXY_URL        = process.env.PROXY_URL; // optional residential proxy e.g. http://user:pass@host:port
 const APIFY_TOKEN      = process.env.APIFY_API_TOKEN; // Apify API key for Vinted Scraper & Monitor
 
@@ -121,6 +128,7 @@ if (!PAYPAL_SECRET)    console.warn('[warn] PAYPAL_CLIENT_SECRET not set — cre
 if (!APIFY_TOKEN)      console.warn('[warn] APIFY_API_TOKEN not set — Vinted Apify scraping disabled');
 if (!WHOP_WEBHOOK_SECRET) console.warn('[warn] WHOP_WEBHOOK_SECRET not set — Whop webhooks will be REJECTED');
 if (!WHOP_API_KEY)        console.warn('[warn] WHOP_API_KEY not set — Whop checkout falls back to unmatched plan links');
+if (!WHOP_OAUTH_CLIENT_ID) console.warn('[warn] WHOP_OAUTH_CLIENT_ID not set — "Connect Whop" disabled, marketplace buyers need claim codes');
 
 // ── Anthropic ─────────────────────────────────────────────────────────────────
 const ai = ANTHROPIC_KEY ? new Anthropic({ apiKey: ANTHROPIC_KEY }) : null;
@@ -2756,7 +2764,13 @@ app.use('/whop-webhook', express.raw({ type: '*/*', limit: '1mb' }));
 // Increase body size limit to 25 MB to handle base64-encoded image uploads
 app.use(express.json({ limit: '25mb' }));
 
-app.get('/', (_req, res) => res.json({ status: 'ok', bot: client.user?.tag || 'connecting...' }));
+// whop_oauth lets the dashboard hide the "Connect Whop account" button until the
+// OAuth app is actually configured, rather than showing a button that 503s.
+app.get('/', (_req, res) => res.json({
+  status: 'ok',
+  bot: client.user?.tag || 'connecting...',
+  whop_oauth: !!WHOP_OAUTH_CLIENT_ID,
+}));
 
 // Cross-listing API — called from the dashboard
 app.post('/api/crosslist', async (req, res) => {
@@ -3246,6 +3260,15 @@ app.post('/whop-webhook', async (req, res) => {
       if (await getProfileByDiscordId(metaDiscordId)) discordId = metaDiscordId;
       else console.warn(`[whop] metadata.discord_id ${metaDiscordId} has no profile — falling back to claim code`);
     }
+    // This Whop account was linked via OAuth at some point, so every subsequent
+    // purchase, renewal or upgrade from it matches with no buyer action at all.
+    if (!discordId && m.whop_user_id) {
+      const linked = await getSetting(`whop_user_${m.whop_user_id}`);
+      if (linked && await getProfileByDiscordId(linked)) {
+        discordId = linked;
+        console.log(`[whop] Matched ${m.whop_user_id} to ${linked} via stored OAuth link`);
+      }
+    }
 
     const stored = await upsertWhopMembership({
       membership_id: m.membership_id,
@@ -3377,6 +3400,148 @@ app.post('/api/whop/claim', async (req, res) => {
 
   console.log(`[whop] ${discordId} claimed membership ${row.membership_id} (${row.tier})`);
   res.json({ ok: true, tier: row.tier });
+});
+
+// ── Whop OAuth — self-serve linking for marketplace buyers ────────────────────
+// The claim code works but has nowhere to go: it is only ever seen by the owner,
+// so redeeming it means manually messaging every buyer. OAuth removes that.
+// The buyer proves ownership of their Whop account to Whop itself, and we read
+// the resulting user id — no secret has to be transported to them at all.
+//
+// The link is stored permanently (whop_user_<id> -> discord_id), so it also
+// fixes the ordering problem: connect once and every LATER purchase, renewal or
+// upgrade from that Whop account matches automatically, even though the webhook
+// itself never carries a Discord id.
+
+const b64url = (buf) => buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const WHOP_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+
+// POST /api/whop/oauth/start — begins the flow for the signed-in Discord user.
+// The Discord id is captured HERE, from the verified Supabase token, and stashed
+// against a random state value. The callback is a plain browser redirect with no
+// Authorization header, so this is the only point at which identity can be
+// established honestly — the callback must never take a discord_id from the URL.
+app.post('/api/whop/oauth/start', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const discordId = user.user_metadata?.provider_id || user.identities?.find(i => i.provider === 'discord')?.id;
+  if (!discordId) return res.status(400).json({ error: 'No Discord identity on this account' });
+  if (!WHOP_OAUTH_CLIENT_ID) return res.status(503).json({ error: 'Whop account linking is not configured' });
+
+  const state    = crypto.randomBytes(16).toString('hex');
+  const verifier = b64url(crypto.randomBytes(32));
+  const challenge = b64url(crypto.createHash('sha256').update(verifier).digest());
+
+  await saveSetting(`whop_oauth_${state}`, { discord_id: discordId, verifier, created_at: Date.now() });
+
+  const url = new URL('https://api.whop.com/oauth/authorize');
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('client_id', WHOP_OAUTH_CLIENT_ID);
+  url.searchParams.set('redirect_uri', WHOP_OAUTH_REDIRECT_URI);
+  url.searchParams.set('scope', 'openid profile email');
+  url.searchParams.set('state', state);
+  url.searchParams.set('nonce', crypto.randomBytes(16).toString('hex'));
+  url.searchParams.set('code_challenge', challenge);
+  url.searchParams.set('code_challenge_method', 'S256');
+
+  res.json({ url: url.toString() });
+});
+
+// Bind every unclaimed membership belonging to a Whop user to a Discord account,
+// and grant the best tier among them. Shared by the OAuth callback and by the
+// webhook when it resolves a buyer through a previously stored link.
+async function linkWhopUserToDiscord(whopUserId, discordId) {
+  await saveSetting(`whop_user_${whopUserId}`, discordId); // remembered for future purchases
+
+  const r = await fetch(
+    `${SUPABASE_URL}/rest/v1/whop_memberships?whop_user_id=eq.${encodeURIComponent(whopUserId)}&discord_id=is.null&select=*`,
+    { headers: WHOP_SB_HEADERS() }
+  ).catch(() => null);
+  const rows = r?.ok ? await r.json() : [];
+
+  const usable = rows.filter(m => m.tier && WHOP_ACTIVE_STATUSES.has(String(m.status || '').toLowerCase()));
+  if (!usable.length) return { linked: 0, tier: null };
+
+  // Someone could hold more than one membership; grant the highest tier.
+  const best = usable.reduce((a, b) => (TIER_RANK[b.tier] || 0) > (TIER_RANK[a.tier] || 0) ? b : a);
+
+  for (const m of usable) {
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/whop_memberships?membership_id=eq.${encodeURIComponent(m.membership_id)}&discord_id=is.null`,
+      {
+        method: 'PATCH',
+        headers: { ...WHOP_SB_HEADERS(), Prefer: 'return=minimal' },
+        // Burn any claim code as we bind — the membership is now spoken for.
+        body: JSON.stringify({ discord_id: discordId, claim_code: null, claimed_at: new Date().toISOString() }),
+      }
+    ).catch(() => null);
+  }
+
+  const { error } = await grantWhopTier(discordId, best.membership_id, best.tier);
+  if (error) { console.error('[whop-oauth] grant failed:', error); return { linked: usable.length, tier: null, error }; }
+  return { linked: usable.length, tier: best.tier };
+}
+
+// GET /api/whop/oauth/callback — Whop redirects the buyer's BROWSER here.
+// Unauthenticated by necessity; the random single-use state is the capability.
+app.get('/api/whop/oauth/callback', async (req, res) => {
+  const done = (params) => res.redirect(`${DASHBOARD_URL}?${new URLSearchParams(params)}`);
+  const { code, state, error: oauthError } = req.query;
+
+  if (oauthError) return done({ whop: 'error', reason: String(oauthError).slice(0, 60) });
+  if (!code || !state) return done({ whop: 'error', reason: 'missing_code' });
+
+  const stashed = await getSetting(`whop_oauth_${state}`);
+  // Single use: drop it immediately so a replayed callback cannot be reused.
+  await saveSetting(`whop_oauth_${state}`, null);
+
+  if (!stashed?.discord_id || !stashed?.verifier) return done({ whop: 'error', reason: 'bad_state' });
+  if (Date.now() - (stashed.created_at || 0) > WHOP_OAUTH_STATE_TTL_MS) return done({ whop: 'error', reason: 'expired' });
+
+  try {
+    const body = {
+      grant_type:    'authorization_code',
+      code:          String(code),
+      redirect_uri:  WHOP_OAUTH_REDIRECT_URI,
+      client_id:     WHOP_OAUTH_CLIENT_ID,
+      code_verifier: stashed.verifier,
+    };
+    // PKCE alone is enough for a public client; send the secret only if the app
+    // is registered as confidential, in which case Whop requires it.
+    if (WHOP_OAUTH_CLIENT_SECRET) body.client_secret = WHOP_OAUTH_CLIENT_SECRET;
+
+    const tokRes = await fetch('https://api.whop.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const tok = await tokRes.json().catch(() => ({}));
+    if (!tokRes.ok || !tok?.access_token) {
+      console.error('[whop-oauth] token exchange failed:', tokRes.status, JSON.stringify(tok).slice(0, 300));
+      return done({ whop: 'error', reason: 'token_exchange' });
+    }
+
+    const infoRes = await fetch('https://api.whop.com/oauth/userinfo', {
+      headers: { Authorization: `Bearer ${tok.access_token}` },
+    });
+    const info = await infoRes.json().catch(() => ({}));
+    const whopUserId = info?.sub || info?.id;
+    if (!infoRes.ok || !whopUserId) {
+      console.error('[whop-oauth] userinfo failed:', infoRes.status, JSON.stringify(info).slice(0, 300));
+      return done({ whop: 'error', reason: 'userinfo' });
+    }
+
+    const out = await linkWhopUserToDiscord(whopUserId, stashed.discord_id);
+    console.log(`[whop-oauth] Linked whop ${whopUserId} -> discord ${stashed.discord_id} (${out.linked} membership(s), tier ${out.tier || 'none'})`);
+
+    // Linked but nothing to grant is a legitimate outcome, not a failure: the
+    // webhook may not have arrived yet, or they simply have not bought anything.
+    // The stored link means a later purchase still matches automatically.
+    if (!out.tier) return done({ whop: 'linked' });
+    return done({ whop: 'connected', tier: out.tier });
+  } catch (e) {
+    console.error('[whop-oauth] callback error:', e.message);
+    return done({ whop: 'error', reason: 'server' });
+  }
 });
 
 // ── Crosslist job scheduler ────────────────────────────────────────────────────

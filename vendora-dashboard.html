@@ -1425,13 +1425,21 @@
              so the buyer binds them to their account here with a claim code. -->
         <div style="margin-top:28px;padding:18px 20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:4px;">
           <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Bought on Whop?</div>
-          <div style="font-size:12px;color:var(--muted2);font-weight:300;margin-bottom:12px;">If you purchased through Whop directly rather than from this dashboard, enter the claim code from your Whop receipt to link it to this account.</div>
-          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-            <input id="whop-claim-code" type="text" maxlength="10" placeholder="e.g. 4F2A9C7B1D" autocomplete="off"
-              style="flex:1;min-width:180px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:monospace;letter-spacing:0.08em;text-transform:uppercase;">
-            <button id="whop-claim-btn" class="btn btn-ghost btn-sm" onclick="claimWhopPurchase()">Claim</button>
-          </div>
-          <div id="whop-claim-msg" style="display:none;font-size:12px;margin-top:10px;"></div>
+          <div style="font-size:12px;color:var(--muted2);font-weight:300;margin-bottom:12px;">If you purchased through Whop directly rather than from this dashboard, connect your Whop account to activate your plan instantly. We'll link it to this Discord account.</div>
+          <button id="whop-connect-btn" class="btn btn-pink btn-sm" style="display:none;" onclick="connectWhop()">Connect Whop account</button>
+          <div id="whop-connect-msg" style="display:none;font-size:12px;margin-top:10px;"></div>
+
+          <!-- Fallback for anyone the owner has already sent a code to. Connecting
+               is preferred: it needs no secret to be passed to the buyer at all. -->
+          <details style="margin-top:14px;">
+            <summary style="font-size:11px;color:var(--muted2);cursor:pointer;">Have a claim code instead?</summary>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+              <input id="whop-claim-code" type="text" maxlength="10" placeholder="e.g. 4F2A9C7B1D" autocomplete="off"
+                style="flex:1;min-width:180px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:monospace;letter-spacing:0.08em;text-transform:uppercase;">
+              <button id="whop-claim-btn" class="btn btn-ghost btn-sm" onclick="claimWhopPurchase()">Claim</button>
+            </div>
+            <div id="whop-claim-msg" style="display:none;font-size:12px;margin-top:10px;"></div>
+          </details>
         </div>
       </div>
     </div>
@@ -3637,6 +3645,65 @@
     }
   }
 
+  // Start Whop account linking. The backend captures who we are from the signed-in
+  // session before handing off, so the return trip from Whop needs no identity of
+  // its own. Full-page navigation (not a popup) so the OAuth redirect comes back
+  // cleanly and popup blockers can't interfere.
+  async function connectWhop() {
+    const btn = document.getElementById('whop-connect-btn');
+    const msg = document.getElementById('whop-connect-msg');
+    btn.disabled = true; btn.textContent = 'Connecting…';
+    msg.style.display = 'none';
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) throw new Error('Your session expired — please sign in again.');
+
+      const r = await fetch(`${BOT_API}/api/whop/oauth/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      });
+      const out = await r.json().catch(() => ({}));
+      if (!r.ok || !out.url) throw new Error(out.error || 'Could not start Whop connection.');
+
+      window.location.href = out.url;
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'Connect Whop account';
+      msg.style.color = 'var(--red)';
+      msg.textContent = e.message;
+      msg.style.display = 'block';
+    }
+  }
+
+  // Report the outcome after Whop redirects back, then strip the query string so
+  // a refresh doesn't replay a stale message.
+  function handleWhopReturn() {
+    const p = new URLSearchParams(window.location.search);
+    const status = p.get('whop');
+    if (!status) return;
+
+    // The result renders inside the subscription section, but Whop drops the user
+    // back on the default page — so go there, or the message is never seen.
+    try { showSection('subscription', document.querySelector('.nav-item[onclick*=subscription]')); } catch (e) {}
+
+    const msg = document.getElementById('whop-connect-msg');
+    if (msg) {
+      const texts = {
+        connected: [`Connected — your ${p.get('tier') || ''} plan is now active.`, 'var(--green)'],
+        linked:    ['Whop account connected. We didn\'t find a purchase yet — if you\'ve just bought, it\'ll activate within a minute.', 'var(--gold)'],
+        error:     [`Couldn't connect your Whop account (${p.get('reason') || 'unknown'}). Please try again.`, 'var(--red)'],
+      };
+      const [text, colour] = texts[status] || texts.error;
+      msg.textContent = text;
+      msg.style.color = colour;
+      msg.style.display = 'block';
+    }
+
+    history.replaceState({}, '', window.location.pathname);
+    if (status === 'connected') setTimeout(() => init(), 1200);
+  }
+
   // Claim a Whop purchase made outside the dashboard (e.g. from Whop's own
   // marketplace), where we never got the buyer's Discord id at checkout.
   async function claimWhopPurchase() {
@@ -4020,6 +4087,13 @@
   }
 
   init();
+  handleWhopReturn();
+
+  // Only offer Whop linking once the backend actually has an OAuth app configured;
+  // otherwise the button would just error. The claim-code fallback stays either way.
+  fetch(`${BOT_API}/`).then(r => r.json()).then(h => {
+    if (h?.whop_oauth) document.getElementById('whop-connect-btn').style.display = '';
+  }).catch(() => {});
 
   sb.auth.onAuthStateChange((event, session) => {
     if (event === 'SIGNED_OUT' || (!session && event !== 'INITIAL_SESSION')) {
