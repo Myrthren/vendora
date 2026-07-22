@@ -3509,12 +3509,29 @@ app.get('/api/whop/oauth/callback', async (req, res) => {
     // is registered as confidential, in which case Whop requires it.
     if (WHOP_OAUTH_CLIENT_SECRET) body.client_secret = WHOP_OAUTH_CLIENT_SECRET;
 
-    const tokRes = await fetch('https://api.whop.com/oauth/token', {
+    const exchange = (payload) => fetch('https://api.whop.com/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     });
-    const tok = await tokRes.json().catch(() => ({}));
+
+    let tokRes = await exchange(body);
+    let tok = await tokRes.json().catch(() => ({}));
+
+    // If a secret was sent and the exchange was rejected, retry without it: a
+    // PKCE-only (public) app rejects an unexpected client_secret, and the code is
+    // single-use so there is no second chance on a later attempt. Getting this
+    // wrong strands a buyer who has already paid.
+    if ((!tokRes.ok || !tok?.access_token) && body.client_secret) {
+      console.warn('[whop-oauth] exchange failed with client_secret — retrying as a public PKCE client');
+      const { client_secret, ...noSecret } = body;
+      tokRes = await exchange(noSecret);
+      tok = await tokRes.json().catch(() => ({}));
+      if (tokRes.ok && tok?.access_token) {
+        console.warn('[whop-oauth] SUCCEEDED without client_secret — the app is public, unset WHOP_OAUTH_CLIENT_SECRET');
+      }
+    }
+
     if (!tokRes.ok || !tok?.access_token) {
       console.error('[whop-oauth] token exchange failed:', tokRes.status, JSON.stringify(tok).slice(0, 300));
       return done({ whop: 'error', reason: 'token_exchange' });
