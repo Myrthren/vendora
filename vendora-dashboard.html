@@ -4086,6 +4086,12 @@
     loadAdminCoupons();
   }
 
+  // Tier ranking table. MUST stay above the init() call below: init() -> the
+  // section loaders and initAutobuyAccess() read it, and a `const` is in the
+  // temporal dead zone until its declaration runs. It previously sat ~4000 lines
+  // further down, so every dashboard load threw and Auto-Buy gating never ran.
+  const TIER_RANK_CLIENT = { none:0, basic:1, pro:2, elite:3 };
+
   init();
   handleWhopReturn();
 
@@ -8099,7 +8105,6 @@
   }
 
   // ── Generic tier gate helper ──────────────────────────────────────────────────
-  const TIER_RANK_CLIENT = { none:0, basic:1, pro:2, elite:3 };
   function initToolAccess(gateId, toolId, tier, required, navId) {
     const gate = document.getElementById(gateId);
     const tool = document.getElementById(toolId);
