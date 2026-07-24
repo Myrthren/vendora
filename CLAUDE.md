@@ -148,15 +148,25 @@ Whop account (confirmed live 2026-07-21):
   NOTE: Kene also has a SEPARATE Fortify Whop business (biz_qe2CAq2m6FpqX8, plans at
   £29/£79/£199). Never point Vendora's plan env vars at it — the webhook maps plan id
   -> tier with no product check, so Fortify signups would be granted Vendora tiers.
+  SECOND PRODUCT in the Vendora business: prod_b16GV70L47NwE "Vendora - AI Reseller Intel"
+  (one free/one-time "App Access" plan plan_1iSx6wf0XZuXM). This is NOT a duplicate — it is
+  the access-pass container Whop auto-created for the OAuth app (app_HgEVw8r6BGL7XO). Leave
+  it; deleting it may break the OAuth client id. Its free plan is unmapped, so a claim on it
+  grants nothing (logs "UNMAPPED PLAN"). Product headline was set via the v1 API to mention
+  Discord + vendora.site (max 80 chars); its slug typo verndora->vendora was fixed too.
 Supabase migration: APPLIED 2026-07-21 (columns, indexes and RLS verified live).
 Verified working: POST /api/v1/checkout_configurations with the Vendora key returns a
 purchase_url with metadata intact, so the auto-match path is good.
 
-LIVE as of 2026-07-22: fully deployed, all 5 env vars set on Railway
-(WHOP_API_KEY, WHOP_PLAN_BASIC/PRO/ELITE, WHOP_WEBHOOK_SECRET), webhook created in the
-Whop dashboard pointing at /whop-webhook. End-to-end tested with a signed
-membership.activated event: signature verified, membership recorded, claim code minted,
-owner DM'd, test row cleaned up. The integration is working.
+LIVE as of 2026-07-22: fully deployed, all 7 env vars set on Railway (WHOP_API_KEY,
+WHOP_PLAN_BASIC/PRO/ELITE, WHOP_WEBHOOK_SECRET, WHOP_OAUTH_CLIENT_ID, WHOP_OAUTH_CLIENT_SECRET),
+webhook created in the Whop dashboard pointing at /whop-webhook. End-to-end tested with a
+signed membership.activated event: signature verified, membership recorded, claim code
+minted, owner DM'd, test row cleaned up. The payment + webhook path is working. The OAuth
+account-linking path is deployed and the authorize step is verified, but the token
+exchange + userinfo call are still unproven — first Connect click should be the owner (see
+BUYER ONBOARDING #1). Owner has configured the Whop-side post-purchase redirect + "User
+joined" email (see #2).
 
 SECRET ENCODING GOTCHA (confirmed by live test 2026-07-22): Whop issues webhook secrets
 prefixed "ws_" (NOT the Standard Webhooks "whsec_"), and the remainder is HEX-encoded —
@@ -183,19 +193,31 @@ BUYER ONBOARDING — three separate problems, don't conflate them:
    so later purchases/renewals from that Whop account auto-match; the webhook consults it
    when metadata is absent. Claim code remains only as a fallback for anyone already sent
    one — it is still owner-DM'd only, which is why OAuth is the primary path.
-   NEEDS: WHOP_OAUTH_CLIENT_ID (+ WHOP_OAUTH_CLIENT_SECRET if the app is confidential) on
-   Railway, and the app's redirect URI must exactly equal
-   https://vendora-production-8a47.up.railway.app/api/whop/oauth/callback
-   Until CLIENT_ID is set, GET / reports whop_oauth:false and the dashboard hides the
-   Connect button rather than showing one that 503s.
+   CONFIGURED 2026-07-22 on Railway: WHOP_OAUTH_CLIENT_ID = app_HgEVw8r6BGL7XO, plus
+   WHOP_OAUTH_CLIENT_SECRET. GET / now reports whop_oauth:true and the dashboard shows the
+   Connect button. App's redirect URI is registered and verified — a live authorize request
+   returned Whop's consent page (no invalid_client / redirect_uri_mismatch).
+   CAVEAT: Whop issued the app "secret" in apik_ format (an API-key shape), so it is unclear
+   whether the OAuth app is public or confidential. The callback sends client_secret, and if
+   that is rejected it retries the exchange WITHOUT it and logs loudly ("SUCCEEDED without
+   client_secret — the app is public, unset WHOP_OAUTH_CLIENT_SECRET"). Auth codes are
+   single-use, so this fallback exists to avoid stranding a paid buyer on a wrong guess.
+   STILL UNTESTED end-to-end: the token exchange + userinfo call need a real authorization.
+   userinfo id is read as info.sub with an info.id fallback; failures log the full response.
 2. DISCOVERY (how does a marketplace buyer know Vendora exists?). No code can fix this —
-   it's Whop-side config: post-purchase redirect, product copy, and Whop's native
-   automated message on the "User joined" trigger (which can send an email; chosen over
-   building our own sending, since Vendora has NO email infrastructure at all — no
-   Resend/SendGrid/nodemailer/SMTP anywhere). Dashboard purchases already redirect:
-   /api/whop/checkout sets redirect_url to DASHBOARD_URL (verified accepted by the API).
-   The PLAN object has no redirect field in the v2 API, so the marketplace redirect can
-   only be set from the Whop dashboard.
+   it's Whop-side config. Dashboard purchases already redirect: /api/whop/checkout sets
+   redirect_url to DASHBOARD_URL (verified accepted by the API). For MARKETPLACE purchases,
+   the redirect and the buyer email are NOT settable via API — confirmed 2026-07-22 by
+   probing the v1 product PATCH (redirect_url / purchase_redirect_url / after_purchase_url /
+   success_url / redirect_uri all returned 400). Only the product `headline` is writable
+   (max 80 chars; now set to mention Discord + vendora.site). So both were done by the owner
+   in the Whop dashboard: post-purchase redirect -> vendora.site/vendora-dashboard, and a
+   native automated message on the "User joined" trigger with email enabled (chosen over
+   building our own sending — Vendora has NO email infrastructure at all: no
+   Resend/SendGrid/nodemailer/SMTP anywhere). Owner reports both CONFIGURED 2026-07-22.
+   (If the automated-message feature was retired — Whop's docs hint it became "support chats"
+   — the fallback is sendPushNotification from the webhook, but confirm per-buyer targeting
+   works before relying on it.)
 3. DISCORD MEMBERSHIP. Fixed 2026-07-22. A buyer can pay before joining the server (the
    normal case for Whop marketplace). /webhook tried to assign the role, found no member,
    logged member_not_in_server and gave up forever — and guildMemberAdd then sent them the
