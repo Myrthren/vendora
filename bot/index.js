@@ -3498,42 +3498,70 @@ app.get('/api/whop/oauth/callback', async (req, res) => {
   if (Date.now() - (stashed.created_at || 0) > WHOP_OAUTH_STATE_TTL_MS) return done({ whop: 'error', reason: 'expired' });
 
   try {
-    const body = {
+    const params = {
       grant_type:    'authorization_code',
       code:          String(code),
       redirect_uri:  WHOP_OAUTH_REDIRECT_URI,
       client_id:     WHOP_OAUTH_CLIENT_ID,
       code_verifier: stashed.verifier,
     };
-    // PKCE alone is enough for a public client; send the secret only if the app
-    // is registered as confidential, in which case Whop requires it.
-    if (WHOP_OAUTH_CLIENT_SECRET) body.client_secret = WHOP_OAUTH_CLIENT_SECRET;
 
-    const exchange = (payload) => fetch('https://api.whop.com/oauth/token', {
-      method: 'POST',
+    // Whop's OIDC discovery document (https://api.whop.com/.well-known/openid-configuration)
+    // advertises token_endpoint_auth_methods_supported = none | client_secret_basic |
+    // client_secret_post. "post" means the secret goes in a FORM-encoded body — putting it
+    // in a JSON body leaves the client unauthenticated, and Whop reports that as
+    // invalid_client / "client_secret is required", which is indistinguishable from having
+    // sent no secret at all. That cost a day of chasing a secret that was correct all along.
+    // Basic is unambiguous, so try it first.
+    //
+    // Trying several methods is safe: a rejected client authentication never reaches code
+    // validation, so the single-use auth code survives a failed attempt. Every attempt is
+    // logged with its method — never diagnose this blind again.
+    const basic = WHOP_OAUTH_CLIENT_SECRET
+      ? Buffer.from(`${WHOP_OAUTH_CLIENT_ID}:${WHOP_OAUTH_CLIENT_SECRET}`).toString('base64')
+      : null;
+
+    const attempts = [];
+    if (WHOP_OAUTH_CLIENT_SECRET) {
+      attempts.push({
+        label:   'client_secret_basic',
+        headers: { 'Content-Type': 'application/json', Authorization: `Basic ${basic}` },
+        body:    JSON.stringify(params),
+      });
+      attempts.push({
+        label:   'client_secret_post',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body:    new URLSearchParams({ ...params, client_secret: WHOP_OAUTH_CLIENT_SECRET }).toString(),
+      });
+    }
+    attempts.push({
+      label:   'none (public PKCE)',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body:    JSON.stringify(params),
     });
 
-    let tokRes = await exchange(body);
-    let tok = await tokRes.json().catch(() => ({}));
-
-    // If a secret was sent and the exchange was rejected, retry without it: a
-    // PKCE-only (public) app rejects an unexpected client_secret, and the code is
-    // single-use so there is no second chance on a later attempt. Getting this
-    // wrong strands a buyer who has already paid.
-    if ((!tokRes.ok || !tok?.access_token) && body.client_secret) {
-      console.warn('[whop-oauth] exchange failed with client_secret — retrying as a public PKCE client');
-      const { client_secret, ...noSecret } = body;
-      tokRes = await exchange(noSecret);
+    let tokRes = null;
+    let tok    = {};
+    for (const attempt of attempts) {
+      tokRes = await fetch('https://api.whop.com/oauth/token', {
+        method:  'POST',
+        headers: attempt.headers,
+        body:    attempt.body,
+      });
       tok = await tokRes.json().catch(() => ({}));
+
       if (tokRes.ok && tok?.access_token) {
-        console.warn('[whop-oauth] SUCCEEDED without client_secret — the app is public, unset WHOP_OAUTH_CLIENT_SECRET');
+        console.log(`[whop-oauth] Token exchange succeeded via ${attempt.label}`);
+        if (attempt.label === 'none (public PKCE)' && WHOP_OAUTH_CLIENT_SECRET) {
+          console.warn('[whop-oauth] The app is PUBLIC — unset WHOP_OAUTH_CLIENT_SECRET to skip the wasted attempts.');
+        }
+        break;
       }
+      console.warn(`[whop-oauth] ${attempt.label} rejected:`, tokRes.status, JSON.stringify(tok).slice(0, 300));
     }
 
-    if (!tokRes.ok || !tok?.access_token) {
-      console.error('[whop-oauth] token exchange failed:', tokRes.status, JSON.stringify(tok).slice(0, 300));
+    if (!tokRes?.ok || !tok?.access_token) {
+      console.error('[whop-oauth] token exchange failed — every auth method was rejected');
       return done({ whop: 'error', reason: 'token_exchange' });
     }
 
