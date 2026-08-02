@@ -297,6 +297,47 @@ BUYER ONBOARDING — three separate problems, don't conflate them:
    checks for an active subscription and assigns the role + welcomes them instead. This
    also affected PayPal subscribers who paid before joining.
 
+AFFILIATE PROGRAM (configured 2026-08-02 — LIVE but NOT yet recruited)
+Whop-native, zero code. Dashboard -> Marketing -> Affiliates.
+  Global affiliate rate: 25% recurring   (anyone who refers)
+  Member affiliate rate: 35% recurring   (existing members of the whop)
+Rates are per-whop and set independently, so members can be paid more than the
+public rate without advertising it. Whop generates each affiliate's link, tracks
+attribution, calculates commission and handles payouts. There is a 30-DAY HOLD
+between a referred purchase and the affiliate being paid.
+
+RECURRING, not one-time — deliberate. One-time commission makes affiliates chase
+clicks; recurring makes them care whether the referral sticks, which matches our
+incentive. Cost is a permanent 25-35% haircut on that customer's lifetime value,
+so judge the rate against LIFETIME margin, not monthly. Whop's own wording is
+"% of the recurring revenue the user pays" with no cap stated — read as
+uncapped, but never definitively confirmed in their docs. Say "for as long as
+they stay subscribed" in any pitch; that is true either way.
+
+THE LIMIT: Whop tracks WHOP CHECKOUTS ONLY. PayPal purchases are invisible to
+attribution. So affiliate links must point at the Whop storefront and PayPal
+stays for direct/organic. Unifying the two needs a third-party tracker (Affonso
+~$12.50/mo has native PayPal; Rewardful $49/mo) — not worth it below roughly
+£200/mo of affiliate revenue.
+
+WHY THIS DEPENDS ON THE OAUTH WORK: affiliate traffic is COLD MARKETPLACE
+TRAFFIC by definition, so those purchases carry NO metadata.discord_id and
+nothing auto-matches. The buyer must link their Whop account or they have paid
+and received nothing — and the claim code goes to the OWNER, not to them. The
+whole funnel therefore rests on the OAuth linking path (proven 2026-08-02) plus
+the post-purchase route added the same day: Whop's redirect points at
+/vendora-dashboard?whop=purchased, handleWhopReturn switches to the subscription
+section, scrolls the "Bought on Whop?" block into view and prompts them to hit
+Connect. That block was restyled to brand-pink because it previously looked like
+fine print under three bright plan cards.
+
+STILL OUTSTANDING: (a) one REAL purchase end-to-end — Whop still shows 0 joined,
+so every component is verified individually but the seams never have been, and
+nobody has confirmed a stranger can self-serve; (b) recruitment has NOT started,
+deliberately. Do not recruit until there are a few paying customers: affiliates
+amplify a funnel that converts, they cannot create one, and promoter goodwill is
+spent once.
+
 Reference Files
 - /docs/vendora-product-document.pdf — Full product spec (27 pages)
 - /index.html — Landing page
