@@ -1423,9 +1423,9 @@
 
         <!-- Whop purchases made outside the dashboard arrive without a Discord id,
              so the buyer binds them to their account here with a claim code. -->
-        <div style="margin-top:28px;padding:18px 20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:4px;">
-          <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Bought on Whop?</div>
-          <div style="font-size:12px;color:var(--muted2);font-weight:300;margin-bottom:12px;">If you purchased through Whop directly rather than from this dashboard, connect your Whop account to activate your plan instantly. We'll link it to this Discord account.</div>
+        <div id="whop-bought-block" style="margin-top:28px;padding:22px 24px;background:var(--pink-soft);border:1px solid rgba(232,33,122,0.28);border-left:3px solid var(--pink);border-radius:4px;">
+          <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--pink);margin-bottom:6px;">Bought on Whop?</div>
+          <div style="font-size:13px;color:var(--text);font-weight:300;line-height:1.55;margin-bottom:14px;">If you purchased through Whop directly rather than from this dashboard, connect your Whop account to activate your plan instantly. We'll link it to this Discord account.</div>
           <button id="whop-connect-btn" class="btn btn-pink btn-sm" style="display:none;" onclick="connectWhop()">Connect Whop account</button>
           <div id="whop-connect-msg" style="display:none;font-size:12px;margin-top:10px;"></div>
 
@@ -3699,7 +3699,7 @@
       const texts = {
         connected: [`Connected — your ${p.get('tier') || ''} plan is now active.`, 'var(--green)'],
         linked:    ['Whop account connected. We didn\'t find a purchase yet — if you\'ve just bought, it\'ll activate within a minute.', 'var(--gold)'],
-        purchased: ['Thanks for your purchase — click Connect Whop account below to activate it. Takes about 20 seconds.', 'var(--gold)'],
+        purchased: ['Thanks for your purchase — hit Connect Whop account to activate it. Takes about 20 seconds.', 'var(--gold)'],
         error:     [`Couldn't connect your Whop account (${p.get('reason') || 'unknown'}). Please try again.`, 'var(--red)'],
       };
       const [text, colour] = texts[status] || texts.error;
@@ -3707,6 +3707,14 @@
       msg.style.color = colour;
       msg.style.display = 'block';
     }
+
+    // Switching section is not enough: the block sits below the three plan cards,
+    // so on a short viewport a buyer arriving from Whop still lands looking at
+    // pricing they have already paid. Put the thing they need in front of them.
+    setTimeout(() => {
+      document.getElementById('whop-bought-block')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 120);
 
     history.replaceState({}, '', window.location.pathname);
     if (status === 'connected') setTimeout(() => init(), 1200);
