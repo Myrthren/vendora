@@ -42,7 +42,7 @@ POST-RESTORE CHECKLIST (Railway is back as of 2026-07-21 — item 3 is still OUT
 5. The avatar/initials bug is unrelated and will NOT be fixed by the restore.
 
 VERSIONING — how it actually works now
-- Current LIVE version: v6.85 (as of 2026-07-09). Version is stamped automatically by scripts/build-version.js into version.json on every deploy.
+- Current LIVE version: v6.98 (verified live 2026-07-31 at vendora.site/version.json, built from e3fb47c). Version is stamped automatically by scripts/build-version.js into version.json on every deploy — the local version.json is gitignored and stale (says v6.0), so read the live URL, not the file.
 - Real flow: commit + push to main (GitHub Myrthren/vendora) → Netlify auto-builds → version.json bumped automatically. There is no manual "stage then owner clicks Publish" gate on the live site deploy.
 - The admin panel has an auto-tracked Update Log (in vendora-dashboard.html): feat:/major commits create a new announcement entry; fix/chore/style/etc. fold into the previous entry and bump its version label. It drafts Discord-ready copy for the owner to paste.
 - NOTE: the old "increment by exactly 0.1, owner must Publish" policy below no longer matches reality (kept as owner's stated intent; confirm with Kene before treating as a hard rule). Bot-side stage/publish/revert endpoints exist but the bot is down.
@@ -112,7 +112,21 @@ Open items (not urgent, worth fixing):
 Note: this was a focused read of the highest-risk areas, not an exhaustive audit of all ~80 endpoints.
 Not yet confirmed: that every single route calls requireAuth. Worth a systematic sweep (/security-review).
 
-WHOP INTEGRATION (built 2026-07-21 — NOT yet configured/tested against live Whop)
+THE SUPABASE DB WEBHOOK (profiles -> /webhook) — how to inspect it
+Supabase "Database Webhooks" are just Postgres triggers calling supabase_functions.http_request,
+so they can be read in SQL rather than clicked through:
+  select tgname, pg_get_triggerdef(oid) from pg_trigger
+  where not tgisinternal and tgrelid = 'public.profiles'::regclass;
+The signature is http_request(url, method, HEADERS, params, timeout) — the secret belongs in
+arg 3 (headers) as "x-webhook-secret", because /webhook (~line 3201) checks
+req.headers['x-webhook-secret'].
+FIXED 2026-08-02: there were TWO triggers on profiles. The live one is `on_profile_change`
+(correct header, real secret). A duplicate `vendora_webhook` had the secret in arg 4 (params)
+with a placeholder value, so it sent NO secret header and 401'd on every single profile write
+— that was the recurring "[webhook] Rejected — bad secret" noise in the Railway logs. It had
+never once delivered successfully. Deleted. Expect exactly ONE trigger on profiles.
+
+WHOP INTEGRATION (built 2026-07-21, PROVEN END-TO-END 2026-08-02)
 Whop is an ALTERNATIVE checkout running ALONGSIDE PayPal, not a replacement.
 Both write the same entitlement fields on profiles (tier + subscription_status); the
 existing Supabase DB webhook -> /webhook then assigns the Discord role and DMs the user.
@@ -135,8 +149,25 @@ Key pieces:
   configuration (metadata CANNOT be a plain URL query param); (2) a claim code for
   purchases made on Whop's marketplace, redeemed via POST /api/whop/claim. Every
   membership is recorded either way, so a purchase is never lost.
-- Whop's own Discord role automation MUST stay OFF. assignRole() strips all other tier
-  roles, so two systems managing the same role ids will flap them.
+- Whop must never assign a Discord role Vendora manages. assignRole() strips all other
+  tier roles, so two systems owning the same role ids will flap them forever.
+  APPLIED AND VERIFIED 2026-08-02. The Whop Discord APP ITSELF is KEPT deliberately — it gives
+  buyers a join button, and the Vendor Village server is open to non-subscribers anyway
+  (Vendora's Discord features are gated by role, not by server membership). Keeping the
+  app is fine; the conflict is only ever about overlapping ROLE IDS. Intended shape:
+    • no role mappings configured on Whop's Discord app,
+    • Manage Roles AND Kick Members revoked from Whop's bot role in Discord,
+      (Kick Members matters separately: Whop's cancellation action can be set to "kick",
+       which would eject lapsed members from an intentionally open server),
+    • cancellation action set to "let them stay",
+    • Vendora's bot owns every tier role.
+  Do both the config change and the permission revoke: the Whop-side config states the
+  intent and survives a re-auth, the Discord permission enforces it even if the config is
+  wrong. Watch for Administrator on Whop's bot role — it overrides a Manage Roles revoke
+  and makes it a silent no-op.
+  If Whop ever stops handing buyers into the server, check this first: a permission revoke
+  is invisible from the Whop side, and re-installing/re-authorising the app silently
+  restores the default Discord permission set.
 
 Whop account (confirmed live 2026-07-21):
   company biz_tDgAtGysVSQw4f — "Vendora — The Reseller's Edge"
@@ -162,11 +193,30 @@ LIVE as of 2026-07-22: fully deployed, all 7 env vars set on Railway (WHOP_API_K
 WHOP_PLAN_BASIC/PRO/ELITE, WHOP_WEBHOOK_SECRET, WHOP_OAUTH_CLIENT_ID, WHOP_OAUTH_CLIENT_SECRET),
 webhook created in the Whop dashboard pointing at /whop-webhook. End-to-end tested with a
 signed membership.activated event: signature verified, membership recorded, claim code
-minted, owner DM'd, test row cleaned up. The payment + webhook path is working. The OAuth
-account-linking path is deployed and the authorize step is verified, but the token
-exchange + userinfo call are still unproven — first Connect click should be the owner (see
-BUYER ONBOARDING #1). Owner has configured the Whop-side post-purchase redirect + "User
-joined" email (see #2).
+minted, owner DM'd, test row cleaned up. The payment + webhook path is working. Owner has
+configured the Whop-side post-purchase redirect + "User joined" email (see #2).
+
+PROVEN END-TO-END 2026-08-02 — the whole Whop path is now verified, not just deployed:
+  • OAuth account linking works. Owner's Connect click logged
+    "[whop-oauth] Token exchange succeeded via client_secret_basic" and
+    "[whop-oauth] Linked whop user_cVy6uHkJ1CPZI -> discord 731207920007643167".
+    The app is CONFIDENTIAL (a PKCE-only request is refused with "client_secret is
+    required"), so keep WHOP_OAUTH_CLIENT_SECRET set.
+  • ALL THREE plan mappings confirmed by signed synthetic membership.activated events:
+    plan_y0lLH82DL3OlF -> basic, plan_Q2roL7OgEWroa -> pro, plan_gMttHcqPd9tg2 -> elite.
+    No UNMAPPED PLAN on any. Test rows deleted from whop_memberships.
+    Reproduce with scripts/whop-test-event.js <basic|pro|elite> (needs WHOP_WEBHOOK_SECRET
+    in the shell; the synthetic membership carries no metadata.discord_id so it cannot
+    grant a real user anything).
+  OUTSTANDING after that session: (a) rotate WHOP_OAUTH_CLIENT_SECRET and WEBHOOK_SECRET —
+  both were pasted into screenshots while debugging; when rotating WEBHOOK_SECRET, update
+  the Railway env var AND the on_profile_change trigger header together, or role assignment
+  breaks in the gap. That is the ONLY item left from this session.
+  NOTE: three DIFFERENT Whop secrets exist and are easy to confuse —
+    WHOP_API_KEY            (checkout_configurations, ~line 3630)
+    WHOP_OAUTH_CLIENT_SECRET (apik_ shape, token exchange)
+    WHOP_WEBHOOK_SECRET      (ws_ shape, HMAC signing)
+  and WEBHOOK_SECRET (vnd_ shape) is Supabase's, nothing to do with Whop at all.
 
 SECRET ENCODING GOTCHA (confirmed by live test 2026-07-22): Whop issues webhook secrets
 prefixed "ws_" (NOT the Standard Webhooks "whsec_"), and the remainder is HEX-encoded —
@@ -197,13 +247,35 @@ BUYER ONBOARDING — three separate problems, don't conflate them:
    WHOP_OAUTH_CLIENT_SECRET. GET / now reports whop_oauth:true and the dashboard shows the
    Connect button. App's redirect URI is registered and verified — a live authorize request
    returned Whop's consent page (no invalid_client / redirect_uri_mismatch).
-   CAVEAT: Whop issued the app "secret" in apik_ format (an API-key shape), so it is unclear
-   whether the OAuth app is public or confidential. The callback sends client_secret, and if
-   that is rejected it retries the exchange WITHOUT it and logs loudly ("SUCCEEDED without
-   client_secret — the app is public, unset WHOP_OAUTH_CLIENT_SECRET"). Auth codes are
-   single-use, so this fallback exists to avoid stranding a paid buyer on a wrong guess.
-   STILL UNTESTED end-to-end: the token exchange + userinfo call need a real authorization.
-   userinfo id is read as info.sub with an info.id fallback; failures log the full response.
+   RESOLVED 2026-08-02 — WORKING. userinfo id is read as info.sub (Whop's OIDC discovery
+   lists "sub" in claims_supported, so this is correct); failures log the full response.
+
+   THE OAUTH GOTCHA, so nobody re-derives it: the exchange failed for days with
+   invalid_client, and the apik_-shaped secret sent us chasing the wrong things (wrong
+   credential? wrong auth method?). BOTH WRONG. The secret was correct, and Whop reads it
+   fine in ALL THREE transmission forms (Basic, form-post, JSON body). It simply lacked the
+   "oauth:token_exchange" PERMISSION. The real error text is "client_secret lacks
+   oauth:token_exchange permission".
+   FIX: Whop app dashboard -> Permissions tab -> Add permission -> oauth:token_exchange.
+   That is the ONLY app permission the OAuth flow needs. /oauth/userinfo uses the buyer's
+   own token, and WHOP_API_KEY (checkout_configurations, ~line 3630) is a SEPARATE
+   credential with its own permissions — do not conflate them.
+
+   Diagnosis was blocked by a logging bug, now FIXED (commit 898edf7): the
+   retry-without-secret path overwrote tokRes, so only the SECOND attempt's error was ever
+   logged, and it read "client_secret is required" — indistinguishable from sending no
+   secret at all. The callback now tries client_secret_basic first, falls back through
+   client_secret_post and public PKCE, and logs EVERY attempt with its own status + body.
+   A rejected client authentication never reaches code validation, so the single-use auth
+   code survives a failed attempt.
+
+   USEFUL TOOLS: Whop publishes OIDC discovery at
+   https://api.whop.com/.well-known/openid-configuration (confirms
+   token_endpoint_auth_methods_supported and the claim names).
+   scripts/whop-preflight-auth.js proves client auth WITHOUT a real authorization code:
+   send a deliberately fake code — "invalid_grant" means auth SUCCEEDED and only the code
+   was rejected, "invalid_client" means auth failed. Use it before deploying or burning a
+   Connect click.
 2. DISCOVERY (how does a marketplace buyer know Vendora exists?). No code can fix this —
    it's Whop-side config. Dashboard purchases already redirect: /api/whop/checkout sets
    redirect_url to DASHBOARD_URL (verified accepted by the API). For MARKETPLACE purchases,
