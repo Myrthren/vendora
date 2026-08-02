@@ -3678,6 +3678,13 @@
 
   // Report the outcome after Whop redirects back, then strip the query string so
   // a refresh doesn't replay a stale message.
+  //
+  // `purchased` is the odd one out: it is not an OAuth outcome at all. Whop's
+  // post-purchase redirect sends it, because a marketplace buyer arrives with no
+  // metadata.discord_id and nothing auto-matches — they MUST connect. Landing them
+  // on the default page would hide the Connect button in a section they have no
+  // reason to open, so they would have paid and received nothing. Reusing `linked`
+  // for this is wrong: it claims the account is already connected.
   function handleWhopReturn() {
     const p = new URLSearchParams(window.location.search);
     const status = p.get('whop');
@@ -3692,6 +3699,7 @@
       const texts = {
         connected: [`Connected — your ${p.get('tier') || ''} plan is now active.`, 'var(--green)'],
         linked:    ['Whop account connected. We didn\'t find a purchase yet — if you\'ve just bought, it\'ll activate within a minute.', 'var(--gold)'],
+        purchased: ['Thanks for your purchase — click Connect Whop account below to activate it. Takes about 20 seconds.', 'var(--gold)'],
         error:     [`Couldn't connect your Whop account (${p.get('reason') || 'unknown'}). Please try again.`, 'var(--red)'],
       };
       const [text, colour] = texts[status] || texts.error;
