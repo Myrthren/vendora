@@ -237,6 +237,128 @@ function checkRateLimit(discordId, commandName, tier) {
   return { allowed: true, used: entry.count, limit: tierLimit };
 }
 
+// ── API rate limits — the dashboard's scraper surface ─────────────────────────
+// Separate from RATE_LIMITS above. Those govern Discord slash commands; these
+// govern the Express routes that spend real money — Apify actor runs, Playwright
+// browser time, and marketplace requests through the residential proxy.
+//
+// Until now the HTTP API had no throttle at all, so a single logged-in user
+// could run the Apify/Anthropic bill up or simply exhaust the box. That matters
+// more here than in a normal backend: this process IS the Discord bot as well as
+// the API, so resource exhaustion takes the bot down with it.
+//
+// EVERY tier has a finite ceiling, Elite included. "Unlimited" is defensible for
+// slash commands because a human can only type so fast. An HTTP client has no
+// such limit, and an uncapped Elite account is an uncapped Apify invoice.
+//
+// Two windows, both enforced, because they defend against different things:
+//   burst — per 60s. Protects the box. A daily quota alone still permits
+//           spending the entire allowance in one second.
+//   day   — per 24h. Caps the cost.
+const API_RATE_LIMITS = {
+  //              burst / 60s                            quota / 24h
+  search:    { burst: { basic: 3, pro: 6, elite: 12 }, day: { basic: 15, pro: 100, elite: 500 } },
+  arbitrage: { burst: { basic: 1, pro: 2, elite: 4  }, day: { basic: 3,  pro: 15,  elite: 60  } },
+  sync:      { burst: { basic: 1, pro: 2, elite: 3  }, day: { basic: 4,  pro: 12,  elite: 40  } },
+  listing:   { burst: { basic: 2, pro: 5, elite: 10 }, day: { basic: 10, pro: 50,  elite: 200 } },
+  monitor:   { burst: { basic: 2, pro: 4, elite: 8  }, day: { basic: 5,  pro: 25,  elite: 100 } },
+};
+
+const API_GROUP_LABEL = {
+  search:    'market searches',
+  arbitrage: 'arbitrage scans',
+  sync:      'inventory syncs',
+  listing:   'listing actions',
+  monitor:   'alert changes',
+};
+
+// Map<userId, Map<group, { burstCount, burstResetAt, dayCount, dayResetAt }>>
+const apiUsageStore = new Map();
+
+// Drop entries whose daily window has long expired, so the map cannot grow
+// without bound across a long uptime.
+setInterval(() => {
+  const now = Date.now();
+  for (const [userId, groups] of apiUsageStore) {
+    for (const [group, e] of groups) if (now >= e.dayResetAt) groups.delete(group);
+    if (!groups.size) apiUsageStore.delete(userId);
+  }
+}, 60 * 60 * 1000);
+
+// In-memory, like the slash-command limiter above: counters reset on redeploy.
+// Acceptable for abuse/cost control (a redeploy is not attacker-triggerable),
+// but it does mean limits are per-instance and would need moving to Supabase if
+// this ever runs more than one replica.
+function checkApiRateLimit(userId, group, tier) {
+  const conf = API_RATE_LIMITS[group];
+  if (!conf) return { allowed: true };
+
+  // Anything unrecognised (including 'none' — /api/research has no subscription
+  // gate) is held to the strictest tier rather than being waved through.
+  const t = conf.day[tier] !== undefined ? tier : 'basic';
+  const burstLimit = conf.burst[t];
+  const dayLimit   = conf.day[t];
+
+  const now = Date.now();
+  if (!apiUsageStore.has(userId)) apiUsageStore.set(userId, new Map());
+  const groups = apiUsageStore.get(userId);
+  let e = groups.get(group);
+  if (!e) { e = { burstCount: 0, burstResetAt: 0, dayCount: 0, dayResetAt: 0 }; groups.set(group, e); }
+
+  if (now >= e.burstResetAt) { e.burstCount = 0; e.burstResetAt = now + 60_000; }
+  if (now >= e.dayResetAt)   { e.dayCount   = 0; e.dayResetAt   = now + 86_400_000; }
+
+  // Check both windows BEFORE incrementing either, so a rejected request never
+  // consumes quota — otherwise a client stuck in a retry loop would burn the
+  // whole daily allowance on requests that were all refused.
+  if (e.burstCount >= burstLimit) {
+    return { allowed: false, scope: 'burst', tier: t, limit: burstLimit,
+             retryAfter: Math.max(1, Math.ceil((e.burstResetAt - now) / 1000)) };
+  }
+  if (e.dayCount >= dayLimit) {
+    return { allowed: false, scope: 'day', tier: t, limit: dayLimit,
+             retryAfter: Math.max(1, Math.ceil((e.dayResetAt - now) / 1000)) };
+  }
+
+  e.burstCount++;
+  e.dayCount++;
+  return { allowed: true, tier: t, dayUsed: e.dayCount, dayLimit };
+}
+
+// Enforce a group limit on an Express route. Returns true if the request may
+// proceed; if it returns FALSE the 429 has already been sent and the caller must
+// return immediately without doing any work.
+function enforceApiLimit(res, userId, group, tier, discordId) {
+  // The owner is exempt so a limit misconfiguration can't lock them out of their
+  // own admin tooling while they fix it.
+  if (discordId && discordId === OWNER_ID) return true;
+
+  const rl = checkApiRateLimit(userId, group, tier);
+  if (rl.allowed) {
+    res.set('X-RateLimit-Limit', String(rl.dayLimit));
+    res.set('X-RateLimit-Remaining', String(Math.max(0, rl.dayLimit - rl.dayUsed)));
+    return true;
+  }
+
+  const label = API_GROUP_LABEL[group] || group;
+  const mins  = Math.ceil(rl.retryAfter / 60);
+  const canUpgrade = rl.tier !== 'elite';
+
+  res.set('Retry-After', String(rl.retryAfter));
+  res.status(429).json({
+    error: rl.scope === 'burst'
+      ? `Too fast — you can run ${rl.limit} ${label} per minute on ${TIER_NAMES[rl.tier] || rl.tier}. Try again in ${rl.retryAfter}s.`
+      : `Daily limit reached — ${rl.limit} ${label} per day on ${TIER_NAMES[rl.tier] || rl.tier}.${canUpgrade ? ' Upgrade for a higher limit.' : ''} Resets in ${mins > 60 ? Math.ceil(mins / 60) + 'h' : mins + 'm'}.`,
+    rate_limited: true,
+    scope:      rl.scope,
+    tier:       rl.tier,
+    limit:      rl.limit,
+    retry_after: rl.retryAfter,
+    upgrade:    canUpgrade,
+  });
+  return false;
+}
+
 // ── Session system ────────────────────────────────────────────────────────────
 // Map<discordId, { channelId, warnTimer, deleteTimer }>
 const activeSessions = new Map();
@@ -2803,6 +2925,7 @@ app.post('/api/crosslist', async (req, res) => {
   if (TIER_RANK[profile.tier] < TIER_RANK.pro) {
     return res.status(403).json({ error: 'Pro subscription required' });
   }
+  if (!enforceApiLimit(res, authUser.id, 'listing', profile.tier, discordId)) return;
 
   const { item, description, condition, price, platforms = ['depop', 'vinted', 'ebay'] } = req.body;
   if (!item) return res.status(400).json({ error: 'Item name required' });
@@ -2858,6 +2981,11 @@ app.post('/api/research', async (req, res) => {
   if (!token) return res.status(401).json({ error: 'No token' });
   const authUser = await verifySupabaseToken(token);
   if (!authUser) return res.status(401).json({ error: 'Invalid token' });
+
+  // No subscription gate on this route (pre-existing) — an unsubscribed account
+  // therefore lands on the strictest tier's limits rather than being uncapped.
+  const rlProfile = await getProfileByUserId(authUser.id);
+  if (!enforceApiLimit(res, authUser.id, 'search', rlProfile?.tier, discordIdFromUser(authUser))) return;
 
   const { item, platform } = req.body;
   if (!item) return res.status(400).json({ error: 'Item required' });
@@ -5740,6 +5868,7 @@ app.post('/api/vinted/sync-inventory', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const profile = await getProfileByUserId(user.id);
   if (!profile || TIER_RANK[profile.tier] < TIER_RANK.pro) return res.status(403).json({ error: 'Pro subscription required.' });
+  if (!enforceApiLimit(res, user.id, 'sync', profile.tier, discordIdFromUser(user))) return;
   const r = await syncVintedInventoryForUser(user.id);
   if (!r.ok) return res.status(400).json({ error: r.reason || 'sync failed' });
   res.json({ ok: true, ...r });
@@ -5764,6 +5893,7 @@ app.post('/api/vinted/sync-profit', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const profile = await getProfileByUserId(user.id);
   if (!profile || TIER_RANK[profile.tier] < TIER_RANK.basic) return res.status(403).json({ error: 'Subscription required.' });
+  if (!enforceApiLimit(res, user.id, 'sync', profile.tier, discordIdFromUser(user))) return;
   const conn = await getPlatformConn(user.id, 'vinted');
   if (!conn) return res.status(400).json({ error: 'Connect your Vinted account first.' });
 
@@ -6048,6 +6178,7 @@ app.post('/api/listing/create', async (req, res) => {
   );
   if (!profile || profile.subscription_status !== 'active') return res.status(403).json({ error: 'Active subscription required' });
   if (TIER_RANK[profile.tier] < TIER_RANK.pro) return res.status(403).json({ error: 'Pro subscription required for listings' });
+  if (!enforceApiLimit(res, user.id, 'listing', profile.tier, profile.discord_id)) return;
 
   const {
     title, description, price, condition,
@@ -6127,6 +6258,10 @@ app.post('/api/listing/:id/relist', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const listing = await getListingById(req.params.id);
   if (!listing || listing.user_id !== user.id) return res.status(404).json({ error: 'Listing not found' });
+
+  // A relist drives the Playwright browser once per platform on the listing.
+  const relistProfile = await getProfileByUserId(user.id);
+  if (!enforceApiLimit(res, user.id, 'listing', relistProfile?.tier, discordIdFromUser(user))) return;
 
   const ids = listing.platform_listing_ids || {};
   const newIds = {};
@@ -6917,6 +7052,9 @@ app.post('/api/vinted-alerts', async (req, res) => {
   const profile = await getProfileByDiscordId(discordId);
   const tier    = profile?.tier || 'none';
   if (TIER_RANK[tier] < 2) return res.status(403).json({ error: 'Pro required' });
+  // Each alert is a recurring scraper job, so creating them is rate-limited
+  // even though the create call itself is cheap.
+  if (!enforceApiLimit(res, user.id, 'monitor', tier, discordId)) return;
 
   const max      = TIER_RANK[tier] >= 3 ? 30 : 5;
   const existing = await dbGetVintedAlerts(discordId);
@@ -7515,6 +7653,10 @@ app.post('/api/arbitrage', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const profile = await getProfileByUserId(user.id);
   if (!profile || TIER_RANK[profile.tier] < TIER_RANK.basic) return res.status(403).json({ error: 'Subscription required.' });
+  // Heaviest scraper call we make (a 48-item cross-country Apify run). Credits
+  // already cap the spend; this caps the concurrency and the blast radius of a
+  // scripted client, which credits alone do not.
+  if (!enforceApiLimit(res, user.id, 'arbitrage', profile.tier, profile.discord_id)) return;
   if (!APIFY_TOKEN) return res.status(503).json({ error: 'Scraper not configured.' });
 
   const query = String(req.body?.query || '').trim();
@@ -9188,6 +9330,8 @@ app.post('/api/inventory/analyse-all', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const profile = await getProfileByUserId(user.id);
   if (!profile || TIER_RANK[profile.tier] < TIER_RANK.elite) return res.status(403).json({ error: 'Elite plan required.' });
+  // Elite-only, but still capped: this fans out to 30 AI calls per invocation.
+  if (!enforceApiLimit(res, user.id, 'search', profile.tier, discordIdFromUser(user))) return;
   if (!ai) return res.status(500).json({ error: 'AI service unavailable.' });
 
   const snap  = (await getSetting(`vinted_inventory_${user.id}`)) || { items: [] };
