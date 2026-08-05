@@ -555,13 +555,15 @@ async function apifyRunVinted(input, timeoutSec = 90) {
 // encoding issue at runtime (the deployed runtime mangles non-ASCII literals).
 const SYM_GBP = String.fromCharCode(163);   // £
 const SYM_EUR = String.fromCharCode(8364);  // €
+const currencySymbol = (cur) =>
+  cur === 'GBP' ? SYM_GBP : cur === 'EUR' ? SYM_EUR : (cur ? cur + ' ' : SYM_GBP);
 
 // Map a kazkn/vinted-smart-scraper output item to our internal shape.
 function mapApifyVintedItem(i) {
   const photo = Array.isArray(i.photos) ? (i.photos[0] || '')
     : (i.photo || i.photoUrl || i.thumbnailUrl || '');
   const cur = (i.currency || '').toUpperCase();
-  const sym = cur === 'GBP' ? SYM_GBP : cur === 'EUR' ? SYM_EUR : (cur ? cur + ' ' : SYM_GBP);
+  const sym = currencySymbol(cur);
   const num = parseFloat(i.price ?? i.priceNumeric ?? 0) || 0;
   return {
     id:        String(i.id || i.itemId || ''),
@@ -648,16 +650,27 @@ async function searchVinted(query) {
     }));
     if (!res.ok) return null;
     const data = await res.json();
-    return (data.items || []).map(i => ({
-      id:        String(i.id || ''),
-      title:     i.title || '',
-      price:     i.total_item_price ? `£${i.total_item_price.amount}` : '—',
-      priceNum:  parseFloat(i.total_item_price?.amount || 0) || 0,
-      url:       i.url || '',
-      brand:     i.brand_title || '',
-      condition: i.status || '',
-      photo:     i.photo?.url || '',
-    }));
+    // Must return the SAME shape as mapApifyVintedItem — this is a drop-in
+    // fallback, and every caller of searchVinted reads it without knowing which
+    // path produced it. Dropping fields here silently degrades Seller Intel and
+    // anything currency-aware whenever Apify is the one that failed.
+    return (data.items || []).map(i => {
+      const cur = String(i.total_item_price?.currency_code || i.currency || 'GBP').toUpperCase();
+      const num = parseFloat(i.total_item_price?.amount ?? i.price?.amount ?? i.price ?? 0) || 0;
+      return {
+        id:        String(i.id || ''),
+        title:     i.title || '',
+        price:     num ? `${currencySymbol(cur)}${num.toFixed(2)}` : '—',
+        priceNum:  num,
+        currency:  cur,
+        url:       i.url || '',
+        brand:     i.brand_title || i.brand?.title || '',
+        condition: i.status || '',
+        photo:     i.photo?.url || i.photos?.[0]?.url || '',
+        sellerName: i.user?.login || '',
+        sellerId:   String(i.user?.id || ''),
+      };
+    });
   } catch (e) {
     console.log('[vinted] Search failed:', e.message);
     return null;
