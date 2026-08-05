@@ -262,6 +262,12 @@ const API_RATE_LIMITS = {
   sync:      { burst: { basic: 1, pro: 2, elite: 3  }, day: { basic: 4,  pro: 12,  elite: 40  } },
   listing:   { burst: { basic: 2, pro: 5, elite: 10 }, day: { basic: 10, pro: 50,  elite: 200 } },
   monitor:   { burst: { basic: 2, pro: 4, elite: 8  }, day: { basic: 5,  pro: 25,  elite: 100 } },
+  // Model calls — Anthropic, OpenAI (text and image), remove.bg, PhotoRoom.
+  // A different cost centre from the scrapers but the same failure mode: metered
+  // third-party spend behind an endpoint a logged-in client can call in a loop.
+  // Deliberately the most generous group, because optimising or drafting a
+  // listing is a per-item action a working reseller does dozens of times a day.
+  ai:        { burst: { basic: 3, pro: 6, elite: 12 }, day: { basic: 20, pro: 120, elite: 600 } },
 };
 
 const API_GROUP_LABEL = {
@@ -270,6 +276,7 @@ const API_GROUP_LABEL = {
   sync:      'inventory syncs',
   listing:   'listing actions',
   monitor:   'alert changes',
+  ai:        'AI actions',
 };
 
 // Map<userId, Map<group, { burstCount, burstResetAt, dayCount, dayResetAt }>>
@@ -6335,6 +6342,11 @@ app.post('/api/listing/upload-images', async (req, res) => {
 // ── Photo enhancer — analyse item via GPT-4o vision ──────────────────────────
 app.post('/api/photo/analyze', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
+  // The /api/photo/* routes carry no subscription gate (pre-existing), so the
+  // tier lookup here is purely to size the limit — an account without one lands
+  // on the strictest tier rather than being uncapped.
+  const rlProfile = await getProfileByUserId(user.id);
+  if (!enforceApiLimit(res, user.id, 'ai', rlProfile?.tier, discordIdFromUser(user))) return;
   const { image } = req.body || {};
   if (!image) return res.status(400).json({ error: 'image required' });
   if (!OPENAI_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY not configured on server' });
@@ -6364,6 +6376,8 @@ app.post('/api/photo/analyze', async (req, res) => {
 // ── Photo enhancer — generate enhanced product photo via gpt-image-1 ─────────
 app.post('/api/photo/generate', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
+  const rlProfile = await getProfileByUserId(user.id);
+  if (!enforceApiLimit(res, user.id, 'ai', rlProfile?.tier, discordIdFromUser(user))) return;
   const { image, background = 'white-studio', lighting = 'studio', modifications = [], itemType = '' } = req.body || {};
   if (!image) return res.status(400).json({ error: 'image (base64 PNG) required' });
   if (!OPENAI_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY not configured on server' });
@@ -6427,6 +6441,8 @@ app.post('/api/photo/generate', async (req, res) => {
 // ── Photo enhancer — remove.bg background removal ────────────────────────────
 app.post('/api/photo/enhance', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
+  const rlProfile = await getProfileByUserId(user.id);
+  if (!enforceApiLimit(res, user.id, 'ai', rlProfile?.tier, discordIdFromUser(user))) return;
   const { image, mimeType = 'image/jpeg' } = req.body || {};
   if (!image) return res.status(400).json({ error: 'image (base64) required' });
 
@@ -6644,6 +6660,8 @@ const PHOTOROOM_BG_MAP = {
 
 app.post('/api/photo/photoroom', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
+  const rlProfile = await getProfileByUserId(user.id);
+  if (!enforceApiLimit(res, user.id, 'ai', rlProfile?.tier, discordIdFromUser(user))) return;
   const { image, background = 'white-studio', lighting = 'studio' } = req.body || {};
   if (!image) return res.status(400).json({ error: 'image (base64) required' });
   if (!PHOTOROOM_KEY) return res.status(503).json({ error: 'PhotoRoom not configured — PHOTOROOM_API_KEY missing' });
@@ -6706,6 +6724,8 @@ app.post('/api/photo/photoroom', async (req, res) => {
 // keywords to PhotoRoom-compatible parameters the dashboard can pass to /api/photo/photoroom.
 app.post('/api/photo/instruct', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
+  const rlProfile = await getProfileByUserId(user.id);
+  if (!enforceApiLimit(res, user.id, 'ai', rlProfile?.tier, discordIdFromUser(user))) return;
   const { image, instructions } = req.body || {};
   if (!instructions?.trim()) return res.status(400).json({ error: 'instructions required' });
 
@@ -8455,6 +8475,7 @@ app.post('/api/listing/optimise', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const profile = await getProfileByUserId(user.id);
   if (!profile || TIER_RANK[profile.tier] < TIER_RANK.basic) return res.status(403).json({ error: 'Subscription required.' });
+  if (!enforceApiLimit(res, user.id, 'ai', profile.tier, discordIdFromUser(user))) return;
 
   const { url } = req.body || {};
   if (!url?.startsWith('http')) return res.status(400).json({ error: 'Valid URL required.' });
@@ -8522,6 +8543,7 @@ app.post('/api/listing/draft', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const profile = await getProfileByUserId(user.id);
   if (!profile || TIER_RANK[profile.tier] < TIER_RANK.basic) return res.status(403).json({ error: 'Subscription required.' });
+  if (!enforceApiLimit(res, user.id, 'ai', profile.tier, discordIdFromUser(user))) return;
 
   const { name, condition, size, details, platform, price } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Item name required.' });
@@ -8571,6 +8593,7 @@ app.post('/api/seller/analyse', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const profile = await getProfileByUserId(user.id);
   if (!profile || TIER_RANK[profile.tier] < TIER_RANK.basic) return res.status(403).json({ error: 'Subscription required.' });
+  if (!enforceApiLimit(res, user.id, 'ai', profile.tier, discordIdFromUser(user))) return;
 
   const { url } = req.body || {};
   if (!url?.startsWith('http')) return res.status(400).json({ error: 'Valid URL required.' });
@@ -8630,6 +8653,7 @@ app.post('/api/flip/score', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const profile = await getProfileByUserId(user.id);
   if (!profile || TIER_RANK[profile.tier] < TIER_RANK.pro) return res.status(403).json({ error: 'Pro subscription required.' });
+  if (!enforceApiLimit(res, user.id, 'ai', profile.tier, discordIdFromUser(user))) return;
 
   const { url } = req.body || {};
   if (!url?.startsWith('http')) return res.status(400).json({ error: 'Valid URL required.' });
@@ -8690,6 +8714,7 @@ app.post('/api/price/elasticity', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const profile = await getProfileByUserId(user.id);
   if (!profile || TIER_RANK[profile.tier] < TIER_RANK.pro) return res.status(403).json({ error: 'Pro subscription required.' });
+  if (!enforceApiLimit(res, user.id, 'ai', profile.tier, discordIdFromUser(user))) return;
 
   const { item, condition } = req.body || {};
   if (!item) return res.status(400).json({ error: 'Item name required.' });
@@ -8749,6 +8774,7 @@ app.get('/api/resell/calendar', async (req, res) => {
   const user = await requireAuth(req, res); if (!user) return;
   const profile = await getProfileByUserId(user.id);
   if (!profile || TIER_RANK[profile.tier] < TIER_RANK.basic) return res.status(403).json({ error: 'Subscription required.' });
+  if (!enforceApiLimit(res, user.id, 'ai', profile.tier, discordIdFromUser(user))) return;
 
   const category = req.query.category || 'all';
   const catQuery = category === 'all' ? 'sneakers streetwear luxury' : category;
