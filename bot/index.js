@@ -709,6 +709,57 @@ function mapApifyVintedItem(i) {
   };
 }
 
+// Map a RAW Vinted /api/v2/catalog/items object to the same internal shape.
+// Used by every non-Apify path (the direct-API fallback in searchVinted, and the
+// browser search the alert crons run), so callers never have to know which
+// source produced the item. Keep this in sync with mapApifyVintedItem above.
+function mapVintedRawItem(i) {
+  const cur = String(i.total_item_price?.currency_code || i.currency || 'GBP').toUpperCase();
+  const num = parseFloat(i.total_item_price?.amount ?? i.price?.amount ?? i.price ?? 0) || 0;
+  return {
+    id:        String(i.id || ''),
+    title:     i.title || '',
+    price:     num ? `${currencySymbol(cur)}${num.toFixed(2)}` : '—',
+    priceNum:  num,
+    currency:  cur,
+    url:       i.url || '',
+    brand:     i.brand_title || i.brand?.title || '',
+    condition: i.status || '',
+    photo:     i.photo?.url || i.photos?.[0]?.url || '',
+    sellerName: i.user?.login || '',
+    sellerId:   String(i.user?.id || ''),
+  };
+}
+
+// Keyword search for the alert crons, preferring the self-hosted browser.
+//
+// WHY THIS EXISTS: the Apify actor bills $0.02 per run PLUS $0.002 per result.
+// At 20 items that is $0.06 a search, and the Elite alert cron fires every 5
+// minutes — 288 runs/day/keyword, roughly $518/month for ONE keyword against a
+// £49.99 plan. Elite users may hold 30 alerts. The cost is not survivable.
+//
+// vintedBrowserSearchItems costs nothing per call and auto-buy already runs it
+// on a 2-minute cadence, which is more demanding than this 5-minute sweep, so
+// the capability is proven rather than assumed.
+//
+// Apify remains the fallback: if the browser is unavailable or errors, alerts
+// keep working. Note the distinction below — a browser search that SUCCEEDS and
+// finds nothing is a real answer and must not trigger the paid fallback, or a
+// quiet keyword would bill Apify every five minutes to confirm the same empty
+// result.
+async function alertKeywordSearch(keyword, maxItems = 20) {
+  if (vintedBrowser?.vintedBrowserSearchItems) {
+    try {
+      const { items, error } = await vintedBrowser.vintedBrowserSearchItems(keyword, null, maxItems);
+      if (!error && Array.isArray(items)) return items.slice(0, maxItems).map(mapVintedRawItem);
+      console.warn(`[alert-search] browser failed for "${keyword}": ${error || 'bad response'} — falling back to Apify`);
+    } catch (e) {
+      console.warn(`[alert-search] browser threw for "${keyword}": ${e.message} — falling back to Apify`);
+    }
+  }
+  return APIFY_TOKEN ? await apifyVintedSearch(keyword, maxItems) : null;
+}
+
 // Keyword search via the Vinted actor's SEARCH mode (no Vinted token needed —
 // uses Apify residential proxies). Powers Auto-Buy, /vinted-alert, /scan.
 async function apifyVintedSearch(query, maxItems = 12) {
@@ -779,27 +830,7 @@ async function searchVinted(query) {
     }));
     if (!res.ok) return null;
     const data = await res.json();
-    // Must return the SAME shape as mapApifyVintedItem — this is a drop-in
-    // fallback, and every caller of searchVinted reads it without knowing which
-    // path produced it. Dropping fields here silently degrades Seller Intel and
-    // anything currency-aware whenever Apify is the one that failed.
-    return (data.items || []).map(i => {
-      const cur = String(i.total_item_price?.currency_code || i.currency || 'GBP').toUpperCase();
-      const num = parseFloat(i.total_item_price?.amount ?? i.price?.amount ?? i.price ?? 0) || 0;
-      return {
-        id:        String(i.id || ''),
-        title:     i.title || '',
-        price:     num ? `${currencySymbol(cur)}${num.toFixed(2)}` : '—',
-        priceNum:  num,
-        currency:  cur,
-        url:       i.url || '',
-        brand:     i.brand_title || i.brand?.title || '',
-        condition: i.status || '',
-        photo:     i.photo?.url || i.photos?.[0]?.url || '',
-        sellerName: i.user?.login || '',
-        sellerId:   String(i.user?.id || ''),
-      };
-    });
+    return (data.items || []).map(mapVintedRawItem);
   } catch (e) {
     console.log('[vinted] Search failed:', e.message);
     return null;
@@ -9256,7 +9287,11 @@ async function getTiersForDiscordIds(discordIds) {
 // Shared by the Elite (5-min) and Pro (30-min) crons so each tier gets a
 // different check cadence — speed is the core Elite differentiator.
 async function processVintedAlerts(allowedTiers, label) {
-  if (!APIFY_TOKEN || !SUPABASE_KEY) return;
+  // No longer gated on APIFY_TOKEN: the browser is the primary search path now,
+  // and Apify is only the fallback. Requiring the token here would have disabled
+  // alerts entirely on a deployment that deliberately runs without Apify.
+  if (!SUPABASE_KEY) return;
+  if (!vintedBrowser?.vintedBrowserSearchItems && !APIFY_TOKEN) return;
   let alertCount = 0;
   try {
     const all = await dbGetVintedAlerts(null);
@@ -9267,7 +9302,7 @@ async function processVintedAlerts(allowedTiers, label) {
 
     for (const alert of alerts) {
       try {
-        const items = await apifyVintedSearch(alert.keyword, 20);
+        const items = await alertKeywordSearch(alert.keyword, 20);
         if (!items?.length) continue;
 
         const seenIds  = new Set(alert.seen_ids || []);
