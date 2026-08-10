@@ -155,6 +155,10 @@ const ROLE_IDS = {
 };
 const TIER_NAMES  = { none: 'Free', basic: 'Basic', pro: 'Pro', elite: 'Elite' };
 const TIER_PRICES = { basic: '£9.99', pro: '£24.99', elite: '£49.99' };
+// Affiliate commission quoted in the day-one DM. MUST match the rate configured
+// on Whop (Dashboard -> Marketing -> Affiliates). Quoting a rate Whop doesn't
+// pay is the one mistake in an affiliate program you cannot walk back.
+const AFFILIATE_RATE_PCT = 30;
 const TIER_RANK   = { none: 0, basic: 1, pro: 2, elite: 3 };
 const TIER_COLOR  = { basic: '#60a5fa', pro: '#e8217a', elite: '#e8a121' };
 
@@ -2793,8 +2797,16 @@ client.on('guildMemberAdd', async (member) => {
           )
           .setFooter({ text: 'Vendora — The Reseller\'s Edge' })
       ]});
+      // Paying subscribers get the affiliate DM too — they're the best
+      // affiliates, and the only ones who can use the simpler "Refer buyers"
+      // route. No quiz for them: they've already chosen a plan.
+      await queueAffiliateDM(member.id);
       return;
     }
+
+    // Queue the day-one affiliate DM before the sends below, which are allowed
+    // to throw on closed DMs — a swallowed throw must not cost us the enrolment.
+    await queueAffiliateDM(member.id);
 
     // No active plan — send the standard Vendora pitch.
     await member.send({ embeds: [
@@ -9389,6 +9401,60 @@ async function handleOnboardingButton(interaction) {
   const { tier, total } = onboarding.recommendTier(answers);
   console.log(`[onboarding] ${interaction.user.tag} finished quiz — answers ${answers.join('')}, score ${total} -> ${tier}`);
 }
+
+// ── Day-one affiliate follow-up ──────────────────────────────────────────────
+// A single settings row holds the whole queue ({ discordId: dueAtMs }) rather
+// than one row per user: the sweep needs to read every pending entry, and
+// getSetting is key-based with no prefix scan.
+const AFFILIATE_DM_QUEUE_KEY = 'affiliate_dm_queue';
+const AFFILIATE_DM_DELAY_MS  = 24 * 60 * 60 * 1000;
+const AFFILIATE_DM_PER_SWEEP = 40;   // stay well clear of Discord's DM rate limits
+const AFFILIATE_DM_GAP_MS    = 1500;
+
+async function queueAffiliateDM(discordId) {
+  if (!SUPABASE_KEY || !discordId || discordId === OWNER_ID) return;
+  try {
+    const queue = (await getSetting(AFFILIATE_DM_QUEUE_KEY)) || {};
+    // Don't reset the clock if they leave and rejoin — the first join wins.
+    if (queue[discordId]) return;
+    queue[discordId] = Date.now() + AFFILIATE_DM_DELAY_MS;
+    await saveSetting(AFFILIATE_DM_QUEUE_KEY, queue);
+  } catch (e) {
+    console.warn('[affiliate-dm] Could not queue', discordId, '-', e.message);
+  }
+}
+
+async function runAffiliateDMSweep() {
+  if (!SUPABASE_KEY) return;
+  const queue = (await getSetting(AFFILIATE_DM_QUEUE_KEY)) || {};
+  const now = Date.now();
+  const due = Object.entries(queue).filter(([, at]) => now >= at).slice(0, AFFILIATE_DM_PER_SWEEP);
+  if (!due.length) return;
+
+  let sent = 0;
+  for (const [discordId] of due) {
+    try {
+      const user = await client.users.fetch(discordId);
+      await user.send(onboarding.buildAffiliateReminder({
+        username: user.username,
+        rate:     AFFILIATE_RATE_PCT,
+        siteUrl:  SITE_URL,
+      }));
+      sent++;
+    } catch (e) {
+      // Closed DMs, left the server, deleted account — all permanent for our
+      // purposes. Drop them either way so the queue cannot grow forever.
+      console.log(`[affiliate-dm] Skipping ${discordId}: ${e.message}`);
+    }
+    delete queue[discordId];
+    await new Promise(r => setTimeout(r, AFFILIATE_DM_GAP_MS));
+  }
+
+  await saveSetting(AFFILIATE_DM_QUEUE_KEY, queue);
+  console.log(`[affiliate-dm] Swept ${due.length} due, sent ${sent}.`);
+}
+
+cron.schedule('11 * * * *', () => runAffiliateDMSweep().catch(e => console.error('[affiliate-dm] Sweep failed:', e.message)));
 
 // ── Vinted alert toggle (auto_buy, max_price) ────────────────────────────────
 // PATCH /api/vinted/alert/:id — update fields on a Vinted alert owned by the user.
