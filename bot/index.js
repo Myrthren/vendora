@@ -32,6 +32,10 @@ let vintedBrowser = null;
 try { vintedBrowser = require('./vinted-browser'); console.log('[vinted] browser flow loaded'); }
 catch (e) { console.warn('[vinted] browser flow disabled:', e.message); }
 
+// Onboarding quiz + day-one affiliate follow-up. Pure payload builders — see
+// bot/onboarding.js. Required (not optional) because the welcome flow needs it.
+const onboarding = require('./onboarding');
+
 console.log('[boot] Modules loaded');
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -2795,7 +2799,7 @@ client.on('guildMemberAdd', async (member) => {
     // No active plan — send the standard Vendora pitch.
     await member.send({ embeds: [
       new EmbedBuilder().setColor('#e8217a')
-        .setTitle('Welcome to Vendor Village')
+        .setTitle('Welcome to Vendora')
         .setDescription(
           `Hey **${member.user.username}** — welcome to the server.\n\n` +
           `**Vendora** is our AI-powered reselling tool, built to give you a measurable edge:\n\n` +
@@ -2809,6 +2813,17 @@ client.on('guildMemberAdd', async (member) => {
         )
         .setFooter({ text: 'Vendora — The Reseller\'s Edge' })
     ]});
+
+    // Then the four-question quiz, which ends on a plan recommendation. Sent as
+    // its own message so the welcome embed stays readable and the buttons are
+    // attached to something that can be edited in place as they answer.
+    // Deliberately not awaited into the same try as the pitch above: if the quiz
+    // fails to send, the welcome still counts as delivered.
+    try {
+      await member.send(onboarding.buildQuizStart());
+    } catch (e) {
+      console.warn(`[onboarding] Could not send quiz to ${member.user.tag}: ${e.message}`);
+    }
     console.log(`[join] Sent pitch DM to ${member.user.tag}`);
   } catch { /* DMs closed */ }
 });
@@ -2822,6 +2837,8 @@ client.on('interactionCreate', async (interaction) => {
       await handleOpenTicketButton(interaction).catch(e => console.error('[button] open_ticket error:', e.message));
     } else if (interaction.customId === 'ticket_open_direct') {
       await handleTicketDirectButton(interaction).catch(e => console.error('[button] ticket_direct error:', e.message));
+    } else if (interaction.customId.startsWith(onboarding.CUSTOM_ID_PREFIX)) {
+      await handleOnboardingButton(interaction).catch(e => console.error('[button] onboarding error:', e.message));
     }
     return;
   }
@@ -9346,6 +9363,32 @@ async function processVintedAlerts(allowedTiers, label) {
 // Elite alerts every 5 minutes (wins items first); Pro alerts every 30 minutes.
 cron.schedule('*/5 * * * *',  () => processVintedAlerts(['elite'], 'elite'));
 cron.schedule('*/30 * * * *', () => processVintedAlerts(['pro'],   'pro'));
+
+// ── Onboarding quiz handler ──────────────────────────────────────────────────
+// Advances the quiz in place: each click edits the same DM rather than posting
+// a new one, so the user ends with one message showing their recommendation
+// instead of five messages of history.
+async function handleOnboardingButton(interaction) {
+  const answers = onboarding.parseAnswers(interaction.customId);
+  // A malformed id means a tampered or stale button — acknowledge it so the
+  // client doesn't show "interaction failed", but do nothing else.
+  if (!answers) {
+    return interaction.reply({ content: `That option is no longer valid. You can pick a plan any time at ${DASHBOARD_URL}`, ephemeral: true });
+  }
+
+  if (answers.length < onboarding.QUESTIONS.length) {
+    return interaction.update(onboarding.buildQuestion(answers.length, answers));
+  }
+
+  const payload = onboarding.buildRecommendation(answers, {
+    tierNames:    TIER_NAMES,
+    tierPrices:   TIER_PRICES,
+    dashboardUrl: DASHBOARD_URL,
+  });
+  await interaction.update(payload);
+  const { tier, total } = onboarding.recommendTier(answers);
+  console.log(`[onboarding] ${interaction.user.tag} finished quiz — answers ${answers.join('')}, score ${total} -> ${tier}`);
+}
 
 // ── Vinted alert toggle (auto_buy, max_price) ────────────────────────────────
 // PATCH /api/vinted/alert/:id — update fields on a Vinted alert owned by the user.
