@@ -35,6 +35,8 @@ catch (e) { console.warn('[vinted] browser flow disabled:', e.message); }
 // Onboarding quiz + day-one affiliate follow-up. Pure payload builders — see
 // bot/onboarding.js. Required (not optional) because the welcome flow needs it.
 const onboarding = require('./onboarding');
+// Outreach campaign payloads (existing members with no plan) + weekly report.
+const outreach = require('./outreach');
 
 console.log('[boot] Modules loaded');
 
@@ -118,6 +120,7 @@ if (APIFY_PROXY_READY) {
 const PORT            = process.env.PORT || 3000;
 const OWNER_ID       = '731207920007643167';
 const DASHBOARD_URL  = 'https://vendora.site/vendora-dashboard';
+const LOGIN_URL      = 'https://vendora.site/vendora-login';
 const SITE_URL       = 'https://vendora.site';
 
 console.log('[boot] Config — GUILD_ID:', GUILD_ID, '| PORT:', PORT);
@@ -1094,6 +1097,19 @@ const commands = [
     .addSubcommand(s => s.setName('close').setDescription('Close this support ticket')),
   new SlashCommandBuilder().setName('supportsetup')
     .setDescription('Post the Vendora support embed — one-time use, command deletes itself after'),
+
+  new SlashCommandBuilder().setName('outreach')
+    .setDescription('Manage the setup + affiliate DM campaign for existing members [Owner]')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addSubcommand(s => s.setName('preview').setDescription('Post both DMs in a channel for review — DMs nobody')
+      .addChannelOption(o => o.setName('channel').setDescription('Where to post (defaults to here)')
+        .addChannelTypes(ChannelType.GuildText).setRequired(false)))
+    .addSubcommand(s => s.setName('start').setDescription('START the campaign — queues every member without an active plan')
+      .addStringOption(o => o.setName('confirm').setDescription('Type START to confirm').setRequired(true)))
+    .addSubcommand(s => s.setName('status').setDescription('Progress, queue size and this period\'s numbers'))
+    .addSubcommand(s => s.setName('pause').setDescription('Stop sending (keeps everyone\'s place in the sequence)'))
+    .addSubcommand(s => s.setName('resume').setDescription('Resume a paused campaign'))
+    .addSubcommand(s => s.setName('report').setDescription('Send the weekly report now without waiting for Wednesday')),
 ].map(c => c.toJSON());
 
 // ── Inventory (persistent via Supabase) ──────────────────────────────────────
@@ -2694,6 +2710,93 @@ async function executeCommand(interaction, commandName, tier, profile) {
   }
 
   // ── /supportsetup — one-time command that posts the embed then deletes itself ──
+  // ── /outreach — owner-only control of the existing-member DM campaign ───────
+  if (commandName === 'outreach') {
+    if (interaction.user.id !== OWNER_ID) {
+      return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Owner Only').setDescription('This command is owner-only.')] });
+    }
+    const sub = opts.getSubcommand();
+
+    if (sub === 'preview') {
+      const channel = opts.getChannel('channel') || interaction.channel;
+      try {
+        await channel.send({
+          content: '**Preview 1/2 — setup DM.** This is exactly what members without a plan will receive.',
+          ...outreach.buildSetupPayload({ username: interaction.user.username, loginUrl: LOGIN_URL }),
+        });
+        await channel.send({
+          content: '**Preview 2/2 — affiliate DM**, sent 24h after the one above.',
+          ...outreach.buildOutreachAffiliatePayload({ username: interaction.user.username, rate: AFFILIATE_RATE_PCT }),
+        });
+      } catch (e) {
+        return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Could not post')
+          .setDescription(`Posting to ${channel} failed: ${e.message}`)] });
+      }
+      return interaction.editReply({ embeds: [baseEmbed('#4ade80').setTitle('Preview posted')
+        .setDescription(`Both DMs posted to ${channel}. Nothing was DM'd.`)] });
+    }
+
+    if (sub === 'start') {
+      if (opts.getString('confirm') !== 'START') {
+        return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Not confirmed')
+          .setDescription('Re-run with `confirm: START` to begin the campaign.')] });
+      }
+      const { seeded, tracked } = await runOutreachRollout(interaction.guild);
+      runOutreachSweep().catch(e => console.error('[outreach] Post-start sweep failed:', e.message));
+      const days = Math.ceil(tracked / (OUTREACH_MAX_PER_SWEEP * 24));
+      return interaction.editReply({ embeds: [baseEmbed('#4ade80').setTitle('Campaign started')
+        .setDescription(
+          `Queued **${seeded}** members without an active plan (**${tracked}** tracked in total).\n\n` +
+          `Sending at up to **${OUTREACH_MAX_PER_SWEEP} DMs/hour** — roughly ` +
+          `**${OUTREACH_MAX_PER_SWEEP * 24}/day**, so about **${days} day(s)** to work through everyone. ` +
+          `Each person gets the affiliate DM 24h after their setup DM.\n\n` +
+          'Use `/outreach pause` to stop at any point.'
+        )] });
+    }
+
+    if (sub === 'status') {
+      const state = await loadOutreachState();
+      const m     = (await getSetting(OUTREACH_METRICS_KEY)) || {};
+      const remaining = Object.keys(state.users).length;
+      const stage1 = Object.values(state.users).filter(u => u.s === 1).length;
+      return interaction.editReply({ embeds: [baseEmbed()
+        .setTitle('Outreach status')
+        .setDescription(state.rolled_out_at
+          ? (state.paused ? '**Paused.**' : 'Running.')
+          : 'Not started — run `/outreach start`.')
+        .addFields(
+          { name: 'Queued',   value: `${remaining} (${stage1} awaiting setup DM, ${remaining - stage1} awaiting affiliate)`, inline: false },
+          { name: 'Setup DMs sent',     value: String(m.setup_sent     || 0), inline: true },
+          { name: 'Affiliate DMs sent', value: String(m.affiliate_sent || 0), inline: true },
+          { name: 'Welcome DMs sent',   value: String(m.welcome_sent   || 0), inline: true },
+          { name: 'Quiz started',   value: String(m.quiz_started   || 0), inline: true },
+          { name: 'Quiz completed', value: String(m.quiz_completed || 0), inline: true },
+          { name: 'DMs closed',     value: String(m.dm_closed      || 0), inline: true },
+        )] });
+    }
+
+    if (sub === 'pause' || sub === 'resume') {
+      const state = await loadOutreachState();
+      if (!state.rolled_out_at) {
+        return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Not started')
+          .setDescription('There is no campaign running yet.')] });
+      }
+      state.paused = sub === 'pause';
+      await saveOutreachState(state);
+      return interaction.editReply({ embeds: [baseEmbed('#4ade80')
+        .setTitle(state.paused ? 'Campaign paused' : 'Campaign resumed')
+        .setDescription(state.paused
+          ? 'No further DMs will be sent. Everyone keeps their place in the sequence.'
+          : 'Sending resumes on the next hourly sweep.')] });
+    }
+
+    if (sub === 'report') {
+      await sendWeeklyDMReport();
+      return interaction.editReply({ embeds: [baseEmbed('#4ade80').setTitle('Report sent')
+        .setDescription('Check your DMs. Counters have been reset for the next period.')] });
+    }
+  }
+
   if (commandName === 'supportsetup') {
     if (interaction.user.id !== OWNER_ID) {
       return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Owner Only').setDescription('This command is owner-only.')] });
@@ -2833,6 +2936,7 @@ client.on('guildMemberAdd', async (member) => {
     // fails to send, the welcome still counts as delivered.
     try {
       await member.send(onboarding.buildQuizStart());
+      await bumpMetric('welcome_sent');
     } catch (e) {
       console.warn(`[onboarding] Could not send quiz to ${member.user.tag}: ${e.message}`);
     }
@@ -9388,6 +9492,11 @@ async function handleOnboardingButton(interaction) {
     return interaction.reply({ content: `That option is no longer valid. You can pick a plan any time at ${DASHBOARD_URL}`, ephemeral: true });
   }
 
+  // A bare prefix means the "Find my plan" button in the outreach DM — the only
+  // place a quiz can be *started* by a click. The welcome DM ships question one
+  // already rendered, so its first click always carries an answer.
+  if (answers.length === 0) await bumpMetric('quiz_started');
+
   if (answers.length < onboarding.QUESTIONS.length) {
     return interaction.update(onboarding.buildQuestion(answers.length, answers));
   }
@@ -9398,6 +9507,7 @@ async function handleOnboardingButton(interaction) {
     dashboardUrl: DASHBOARD_URL,
   });
   await interaction.update(payload);
+  await bumpMetric('quiz_completed');
   const { tier, total } = onboarding.recommendTier(answers);
   console.log(`[onboarding] ${interaction.user.tag} finished quiz — answers ${answers.join('')}, score ${total} -> ${tier}`);
 }
@@ -9455,6 +9565,181 @@ async function runAffiliateDMSweep() {
 }
 
 cron.schedule('11 * * * *', () => runAffiliateDMSweep().catch(e => console.error('[affiliate-dm] Sweep failed:', e.message)));
+
+// ── Outreach campaign — existing members with no active plan ──────────────────
+// Two DMs per person: a setup prompt, then the affiliate pitch 24h after THAT
+// PERSON'S setup DM. Because stage 1 is already drip-fed, stage 2 inherits the
+// same spread instead of landing as one burst a day later.
+//
+// Rate: OUTREACH_MAX_PER_SWEEP per hourly sweep, so ~72 DMs/day across both
+// stages. A 283-member server completes in about four days. Deliberately slow —
+// the cap is the whole point, not a performance limit.
+const OUTREACH_STATE_KEY    = 'outreach_state';
+const OUTREACH_METRICS_KEY  = 'outreach_metrics';
+const OUTREACH_MAX_PER_SWEEP = 3;
+const OUTREACH_DM_GAP_MS     = 2000;
+const OUTREACH_AFFILIATE_MS  = 24 * 60 * 60 * 1000;
+
+async function loadOutreachState() {
+  const raw = await getSetting(OUTREACH_STATE_KEY);
+  return { rolled_out_at: null, paused: false, users: {}, ...(raw || {}) };
+}
+const saveOutreachState = (state) => saveSetting(OUTREACH_STATE_KEY, state);
+
+// Read-modify-write. Concurrent bumps could in principle lose an increment, but
+// these fire at most a few times an hour and the numbers are directional, not
+// billing — a lock would cost more than it protects.
+async function bumpMetric(field, by = 1) {
+  try {
+    const m = (await getSetting(OUTREACH_METRICS_KEY)) || {};
+    m[field] = Number(m[field] || 0) + by;
+    if (!m.period_start) m.period_start = Date.now();
+    await saveSetting(OUTREACH_METRICS_KEY, m);
+  } catch (e) {
+    console.warn('[metrics] Could not bump', field, '-', e.message);
+  }
+}
+
+// Every Discord id with an active plan, paginated. Self-contained so this
+// campaign does not depend on any other subsystem's helper.
+async function fetchActivePlanDiscordIds() {
+  const ids = new Set();
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?select=discord_id&subscription_status=eq.active&limit=${PAGE}&offset=${offset}`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    if (!r.ok) throw new Error(`profiles query failed (${r.status})`);
+    const rows = await r.json();
+    for (const row of rows) if (row.discord_id) ids.add(String(row.discord_id));
+    if (!Array.isArray(rows) || rows.length < PAGE) break;
+  }
+  return ids;
+}
+
+// Seed every current non-subscriber. Existing entries are left alone so a second
+// run tops up with new members rather than restarting anyone's sequence.
+async function runOutreachRollout(guild) {
+  const state  = await loadOutreachState();
+  const active = await fetchActivePlanDiscordIds();
+  const members = await guild.members.fetch();
+
+  let seeded = 0;
+  for (const [id, member] of members) {
+    if (member.user.bot || id === OWNER_ID) continue;
+    if (active.has(id)) continue;
+    if (state.users[id]) continue;
+    state.users[id] = { s: 1, n: Date.now() };
+    seeded++;
+  }
+  state.rolled_out_at = state.rolled_out_at || Date.now();
+  state.paused = false;
+  await saveOutreachState(state);
+  return { seeded, tracked: Object.keys(state.users).length };
+}
+
+async function runOutreachSweep() {
+  const state = await loadOutreachState();
+  if (!state.rolled_out_at || state.paused) return;
+
+  let active;
+  try {
+    active = await fetchActivePlanDiscordIds();
+  } catch (e) {
+    // Without this list we cannot tell subscribers from non-subscribers, and
+    // pitching "get set up" at a paying customer is worse than sending nothing.
+    console.error('[outreach] Aborting sweep — could not load subscribers:', e.message);
+    return;
+  }
+
+  const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
+  if (!guild) { console.error('[outreach] Guild unavailable — skipping sweep'); return; }
+
+  const now = Date.now();
+  const due = Object.entries(state.users)
+    .filter(([, u]) => u.n && u.n <= now)
+    .sort((a, b) => a[1].n - b[1].n)
+    .slice(0, OUTREACH_MAX_PER_SWEEP);
+  if (!due.length) return;
+
+  let sent = 0, closed = 0, other = 0, dropped = 0;
+
+  for (const [discordId, u] of due) {
+    // Subscribed or left since being seeded — drop them entirely.
+    if (active.has(discordId)) { delete state.users[discordId]; dropped++; continue; }
+    const member = await guild.members.fetch(discordId).catch(() => null);
+    if (!member) { delete state.users[discordId]; dropped++; continue; }
+
+    const isSetup  = u.s === 1;
+    const payload  = isSetup
+      ? outreach.buildSetupPayload({ username: member.user.username, loginUrl: LOGIN_URL })
+      : outreach.buildOutreachAffiliatePayload({ username: member.user.username, rate: AFFILIATE_RATE_PCT });
+
+    try {
+      await member.send(payload);
+      sent++;
+      await bumpMetric(isSetup ? 'setup_sent' : 'affiliate_sent');
+    } catch (e) {
+      // 50007 = "Cannot send messages to this user": DMs closed or the bot is
+      // blocked. Entirely normal, expect a large minority. Anything else is a
+      // real signal and is counted separately so it stays visible in the report.
+      if (e.code === 50007) { closed++; await bumpMetric('dm_closed'); }
+      else {
+        other++;
+        await bumpMetric('dm_failed_other');
+        console.warn(`[outreach] DM failed for ${member.user.tag} (code ${e.code}): ${e.message}`);
+      }
+    }
+
+    // Advance regardless of delivery: a closed DM must not be retried forever.
+    if (isSetup) state.users[discordId] = { s: 2, n: Date.now() + OUTREACH_AFFILIATE_MS };
+    else         delete state.users[discordId];
+
+    await new Promise(r => setTimeout(r, OUTREACH_DM_GAP_MS));
+  }
+
+  await saveOutreachState(state);
+  console.log(`[outreach] Sweep — sent ${sent}, dms-closed ${closed}, other-fail ${other}, dropped ${dropped}, remaining ${Object.keys(state.users).length}`);
+}
+
+cron.schedule('27 * * * *', () => runOutreachSweep().catch(e => console.error('[outreach] Sweep failed:', e.message)));
+
+// Weekly report — Wednesday 12:00 UK time. node-cron uses the container's clock
+// (Railway runs UTC), so the timezone is pinned explicitly or this drifts by an
+// hour every time BST starts or ends.
+async function sendWeeklyDMReport() {
+  const m     = (await getSetting(OUTREACH_METRICS_KEY)) || {};
+  const state = await loadOutreachState();
+
+  const start = m.period_start ? new Date(m.period_start) : null;
+  const fmt   = (d) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const periodLabel = start ? `${fmt(start)} – ${fmt(new Date())}` : 'since launch';
+
+  const remaining = Object.keys(state.users).length;
+  const total     = Number(m.setup_sent || 0) + remaining;
+  const campaign  = {
+    rolled_out_at: state.rolled_out_at,
+    paused:        state.paused,
+    total,
+    done:          total - remaining,
+    remaining,
+    daysLeft:      Math.ceil(remaining / (OUTREACH_MAX_PER_SWEEP * 24)),
+  };
+
+  try {
+    const owner = await client.users.fetch(OWNER_ID);
+    await owner.send(outreach.buildWeeklyReport(m, { periodLabel, campaign }));
+    console.log('[report] Weekly DM report sent to owner.');
+  } catch (e) {
+    console.error('[report] Could not send weekly report:', e.message);
+    return; // keep the counters so nothing is lost when it could not be delivered
+  }
+
+  await saveSetting(OUTREACH_METRICS_KEY, { period_start: Date.now() });
+}
+
+cron.schedule('0 12 * * 3', () => sendWeeklyDMReport().catch(e => console.error('[report] Weekly report failed:', e.message)), { timezone: 'Europe/London' });
 
 // ── Vinted alert toggle (auto_buy, max_price) ────────────────────────────────
 // PATCH /api/vinted/alert/:id — update fields on a Vinted alert owned by the user.
