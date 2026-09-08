@@ -46,6 +46,9 @@ const onboarding = require('./onboarding');
 // Outreach campaign payloads (existing members with no plan) + weekly report.
 const outreach = require('./outreach');
 
+// Free trial payloads — channel embed, click confirmation, expiry DMs.
+const trial = require('./trial');
+
 console.log('[boot] Modules loaded');
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -131,6 +134,14 @@ const RULES_MESSAGE_KEY = 'rules_message';
 const AFFILIATE_MESSAGE_KEY = 'affiliate_message';
 // Default target for /postaffiliate when no channel is passed.
 const AFFILIATE_CHANNEL_ID = '1546264798876930151';
+
+// ── Free trial ────────────────────────────────────────────────────────────────
+const TRIAL_MESSAGE_KEY  = 'trial_message';
+const TRIAL_CHANNEL_ID   = '1546270485803704440';
+const TRIAL_ROLE_ID      = '1546263632617144411';
+// Trials grant Pro-equivalent access to the Discord tools only.
+const TRIAL_TIER         = 'pro';
+const TRIALS_KEY         = 'trials';
 const DASHBOARD_URL  = 'https://vendora.site/vendora-dashboard';
 const LOGIN_URL      = 'https://vendora.site/vendora-login';
 const SITE_URL       = 'https://vendora.site';
@@ -1193,6 +1204,14 @@ const commands = [
     .addBooleanOption(o => o.setName('new').setDescription('Post a fresh message instead of editing the existing one')
       .setRequired(false)),
 
+  new SlashCommandBuilder().setName('posttrial')
+    .setDescription('Post or refresh the free trial embed [Owner]')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addChannelOption(o => o.setName('channel').setDescription('Where to post (defaults to the trial channel)')
+      .addChannelTypes(ChannelType.GuildText).setRequired(false))
+    .addBooleanOption(o => o.setName('new').setDescription('Post a fresh message instead of editing the existing one')
+      .setRequired(false)),
+
   new SlashCommandBuilder().setName('postaffiliate')
     .setDescription('Post or refresh the affiliate program embed [Owner]')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
@@ -1578,6 +1597,32 @@ async function saveSetting(key, value) {
   } catch {}
 }
 
+// ── Trial state ───────────────────────────────────────────────────────────────
+// One settings row holding every trial, keyed by discord id — same shape as
+// outreach_state. Kept in memory because the command gate reads it on EVERY
+// slash command, and a Supabase round trip there would tax every command in the
+// bot to serve a handful of trial users.
+//
+// Eligibility is stored, not inferred from the role. Someone can leave and
+// rejoin, or have the role removed, and a role check would hand them a second
+// trial every time. `done` is never deleted — it is the record that they have
+// had their one.
+let trialState = { users: {} };
+
+async function loadTrials() {
+  const raw = await getSetting(TRIALS_KEY);
+  trialState = raw && typeof raw === 'object' && raw.users ? raw : { users: {} };
+  return trialState;
+}
+const saveTrials = () => saveSetting(TRIALS_KEY, trialState);
+
+// Memory read — safe to call on every command.
+function activeTrial(discordId) {
+  const t = trialState.users?.[discordId];
+  if (!t || t.done) return null;
+  return t.e > Date.now() ? t : null;
+}
+
 // Load persisted rate limits on startup
 (async () => {
   const saved = await getSetting('rate_limits');
@@ -1592,6 +1637,10 @@ async function saveSetting(key, value) {
     Object.assign(BOT_TOGGLES, savedToggles);
     console.log('[config] Loaded persisted bot toggles from Supabase');
   }
+  // Must complete before the first command is served — the gate reads this.
+  await loadTrials();
+  const live = Object.values(trialState.users).filter(t => !t.done && t.e > Date.now()).length;
+  console.log(`[trial] Loaded ${Object.keys(trialState.users).length} trial record(s), ${live} active`);
 })();
 
 // ── Command executor ──────────────────────────────────────────────────────────
@@ -2964,6 +3013,48 @@ async function executeCommand(interaction, commandName, tier, profile) {
     ]});
   }
 
+  if (commandName === 'posttrial') {
+    if (interaction.user.id !== OWNER_ID) {
+      return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Owner Only').setDescription('This command is owner-only.')] });
+    }
+
+    const channel = opts.getChannel('channel')
+      || interaction.guild?.channels.cache.get(TRIAL_CHANNEL_ID);
+    if (!channel) {
+      return interaction.editReply({ embeds: [baseEmbed('#f87171')
+        .setTitle('Channel Not Found')
+        .setDescription(`Could not find channel \`${TRIAL_CHANNEL_ID}\`. Pass one with the \`channel\` option.`)
+      ]});
+    }
+
+    const payload = trial.buildTrialPayload({ days: trial.TRIAL_DAYS });
+
+    if (!opts.getBoolean('new')) {
+      const saved = await getSetting(TRIAL_MESSAGE_KEY);
+      if (saved?.channel_id === channel.id && saved?.message_id) {
+        try {
+          const existing = await channel.messages.fetch(saved.message_id);
+          await existing.edit(payload);
+          return interaction.editReply({ embeds: [baseEmbed('#4ade80')
+            .setTitle('Trial embed updated')
+            .setDescription(`Edited the existing message in ${channel}. The button keeps working — its custom id has not changed.`)
+          ]});
+        } catch (e) {
+          console.warn('[posttrial] Stored message gone, posting a new one:', e.message);
+        }
+      }
+    }
+
+    const sent = await channel.send(payload);
+    await saveSetting(TRIAL_MESSAGE_KEY, { channel_id: channel.id, message_id: sent.id });
+    try { await sent.pin(); } catch (e) { console.warn('[posttrial] Could not pin:', e.message); }
+
+    return interaction.editReply({ embeds: [baseEmbed('#4ade80')
+      .setTitle('Trial embed posted')
+      .setDescription(`Posted to ${channel}. Run this again to edit that message in place.`)
+    ]});
+  }
+
   if (commandName === 'postaffiliate') {
     if (interaction.user.id !== OWNER_ID) {
       return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Owner Only').setDescription('This command is owner-only.')] });
@@ -3429,6 +3520,8 @@ client.on('interactionCreate', async (interaction) => {
       await handleTicketDirectButton(interaction).catch(e => console.error('[button] ticket_direct error:', e.message));
     } else if (interaction.customId.startsWith(onboarding.CUSTOM_ID_PREFIX)) {
       await handleOnboardingButton(interaction).catch(e => console.error('[button] onboarding error:', e.message));
+    } else if (interaction.customId === trial.TRIAL_START_ID) {
+      await handleTrialButton(interaction).catch(e => console.error('[button] trial error:', e.message));
     }
     return;
   }
@@ -3460,14 +3553,22 @@ client.on('interactionCreate', async (interaction) => {
     ]});
   }
 
-  // Unsubscribed check (owner bypasses)
-  if (user.id !== OWNER_ID) {
+  // Subscription OR active trial. A trial grants TRIAL_TIER for its duration —
+  // without this branch a trial member gets the role, opens the feed channels,
+  // runs /scan and is told to subscribe, which is worse than having no trial.
+  const onTrial = user.id !== OWNER_ID
+    && profile?.subscription_status !== 'active'
+    && !!activeTrial(user.id);
+
+  if (user.id !== OWNER_ID && !onTrial) {
     if (!profile || profile.subscription_status !== 'active') {
       return interaction.editReply({ embeds: [unsubscribedEmbed()] });
     }
   }
 
-  const tier = user.id === OWNER_ID ? 'elite' : (profile?.tier || 'none');
+  const tier = user.id === OWNER_ID ? 'elite'
+    : onTrial ? TRIAL_TIER
+    : (profile?.tier || 'none');
 
   // Tier gate check
   const requiredTier = CMD_TIER_REQUIRED[commandName];
@@ -10191,6 +10292,123 @@ async function runTrendReport() {
 // channel is genuinely first rather than a fuller version of old news.
 // runWhatsSelling resets the find counters, so this must stay ahead of it.
 cron.schedule('0 17 * * 0', () => runTrendReport().catch(e => console.error('[feed:trend-report] Unhandled:', e.message)), { timezone: 'Europe/London' });
+
+// ── Free trial ────────────────────────────────────────────────────────────────
+// Grants TRIAL_ROLE_ID for trial.TRIAL_DAYS, once per account, ever.
+async function handleTrialButton(interaction) {
+  const discordId = interaction.user.id;
+
+  // Ephemeral throughout: a channel full of "X started a trial" is noise, and
+  // it tells everyone else exactly who has not paid.
+  await interaction.deferReply({ ephemeral: true });
+
+  const existing = trialState.users[discordId];
+  if (existing?.done) {
+    return interaction.editReply(trial.buildTrialRefusedPayload({ reason: 'used' }));
+  }
+  if (existing && existing.e > Date.now()) {
+    return interaction.editReply(trial.buildTrialRefusedPayload({ reason: 'active' }));
+  }
+
+  // Never hand a trial to someone already paying — it would grant Pro to a
+  // Basic subscriber and downgrade them when it expired.
+  const profile = await getProfileByDiscordId(discordId);
+  if (profile?.subscription_status === 'active') {
+    return interaction.editReply(trial.buildTrialRefusedPayload({ reason: 'subscribed' }));
+  }
+
+  const member = interaction.member
+    || await interaction.guild?.members.fetch(discordId).catch(() => null);
+  if (!member) {
+    return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Server Only')
+      .setDescription('Start your trial from inside the Vendor Village server.')] });
+  }
+
+  try {
+    await member.roles.add(TRIAL_ROLE_ID);
+  } catch (e) {
+    console.error(`[trial] Could not add role to ${member.user.tag}:`, e.message);
+    return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Could not start trial')
+      .setDescription('Something went wrong assigning your trial role. Let the owner know and it will be sorted.')] });
+  }
+
+  const now = Date.now();
+  const endsAt = now + trial.TRIAL_DAYS * 24 * 60 * 60 * 1000;
+  // Written AFTER the role lands: a record with no role is a member who thinks
+  // they used their trial and got nothing.
+  trialState.users[discordId] = { s: now, e: endsAt, done: false, warned: false };
+  await saveTrials();
+
+  console.log(`[trial] Started for ${member.user.tag} (${discordId}), ends ${new Date(endsAt).toISOString()}`);
+  return interaction.editReply(trial.buildTrialStartedPayload({ username: interaction.user.username, endsAt }));
+}
+
+// Sweep rather than a timer per trial: setTimeout does not survive a Railway
+// redeploy, and this bot redeploys constantly. Every expiry is recomputed from
+// the stored end time, so a restart costs nothing.
+async function runTrialSweep() {
+  if (!SUPABASE_KEY) return;
+  const users = trialState.users || {};
+  const ids = Object.keys(users);
+  if (!ids.length) return;
+
+  const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
+  if (!guild) { console.warn('[trial] Guild unavailable — skipping sweep'); return; }
+
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  let expired = 0, warned = 0, dirty = false;
+
+  for (const discordId of ids) {
+    const t = users[discordId];
+    if (t.done) continue;
+
+    // Converted mid-trial. assignRole only manages the tier roles in ROLE_IDS,
+    // so the trial role would otherwise linger and keep a Basic subscriber in
+    // the Pro feed channels until their trial happened to expire.
+    const prof = await getProfileByDiscordId(discordId).catch(() => null);
+    if (prof?.subscription_status === 'active') {
+      const m = await guild.members.fetch(discordId).catch(() => null);
+      if (m) {
+        try { await m.roles.remove(TRIAL_ROLE_ID); }
+        catch (e) { console.warn(`[trial] Could not remove role from ${m.user.tag}:`, e.message); }
+      }
+      t.done = true; dirty = true;
+      console.log(`[trial] ${discordId} subscribed mid-trial — trial closed, role removed`);
+      continue;
+    }
+
+    // Day 6 nudge — one day of access left to act on it.
+    if (!t.warned && t.e - now <= dayMs && t.e > now) {
+      const member = await guild.members.fetch(discordId).catch(() => null);
+      if (member) {
+        await sendDM(member, trial.buildTrialEndingPayload({ username: member.user.username, siteUrl: SITE_URL }))
+          .catch(() => {});
+      }
+      t.warned = true; warned++; dirty = true;
+      continue;
+    }
+
+    if (t.e > now) continue;
+
+    // Expired. Strip the role, mark done, tell them.
+    const member = await guild.members.fetch(discordId).catch(() => null);
+    if (member) {
+      try { await member.roles.remove(TRIAL_ROLE_ID); }
+      catch (e) { console.warn(`[trial] Could not remove role from ${member.user.tag}:`, e.message); }
+      await sendDM(member, trial.buildTrialEndedPayload({ username: member.user.username, siteUrl: SITE_URL }))
+        .catch(() => {});
+    }
+    // done stays forever — it is the record that this account has had its trial.
+    t.done = true;
+    expired++; dirty = true;
+  }
+
+  if (dirty) await saveTrials();
+  if (expired || warned) console.log(`[trial] Sweep — ${expired} expired, ${warned} warned.`);
+}
+
+cron.schedule('*/15 * * * *', () => runTrialSweep().catch(e => console.error('[trial] Sweep failed:', e.message)));
 
 // ── Onboarding quiz handler ──────────────────────────────────────────────────
 // Advances the quiz in place: each click edits the same DM rather than posting
