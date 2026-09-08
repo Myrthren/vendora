@@ -76,6 +76,39 @@ function buildOutreachAffiliatePayload({ username, rate = 30 }) {
   return { embeds: [embed] };
 }
 
+// Channel version — no greeting, no name, no "worth knowing this one".
+//
+// A DM is a moment: it lands once, addressed to a person, and can assume they
+// have not subscribed. A pinned channel post is permanent and read by everyone,
+// so it has to work for a Basic member, an Elite member and someone who has
+// never paid, on the day it is posted and six months later. That is why this is
+// a separate builder rather than the DM with the greeting stripped out.
+function buildAffiliateChannelPayload({ rate = 30 } = {}) {
+  const embed = new EmbedBuilder()
+    .setColor(PINK)
+    .setTitle(`Earn ${rate}% recurring for every reseller you refer`)
+    .setDescription(
+      `Vendora pays **${rate}% commission, recurring** — every month someone you referred ` +
+      `stays subscribed, not just on their first payment. Refer an Elite customer and that ` +
+      `is **£15 a month**, for as long as they stay.\n\n` +
+      `**Open to everyone.** You do not need a plan of your own to be an affiliate, and ` +
+      `there is no approval step.\n\n` +
+      `**How to get your link**\n` +
+      `→ Not subscribed: whop.com → **Affiliates** → **Affiliate marketplace** → search **Vendora** → **Become affiliate**\n` +
+      `→ Subscribed: whop.com → **Affiliates** → **Refer buyers** → copy your Vendora link\n\n` +
+      `Share it wherever resellers already are — Discord servers, TikTok, your own buyers. ` +
+      `All three plans can be bought through your link, so you earn on whichever they pick.`
+    )
+    .addFields(
+      { name: 'Commission',   value: `${rate}% recurring`,       inline: true },
+      { name: 'Payout',       value: 'After a 30-day hold',      inline: true },
+      { name: 'Per referral', value: 'Up to £15/mo (Elite)',     inline: true },
+    )
+    .setFooter({ text: 'Commission tracks on Whop checkouts only — PayPal purchases do not attribute.' });
+
+  return { embeds: [embed] };
+}
+
 // ── Weekly report ────────────────────────────────────────────────────────────
 // Deliberately reports what is MEASURABLE and says so. Discord does not emit an
 // interaction for link buttons, so "Sign in with Discord" clicks cannot be
@@ -141,5 +174,6 @@ module.exports = {
   QUIZ_START_ID,
   buildSetupPayload,
   buildOutreachAffiliatePayload,
+  buildAffiliateChannelPayload,
   buildWeeklyReport,
 };

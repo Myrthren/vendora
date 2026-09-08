@@ -24,6 +24,14 @@ catch (e) { console.warn('[proxy] undici unavailable — primary proxy disabled:
 const nodeHttp  = require('http');
 const nodeHttps = require('https');
 
+// Win-back DM payload — shared with scripts/preview-winback-dm.js so the embed
+// the owner approves is the identical object members receive.
+const { buildWinbackPayload } = require('./winback-embed');
+
+// Channel feeds for The Market category — channel ids, the underpriced filter
+// and the embed builders. Logic only; the posting happens here in index.js.
+const feeds = require('./feeds');
+
 // Vinted browser flow (Playwright + stealth) — bypasses DataDome by running
 // inside a real Chromium through the residential proxy. Optional dep:
 // if playwright isn't installed, functions return { error } and we fall back
@@ -119,6 +127,10 @@ if (APIFY_PROXY_READY) {
 
 const PORT            = process.env.PORT || 3000;
 const OWNER_ID       = '731207920007643167';
+const RULES_MESSAGE_KEY = 'rules_message';
+const AFFILIATE_MESSAGE_KEY = 'affiliate_message';
+// Default target for /postaffiliate when no channel is passed.
+const AFFILIATE_CHANNEL_ID = '1546264798876930151';
 const DASHBOARD_URL  = 'https://vendora.site/vendora-dashboard';
 const LOGIN_URL      = 'https://vendora.site/vendora-login';
 const SITE_URL       = 'https://vendora.site';
@@ -156,6 +168,14 @@ const ROLE_IDS = {
   pro:   '1491389600852349061',
   elite: '1491389713607823420',
 };
+// Category that /session channels are created under. Resolved by ID, not by
+// #use-vendora's parent — that category was deleted, which silently dropped
+// every new session channel at the server root.
+const SESSION_CATEGORY_ID = '1474033954972504126';
+// The channel members are pointed at to run commands. Held as an ID so it is
+// rendered as a real Discord mention and survives a rename — the old plain
+// "#use-vendora" text went stale the moment the channel changed.
+const USE_VENDORA_CHANNEL_ID = '1487885732528918679';
 const TIER_NAMES  = { none: 'Free', basic: 'Basic', pro: 'Pro', elite: 'Elite' };
 const TIER_PRICES = { basic: '£9.99', pro: '£24.99', elite: '£49.99' };
 // Affiliate commission quoted in the day-one DM. MUST match the rate configured
@@ -639,10 +659,8 @@ async function searchDepop(query) {
 // ── Apify Vinted Scraper ──────────────────────────────────────────────────────
 // Two separate actors:
 //   APIFY_VINTED_ACTOR      — keyword search (Auto-Buy, /vinted-alert, /scan)
-//   APIFY_VINTED_USER_ACTOR — user profile/member page item fetching (inventory)
 // Override either via Railway env vars. Format: "username~actor-name".
 const APIFY_VINTED_ACTOR      = process.env.APIFY_VINTED_ACTOR      || 'kazkn~vinted-smart-scraper';
-const APIFY_VINTED_USER_ACTOR = process.env.APIFY_VINTED_USER_ACTOR || 'kazkn~vinted-smart-scraper';
 
 // Run the configured Apify Vinted actor/task with a given input object.
 // Handles both Actor ("user~name") and Task ("user~name-task") endpoints —
@@ -797,6 +815,40 @@ async function apifyVintedItemDetail(url) {
   return { title: m.title, price: m.priceNum, size: items[0].size || '', currency: m.currency || 'GBP' };
 }
 
+// Item detail, browser first. Same output shape as apifyVintedItemDetail so it
+// is a drop-in for it.
+//
+// WHY: the watchlist cron calls this once PER WATCHED ITEM, hourly for Elite,
+// with no cap on watchlist size. On Apify that is $0.022 a call — roughly $317
+// a month for a single Elite user watching 20 items, against a $5 account cap
+// and a £49.99 plan. Same shape the alert cron had before f4cf874.
+async function vintedItemDetail(url) {
+  if (!url) return null;
+
+  if (vintedBrowser?.vintedBrowserFetchItem) {
+    try {
+      const r  = await vintedBrowser.vintedBrowserFetchItem(url);
+      const it = r?.ok ? r.data?.item : null;
+      if (it) {
+        const m = mapVintedRawItem(it);
+        if (m.priceNum) {
+          return {
+            title:    m.title,
+            price:    m.priceNum,
+            size:     it.size_title || it.size || '',
+            currency: m.currency || 'GBP',
+          };
+        }
+      }
+      console.warn(`[vinted] browser item detail thin for ${url}${r?.error ? ` (${r.error})` : ''} — falling back`);
+    } catch (e) {
+      console.warn(`[vinted] browser item detail threw for ${url}: ${e.message} — falling back`);
+    }
+  }
+
+  return APIFY_TOKEN ? await apifyVintedItemDetail(url) : null;
+}
+
 // Fetch a specific Vinted item by URL or ID via Apify residential proxy.
 // Used by the watchlist cron to track price changes on individual Vinted listings.
 async function apifyVintedFetchItem(itemIdOrUrl) {
@@ -826,13 +878,48 @@ async function apifyVintedFetchItem(itemIdOrUrl) {
   }
 }
 
+// Concurrency guard for the self-hosted browser.
+//
+// The alert crons proved the browser handles this CADENCE, but crons are serial
+// and user commands are not: ten Pro users running /scan at once all queue
+// behind one Chromium context. So past this many in-flight searches we spill to
+// Apify rather than making everyone wait. Apify stops being the thing we pay for
+// every search and becomes burst capacity — paid only when requests actually
+// overlap, which is rare and is exactly when latency would otherwise hurt.
+const BROWSER_SEARCH_MAX_INFLIGHT = 3;
+let browserSearchInflight = 0;
+
 async function searchVinted(query) {
-  // Try Apify first — bypasses DataDome via residential proxies
+  // Browser first: $0 per call. Apify bills $0.02 per run + $0.002 per result,
+  // which is $0.044 for the 12 items below — about 83 searches on the $5 cap,
+  // for all users, for the whole month. See alertKeywordSearch for the same
+  // migration on the alert path.
+  const browserFree = vintedBrowser?.vintedBrowserSearchItems
+    && browserSearchInflight < BROWSER_SEARCH_MAX_INFLIGHT;
+
+  if (browserFree) {
+    browserSearchInflight++;
+    try {
+      const { items, error } = await vintedBrowser.vintedBrowserSearchItems(query, null, 12);
+      // A search that SUCCEEDS and finds nothing is a real answer. Treating it
+      // as a failure would bill Apify to re-confirm every empty result.
+      if (!error && Array.isArray(items)) return items.slice(0, 12).map(mapVintedRawItem);
+      console.warn(`[vinted] browser search failed for "${query}": ${error || 'bad response'} — falling back`);
+    } catch (e) {
+      console.warn(`[vinted] browser search threw for "${query}": ${e.message} — falling back`);
+    } finally {
+      browserSearchInflight--;
+    }
+  } else if (vintedBrowser?.vintedBrowserSearchItems) {
+    console.log(`[vinted] browser at capacity (${browserSearchInflight}) — spilling "${query}" to Apify`);
+  }
+
+  // Paid fallback: browser unavailable, errored, or saturated.
   if (APIFY_TOKEN) {
     const apifyResults = await apifyVintedSearch(query, 12);
     if (apifyResults?.length) return apifyResults;
   }
-  // Fallback: direct Vinted API (may be blocked by DataDome)
+  // Last resort: direct Vinted API (usually blocked by DataDome)
   try {
     const url = `https://www.vinted.co.uk/api/v2/catalog/items?search_text=${encodeURIComponent(query)}&per_page=12&order=newest_first`;
     const res = await fetch(url, vintedProxyOpts({
@@ -1098,6 +1185,22 @@ const commands = [
   new SlashCommandBuilder().setName('supportsetup')
     .setDescription('Post the Vendora support embed — one-time use, command deletes itself after'),
 
+  new SlashCommandBuilder().setName('postrules')
+    .setDescription('Post or refresh the server rules embed [Owner]')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addChannelOption(o => o.setName('channel').setDescription('Where to post (defaults to the rules channel)')
+      .addChannelTypes(ChannelType.GuildText).setRequired(false))
+    .addBooleanOption(o => o.setName('new').setDescription('Post a fresh message instead of editing the existing one')
+      .setRequired(false)),
+
+  new SlashCommandBuilder().setName('postaffiliate')
+    .setDescription('Post or refresh the affiliate program embed [Owner]')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addChannelOption(o => o.setName('channel').setDescription('Where to post (defaults to the affiliates channel)')
+      .addChannelTypes(ChannelType.GuildText).setRequired(false))
+    .addBooleanOption(o => o.setName('new').setDescription('Post a fresh message instead of editing the existing one')
+      .setRequired(false)),
+
   new SlashCommandBuilder().setName('outreach')
     .setDescription('Manage the setup + affiliate DM campaign for existing members [Owner]')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
@@ -1110,6 +1213,19 @@ const commands = [
     .addSubcommand(s => s.setName('pause').setDescription('Stop sending (keeps everyone\'s place in the sequence)'))
     .addSubcommand(s => s.setName('resume').setDescription('Resume a paused campaign'))
     .addSubcommand(s => s.setName('report').setDescription('Send the weekly report now without waiting for Wednesday')),
+
+  // ── Owner ──
+  new SlashCommandBuilder().setName('winback')
+    .setDescription('Manage the win-back DM campaign [Owner]')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addSubcommand(s => s.setName('preview').setDescription('Post the win-back embed in a channel for review — DMs nobody')
+      .addChannelOption(o => o.setName('channel').setDescription('Where to post it (defaults to here)')
+        .addChannelTypes(ChannelType.GuildText).setRequired(false)))
+    .addSubcommand(s => s.setName('rollout').setDescription('START the campaign — queues every current non-subscriber for an immediate DM')
+      .addStringOption(o => o.setName('confirm').setDescription('Type ROLLOUT to confirm').setRequired(true)))
+    .addSubcommand(s => s.setName('status').setDescription('Campaign state, queue size and what is due next'))
+    .addSubcommand(s => s.setName('pause').setDescription('Stop all further win-back DMs (keeps everyone\'s place in the sequence)'))
+    .addSubcommand(s => s.setName('resume').setDescription('Resume a paused campaign')),
 ].map(c => c.toJSON());
 
 // ── Inventory (persistent via Supabase) ──────────────────────────────────────
@@ -1538,16 +1654,21 @@ async function executeCommand(interaction, commandName, tier, profile) {
       // Re-fetch channels to ensure cache is current
       await guild.channels.fetch();
 
-      // Use the same category as #use-vendora so session channels sit alongside it.
-      // Fall back to server root if the channel doesn't exist or the bot can't
-      // manage channels inside that category.
-      const useVendoraChannel = guild.channels.cache.find(
-        c => c.type === ChannelType.GuildText && c.name === 'use-vendora'
-      );
-      const category = useVendoraChannel?.parent ?? null;
+      // Session channels go under a fixed category. Fall back to the server root
+      // if it has been deleted or the bot can't manage channels inside it — and
+      // say so in the logs, because the symptom (channels appearing at the root)
+      // otherwise looks like nothing went wrong.
+      const found = guild.channels.cache.get(SESSION_CATEGORY_ID);
+      const category = found?.type === ChannelType.GuildCategory ? found : null;
+      if (!category) {
+        console.warn(`[session] Category ${SESSION_CATEGORY_ID} not found — creating at server root`);
+      }
       const canManageInCategory = category
         ? category.permissionsFor(botMember)?.has(PermissionFlagsBits.ManageChannels)
         : false;
+      if (category && !canManageInCategory) {
+        console.warn(`[session] No Manage Channels in #${category.name} — creating at server root`);
+      }
       const parentId = canManageInCategory ? category.id : null;
 
       const channelName = `session-${interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12)}-${Date.now().toString(36).slice(-4)}`;
@@ -1770,8 +1891,10 @@ async function executeCommand(interaction, commandName, tier, profile) {
       await interaction.editReply({ embeds: [baseEmbed().setTitle('⏳ Setting up alert…')
         .setDescription(`Running an initial Vinted search for **"${keyword}"** to baseline your alert…`)] });
 
-      // Run initial scan to populate seen_ids so we only alert for NEW items going forward
-      const initialItems = await apifyVintedSearch(keyword, 20);
+      // Run initial scan to populate seen_ids so we only alert for NEW items going forward.
+      // Browser-first: an Elite user may hold 30 alerts, and baselining each on
+      // Apify would be $0.06 a time — $1.80 of a $5 monthly cap to set them up.
+      const initialItems = await alertKeywordSearch(keyword, 20);
       const seenIds = (initialItems || []).map(i => i.id).filter(Boolean);
 
       await dbAddVintedAlert(interaction.user.id, keyword, maxPrice);
@@ -2797,6 +2920,97 @@ async function executeCommand(interaction, commandName, tier, profile) {
     }
   }
 
+  // ── /postrules — post the rules embed, or edit the one already posted ───────
+  if (commandName === 'postrules') {
+    if (interaction.user.id !== OWNER_ID) {
+      return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Owner Only').setDescription('This command is owner-only.')] });
+    }
+
+    const channel = opts.getChannel('channel') || findRulesChannel(interaction.guild);
+    if (!channel) {
+      return interaction.editReply({ embeds: [baseEmbed('#f87171')
+        .setTitle('Channel Not Found')
+        .setDescription('No channel with "rules" in its name. Pass one with the `channel` option.')
+      ]});
+    }
+
+    const payload = { embeds: [buildRulesEmbed()], components: buildRulesButtons() };
+
+    // Edit the existing message where we can, so refreshing the copy doesn't
+    // leave a trail of stale rules posts (or lose the channel's pinned message).
+    if (!opts.getBoolean('new')) {
+      const saved = await getSetting(RULES_MESSAGE_KEY);
+      if (saved?.channel_id === channel.id && saved?.message_id) {
+        try {
+          const existing = await channel.messages.fetch(saved.message_id);
+          await existing.edit(payload);
+          return interaction.editReply({ embeds: [baseEmbed('#4ade80')
+            .setTitle('Rules updated')
+            .setDescription(`Edited the existing rules message in ${channel}.`)
+          ]});
+        } catch (e) {
+          console.warn('[postrules] Stored message gone, posting a new one:', e.message);
+        }
+      }
+    }
+
+    const sent = await channel.send(payload);
+    await saveSetting(RULES_MESSAGE_KEY, { channel_id: channel.id, message_id: sent.id });
+    try { await sent.pin(); } catch (e) { console.warn('[postrules] Could not pin:', e.message); }
+
+    return interaction.editReply({ embeds: [baseEmbed('#4ade80')
+      .setTitle('Rules posted')
+      .setDescription(`Posted to ${channel}. Run this again to edit that message in place.`)
+    ]});
+  }
+
+  if (commandName === 'postaffiliate') {
+    if (interaction.user.id !== OWNER_ID) {
+      return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Owner Only').setDescription('This command is owner-only.')] });
+    }
+
+    const channel = opts.getChannel('channel')
+      || interaction.guild?.channels.cache.get(AFFILIATE_CHANNEL_ID);
+    if (!channel) {
+      return interaction.editReply({ embeds: [baseEmbed('#f87171')
+        .setTitle('Channel Not Found')
+        .setDescription(`Could not find channel \`${AFFILIATE_CHANNEL_ID}\`. Pass one with the \`channel\` option.`)
+      ]});
+    }
+
+    // Rate comes from AFFILIATE_RATE_PCT, never a literal — a pinned message
+    // quoting a rate Whop does not pay is the one affiliate mistake you cannot
+    // walk back, and this message outlives every DM.
+    const payload = outreach.buildAffiliateChannelPayload({ rate: AFFILIATE_RATE_PCT });
+
+    // Edit in place by default, so revising the copy doesn't leave a trail of
+    // stale affiliate posts or lose the pin.
+    if (!opts.getBoolean('new')) {
+      const saved = await getSetting(AFFILIATE_MESSAGE_KEY);
+      if (saved?.channel_id === channel.id && saved?.message_id) {
+        try {
+          const existing = await channel.messages.fetch(saved.message_id);
+          await existing.edit(payload);
+          return interaction.editReply({ embeds: [baseEmbed('#4ade80')
+            .setTitle('Affiliate embed updated')
+            .setDescription(`Edited the existing message in ${channel} — now quoting **${AFFILIATE_RATE_PCT}%**.`)
+          ]});
+        } catch (e) {
+          console.warn('[postaffiliate] Stored message gone, posting a new one:', e.message);
+        }
+      }
+    }
+
+    const sent = await channel.send(payload);
+    await saveSetting(AFFILIATE_MESSAGE_KEY, { channel_id: channel.id, message_id: sent.id });
+    try { await sent.pin(); } catch (e) { console.warn('[postaffiliate] Could not pin:', e.message); }
+
+    return interaction.editReply({ embeds: [baseEmbed('#4ade80')
+      .setTitle('Affiliate embed posted')
+      .setDescription(`Posted to ${channel} at **${AFFILIATE_RATE_PCT}%**. Run this again to edit that message in place.`)
+    ]});
+  }
+
   if (commandName === 'supportsetup') {
     if (interaction.user.id !== OWNER_ID) {
       return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Owner Only').setDescription('This command is owner-only.')] });
@@ -2845,6 +3059,83 @@ async function executeCommand(interaction, commandName, tier, profile) {
     ]});
   }
 
+  // ── /winback — owner-only control of the win-back DM campaign ────────────────
+  if (commandName === 'winback') {
+    if (interaction.user.id !== OWNER_ID) {
+      return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Owner Only').setDescription('This command is owner-only.')] });
+    }
+    const sub = opts.getSubcommand();
+
+    if (sub === 'preview') {
+      const channel = opts.getChannel('channel') || interaction.channel;
+      try {
+        await channel.send({
+          content: '**Preview — win-back DM.** This is exactly what unsubscribed members will receive.',
+          ...buildWinbackPayload({ username: interaction.user.username }),
+        });
+      } catch (e) {
+        return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Could not post')
+          .setDescription(`Posting to ${channel} failed: ${e.message}`)] });
+      }
+      return interaction.editReply({ embeds: [baseEmbed('#4ade80').setTitle('Preview posted')
+        .setDescription(`Win-back embed posted to ${channel}. Nothing was DM'd.`)] });
+    }
+
+    if (sub === 'rollout') {
+      if (opts.getString('confirm') !== 'ROLLOUT') {
+        return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Not confirmed')
+          .setDescription('Re-run with `confirm: ROLLOUT` to start the campaign.')] });
+      }
+      const { seeded, tracked } = await runWinbackRollout(interaction.guild);
+      runWinbackSweep().catch(e => console.error('[winback] Post-rollout sweep failed:', e.message));
+      return interaction.editReply({ embeds: [baseEmbed('#4ade80').setTitle('Campaign live')
+        .setDescription(
+          `Queued **${seeded}** members for their first DM (**${tracked}** tracked in total).\n\n` +
+          `Sending has started at roughly one DM every ${WINBACK_DM_DELAY_MS / 1000}s, ` +
+          `up to ${WINBACK_MAX_PER_RUN} per sweep — the rest roll into the next sweep.\n\n` +
+          'Use `/winback pause` to stop at any point.'
+        )] });
+    }
+
+    if (sub === 'status') {
+      const state   = await loadWinbackState();
+      const users   = Object.values(state.users);
+      const now     = Date.now();
+      const dueNow  = users.filter(u => u.n && u.n <= now).length;
+      const nextDue = users.filter(u => u.n && u.n > now).sort((a, b) => a.n - b.n)[0];
+      const byStage = users.reduce((acc, u) => { acc[u.s] = (acc[u.s] || 0) + 1; return acc; }, {});
+      const stageLines = Object.keys(byStage).sort((a, b) => a - b)
+        .map(s => `${s === '0' ? 'Not yet DM\'d' : `${s} DM${s === '1' ? '' : 's'} sent`}: **${byStage[s]}**`)
+        .join('\n') || 'Nobody tracked.';
+
+      return interaction.editReply({ embeds: [baseEmbed(state.paused ? '#e8a121' : '#4ade80')
+        .setTitle('Win-back campaign')
+        .setDescription(
+          state.rolled_out_at
+            ? `Rolled out **${new Date(state.rolled_out_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}**` +
+              (state.paused ? ' — currently **PAUSED**.' : ' — running.')
+            : 'Not rolled out yet. Run `/winback rollout` to start.'
+        )
+        .addFields(
+          { name: 'Tracked',  value: String(users.length), inline: true },
+          { name: 'Due now',  value: String(dueNow),       inline: true },
+          { name: 'Next due', value: nextDue ? `<t:${Math.floor(nextDue.n / 1000)}:R>` : '—', inline: true },
+          { name: 'Progress', value: stageLines }
+        )] });
+    }
+
+    if (sub === 'pause' || sub === 'resume') {
+      const state = await loadWinbackState();
+      state.paused = sub === 'pause';
+      await saveWinbackState(state);
+      return interaction.editReply({ embeds: [baseEmbed(state.paused ? '#e8a121' : '#4ade80')
+        .setTitle(state.paused ? 'Campaign paused' : 'Campaign resumed')
+        .setDescription(state.paused
+          ? 'No further win-back DMs will send. Everyone keeps their place in the sequence.'
+          : 'Sending resumes on the next sweep.')] });
+    }
+  }
+
 }
 
 // ── Bot events ────────────────────────────────────────────────────────────────
@@ -2865,6 +3156,12 @@ client.once('ready', async () => {
   // Start crosslist job scheduler
   setInterval(runCrosslistScheduler, 30 * 60 * 1000);
   console.log('[scheduler] Crosslist scheduler started (30min interval)');
+
+  // Win-back DM sweep. No-ops until /winback rollout is run, so a deploy never
+  // starts a campaign on its own. The first pass is delayed to keep boot clear.
+  setTimeout(() => { runWinbackSweep().catch(e => console.error('[winback] Sweep failed:', e.message)); }, 60 * 1000);
+  setInterval(() => { runWinbackSweep().catch(e => console.error('[winback] Sweep failed:', e.message)); }, WINBACK_SWEEP_MS);
+  console.log('[scheduler] Win-back sweep started (6h interval)');
 });
 
 client.on('guildMemberAdd', async (member) => {
@@ -2896,7 +3193,7 @@ client.on('guildMemberAdd', async (member) => {
           )
           .addFields(
             { name: 'Plan',    value: `${TIER_NAMES[tier]} — ${TIER_PRICES[tier]}/mo`, inline: true },
-            { name: 'Channel', value: '#use-vendora', inline: true }
+            { name: 'Channel', value: `<#${USE_VENDORA_CHANNEL_ID}>`, inline: true }
           )
           .setFooter({ text: 'Vendora — The Reseller\'s Edge' })
       ]});
@@ -2907,11 +3204,24 @@ client.on('guildMemberAdd', async (member) => {
       return;
     }
 
+    // No active plan — enrol them in the win-back sequence, first DM in 2 weeks.
+    // Done before the welcome DM below because that one is allowed to throw on
+    // closed DMs, and a swallowed throw must not cost us the enrolment.
+    if (!member.user.bot && member.id !== OWNER_ID) {
+      try {
+        const wb = await loadWinbackState();
+        if (wb.rolled_out_at && seedWinbackUser(wb, member.id, WINBACK_FIRST_DAYS)) {
+          await saveWinbackState(wb);
+          console.log(`[winback] Enrolled new joiner ${member.user.tag} — first DM in ${WINBACK_FIRST_DAYS}d`);
+        }
+      } catch (e) { console.warn('[winback] Could not enrol joiner:', e.message); }
+    }
+
     // Queue the day-one affiliate DM before the sends below, which are allowed
     // to throw on closed DMs — a swallowed throw must not cost us the enrolment.
     await queueAffiliateDM(member.id);
 
-    // No active plan — send the standard Vendora pitch.
+    // Send the standard Vendora welcome pitch.
     await member.send({ embeds: [
       new EmbedBuilder().setColor('#e8217a')
         .setTitle('Welcome to Vendora')
@@ -2943,6 +3253,170 @@ client.on('guildMemberAdd', async (member) => {
     console.log(`[join] Sent pitch DM to ${member.user.tag}`);
   } catch { /* DMs closed */ }
 });
+
+// ── Win-back DM campaign ──────────────────────────────────────────────────────
+// Sends the subscribe prompt to members who are in the server without an active
+// subscription, on a doubling schedule. Cadence, measured from each user's own
+// first send: 2w -> 4w -> 8w -> 16w -> 32w, then stop. The next gap after that
+// would be 64w (448d), which is over a year, so the sequence ends there —
+// 6 DMs spread across ~14 months, then silence forever.
+//
+// Deliberately owner-triggered: nothing sends until /winback rollout is run, so
+// a redeploy can never blast the server by accident. /winback pause is the kill
+// switch and takes effect on the next sweep.
+const WINBACK_STATE_KEY   = 'winback_state';
+const WINBACK_FIRST_DAYS  = 14;   // new joiners wait this long for send #1
+const WINBACK_MAX_DAYS    = 365;  // once the NEXT gap exceeds this, stop
+const WINBACK_SWEEP_MS    = 6 * 60 * 60 * 1000;
+const WINBACK_DM_DELAY_MS = 1500; // throttle — mass DMs get an account flagged
+const WINBACK_MAX_PER_RUN = 400;  // remainder rolls into the next sweep
+const DAY_MS              = 24 * 60 * 60 * 1000;
+
+// Gap before the next DM, given how many have already been sent.
+// stage 1 -> 14d, 2 -> 28d, 3 -> 56d, 4 -> 112d, 5 -> 224d, 6 -> 448d (> a year, so null).
+function winbackNextGapDays(stage) {
+  const days = WINBACK_FIRST_DAYS * Math.pow(2, stage - 1);
+  return days > WINBACK_MAX_DAYS ? null : days;
+}
+
+// State lives in one settings row: { rolled_out_at, paused, users: { id: { s, n } } }
+// where s = DMs sent so far and n = epoch ms of the next due send (null = done).
+// A single blob is safe because the bot is one process — the only writer.
+async function loadWinbackState() {
+  const raw = await getSetting(WINBACK_STATE_KEY);
+  return {
+    rolled_out_at: raw?.rolled_out_at || null,
+    paused:        raw?.paused || false,
+    users:         raw?.users || {},
+  };
+}
+
+async function saveWinbackState(state) {
+  await saveSetting(WINBACK_STATE_KEY, state);
+}
+
+// Every discord_id with an active subscription, paged — PostgREST caps a single
+// response at 1000 rows, and silently truncating here would mean DMing paying
+// customers a pitch for the thing they already bought.
+async function fetchActiveSubscriberIds() {
+  const ids = new Set();
+  if (!SUPABASE_KEY) return ids;
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?select=discord_id&subscription_status=eq.active&limit=${PAGE}&offset=${offset}`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    if (!r.ok) throw new Error(`profiles query failed: ${r.status}`);
+    const rows = await r.json();
+    for (const row of rows) if (row.discord_id) ids.add(String(row.discord_id));
+    if (rows.length < PAGE) break;
+  }
+  return ids;
+}
+
+// Add a member to the sequence at stage 0, due `delayDays` from now. Never
+// overwrites an existing entry — someone part-way through the sequence must not
+// be reset to the beginning by a rejoin or a second cancellation.
+function seedWinbackUser(state, discordId, delayDays) {
+  if (state.users[discordId]) return false;
+  state.users[discordId] = { s: 0, n: Date.now() + delayDays * DAY_MS };
+  return true;
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function runWinbackSweep() {
+  const state = await loadWinbackState();
+  if (!state.rolled_out_at) return;            // never rolled out
+  if (state.paused) { console.log('[winback] Paused — skipping sweep'); return; }
+
+  let activeIds;
+  try {
+    activeIds = await fetchActiveSubscriberIds();
+  } catch (e) {
+    // Without this list we cannot tell subscribers from non-subscribers. Sending
+    // anyway would pitch paying customers, so skip the whole sweep instead.
+    console.error('[winback] Aborting sweep — could not load subscribers:', e.message);
+    return;
+  }
+
+  const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
+  if (!guild) { console.error('[winback] Guild unavailable — skipping sweep'); return; }
+
+  const now  = Date.now();
+  const due  = Object.entries(state.users)
+    .filter(([, u]) => u.n && u.n <= now)
+    .sort((a, b) => a[1].n - b[1].n)          // longest-overdue first
+    .slice(0, WINBACK_MAX_PER_RUN);
+
+  if (!due.length) return;
+  console.log(`[winback] Sweep starting — ${due.length} due (${Object.keys(state.users).length} tracked)`);
+
+  let sent = 0, skipped = 0, failed = 0, finished = 0, dirty = 0;
+
+  for (const [discordId, u] of due) {
+    // Subscribed since being seeded — drop them from the campaign entirely.
+    if (activeIds.has(discordId)) {
+      delete state.users[discordId];
+      skipped++; dirty++;
+      continue;
+    }
+
+    const member = await guild.members.fetch(discordId).catch(() => null);
+    if (!member) {                 // left the server
+      delete state.users[discordId];
+      skipped++; dirty++;
+      continue;
+    }
+
+    try {
+      await member.send(buildWinbackPayload({ username: member.user.username }));
+      sent++;
+    } catch (e) {
+      // Closed DMs are the common case and are not worth retrying — advance the
+      // schedule regardless so a locked-down user is not retried every sweep.
+      console.log(`[winback] DM failed for ${member.user.tag}: ${e.message}`);
+      failed++;
+    }
+
+    const stage = u.s + 1;
+    const gap   = winbackNextGapDays(stage);
+    if (gap === null) { delete state.users[discordId]; finished++; }
+    else              { state.users[discordId] = { s: stage, n: Date.now() + gap * DAY_MS }; }
+    dirty++;
+
+    // Checkpoint periodically — a crash mid-sweep should not replay hundreds of DMs.
+    if (dirty >= 25) { await saveWinbackState(state); dirty = 0; }
+
+    await sleep(WINBACK_DM_DELAY_MS);
+  }
+
+  await saveWinbackState(state);
+  console.log(`[winback] Sweep done — sent ${sent}, failed ${failed}, dropped ${skipped}, sequence-complete ${finished}`);
+}
+
+// Seed every current non-subscriber for an immediate first send. Owner-only,
+// runs once; re-running only picks up members who joined since.
+async function runWinbackRollout(guild) {
+  const activeIds = await fetchActiveSubscriberIds();
+  const members   = await guild.members.fetch();
+  const state     = await loadWinbackState();
+
+  let seeded = 0;
+  for (const [, member] of members) {
+    if (member.user.bot)              continue;
+    if (member.id === OWNER_ID)       continue;
+    if (activeIds.has(member.id))     continue;
+    if (seedWinbackUser(state, member.id, 0)) seeded++;
+  }
+
+  state.rolled_out_at = state.rolled_out_at || new Date().toISOString();
+  state.paused = false;
+  await saveWinbackState(state);
+  console.log(`[winback] Rollout — ${seeded} members queued for an immediate DM`);
+  return { seeded, tracked: Object.keys(state.users).length };
+}
 
 client.on('interactionCreate', async (interaction) => {
   // ── Button interactions ──────────────────────────────────────────────────────
@@ -3282,10 +3756,17 @@ app.post('/webhook', async (req, res) => {
           )
           .addFields(
             { name: 'Plan',    value: `${TIER_NAMES[tier]} — ${TIER_PRICES[tier]}/mo`, inline: true },
-            { name: 'Channel', value: '#use-vendora', inline: true }
+            { name: 'Channel', value: `<#${USE_VENDORA_CHANNEL_ID}>`, inline: true }
           )
           .setFooter({ text: 'Vendora — The Reseller\'s Edge' })
       ]});
+
+      // They bought — drop them out of the win-back sequence immediately rather
+      // than waiting for the next sweep to notice.
+      try {
+        const wb = await loadWinbackState();
+        if (wb.users[discord_id]) { delete wb.users[discord_id]; await saveWinbackState(wb); }
+      } catch (e) { console.warn('[winback] Could not clear subscriber:', e.message); }
 
       // Owner notification — new subscriber
       if (type === 'INSERT') {
@@ -3309,6 +3790,17 @@ app.post('/webhook', async (req, res) => {
           .setDescription(`Your subscription has ended and your access role has been removed.\n\nResubscribe anytime: ${DASHBOARD_URL}`)
           .setFooter({ text: 'Vendora — The Reseller\'s Edge' })
       ]});
+
+      // Lapsed — restart the win-back sequence from the top, first DM in 2 weeks
+      // (they have just had the "subscription ended" DM; anything sooner is spam).
+      try {
+        const wb = await loadWinbackState();
+        if (wb.rolled_out_at && discord_id !== OWNER_ID) {
+          delete wb.users[discord_id];
+          seedWinbackUser(wb, discord_id, WINBACK_FIRST_DAYS);
+          await saveWinbackState(wb);
+        }
+      } catch (e) { console.warn('[winback] Could not re-enrol lapsed user:', e.message); }
 
       // Owner notification — cancellation
       await sendOwnerDM(guild, { embeds: [
@@ -5409,11 +5901,10 @@ app.post('/api/vinted/connect-login', async (req, res) => {
 // Uses Apify actor REST API — NOT the Apify proxy. Works on the free Apify plan.
 //
 // Strategy:
-//   • Username → ID lookup: APIFY_VINTED_USER_ACTOR with maxItems:1 (fast)
+//   • Username → ID lookup: vintedBrowserLookupUser (browser, free)
 //   • Inventory fetch (have numeric ID): APIFY_VINTED_ACTOR with catalog URL
 //       https://www.vinted.co.uk/catalog?seller_ids[]=ID  ← same actor used for
 //       keyword search, proven reliable, returns all items for that seller
-//   • Inventory fetch (username only, no ID): APIFY_VINTED_USER_ACTOR with member URL
 
 // Helper: run any Apify actor and return the dataset array, or [] on error.
 async function apifyRunActor(actorId, input, timeoutSec = 90) {
@@ -5440,80 +5931,9 @@ async function apifyRunActor(actorId, input, timeoutSec = 90) {
   return [];
 }
 
-// Resolve a Vinted username → numeric user ID.
-// Uses APIFY_VINTED_USER_ACTOR with maxItems:1 — only needs one item to extract
-// the seller.id, so it completes fast without full-page timeout risk.
-// Returns { id, login } on success, null if not found.
-async function apifyVintedFetchUserByUsername(username) {
-  if (!APIFY_TOKEN) return null;
-  const clean = String(username || '').trim().replace(/^@/, '');
-  if (!clean) return null;
-  const memberUrl = `https://www.vinted.co.uk/member/${encodeURIComponent(clean)}/items`;
-  try {
-    const items = await apifyRunActor(APIFY_VINTED_USER_ACTOR, {
-      startUrls:  [{ url: memberUrl }],
-      urls:       [memberUrl],
-      maxItems:   1,   // only need 1 item to get seller.id — much faster
-      maxResults: 1,
-      country:    'gb', countryCode: 'gb',
-    }, 60);
-    if (!items.length) { console.log(`[apify-user-lookup] no items returned for @${clean}`); return null; }
-    // Accept only items where seller.username matches exactly
-    const match = items.find(i => {
-      const s = i.seller || i.user || {};
-      return (s.username || s.login || s.name || '').toLowerCase() === clean.toLowerCase();
-    });
-    if (!match) { console.log(`[apify-user-lookup] ${items.length} items but none from @${clean}`); return null; }
-    const seller   = match.seller || match.user || {};
-    const sellerId = seller.id || seller.userId || match?.userId || match?.sellerId;
-    const login    = seller.username || seller.login || clean;
-    if (sellerId) { console.log(`[apify-user-lookup] @${clean} → id ${sellerId}`); return { id: sellerId, login }; }
-    return null;
-  } catch (e) { console.warn('[apify-user-lookup]', e.message); return null; }
-}
-
-// Fetch a user's active Vinted listings.
-// • If we have a numeric seller ID: use the SEARCH actor with a catalog URL filtered
-//   by seller_ids[]. This is the same actor used for keyword search and is reliable.
-// • If only username: fall back to APIFY_VINTED_USER_ACTOR with member page URL.
-async function apifyVintedFetchUserItems(usernameOrId, _base, perPage = 96) {
-  if (!APIFY_TOKEN || !usernameOrId) return [];
-  const clean = String(usernameOrId).trim();
-  const isNumericId = /^\d+$/.test(clean);
-
-  if (isNumericId) {
-    // Catalog URL with seller filter — works with the existing search actor, reliable
-    const catalogUrl = `https://www.vinted.co.uk/catalog?seller_ids[]=${clean}&order=newest_first&per_page=${Math.min(perPage, 96)}`;
-    console.log(`[apify-user-items] fetching by seller_id=${clean} via catalog URL`);
-    try {
-      const items = await apifyRunActor(APIFY_VINTED_ACTOR, {
-        startUrls:  [{ url: catalogUrl }],
-        maxItems:   perPage,
-        maxResults: perPage,
-        country:    'gb', countryCode: 'gb',
-      }, 90);
-      console.log(`[apify-user-items] catalog URL returned ${items.length} items for seller ${clean}`);
-      return items;
-    } catch (e) { console.warn('[apify-user-items] catalog URL error:', e.message); return []; }
-  }
-
-  // Username-only fallback — member page URL via user actor
-  const memberUrl = `https://www.vinted.co.uk/member/${encodeURIComponent(clean)}/items`;
-  console.log(`[apify-user-items] no numeric ID, trying member URL for @${clean}`);
-  try {
-    const items = await apifyRunActor(APIFY_VINTED_USER_ACTOR, {
-      startUrls:    [{ url: memberUrl }],
-      urls:         [memberUrl],
-      profileUrls:  [memberUrl],
-      memberUrl:    memberUrl,
-      maxItems:     perPage,
-      maxResults:   perPage,
-      country:      'gb', countryCode: 'gb',
-    }, 90);
-    console.log(`[apify-user-items] member URL returned ${items.length} items for @${clean}`);
-    return items;
-  } catch (e) { console.warn('[apify-user-items] member URL error:', e.message); return []; }
-}
+// Removed: apifyVintedFetchUserByUsername / apifyVintedFetchUserItems.
+// Both were Apify-only user-profile fetchers with zero callers — the Vinted
+// connect flow moved to vintedBrowserLookupUser. Deleted with APIFY_VINTED_USER_ACTOR.
 
 function normaliseVintedItem(it, base = 'https://www.vinted.co.uk') {
   // Handle both raw Vinted API format and Apify actor output format.
@@ -7133,7 +7553,7 @@ async function watchlistImmediateFetch(itemId, url) {
     const itemNumId = idMatch[1];
 
     // Primary: Apify actor ITEM_DETAIL mode (purpose-built, residential proxy).
-    let item = await apifyVintedItemDetail(url);
+    let item = await vintedItemDetail(url);
     // Fallback: direct item-detail API with a connected token (Vinted often 404s this).
     if (!item || !item.price) {
       const d = await fetchVintedItemDirect(itemNumId, url);
@@ -7244,8 +7664,9 @@ app.post('/api/vinted-alerts', async (req, res) => {
   const existing = await dbGetVintedAlerts(discordId);
   if (existing.length >= max) return res.status(400).json({ error: `Alert limit reached (${max})` });
 
-  // Baseline with Apify so only NEW items trigger alerts
-  const initial  = APIFY_TOKEN ? await apifyVintedSearch(keyword.trim(), 20) : [];
+  // Baseline so only NEW items trigger alerts. Browser-first — see the /vinted-alert
+  // handler above for why this must not be a paid call.
+  const initial  = await alertKeywordSearch(keyword.trim(), 20);
   const seenIds  = (initial || []).map(i => i.id).filter(Boolean);
 
   await dbAddVintedAlert(discordId, keyword.trim(), max_price || null);
@@ -7330,6 +7751,43 @@ function findSupportChannel(guild) {
     guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.name === '❓｜support') ||
     guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.name.toLowerCase().includes('support'))
   );
+}
+
+// ── Server rules embed ────────────────────────────────────────────────────────
+function findRulesChannel(guild) {
+  if (!guild) return null;
+  return guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.name.toLowerCase().includes('rules'));
+}
+
+function buildRulesEmbed() {
+  return new EmbedBuilder()
+    .setColor('#e8217a')
+    .setAuthor({ name: 'VENDORA' })
+    .setTitle('Server rules')
+    .setThumbnail('https://vendora.site/vendora-icon.png')
+    .setDescription(
+      'Short list. Read it once, follow it, and this stays a place worth being in.\n\n' +
+      '**1 — Respect the room.** Disagree with the take, not the person. No harassment, slurs, or pile-ons.\n\n' +
+      '**2 — No advertising.** No promo, referral links, or DM pitches to members. That includes Vendora affiliate links — share those outside the server.\n\n' +
+      `**3 — Keep channels on topic.** Sourcing talk in sourcing, tool questions in <#${USE_VENDORA_CHANNEL_ID}>, everything else in general.\n\n` +
+      '**4 — Don\'t share accounts.** One Discord account, one subscription. Sharing logins or reselling access ends the plan with no refund.\n\n' +
+      '**5 — Trade at your own risk.** Member-to-member deals are not endorsed or protected by Vendora. We do not mediate them.\n\n' +
+      '**6 — Billing goes to a ticket.** Subscription, refund, or access issues belong in support, not in public channels.\n\n' +
+      '**7 — Discord\'s rules apply on top.** Terms of Service and Community Guidelines, always.'
+    )
+    .addFields(
+      { name: 'Enforcement',      value: 'Warn, then mute, then ban. Scams and slurs skip straight to ban.', inline: true },
+      { name: 'Something wrong?', value: 'Report it to a mod in DMs. Don\'t handle it in chat.',            inline: true }
+    )
+    .setFooter({ text: 'Vendora — The Reseller\'s Edge' })
+    .setTimestamp();
+}
+
+function buildRulesButtons() {
+  return [new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setLabel('Open dashboard').setStyle(ButtonStyle.Link).setURL(DASHBOARD_URL),
+    new ButtonBuilder().setLabel('View plans').setStyle(ButtonStyle.Link).setURL(`${SITE_URL}/#pricing`)
+  )];
 }
 
 // ── Ticket: owner opens thread from DM button ─────────────────────────────────
@@ -7793,10 +8251,13 @@ app.post('/api/admin/announce/channel', async (req, res) => {
     if (channel_id) {
       // Prefer ID-based lookup — reliable even if channel is renamed
       channel = guild.channels.cache.get(channel_id);
-    } else {
+    } else if (channel_name) {
       // Fallback: name-based lookup
-      const targetName = (channel_name || 'use-vendora').replace(/^#/, '');
+      const targetName = channel_name.replace(/^#/, '');
       channel = guild.channels.cache.find(c => c.name === targetName && c.type === ChannelType.GuildText);
+    } else {
+      // Neither given — default to the command channel, by ID so a rename can't break it
+      channel = guild.channels.cache.get(USE_VENDORA_CHANNEL_ID);
     }
 
     if (!channel) return res.status(404).json({ error: 'Channel not found' });
@@ -8239,7 +8700,7 @@ async function runWatchlistCheck(allowedTiers, label) {
           if (isVintedUrl) {
             // ── Vinted URL: item detail API with connected token + proxy ──────
             const idM = wl.item.match(/\/items\/(\d+)/);
-            let vintedItem = await apifyVintedItemDetail(wl.item);
+            let vintedItem = await vintedItemDetail(wl.item);
             if ((!vintedItem || !vintedItem.price) && idM) {
               const d = await fetchVintedItemDirect(idM[1], wl.item);
               if (d && d.price) vintedItem = d;
@@ -9479,6 +9940,257 @@ async function processVintedAlerts(allowedTiers, label) {
 // Elite alerts every 5 minutes (wins items first); Pro alerts every 30 minutes.
 cron.schedule('*/5 * * * *',  () => processVintedAlerts(['elite'], 'elite'));
 cron.schedule('*/30 * * * *', () => processVintedAlerts(['pro'],   'pro'));
+
+// ── The Market: global deal feed ─────────────────────────────────────────────
+// Distinct from processVintedAlerts above, which is per-user and DM-only. This
+// searches an owner-curated keyword list and posts genuinely underpriced finds
+// to #early-deals immediately, then to #deals after PRO_DELAY_MS.
+//
+// Runs on alertKeywordSearch, so it is the free browser path — a paid-search
+// version of this cron would bill roughly $0.06 per keyword per run.
+
+async function postToFeedChannel(channelId, payload, label) {
+  try {
+    const channel = await client.channels.fetch(channelId).catch(() => null);
+    if (!channel) {
+      console.warn(`[feed:${label}] Channel ${channelId} not found — skipping`);
+      return false;
+    }
+    await channel.send(payload);
+    return true;
+  } catch (e) {
+    console.warn(`[feed:${label}] Post failed:`, e.message);
+    return false;
+  }
+}
+
+// The Pro copy of a find waits PRO_DELAY_MS. That wait is held in the settings
+// table rather than a setTimeout: Railway redeploys often, and an in-memory
+// timer would silently drop every queued find on each deploy — Pro members
+// would see gaps with nothing in the logs to explain them.
+const DEAL_QUEUE_KEY = 'deal_feed_queue';
+const FEED_SEEN_KEY  = 'deal_feed_seen_ids';
+const FEED_STATS_KEY = 'feed_keyword_stats';
+
+async function runDealFeed() {
+  if (!SUPABASE_KEY) return;
+  if (!vintedBrowser?.vintedBrowserSearchItems && !APIFY_TOKEN) return;
+
+  try {
+    const keywords = (await getSetting('feed_keywords')) || feeds.DEFAULT_KEYWORDS;
+    if (!Array.isArray(keywords) || !keywords.length) return;
+
+    const seen  = new Set((await getSetting(FEED_SEEN_KEY)) || []);
+    const queue = (await getSetting(DEAL_QUEUE_KEY)) || [];
+    const stats = (await getSetting(FEED_STATS_KEY)) || {};
+    let posted = 0, sampled = 0;
+
+    for (const keyword of keywords) {
+      try {
+        const items = await alertKeywordSearch(keyword, 20);
+        if (!items?.length) continue;
+
+        const { median: med, picks } = feeds.pickUnderpriced(items);
+
+        // Record the median every run whether or not anything was underpriced —
+        // #whats-selling reports price movement, which needs the quiet weeks too.
+        if (med) {
+          const s = stats[keyword] || { medians: [], finds: 0 };
+          // At most one sample an hour. The feed runs every 10 minutes, and
+          // storing all of those would put ~2,000 points per keyword into a
+          // single settings row for no extra signal — hourly is finer than any
+          // report that reads it.
+          const last = s.medians[s.medians.length - 1];
+          if (!last || Date.now() - last.t >= 55 * 60 * 1000) {
+            s.medians.push({ t: Date.now(), median: med });
+            s.medians = s.medians.filter(m => m.t > Date.now() - 14 * 24 * 60 * 60 * 1000);
+            sampled++;
+          }
+          stats[keyword] = s;
+        }
+        // Only ever post a listing once, however many runs it survives.
+        const fresh = picks.filter(p => p.id && !seen.has(p.id));
+        if (!fresh.length) continue;
+
+        const payloadElite = feeds.buildDealPayload({ keyword, picks: fresh, median: med, tier: 'elite' });
+        if (await postToFeedChannel(feeds.CHANNELS.earlyDeals, payloadElite, 'early-deals')) {
+          posted++;
+          queue.push({
+            dueAt: Date.now() + feeds.PRO_DELAY_MS,
+            keyword,
+            median: med,
+            picks: fresh,
+          });
+        }
+
+        stats[keyword].finds = (stats[keyword].finds || 0) + fresh.length;
+        // Best discount of the week, for the Pro trend report.
+        const best = Math.max(...fresh.map(p => p.discountPct || 0));
+        if (best > (stats[keyword].bestDiscountPct || 0)) stats[keyword].bestDiscountPct = best;
+        fresh.forEach(p => seen.add(p.id));
+      } catch (e) {
+        console.warn(`[feed:deals] "${keyword}" failed:`, e.message);
+      }
+    }
+
+    if (sampled) await saveSetting(FEED_STATS_KEY, stats);
+    if (posted) {
+      await saveSetting(DEAL_QUEUE_KEY, queue);
+      await saveSetting(FEED_SEEN_KEY, [...seen].slice(-1000));
+      console.log(`[feed:deals] Posted ${posted} find(s) to #early-deals, ${queue.length} queued for #deals.`);
+    }
+  } catch (e) {
+    console.error('[feed:deals] Fatal:', e.message);
+  }
+}
+
+// Releases queued finds into #deals once their delay has elapsed.
+async function flushDealQueue() {
+  if (!SUPABASE_KEY) return;
+  try {
+    const queue = (await getSetting(DEAL_QUEUE_KEY)) || [];
+    if (!queue.length) return;
+
+    const now = Date.now();
+    const due = queue.filter(q => q.dueAt <= now);
+    if (!due.length) return;
+
+    for (const item of due) {
+      const payload = feeds.buildDealPayload({
+        keyword: item.keyword,
+        picks:   item.picks,
+        median:  item.median,
+        tier:    'pro',
+      });
+      await postToFeedChannel(feeds.CHANNELS.deals, payload, 'deals');
+    }
+
+    await saveSetting(DEAL_QUEUE_KEY, queue.filter(q => q.dueAt > now));
+    console.log(`[feed:deals] Released ${due.length} find(s) to #deals.`);
+  } catch (e) {
+    console.error('[feed:deals] Flush failed:', e.message);
+  }
+}
+
+// Every 10 minutes: fresh enough that the Elite edge is real, infrequent enough
+// that a long keyword list does not keep a browser open continuously.
+cron.schedule('*/10 * * * *', () => runDealFeed().catch(e => console.error('[feed:deals] Unhandled:', e.message)));
+cron.schedule('* * * * *',    () => flushDealQueue().catch(e => console.error('[feed:deals] Unhandled flush:', e.message)));
+
+// ── The Market: weekly #whats-selling ────────────────────────────────────────
+// The only channel in the category a non-subscriber can read, so it reports
+// movement rather than listings — useful to someone who buys nothing this week,
+// and it gives nothing away that Pro and Elite are paying for.
+async function runWhatsSelling() {
+  if (!SUPABASE_KEY) return;
+  try {
+    const stats = (await getSetting(FEED_STATS_KEY)) || {};
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+    const rows = Object.entries(stats).map(([keyword, s]) => {
+      const recent = (s.medians || []).filter(m => m.t > weekAgo);
+      if (recent.length < 2) return null;
+      const first = recent[0].median;
+      const last  = recent[recent.length - 1].median;
+      return {
+        keyword,
+        median: last,
+        medianChangePct: first ? Math.round(((last - first) / first) * 100) : 0,
+        finds: s.finds || 0,
+      };
+    }).filter(Boolean);
+
+    // A report built on one or two categories reads as broken rather than quiet.
+    if (rows.length < 3) {
+      console.log(`[feed:whats-selling] Only ${rows.length} categories with a week of data — skipping.`);
+      return;
+    }
+
+    await postToFeedChannel(feeds.CHANNELS.whatsSelling, feeds.buildWhatsSellingPayload({ rows }), 'whats-selling');
+
+    // Reset the weekly counters; the medians stay for trend continuity.
+    // bestDiscountPct must reset too or the trend report would report an
+    // all-time best as though it happened this week.
+    for (const k of Object.keys(stats)) { stats[k].finds = 0; stats[k].bestDiscountPct = 0; }
+    await saveSetting(FEED_STATS_KEY, stats);
+    console.log(`[feed:whats-selling] Posted weekly summary across ${rows.length} categories.`);
+  } catch (e) {
+    console.error('[feed:whats-selling] Failed:', e.message);
+  }
+}
+
+cron.schedule('0 18 * * 0', () => runWhatsSelling().catch(e => console.error('[feed:whats-selling] Unhandled:', e.message)), { timezone: 'Europe/London' });
+
+// ── The Market: #price-drops (Pro+) ──────────────────────────────────────────
+// Category going-rate drops, from the same hourly medians the deal feed already
+// records. Costs nothing extra: no new searches, no Apify, no watchlist reads.
+const PRICE_DROP_POSTED_KEY = 'price_drop_last_posted';
+
+async function runPriceDrops() {
+  if (!SUPABASE_KEY) return;
+  try {
+    const stats = (await getSetting(FEED_STATS_KEY)) || {};
+    const drops = feeds.detectPriceDrops(stats);
+    if (!drops.length) return;
+
+    // A category that is drifting down stays "dropped" for days. Without this
+    // the channel would repost the same three categories every six hours until
+    // members mute it.
+    const posted = (await getSetting(PRICE_DROP_POSTED_KEY)) || {};
+    const now = Date.now();
+    const fresh = drops.filter(d => !posted[d.keyword] || now - posted[d.keyword] > 3 * 24 * 60 * 60 * 1000);
+    if (!fresh.length) return;
+
+    await postToFeedChannel(feeds.CHANNELS.priceDrops, feeds.buildPriceDropPayload({ drops: fresh }), 'price-drops');
+    fresh.forEach(d => { posted[d.keyword] = now; });
+    await saveSetting(PRICE_DROP_POSTED_KEY, posted);
+    console.log(`[feed:price-drops] Posted ${fresh.length} category drop(s).`);
+  } catch (e) {
+    console.error('[feed:price-drops] Failed:', e.message);
+  }
+}
+
+cron.schedule('40 */6 * * *', () => runPriceDrops().catch(e => console.error('[feed:price-drops] Unhandled:', e.message)));
+
+// ── The Market: #trend-reports (Pro+) ────────────────────────────────────────
+// The paid depth behind #whats-selling — every category rather than the top six,
+// with the week's best find. Posts before the free summary so Pro sees it first.
+async function runTrendReport() {
+  if (!SUPABASE_KEY) return;
+  try {
+    const stats = (await getSetting(FEED_STATS_KEY)) || {};
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+    const rows = Object.entries(stats).map(([keyword, s]) => {
+      const recent = (s.medians || []).filter(m => m.t > weekAgo);
+      if (recent.length < 2) return null;
+      const first = recent[0].median;
+      const last  = recent[recent.length - 1].median;
+      return {
+        keyword,
+        median: last,
+        medianChangePct: first ? Math.round(((last - first) / first) * 100) : 0,
+        finds: s.finds || 0,
+        bestDiscountPct: s.bestDiscountPct || 0,
+      };
+    }).filter(Boolean);
+
+    if (!rows.length) {
+      console.log('[feed:trend-report] No category has a week of data yet — skipping.');
+      return;
+    }
+
+    await postToFeedChannel(feeds.CHANNELS.trendReports, feeds.buildTrendReportPayload({ rows }), 'trend-reports');
+    console.log(`[feed:trend-report] Posted weekly report across ${rows.length} categories.`);
+  } catch (e) {
+    console.error('[feed:trend-report] Failed:', e.message);
+  }
+}
+
+// Sunday 17:00 — an hour before the free #whats-selling summary, so the paid
+// channel is genuinely first rather than a fuller version of old news.
+// runWhatsSelling resets the find counters, so this must stay ahead of it.
+cron.schedule('0 17 * * 0', () => runTrendReport().catch(e => console.error('[feed:trend-report] Unhandled:', e.message)), { timezone: 'Europe/London' });
 
 // ── Onboarding quiz handler ──────────────────────────────────────────────────
 // Advances the quiz in place: each click edits the same DM rather than posting
