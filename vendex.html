@@ -18,61 +18,106 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --pink:#e8217a; --pink-soft:rgba(232,33,122,0.10); --border:rgba(232,33,122,0.14);
+  :root{
+    --pink:#e8217a; --pink-soft:rgba(232,33,122,.10); --border:rgba(232,33,122,.14);
     --gold:#e8a121; --green:#4ade80; --red:#f87171;
     --bg:#090909; --bg2:#0d0d0d; --bg3:#111; --bg4:#161616;
-    --border-dim:rgba(255,255,255,0.06); --text:#f0f0f0; --muted:#777; --muted2:rgba(255,255,255,0.35);
+    --line:rgba(255,255,255,.06); --text:#f0f0f0; --muted:#777; --muted2:rgba(255,255,255,.35);
   }
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;-webkit-font-smoothing:antialiased}
-  a{color:inherit}
-  .inner{max-width:1080px;margin:0 auto;padding:0 32px}
+  .inner{max-width:1120px;margin:0 auto;padding:0 32px}
+  [hidden]{display:none!important}
 
-  nav{position:sticky;top:0;z-index:50;padding:16px 0;background:rgba(9,9,9,.86);backdrop-filter:blur(24px);border-bottom:1px solid rgba(255,255,255,.04)}
+  nav{position:sticky;top:0;z-index:50;padding:14px 0;background:rgba(9,9,9,.86);backdrop-filter:blur(24px);border-bottom:1px solid var(--line)}
   nav .inner{display:flex;align-items:center;justify-content:space-between}
-  .logo{display:flex;align-items:center;gap:11px;text-decoration:none}
-  .logo img{width:30px;height:30px;object-fit:contain;filter:drop-shadow(0 0 8px rgba(232,33,122,.4))}
-  .logo span{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
-  .nav-cta{border:1px solid var(--border);color:var(--pink);padding:7px 16px;border-radius:3px;font-size:12px;
+  .logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit}
+  .logo img{width:28px;height:28px;object-fit:contain;filter:drop-shadow(0 0 8px rgba(232,33,122,.4))}
+  .logo span{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+  .nav-cta{border:1px solid var(--border);color:var(--pink);padding:6px 15px;border-radius:3px;font-size:11px;
            letter-spacing:.08em;text-transform:uppercase;text-decoration:none;transition:background .15s}
   .nav-cta:hover{background:var(--pink-soft)}
 
-  header{padding:72px 0 40px}
-  .eyebrow{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);background:var(--pink-soft);
-           padding:5px 13px;border-radius:100px;font-size:10px;font-weight:500;letter-spacing:.14em;
-           text-transform:uppercase;color:var(--pink);margin-bottom:22px}
-  .dot{width:6px;height:6px;border-radius:50%;background:var(--pink)}
-  h1{font-family:'Syne',sans-serif;font-size:clamp(44px,7vw,76px);font-weight:800;line-height:.95;letter-spacing:-.02em}
-  h1 .dim{color:var(--muted2)}
-  .lede{margin-top:22px;max-width:620px;color:var(--muted);font-size:17px;line-height:1.6}
+  /* ── Masthead: the index value is the headline, not the wordmark ───────── */
+  header{padding:44px 0 28px;border-bottom:1px solid var(--line)}
+  .mast{display:flex;align-items:flex-end;justify-content:space-between;gap:40px;flex-wrap:wrap}
+  .eyebrow{display:inline-flex;align-items:center;gap:7px;font-size:10px;font-weight:500;letter-spacing:.16em;
+           text-transform:uppercase;color:var(--pink);margin-bottom:14px}
+  .dot{width:5px;height:5px;border-radius:50%;background:var(--pink);animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  h1{font-family:'Syne',sans-serif;font-size:clamp(38px,5.4vw,60px);font-weight:800;line-height:.95;letter-spacing:-.025em}
+  h1 .dim{color:var(--muted2);font-weight:700}
+  .lede{margin-top:16px;max-width:520px;color:var(--muted);font-size:15px;line-height:1.6}
   .lede strong{color:var(--text);font-weight:500}
-  .meta{margin-top:26px;display:flex;gap:28px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
-  .meta b{color:var(--text);font-weight:500}
 
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;padding:20px 0 80px}
-  .card{background:var(--bg3);border:1px solid var(--border-dim);border-radius:10px;padding:20px 22px;
-        transition:border-color .2s,transform .2s}
-  .card:hover{border-color:var(--border);transform:translateY(-2px)}
-  .kw{font-family:'Syne',sans-serif;font-size:15px;font-weight:600;letter-spacing:.01em;text-transform:capitalize}
-  .price{font-family:'Syne',sans-serif;font-size:34px;font-weight:800;margin:10px 0 2px;letter-spacing:-.02em}
-  .sub{font-size:12px;color:var(--muted2)}
-  .changes{display:flex;gap:18px;margin-top:14px;font-size:13px}
-  .chg b{font-weight:600}
+  .readout{text-align:right;min-width:230px}
+  .readout .lbl{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted2);margin-bottom:6px}
+  .readout .val{font-family:'Syne',sans-serif;font-size:clamp(48px,7vw,72px);font-weight:800;line-height:1;letter-spacing:-.03em}
+  .readout .deltas{display:flex;gap:16px;justify-content:flex-end;margin-top:10px;font-size:13px}
+  .readout .deltas span{color:var(--muted2);font-size:10px;letter-spacing:.1em;text-transform:uppercase;display:block}
+  .readout .basis{margin-top:10px;font-size:11px;color:var(--muted2)}
+
   .up{color:var(--green)} .down{color:var(--red)} .flat{color:var(--muted)}
-  .chg span{color:var(--muted2);font-size:11px;display:block;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
-  svg.spark{display:block;width:100%;height:44px;margin-top:16px;overflow:visible}
 
-  .note{border:1px solid var(--border-dim);border-left:2px solid var(--pink);background:var(--bg2);
-        border-radius:6px;padding:16px 20px;margin:8px 0 28px;color:var(--muted);font-size:14px;line-height:1.6}
+  /* ── Movers ────────────────────────────────────────────────────────────── */
+  .movers{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:26px 0 0}
+  .mover{background:var(--bg3);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:flex;
+         align-items:center;gap:14px}
+  .mover .arrow{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;line-height:1}
+  .mover .body{min-width:0}
+  .mover .t{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted2)}
+  .mover .n{font-family:'Syne',sans-serif;font-size:16px;font-weight:600;text-transform:capitalize;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mover .v{font-size:13px;margin-top:1px}
+
+  /* ── Toolbar ───────────────────────────────────────────────────────────── */
+  .bar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:34px 0 14px;flex-wrap:wrap}
+  .bar h2{font-family:'Syne',sans-serif;font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .sorts{display:flex;gap:6px}
+  .sortbtn{background:transparent;border:1px solid var(--line);color:var(--muted);font-family:inherit;font-size:11px;
+           letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border-radius:3px;cursor:pointer;transition:.15s}
+  .sortbtn:hover{color:var(--text);border-color:var(--border)}
+  .sortbtn[aria-pressed="true"]{color:var(--pink);border-color:var(--border);background:var(--pink-soft)}
+
+  /* ── Cards ─────────────────────────────────────────────────────────────── */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px;padding-bottom:72px}
+  .card{position:relative;background:var(--bg3);border:1px solid var(--line);border-radius:10px;padding:18px 20px 16px;
+        transition:border-color .2s,transform .2s;overflow:hidden}
+  .card:hover{border-color:var(--border);transform:translateY(-2px)}
+  /* A moving category should look like one. Intensity scales with magnitude. */
+  .card::before{content:'';position:absolute;inset:0 auto 0 0;width:2px;background:var(--edge,transparent)}
+  .kw{font-family:'Syne',sans-serif;font-size:14px;font-weight:600;text-transform:capitalize;color:var(--text)}
+  .row1{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:8px}
+  .price{font-family:'Syne',sans-serif;font-size:30px;font-weight:800;letter-spacing:-.02em}
+  .badge{font-size:12px;font-weight:600;padding:3px 8px;border-radius:100px;white-space:nowrap}
+  .badge.up{background:rgba(74,222,128,.1)} .badge.down{background:rgba(248,113,113,.1)}
+  .badge.flat{background:rgba(255,255,255,.05)}
+  .sub{font-size:11px;color:var(--muted2);margin-top:3px}
+  .sparkwrap{position:relative;margin-top:14px}
+  svg.spark{display:block;width:100%;height:46px;overflow:visible}
+  .scale{display:flex;justify-content:space-between;font-size:10px;color:var(--muted2);margin-top:5px;letter-spacing:.04em}
+  .foot{display:flex;justify-content:space-between;font-size:11px;color:var(--muted2);margin-top:12px;
+        padding-top:11px;border-top:1px solid var(--line)}
+
+  .note{border:1px solid var(--line);border-left:2px solid var(--pink);background:var(--bg2);border-radius:6px;
+        padding:15px 18px;margin-top:26px;color:var(--muted);font-size:13.5px;line-height:1.6}
   .note b{color:var(--text);font-weight:500}
-  .state{padding:60px 0;text-align:center;color:var(--muted)}
+  .state{padding:70px 0;text-align:center;color:var(--muted)}
 
-  footer{border-top:1px solid var(--border-dim);padding:32px 0 48px;color:var(--muted2);font-size:13px}
+  footer{border-top:1px solid var(--line);padding:28px 0 44px;color:var(--muted2);font-size:12.5px}
   footer .inner{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
   footer a{color:var(--muted);text-decoration:none}
   footer a:hover{color:var(--text)}
-  @media(max-width:640px){.inner{padding:0 20px}header{padding:48px 0 28px}}
+
+  @media(max-width:760px){
+    .inner{padding:0 20px}
+    .mast{flex-direction:column;align-items:flex-start;gap:24px}
+    .readout{text-align:left;min-width:0}
+    .readout .deltas{justify-content:flex-start}
+    .movers{grid-template-columns:1fr}
+    .bar{align-items:flex-start}
+  }
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
@@ -83,67 +128,102 @@
 </div></nav>
 
 <header><div class="inner">
-  <div class="eyebrow"><span class="dot"></span> Updated hourly</div>
-  <h1>Vendex<br><span class="dim">the UK resale index</span></h1>
-  <p class="lede">
-    The <strong>median asking price</strong> across UK Vinted, sampled every hour by Vendora.
-    A rising median means the market will pay more — sell into it. A falling one means
-    stock is getting cheaper — source into it.
-  </p>
-  <div class="meta">
-    <div>Categories <b id="m-count">—</b></div>
-    <div>Last updated <b id="m-updated">—</b></div>
-    <div>Source <b>Live Vinted listings</b></div>
+  <div class="mast">
+    <div>
+      <div class="eyebrow"><span class="dot"></span> Live · sampled hourly</div>
+      <h1>Vendex<br><span class="dim">the UK resale index</span></h1>
+      <p class="lede">
+        The <strong>median asking price</strong> across UK Vinted. A rising index means the
+        market will pay more — sell into it. A falling one means stock is getting cheaper —
+        source into it.
+      </p>
+    </div>
+    <div class="readout">
+      <div class="lbl">Index</div>
+      <div class="val" id="idx-val">—</div>
+      <div class="deltas">
+        <div><span>24h</span><b id="idx-24">—</b></div>
+        <div><span>7d</span><b id="idx-7">—</b></div>
+      </div>
+      <div class="basis" id="idx-basis">Equal-weighted · base 100</div>
+    </div>
+  </div>
+  <div class="movers" id="movers" hidden>
+    <div class="mover" id="mover-up"></div>
+    <div class="mover" id="mover-down"></div>
   </div>
 </div></header>
 
 <div class="inner">
   <div class="note" id="young" hidden>
-    <b>Vendex is still filling up.</b> The index samples once an hour, so weekly movement
-    needs a week of data before it means anything. Daily change appears after 48 hours,
-    weekly after eight days. Numbers shown are real from the first sample.
+    <b>Vendex is still filling up.</b> It samples once an hour, so daily movement appears
+    after 48 hours and weekly after eight days. Every price shown is real from the first
+    reading — only the change figures need time.
   </div>
+
+  <div class="bar" id="bar" hidden>
+    <h2>Categories</h2>
+    <div class="sorts" role="group" aria-label="Sort categories">
+      <button class="sortbtn" data-sort="move" aria-pressed="true">Biggest move</button>
+      <button class="sortbtn" data-sort="price" aria-pressed="false">Price</button>
+      <button class="sortbtn" data-sort="name" aria-pressed="false">A–Z</button>
+    </div>
+  </div>
+
   <div id="state" class="state">Loading the index…</div>
   <div class="grid" id="grid"></div>
 </div>
 
 <footer><div class="inner">
-  <div>Vendex is built from public Vinted listings. Asking prices, not sold prices.</div>
+  <div>Built from public Vinted listings. Asking prices, not sold prices.</div>
   <div><a href="/">Vendora</a> · <a href="/#pricing">Plans</a> · <a href="/vendora-tos.html">Terms</a></div>
 </div></footer>
 
 <script>
   var BOT_API = 'https://vendora-production-8a47.up.railway.app';
+  var CATS = [];
 
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 
-  function pct(v){
-    if (v === null || v === undefined) return '<b class="flat">—</b>';
-    if (v === 0) return '<b class="flat">flat</b>';
-    var cls = v > 0 ? 'up' : 'down';
-    return '<b class="' + cls + '">' + (v > 0 ? '+' : '') + v + '%</b>';
+  function cls(v){ return v === null || v === undefined ? 'flat' : v > 0 ? 'up' : v < 0 ? 'down' : 'flat'; }
+  function fmtPct(v){
+    if (v === null || v === undefined) return '—';
+    if (v === 0) return 'flat';
+    return (v > 0 ? '+' : '') + v + '%';
   }
 
-  // Sparkline, drawn straight from the series. No library — one path, and the
-  // fill makes a short series still read as a shape rather than a stray line.
-  function spark(series){
-    if (!series || series.length < 2) return '';
+  // Sparkline with a scale. A line without min/max is decoration, not data —
+  // and the fill gives a short series enough visual weight to read as a shape.
+  function spark(series, rising){
+    if (!series || series.length < 2) {
+      return '<div class="sub" style="margin-top:14px">Not enough readings to chart yet.</div>';
+    }
     var vals = series.map(function(p){ return p.v; });
     var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
     var range = (max - min) || 1;
-    var W = 100, H = 30;
-    var pts = series.map(function(p, i){
-      var x = (i / (series.length - 1)) * W;
-      var y = H - ((p.v - min) / range) * H;
-      return x.toFixed(2) + ',' + y.toFixed(2);
+    var W = 100, H = 32;
+    var xy = series.map(function(p, i){
+      return [ (i / (series.length - 1)) * W, H - ((p.v - min) / range) * H ];
     });
-    var rising = vals[vals.length - 1] >= vals[0];
+    var line = xy.map(function(p){ return p[0].toFixed(2) + ',' + p[1].toFixed(2); }).join(' ');
+    var area = 'M0,' + H + ' L' + xy.map(function(p){ return p[0].toFixed(2) + ',' + p[1].toFixed(2); }).join(' L') + ' L' + W + ',' + H + ' Z';
     var col = rising ? 'var(--green)' : 'var(--red)';
-    return '<svg class="spark" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">'
-      + '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + col
-      + '" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>'
-      + '</svg>';
+    var last = xy[xy.length - 1];
+    var hours = Math.max(1, Math.round((series[series.length-1].t - series[0].t) / 3600000));
+    var span = hours >= 48 ? Math.round(hours/24) + ' days' : hours + ' hours';
+
+    return '<div class="sparkwrap">'
+      + '<svg class="spark" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="Price trend over the last ' + span + '">'
+      +   '<path d="' + area + '" fill="' + col + '" opacity=".08"/>'
+      +   '<polyline points="' + line + '" fill="none" stroke="' + col + '" stroke-width="1.5" '
+      +     'stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>'
+      +   '<circle cx="' + last[0].toFixed(2) + '" cy="' + last[1].toFixed(2) + '" r="2" fill="' + col + '" vector-effect="non-scaling-stroke"/>'
+      + '</svg>'
+      // Low/high, not first/last — reading them as chronological would invert
+      // the story on any falling series.
+      + '<div class="scale"><span>last ' + span + '</span><span>range £' + min.toFixed(0) + '–£' + max.toFixed(0) + '</span></div>'
+      + '</div>';
   }
 
   function ago(ts){
@@ -154,42 +234,94 @@
     return h === 1 ? 'an hour ago' : h + ' hours ago';
   }
 
+  function card(c){
+    var mv = c.change24h !== null && c.change24h !== undefined ? c.change24h : c.change7d;
+    var k = cls(mv);
+    // Left edge intensity tracks magnitude, so a big mover is visible at a glance.
+    var strength = Math.min(1, Math.abs(mv || 0) / 12);
+    var edge = k === 'flat' ? 'transparent'
+             : (k === 'up' ? 'rgba(74,222,128,' : 'rgba(248,113,113,') + (0.25 + strength * 0.75) + ')';
+    var risingSeries = c.series && c.series.length > 1
+      ? c.series[c.series.length - 1].v >= c.series[0].v : true;
+
+    return '<div class="card" style="--edge:' + edge + '">'
+      + '<div class="kw">' + esc(c.keyword) + '</div>'
+      + '<div class="row1">'
+      +   '<div class="price">£' + c.median.toFixed(2) + '</div>'
+      +   '<div class="badge ' + k + ' ' + k + '">' + fmtPct(mv) + '</div>'
+      + '</div>'
+      + '<div class="sub">median asking price</div>'
+      + spark(c.series, risingSeries)
+      + '<div class="foot"><span>' + c.samples + ' reading' + (c.samples === 1 ? '' : 's') + '</span>'
+      +   '<span>7d ' + fmtPct(c.change7d) + '</span></div>'
+      + '</div>';
+  }
+
+  function render(sort){
+    var list = CATS.slice();
+    if (sort === 'price') list.sort(function(a,b){ return b.median - a.median; });
+    else if (sort === 'name') list.sort(function(a,b){ return a.keyword.localeCompare(b.keyword); });
+    else list.sort(function(a,b){
+      var av = Math.abs(a.change24h ?? a.change7d ?? 0), bv = Math.abs(b.change24h ?? b.change7d ?? 0);
+      return bv - av;
+    });
+    document.getElementById('grid').innerHTML = list.map(card).join('');
+  }
+
+  function mover(el, label, c){
+    if (!c) { el.hidden = true; return; }
+    var v = c.change24h ?? c.change7d;
+    var k = cls(v);
+    el.innerHTML = '<div class="arrow ' + k + '">' + (k === 'down' ? '↓' : '↑') + '</div>'
+      + '<div class="body"><div class="t">' + label + '</div>'
+      + '<div class="n">' + esc(c.keyword) + '</div>'
+      + '<div class="v"><b class="' + k + '">' + fmtPct(v) + '</b> '
+      + '<span style="color:var(--muted2)">· £' + c.median.toFixed(2) + '</span></div></div>';
+  }
+
   fetch(BOT_API + '/api/vendex')
     .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(function(d){
-      var cats = d.categories || [];
+      CATS = d.categories || [];
+      var idx = d.index || {};
       document.getElementById('state').hidden = true;
-      document.getElementById('m-count').textContent = cats.length;
-      document.getElementById('m-updated').textContent = ago(d.updated);
 
-      if (!cats.length) {
+      if (!CATS.length) {
         document.getElementById('state').hidden = false;
-        document.getElementById('state').textContent =
-          'The index has no readings yet. Check back in an hour.';
+        document.getElementById('state').textContent = 'The index has no readings yet. Check back in an hour.';
         return;
       }
 
-      // Weekly movement needs eight days; say so rather than showing dashes
-      // and letting people assume it is broken.
-      var anyWeekly = cats.some(function(c){ return c.change7d !== null; });
-      if (!anyWeekly) document.getElementById('young').hidden = false;
+      document.getElementById('idx-val').textContent = idx.value !== null && idx.value !== undefined ? idx.value.toFixed(1) : '—';
+      var e24 = document.getElementById('idx-24'), e7 = document.getElementById('idx-7');
+      e24.textContent = fmtPct(idx.change24h); e24.className = cls(idx.change24h);
+      e7.textContent  = fmtPct(idx.change7d);  e7.className  = cls(idx.change7d);
+      document.getElementById('idx-basis').textContent =
+        (idx.basis || 'Equal-weighted · base 100') + ' · ' + CATS.length + ' categories · ' + ago(d.updated);
 
-      document.getElementById('grid').innerHTML = cats.map(function(c){
-        return '<div class="card">'
-          + '<div class="kw">' + esc(c.keyword) + '</div>'
-          + '<div class="price">£' + c.median.toFixed(2) + '</div>'
-          + '<div class="sub">median asking price · ' + c.samples + ' reading' + (c.samples === 1 ? '' : 's') + '</div>'
-          + '<div class="changes">'
-          +   '<div class="chg"><span>24 hours</span>' + pct(c.change24h) + '</div>'
-          +   '<div class="chg"><span>7 days</span>' + pct(c.change7d) + '</div>'
-          + '</div>'
-          + spark(c.series)
-          + '</div>';
-      }).join('');
+      var withMove = CATS.filter(function(c){ return (c.change24h ?? c.change7d) !== null && (c.change24h ?? c.change7d) !== undefined; })
+                         .sort(function(a,b){ return (b.change24h ?? b.change7d) - (a.change24h ?? a.change7d); });
+      if (withMove.length >= 2) {
+        document.getElementById('movers').hidden = false;
+        mover(document.getElementById('mover-up'),   'Biggest riser', withMove[0]);
+        mover(document.getElementById('mover-down'), 'Biggest faller', withMove[withMove.length - 1]);
+      }
+
+      if (!CATS.some(function(c){ return c.change7d !== null; })) document.getElementById('young').hidden = false;
+
+      document.getElementById('bar').hidden = false;
+      render('move');
+
+      [].forEach.call(document.querySelectorAll('.sortbtn'), function(b){
+        b.addEventListener('click', function(){
+          [].forEach.call(document.querySelectorAll('.sortbtn'), function(x){ x.setAttribute('aria-pressed','false'); });
+          b.setAttribute('aria-pressed','true');
+          render(b.dataset.sort);
+        });
+      });
     })
     .catch(function(e){
-      document.getElementById('state').textContent =
-        'The index is temporarily unavailable. It will be back shortly.';
+      document.getElementById('state').textContent = 'The index is temporarily unavailable. It will be back shortly.';
       console.error('[vendex]', e);
     });
 </script>

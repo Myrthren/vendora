@@ -3706,10 +3706,42 @@ app.get('/api/vendex', async (_req, res) => {
       };
     }).filter(Boolean).sort((a, b) => b.median - a.median);
 
+    // The headline number. An index needs one — "Vendex is at 103.2" is citable
+    // in a way that a grid of category prices is not.
+    //
+    // Equal-weighted and rebased to 100 at each category's first reading, so a
+    // £140 jacket category cannot drown out a £25 one. Averaging RELATIVE change
+    // is the only honest way to combine categories whose absolute prices differ
+    // by an order of magnitude.
+    const rebased = categories
+      .filter(c => c.series.length >= 2)
+      .map(c => {
+        const first = c.series[0].v;
+        return first ? (c.median / first) * 100 : null;
+      })
+      .filter(v => v !== null);
+
+    const mean = arr => arr.length ? arr.reduce((t, v) => t + v, 0) / arr.length : null;
+    const meanOf = key => {
+      const vals = categories.map(c => c[key]).filter(v => v !== null && v !== undefined);
+      return vals.length ? Math.round(mean(vals) * 10) / 10 : null;
+    };
+
+    const indexValue = rebased.length ? Math.round(mean(rebased) * 10) / 10 : null;
+    const earliest = categories.reduce((min, c) => Math.min(min, c.since), Infinity);
+
     const body = {
       name: 'Vendex',
       description: 'Median asking price for UK Vinted listings, sampled hourly.',
       updated: now,
+      index: {
+        value:     indexValue,
+        base:      100,
+        since:     Number.isFinite(earliest) ? earliest : null,
+        change24h: meanOf('change24h'),
+        change7d:  meanOf('change7d'),
+        basis:     'Equal-weighted, rebased to 100 at first reading',
+      },
       categories,
     };
 
