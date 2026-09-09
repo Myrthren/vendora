@@ -117,7 +117,14 @@ async function closeVintedBrowser() {
 // We do NOT follow geo-redirects (.co.uk → .fr) — we always use .co.uk as
 // canonical. The proxy may route through France but the .co.uk site still
 // serves the right content; locale redirects just break locale-specific URL paths.
-async function resolveVintedBase(page) {
+// `strict` is for callers that have a fallback worth reaching.
+//
+// Swallowing the failure and returning the default URL anyway means the caller
+// then runs page.evaluate against a page that never loaded; the fetch inside it
+// fails, returns [], and the caller cannot tell that apart from "Vinted has no
+// listings for this". Search then reports a successful empty result and the
+// Apify fallback is never tried — a total outage that looks like a quiet day.
+async function resolveVintedBase(page, strict = false) {
   try {
     await page.goto('https://www.vinted.co.uk/', { waitUntil: 'domcontentloaded', timeout: 25000 });
     // Ignore geo-redirects — always use .co.uk so login URLs are predictable
@@ -127,6 +134,7 @@ async function resolveVintedBase(page) {
       throw new Error('PROXY_TUNNEL_FAILED:' + e.message);
     }
     console.warn('[vinted-browser] base resolve failed:', e.message);
+    if (strict) throw new Error('BASE_UNREACHABLE: could not load vinted.co.uk — ' + e.message);
     return 'https://www.vinted.co.uk';
   }
 }
@@ -922,7 +930,9 @@ async function vintedBrowserSearchItems(keyword, maxPrice = null, perPage = 20) 
   try {
     const ctx = await ensureBrowser();
     page = await ctx.newPage();
-    const base = await resolveVintedBase(page);
+    // Strict: search has an Apify fallback, and reaching it beats reporting a
+    // fabricated empty result.
+    const base = await resolveVintedBase(page, true);
 
     const items = await page.evaluate(async ({ base, keyword, maxPrice, perPage }) => {
       const params = new URLSearchParams({
