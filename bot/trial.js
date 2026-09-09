@@ -83,6 +83,45 @@ function buildTrialStartedPayload({ username, endsAt }) {
   return { embeds: [embed], ephemeral: true };
 }
 
+// The DM sent the moment a trial starts.
+//
+// Separate from the ephemeral above because they do different jobs: the
+// ephemeral is instant feedback that the click worked and vanishes on refresh,
+// this is the copy they can find again on day four when they have forgotten
+// what they can run and when it ends. It also opens the DM channel, which is
+// what makes the day-6 and closing DMs deliverable — a member who has never
+// received a bot DM is far likelier to have them closed.
+function buildTrialStartedDM({ username, endsAt, days = TRIAL_DAYS }) {
+  const when = endsAt ? `<t:${Math.floor(endsAt / 1000)}:F>` : `in ${days} days`;
+  const rel  = endsAt ? `<t:${Math.floor(endsAt / 1000)}:R>` : '';
+
+  const embed = new EmbedBuilder()
+    .setColor('#4ade80')
+    .setTitle(`Your ${days}-day Vendora trial has started`)
+    .setDescription(
+      `${username ? `You're in, **${username}**.` : "You're in."} Pro-level access to every ` +
+      `Vendora tool in Discord is live right now.\n\n` +
+      `**Start with this one**\n` +
+      '`/scan` on something you are actually thinking of buying. It tells you what it sells ' +
+      'for, what your margin would be, and whether to walk away. It is the command people ' +
+      'keep the subscription for.\n\n' +
+      `**Then try**\n` +
+      '`/research` — what an item really sells for, not what it is listed at\n' +
+      '`/margins` — profit after fees and postage\n' +
+      '`/lowball` — a firm reply that keeps the buyer without dropping your price\n' +
+      '`/vinted-alert` — get pinged when something matching your keyword lists\n\n' +
+      `The **#deals**, **#price-drops** and **#trend-reports** channels are open to you now too.`
+    )
+    .addFields(
+      { name: 'Ends',   value: when,          inline: false },
+      { name: 'Tier',   value: 'Pro',         inline: true  },
+      { name: 'Cost',   value: 'Free',        inline: true  },
+    )
+    .setFooter({ text: 'No card on file, so nothing happens when it ends except the access stopping.' });
+
+  return { embeds: [embed] };
+}
+
 // Refused politely — already trialled, or already paying.
 function buildTrialRefusedPayload({ reason }) {
   const copy = {
@@ -125,18 +164,36 @@ function buildTrialEndingPayload({ username, siteUrl = 'https://vendora.site' })
   return { embeds: [embed] };
 }
 
+// The closing DM. The one that has to convert.
+//
+// The lever is what the trial deliberately withheld. A trial is Discord-only,
+// so for seven days they used the commands and never saw the dashboard — which
+// is where the tools that compound live: profit tracking, inventory, the
+// watchlist, auto-buy. "You have been using the smaller half" is both true and
+// the strongest thing you can say at this moment, and it only works because the
+// trial was scoped this way on purpose.
 function buildTrialEndedPayload({ username, siteUrl = 'https://vendora.site' }) {
   const embed = new EmbedBuilder()
     .setColor(PINK)
-    .setTitle('Trial finished')
+    .setTitle('Your trial has ended — and you only saw half of it')
     .setDescription(
       `${username ? `Thanks for trying Vendora, **${username}**.` : 'Thanks for trying Vendora.'} ` +
       `Your Pro access has ended and the role has come off.\n\n` +
-      `Everything you used is still there on a plan — **Pro £24.99/month** is what you were on. ` +
-      `**Basic £9.99** keeps the pricing and buyer-reply tools if that is all you need.\n\n` +
+      `Here is the part worth knowing: **your trial was Discord only.** Every command you ran ` +
+      `answered one question at a time and then forgot it. The dashboard is where those answers ` +
+      `start adding up.\n\n` +
+      `**What you never got to use**\n` +
+      `**Profit Tracker** — every sale, every fee, real margin over 30 days instead of per item\n` +
+      `**Inventory** — what you hold, what it cost, what is going stale\n` +
+      `**Watchlist** — items tracked continuously, with an alert when the price drops\n` +
+      `**Auto-Buy** — a monitor that watches for your criteria while you are not looking\n` +
+      `**Listing Optimiser & Photo Enhancer** — rewrite weak titles, clean up photos\n` +
+      `**Flip Score, Seller Intel, Price Elasticity, Resell Calendar**\n\n` +
+      `**Pro — £24.99/month** is the tier you were just on, plus all of the above.\n` +
+      `**Basic — £9.99/month** if the pricing and buyer-reply commands were the part you used.\n\n` +
       `${siteUrl}/#pricing`
     )
-    .setFooter({ text: 'Vendora — The Reseller\'s Edge' });
+    .setFooter({ text: 'Cancel any time — the role comes off automatically, no emails to chase.' });
 
   return { embeds: [embed] };
 }
@@ -146,6 +203,7 @@ module.exports = {
   TRIAL_START_ID,
   buildTrialPayload,
   buildTrialStartedPayload,
+  buildTrialStartedDM,
   buildTrialRefusedPayload,
   buildTrialEndingPayload,
   buildTrialEndedPayload,

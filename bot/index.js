@@ -10339,6 +10339,12 @@ async function handleTrialButton(interaction) {
   trialState.users[discordId] = { s: now, e: endsAt, done: false, warned: false };
   await saveTrials();
 
+  // DM as well as the ephemeral. The ephemeral vanishes on refresh; this is what
+  // they can find again on day four. It also opens the DM channel, which is what
+  // makes the day-6 and closing DMs deliverable at all.
+  await sendDM(member, trial.buildTrialStartedDM({ username: member.user.username, endsAt }))
+    .catch(e => console.warn(`[trial] Start DM failed for ${member.user.tag}:`, e.message));
+
   console.log(`[trial] Started for ${member.user.tag} (${discordId}), ends ${new Date(endsAt).toISOString()}`);
   return interaction.editReply(trial.buildTrialStartedPayload({ username: interaction.user.username, endsAt }));
 }
