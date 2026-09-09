@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vendex — UK Vinted price index | Vendora</title>
+<meta name="description" content="Vendex tracks the median asking price of UK Vinted listings, sampled every hour. See which categories are rising, which are falling, and when to buy.">
+<link rel="icon" type="image/png" href="favicon.png">
+<meta property="og:title" content="Vendex — UK Vinted price index">
+<meta property="og:description" content="Median asking prices across UK Vinted, sampled hourly. Rising means sell into it; falling means source into it.">
+<meta property="og:image" content="https://vendora.site/vendora-icon.png">
+<meta property="og:url" content="https://vendora.site/vendex.html">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Vendex — UK Vinted price index">
+<meta name="twitter:description" content="Median asking prices across UK Vinted, sampled hourly.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --pink:#e8217a; --pink-soft:rgba(232,33,122,0.10); --border:rgba(232,33,122,0.14);
+    --gold:#e8a121; --green:#4ade80; --red:#f87171;
+    --bg:#090909; --bg2:#0d0d0d; --bg3:#111; --bg4:#161616;
+    --border-dim:rgba(255,255,255,0.06); --text:#f0f0f0; --muted:#777; --muted2:rgba(255,255,255,0.35);
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  .inner{max-width:1080px;margin:0 auto;padding:0 32px}
+
+  nav{position:sticky;top:0;z-index:50;padding:16px 0;background:rgba(9,9,9,.86);backdrop-filter:blur(24px);border-bottom:1px solid rgba(255,255,255,.04)}
+  nav .inner{display:flex;align-items:center;justify-content:space-between}
+  .logo{display:flex;align-items:center;gap:11px;text-decoration:none}
+  .logo img{width:30px;height:30px;object-fit:contain;filter:drop-shadow(0 0 8px rgba(232,33,122,.4))}
+  .logo span{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+  .nav-cta{border:1px solid var(--border);color:var(--pink);padding:7px 16px;border-radius:3px;font-size:12px;
+           letter-spacing:.08em;text-transform:uppercase;text-decoration:none;transition:background .15s}
+  .nav-cta:hover{background:var(--pink-soft)}
+
+  header{padding:72px 0 40px}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);background:var(--pink-soft);
+           padding:5px 13px;border-radius:100px;font-size:10px;font-weight:500;letter-spacing:.14em;
+           text-transform:uppercase;color:var(--pink);margin-bottom:22px}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--pink)}
+  h1{font-family:'Syne',sans-serif;font-size:clamp(44px,7vw,76px);font-weight:800;line-height:.95;letter-spacing:-.02em}
+  h1 .dim{color:var(--muted2)}
+  .lede{margin-top:22px;max-width:620px;color:var(--muted);font-size:17px;line-height:1.6}
+  .lede strong{color:var(--text);font-weight:500}
+  .meta{margin-top:26px;display:flex;gap:28px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+  .meta b{color:var(--text);font-weight:500}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;padding:20px 0 80px}
+  .card{background:var(--bg3);border:1px solid var(--border-dim);border-radius:10px;padding:20px 22px;
+        transition:border-color .2s,transform .2s}
+  .card:hover{border-color:var(--border);transform:translateY(-2px)}
+  .kw{font-family:'Syne',sans-serif;font-size:15px;font-weight:600;letter-spacing:.01em;text-transform:capitalize}
+  .price{font-family:'Syne',sans-serif;font-size:34px;font-weight:800;margin:10px 0 2px;letter-spacing:-.02em}
+  .sub{font-size:12px;color:var(--muted2)}
+  .changes{display:flex;gap:18px;margin-top:14px;font-size:13px}
+  .chg b{font-weight:600}
+  .up{color:var(--green)} .down{color:var(--red)} .flat{color:var(--muted)}
+  .chg span{color:var(--muted2);font-size:11px;display:block;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
+  svg.spark{display:block;width:100%;height:44px;margin-top:16px;overflow:visible}
+
+  .note{border:1px solid var(--border-dim);border-left:2px solid var(--pink);background:var(--bg2);
+        border-radius:6px;padding:16px 20px;margin:8px 0 28px;color:var(--muted);font-size:14px;line-height:1.6}
+  .note b{color:var(--text);font-weight:500}
+  .state{padding:60px 0;text-align:center;color:var(--muted)}
+
+  footer{border-top:1px solid var(--border-dim);padding:32px 0 48px;color:var(--muted2);font-size:13px}
+  footer .inner{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+  footer a{color:var(--muted);text-decoration:none}
+  footer a:hover{color:var(--text)}
+  @media(max-width:640px){.inner{padding:0 20px}header{padding:48px 0 28px}}
+</style>
+</head>
+<body>
+
+<nav><div class="inner">
+  <a class="logo" href="/"><img src="vendora-icon.png" alt=""><span>Vendora</span></a>
+  <a class="nav-cta" href="/#pricing">See Plans</a>
+</div></nav>
+
+<header><div class="inner">
+  <div class="eyebrow"><span class="dot"></span> Updated hourly</div>
+  <h1>Vendex<br><span class="dim">the UK resale index</span></h1>
+  <p class="lede">
+    The <strong>median asking price</strong> across UK Vinted, sampled every hour by Vendora.
+    A rising median means the market will pay more — sell into it. A falling one means
+    stock is getting cheaper — source into it.
+  </p>
+  <div class="meta">
+    <div>Categories <b id="m-count">—</b></div>
+    <div>Last updated <b id="m-updated">—</b></div>
+    <div>Source <b>Live Vinted listings</b></div>
+  </div>
+</div></header>
+
+<div class="inner">
+  <div class="note" id="young" hidden>
+    <b>Vendex is still filling up.</b> The index samples once an hour, so weekly movement
+    needs a week of data before it means anything. Daily change appears after 48 hours,
+    weekly after eight days. Numbers shown are real from the first sample.
+  </div>
+  <div id="state" class="state">Loading the index…</div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<footer><div class="inner">
+  <div>Vendex is built from public Vinted listings. Asking prices, not sold prices.</div>
+  <div><a href="/">Vendora</a> · <a href="/#pricing">Plans</a> · <a href="/vendora-tos.html">Terms</a></div>
+</div></footer>
+
+<script>
+  var BOT_API = 'https://vendora-production-8a47.up.railway.app';
+
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  function pct(v){
+    if (v === null || v === undefined) return '<b class="flat">—</b>';
+    if (v === 0) return '<b class="flat">flat</b>';
+    var cls = v > 0 ? 'up' : 'down';
+    return '<b class="' + cls + '">' + (v > 0 ? '+' : '') + v + '%</b>';
+  }
+
+  // Sparkline, drawn straight from the series. No library — one path, and the
+  // fill makes a short series still read as a shape rather than a stray line.
+  function spark(series){
+    if (!series || series.length < 2) return '';
+    var vals = series.map(function(p){ return p.v; });
+    var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+    var range = (max - min) || 1;
+    var W = 100, H = 30;
+    var pts = series.map(function(p, i){
+      var x = (i / (series.length - 1)) * W;
+      var y = H - ((p.v - min) / range) * H;
+      return x.toFixed(2) + ',' + y.toFixed(2);
+    });
+    var rising = vals[vals.length - 1] >= vals[0];
+    var col = rising ? 'var(--green)' : 'var(--red)';
+    return '<svg class="spark" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">'
+      + '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + col
+      + '" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>'
+      + '</svg>';
+  }
+
+  function ago(ts){
+    var m = Math.round((Date.now() - ts) / 60000);
+    if (m < 2) return 'just now';
+    if (m < 60) return m + ' min ago';
+    var h = Math.round(m / 60);
+    return h === 1 ? 'an hour ago' : h + ' hours ago';
+  }
+
+  fetch(BOT_API + '/api/vendex')
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(d){
+      var cats = d.categories || [];
+      document.getElementById('state').hidden = true;
+      document.getElementById('m-count').textContent = cats.length;
+      document.getElementById('m-updated').textContent = ago(d.updated);
+
+      if (!cats.length) {
+        document.getElementById('state').hidden = false;
+        document.getElementById('state').textContent =
+          'The index has no readings yet. Check back in an hour.';
+        return;
+      }
+
+      // Weekly movement needs eight days; say so rather than showing dashes
+      // and letting people assume it is broken.
+      var anyWeekly = cats.some(function(c){ return c.change7d !== null; });
+      if (!anyWeekly) document.getElementById('young').hidden = false;
+
+      document.getElementById('grid').innerHTML = cats.map(function(c){
+        return '<div class="card">'
+          + '<div class="kw">' + esc(c.keyword) + '</div>'
+          + '<div class="price">£' + c.median.toFixed(2) + '</div>'
+          + '<div class="sub">median asking price · ' + c.samples + ' reading' + (c.samples === 1 ? '' : 's') + '</div>'
+          + '<div class="changes">'
+          +   '<div class="chg"><span>24 hours</span>' + pct(c.change24h) + '</div>'
+          +   '<div class="chg"><span>7 days</span>' + pct(c.change7d) + '</div>'
+          + '</div>'
+          + spark(c.series)
+          + '</div>';
+      }).join('');
+    })
+    .catch(function(e){
+      document.getElementById('state').textContent =
+        'The index is temporarily unavailable. It will be back shortly.';
+      console.error('[vendex]', e);
+    });
+</script>
+</body>
+</html>

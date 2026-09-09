@@ -3653,6 +3653,75 @@ app.get('/', (_req, res) => res.json({
   whop_oauth: !!WHOP_OAUTH_CLIENT_ID,
 }));
 
+// ── Vendex — the public price index ──────────────────────────────────────────
+// What UK resellers are actually asking, per category, from the hourly medians
+// the deal feed already records. Deliberately PUBLIC and unauthenticated: the
+// whole point is to be linkable and citable by people who have never heard of
+// Vendora.
+//
+// Nothing here is user data — it is aggregate asking prices scraped from public
+// Vinted listings, so there is no scoping question. Cached in memory because
+// the underlying numbers only change hourly and this is the one route a
+// stranger can hit as often as they like.
+let vendexCache = { at: 0, body: null };
+const VENDEX_TTL_MS = 5 * 60 * 1000;
+
+app.get('/api/vendex', async (_req, res) => {
+  try {
+    if (vendexCache.body && Date.now() - vendexCache.at < VENDEX_TTL_MS) {
+      res.setHeader('X-Cache', 'HIT');
+      return res.json(vendexCache.body);
+    }
+
+    const stats = (await getSetting(FEED_STATS_KEY)) || {};
+    const now = Date.now();
+    const H = 60 * 60 * 1000;
+
+    // Average over a window rather than taking a single point: one outlier
+    // listing should not read as a market move.
+    const avgIn = (pts, fromAgo, toAgo) => {
+      const w = pts.filter(p => p.t <= now - toAgo && p.t > now - fromAgo);
+      return w.length ? w.reduce((t, p) => t + p.median, 0) / w.length : null;
+    };
+
+    const categories = Object.entries(stats).map(([keyword, s]) => {
+      const pts = (s.medians || []).slice().sort((a, b) => a.t - b.t);
+      if (!pts.length) return null;
+
+      const current = pts[pts.length - 1].median;
+      const d1 = avgIn(pts, 48 * H, 24 * H);
+      const d7 = avgIn(pts, 8 * 24 * H, 7 * 24 * H);
+      const pct = (from) => from ? Math.round(((current - from) / from) * 1000) / 10 : null;
+
+      return {
+        keyword,
+        median: Math.round(current * 100) / 100,
+        change24h: pct(d1),
+        change7d:  pct(d7),
+        samples:   pts.length,
+        since:     pts[0].t,
+        // Thinned for the sparkline — a page does not need 336 points.
+        series: pts.filter((_, i) => i % Math.max(1, Math.ceil(pts.length / 48)) === 0)
+                   .map(p => ({ t: p.t, v: Math.round(p.median * 100) / 100 })),
+      };
+    }).filter(Boolean).sort((a, b) => b.median - a.median);
+
+    const body = {
+      name: 'Vendex',
+      description: 'Median asking price for UK Vinted listings, sampled hourly.',
+      updated: now,
+      categories,
+    };
+
+    vendexCache = { at: now, body };
+    res.setHeader('X-Cache', 'MISS');
+    return res.json(body);
+  } catch (e) {
+    console.error('[vendex] Failed:', e.message);
+    return res.status(500).json({ error: 'Index unavailable' });
+  }
+});
+
 // Cross-listing API — called from the dashboard
 app.post('/api/crosslist', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
