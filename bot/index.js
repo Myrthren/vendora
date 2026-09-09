@@ -10084,14 +10084,22 @@ async function runDealFeed() {
     const seen  = new Set((await getSetting(FEED_SEEN_KEY)) || []);
     const queue = (await getSetting(DEAL_QUEUE_KEY)) || [];
     const stats = (await getSetting(FEED_STATS_KEY)) || {};
+    // Tunable without a deploy — see feeds.pickUnderpriced for what each does.
+    const tuning = (await getSetting('feed_tuning')) || {};
     let posted = 0, sampled = 0;
+    // Per-keyword outcome, so a quiet run says WHY it was quiet. Without this,
+    // "no results", "nothing cheap enough" and "cron never ran" are the same
+    // silence, which is not a diagnosis.
+    const trace = [];
 
     for (const keyword of keywords) {
       try {
         const items = await alertKeywordSearch(keyword, 20);
-        if (!items?.length) continue;
+        if (!items?.length) { trace.push(`${keyword}: 0 results`); continue; }
 
-        const { median: med, picks } = feeds.pickUnderpriced(items);
+        const usable = items.filter(i => i && i.priceNum > 0 && i.url).length;
+        const { median: med, picks } = feeds.pickUnderpriced(items, tuning);
+        trace.push(`${keyword}: ${items.length} results, ${usable} usable, median £${med ? med.toFixed(0) : '-'}, ${picks.length} under threshold`);
 
         // Record the median every run whether or not anything was underpriced —
         // #whats-selling reports price movement, which needs the quiet weeks too.
@@ -10139,6 +10147,10 @@ async function runDealFeed() {
       await saveSetting(DEAL_QUEUE_KEY, queue);
       await saveSetting(FEED_SEEN_KEY, [...seen].slice(-1000));
       console.log(`[feed:deals] Posted ${posted} find(s) to #early-deals, ${queue.length} queued for #deals.`);
+    } else {
+      // Always say something. A run that posts nothing is the common case and
+      // has to be distinguishable from a run that never happened.
+      console.log(`[feed:deals] Nothing posted this run — ${trace.join(' | ')}`);
     }
   } catch (e) {
     console.error('[feed:deals] Fatal:', e.message);

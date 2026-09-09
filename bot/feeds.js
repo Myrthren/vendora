@@ -58,7 +58,12 @@ function median(nums) {
 }
 
 function pickUnderpriced(items, { minDiscountPct = 35, floorPct = 15, minSample = 6, maxPicks = 5 } = {}) {
-  const priced = (items || []).filter(i => i && i.priceNum > 0 && i.url);
+  // Vinted's catalog endpoint does not always return `url` on an item. Requiring
+  // it would drop every result on those runs and post nothing, with no error —
+  // and an id is enough to rebuild the link, so rebuild it rather than discard.
+  const priced = (items || [])
+    .filter(i => i && i.priceNum > 0 && (i.url || i.id))
+    .map(i => i.url ? i : { ...i, url: `https://www.vinted.co.uk/items/${i.id}` });
   // Too few comparables and the median means nothing — better to post nothing
   // than to call a random item a bargain.
   if (priced.length < minSample) return { median: 0, picks: [] };
