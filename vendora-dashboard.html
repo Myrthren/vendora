@@ -2767,12 +2767,12 @@
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
             <div>
               <div class="card-title" style="margin:0;">Update Log <span style="font-size:9px;padding:2px 7px;border-radius:4px;background:rgba(232,33,122,0.14);color:var(--pink);font-weight:700;letter-spacing:.08em;vertical-align:middle;margin-left:6px;">AUTO</span></div>
-              <div style="font-size:11px;color:var(--muted);margin-top:3px;">Watches every deploy and drafts announcements ready to paste into Discord. Small fixes fold into the previous version instead of creating a new entry.</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:3px;">Reads the last 3 days of deploys straight from git history and drafts announcements ready to paste into Discord. Docs and chores are left out.</div>
             </div>
             <button class="btn btn-ghost btn-sm" onclick="ulogCopyLatest(this)" style="flex-shrink:0;">Copy latest</button>
           </div>
           <div id="ulog-entries" style="display:flex;flex-direction:column;gap:12px;margin-top:14px;">
-            <div style="font-size:12px;color:var(--muted);">No updates tracked yet — entries appear automatically as deploys go live while you have the dashboard open.</div>
+            <div style="font-size:12px;color:var(--muted);">Reading the last 3 days of deploys...</div>
           </div>
         </div>
 
@@ -4432,97 +4432,136 @@
     }
   }
 
-  // ── Owner update log (auto-tracked from version.json deploys) ────────────────
-  const ULOG_KEY = 'vendora_update_log_v1';
-  function ulogLoad() {
-    try { return JSON.parse(localStorage.getItem(ULOG_KEY) || '{"lastSha":null,"entries":[]}'); }
-    catch { return { lastSha: null, entries: [] }; }
-  }
-  function ulogSave(s) { localStorage.setItem(ULOG_KEY, JSON.stringify(s)); }
+  // -- Owner update log (read from git history) --------------------------------
+  // Previously this polled /version.json, which only ever holds the SINGLE latest
+  // commit, and accumulated history in localStorage from whatever it happened to
+  // observe while the dashboard was open. Every deploy that shipped with this page
+  // closed was invisible, and non-feat commits folded into the last entry it had
+  // seen, so one July entry absorbed two months of unrelated work.
+  //
+  // The repo is public, so read the actual history instead of inferring it. No
+  // accumulation, no missed deploys, correct dates, and it is right the first time
+  // the panel is opened rather than only going forward.
+  const ULOG_REPO = 'Myrthren/vendora';
+  const ULOG_DAYS = 3;
+  let ULOG_GROUPS = [];
 
-  // feat/major commits get their own announcement; everything else is treated as
-  // a small change and folded into the previous entry (bumping its version forward)
-  function ulogClassify(msg) {
-    return /^(feat|feature|major)[:(! ]/i.test((msg || '').trim()) ? 'feature' : 'minor';
+  // One-time cleanup of the old accumulated state, which is all wrong.
+  try { localStorage.removeItem('vendora_update_log_v1'); } catch (e) {}
+
+  const ULOG_KINDS = {
+    feat: 'Feature', feature: 'Feature', major: 'Feature',
+    fix: 'Fix', hotfix: 'Fix', perf: 'Fix',
+    style: 'Polish', refactor: 'Polish', chore: 'Chore',
+    docs: 'Docs', test: 'Chore', build: 'Chore', ci: 'Chore'
+  };
+
+  function ulogParse(msg) {
+    const subject = (msg || '').trim().split('\n')[0];
+    const m = subject.match(/^([a-z]+)(\([^)]*\))?!?:\s*(.+)$/i);
+    if (!m) return { kind: 'Other', text: subject || 'Update' };
+    const kind = ULOG_KINDS[m[1].toLowerCase()] || 'Other';
+    const text = m[3].charAt(0).toUpperCase() + m[3].slice(1);
+    return { kind, text };
   }
-  function ulogClean(msg) {
-    let s = (msg || '').trim().split('\n')[0];
-    s = s.replace(/^(feat|feature|major|fix|hotfix|chore|docs|style|refactor|perf|test|build|ci)(\([^)]*\))?!?:\s*/i, '');
-    return s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Update';
+
+  // Docs and chores are real commits but not announcements. Nobody wants
+  // "Record the affiliate config" in a Discord post.
+  function ulogAnnounceable(kind) { return kind === 'Feature' || kind === 'Fix' || kind === 'Polish'; }
+
+  function ulogDayLabel(iso) {
+    const d = new Date(iso + 'T12:00:00');
+    const today = new Date(); today.setHours(12, 0, 0, 0);
+    const diff = Math.round((today - d) / 86400000);
+    if (diff === 0) return 'Today';
+    if (diff === 1) return 'Yesterday';
+    return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
   }
 
   async function ulogTrack() {
+    const box = document.getElementById('ulog-entries');
+    if (!box) return;
+    box.innerHTML = '<div style="font-size:12px;color:var(--muted);">Reading the last ' + ULOG_DAYS + ' days of deploys...</div>';
+
     try {
-      const r = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
-      if (!r.ok) { ulogRender(); return; }
-      const v = await r.json();
-      const state = ulogLoad();
-      if (state.lastSha === v.sha) { ulogRender(); return; }
-      const today = new Date().toISOString().slice(0, 10);
-      const kind = ulogClassify(v.message);
-      const text = ulogClean(v.message);
-      if (kind === 'minor' && state.entries.length) {
-        const last = state.entries[0];
-        last.version = v.version; // the previous announcement absorbs the small change
-        last.date = today;
-        if (!last.bullets.includes(text)) last.bullets.push(text);
-      } else {
-        state.entries.unshift({ version: v.version, date: today, title: text, bullets: [text], type: kind });
-        if (state.entries.length > 30) state.entries.length = 30;
-      }
-      state.lastSha = v.sha;
-      ulogSave(state);
+      const since = new Date(Date.now() - ULOG_DAYS * 86400000).toISOString();
+      const r = await fetch('https://api.github.com/repos/' + ULOG_REPO + '/commits?per_page=100&since=' + encodeURIComponent(since));
+      if (!r.ok) throw new Error('GitHub returned ' + r.status);
+      const commits = await r.json();
+      if (!Array.isArray(commits)) throw new Error('Unexpected response');
+
+      // Group by calendar day, newest first. A day is the natural unit for an
+      // announcement, since a single deploy rarely stands alone.
+      const byDay = new Map();
+      commits.forEach(function (c) {
+        const parsed = ulogParse(c.commit && c.commit.message);
+        if (!ulogAnnounceable(parsed.kind)) return;
+        const day = (c.commit.author.date || '').slice(0, 10);
+        if (!byDay.has(day)) byDay.set(day, []);
+        byDay.get(day).push(parsed);
+      });
+
+      ULOG_GROUPS = Array.from(byDay.entries())
+        .sort(function (a, b) { return a[0] < b[0] ? 1 : -1; })
+        .map(function (pair) {
+          const items = pair[1];
+          return {
+            date: pair[0],
+            label: ulogDayLabel(pair[0]),
+            hasFeature: items.some(function (i) { return i.kind === 'Feature'; }),
+            items: items
+          };
+        });
+
       ulogRender();
-    } catch { ulogRender(); }
+    } catch (e) {
+      box.innerHTML = '<div style="font-size:12px;color:var(--muted);">Could not read deploy history &mdash; ' +
+        esc(e.message) + '. <button class="btn btn-ghost btn-sm" onclick="ulogTrack()">Retry</button></div>';
+      console.warn('[ulog]', e);
+    }
   }
 
   function ulogRender() {
     const box = document.getElementById('ulog-entries');
     if (!box) return;
-    const { entries } = ulogLoad();
-    if (!entries.length) {
-      box.innerHTML = '<div style="font-size:12px;color:var(--muted);">No updates tracked yet — entries appear automatically as deploys go live while you have the dashboard open.</div>';
+    if (!ULOG_GROUPS.length) {
+      box.innerHTML = '<div style="font-size:12px;color:var(--muted);">Nothing shipped in the last ' + ULOG_DAYS + ' days.</div>';
       return;
     }
-    box.innerHTML = entries.map((e, i) => {
-      const extras = e.bullets.filter(b => b !== e.title);
-      return `
-      <div style="border:1px solid var(--border-dim);border-radius:8px;padding:12px 14px;">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-          <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--pink);">${esc(e.version)}</span>
-          <span style="font-size:9px;padding:2px 7px;border-radius:4px;background:${e.type === 'feature' ? 'rgba(74,222,128,0.12)' : 'rgba(255,255,255,0.06)'};color:${e.type === 'feature' ? 'var(--green)' : 'var(--muted2)'};font-weight:700;letter-spacing:.06em;">${e.type === 'feature' ? 'FEATURE' : 'FIXES'}</span>
-          <span style="font-size:11px;color:var(--muted);">${esc(e.date)}</span>
-          <span style="margin-left:auto;display:flex;gap:6px;">
-            <button class="btn btn-ghost btn-sm" onclick="ulogCopy(${i}, this)">Copy</button>
-            <button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="ulogDelete(${i})" title="Remove entry">✕</button>
-          </span>
-        </div>
-        <div style="font-size:13px;font-weight:600;color:var(--text);margin-top:6px;">${esc(e.title)}</div>
-        ${extras.length ? `<ul style="margin:6px 0 0 16px;font-size:12px;color:var(--muted2);line-height:1.7;">${extras.map(b => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}
-      </div>`;
+    box.innerHTML = ULOG_GROUPS.map(function (g, i) {
+      const badge = g.hasFeature
+        ? '<span style="font-size:9px;padding:2px 7px;border-radius:4px;background:rgba(74,222,128,0.12);color:var(--green);font-weight:700;letter-spacing:.06em;">FEATURE</span>'
+        : '<span style="font-size:9px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--muted2);font-weight:700;letter-spacing:.06em;">FIXES</span>';
+      const rows = g.items.map(function (it) {
+        const tag = it.kind === 'Feature' ? 'var(--green)' : it.kind === 'Fix' ? 'var(--pink)' : 'var(--muted2)';
+        return '<li><span style="color:' + tag + ';font-size:10px;font-weight:700;letter-spacing:.04em;">' +
+               it.kind.toUpperCase() + '</span> ' + esc(it.text) + '</li>';
+      }).join('');
+      return '<div style="border:1px solid var(--border-dim);border-radius:8px;padding:12px 14px;">' +
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+          '<span style="font-family:Syne,sans-serif;font-weight:700;font-size:13px;color:var(--pink);">' + esc(g.label) + '</span>' +
+          badge +
+          '<span style="font-size:11px;color:var(--muted);">' + esc(g.date) + ' &middot; ' + g.items.length + ' change' + (g.items.length === 1 ? '' : 's') + '</span>' +
+          '<span style="margin-left:auto;"><button class="btn btn-ghost btn-sm" onclick="ulogCopy(' + i + ', this)">Copy</button></span>' +
+        '</div>' +
+        '<ul style="margin:8px 0 0 16px;font-size:12px;color:var(--muted2);line-height:1.8;">' + rows + '</ul>' +
+      '</div>';
     }).join('');
   }
 
-  function ulogFormat(e) {
-    const lines = [`📦 **Vendora ${e.version}** — ${e.title}`];
-    e.bullets.filter(b => b !== e.title).forEach(b => lines.push(`• ${b}`));
+  function ulogFormat(g) {
+    const lines = ['**Vendora \u2014 ' + g.label + '**', ''];
+    g.items.forEach(function (it) { lines.push('\u2022 ' + it.text); });
     return lines.join('\n');
   }
   function ulogCopy(i, btn) {
-    const { entries } = ulogLoad();
-    if (!entries[i]) return;
-    navigator.clipboard.writeText(ulogFormat(entries[i])).then(() => {
-      if (btn) { const t = btn.textContent; btn.textContent = 'Copied ✓'; setTimeout(() => btn.textContent = t, 1400); }
+    const g = ULOG_GROUPS[i];
+    if (!g) return;
+    navigator.clipboard.writeText(ulogFormat(g)).then(function () {
+      if (btn) { const t = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = t; }, 1400); }
     });
   }
   function ulogCopyLatest(btn) { ulogCopy(0, btn); }
-  function ulogDelete(i) {
-    if (!confirm('Remove this log entry?')) return;
-    const s = ulogLoad();
-    s.entries.splice(i, 1);
-    ulogSave(s);
-    ulogRender();
-  }
 
   // ── Top nav dropdowns ────────────────────────────────────────────────────────
   function closeNavMenus() {
