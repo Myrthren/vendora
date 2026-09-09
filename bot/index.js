@@ -3651,6 +3651,9 @@ app.get('/', (_req, res) => res.json({
   status: 'ok',
   bot: client.user?.tag || 'connecting...',
   whop_oauth: !!WHOP_OAUTH_CLIENT_ID,
+  // Vinted reachability, because when the proxy dies EVERY Vinted feature dies
+  // with it and the only previous symptom was empty results.
+  vinted: vintedBrowser?.vintedBrowserStatus ? vintedBrowser.vintedBrowserStatus() : null,
 }));
 
 // ── Vendex — the public price index ──────────────────────────────────────────

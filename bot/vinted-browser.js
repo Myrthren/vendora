@@ -64,6 +64,61 @@ function parseProxy(url) {
 // Whether the last browser launch skipped the proxy due to a tunnel failure
 let _proxySkipped = false;
 
+// ─── proxy circuit breaker ────────────────────────────────────────────────────
+// A dead proxy HANGS rather than refusing, so it shows up as a 25s goto timeout
+// rather than ERR_TUNNEL_CONNECTION_FAILED. The login path already retried
+// without the proxy, but only on the tunnel error and only for login — so a
+// timing-out proxy took every Vinted feature down and stayed down until someone
+// noticed and fixed the credentials by hand.
+//
+// After PROXY_FAIL_THRESHOLD consecutive failures to reach Vinted, drop the
+// proxy and run direct for PROXY_COOLDOWN_MS, then try it again. Running from a
+// datacenter IP risks DataDome, but a proxy that cannot connect is a guaranteed
+// outage — degraded beats dead, and it recovers on its own when the proxy does.
+const PROXY_FAIL_THRESHOLD = 2;
+const PROXY_COOLDOWN_MS    = 30 * 60 * 1000;
+let _proxyFailures     = 0;
+let _proxyDisabledUntil = 0;
+
+function proxyCurrentlyDisabled() {
+  return _proxyDisabledUntil > Date.now();
+}
+
+// Called whenever Vinted could not be reached.
+async function noteVintedUnreachable(reason) {
+  if (!PROXY_URL || proxyCurrentlyDisabled()) return false;
+  _proxyFailures++;
+  if (_proxyFailures < PROXY_FAIL_THRESHOLD) return false;
+
+  _proxyFailures = 0;
+  _proxyDisabledUntil = Date.now() + PROXY_COOLDOWN_MS;
+  _proxySkipped = true;
+  console.warn(
+    `[vinted-browser] Proxy unreachable ${PROXY_FAIL_THRESHOLD}x (${reason}). ` +
+    `Dropping it for ${PROXY_COOLDOWN_MS / 60000} min and running direct. ` +
+    `DataDome may block a datacenter IP — fix PROXY_URL to restore normal operation.`
+  );
+  // Force the next ensureBrowser() to relaunch without the proxy.
+  await closeVintedBrowser();
+  return true;
+}
+
+function noteVintedReachable() {
+  _proxyFailures = 0;
+}
+
+// For the health endpoint, so the state is visible without reading logs.
+function vintedBrowserStatus() {
+  return {
+    playwright:      !!chromium,
+    stealth:         stealthApplied,
+    proxyConfigured: !!PROXY_URL,
+    proxyDisabled:   proxyCurrentlyDisabled(),
+    proxyRetryAt:    proxyCurrentlyDisabled() ? _proxyDisabledUntil : null,
+    consecutiveFails: _proxyFailures,
+  };
+}
+
 async function launchBrowser(useProxy = true) {
   const proxy = useProxy ? parseProxy(PROXY_URL) : null;
   console.log(`[vinted-browser] launching chromium (stealth=${stealthApplied}, proxy=${!!proxy})`);
@@ -96,10 +151,12 @@ async function ensureBrowser() {
   if (_launchingPromise) return _launchingPromise;
 
   _launchingPromise = (async () => {
-    const { browser, context } = await launchBrowser(true);
+    // Honour the circuit breaker: while the proxy is in cooldown, launch direct.
+    const useProxy = !proxyCurrentlyDisabled();
+    const { browser, context } = await launchBrowser(useProxy);
     _browser  = browser;
     _context  = context;
-    _proxySkipped = false;
+    _proxySkipped = !useProxy;
     return _context;
   })();
 
@@ -127,13 +184,18 @@ async function closeVintedBrowser() {
 async function resolveVintedBase(page, strict = false) {
   try {
     await page.goto('https://www.vinted.co.uk/', { waitUntil: 'domcontentloaded', timeout: 25000 });
+    noteVintedReachable();
     // Ignore geo-redirects — always use .co.uk so login URLs are predictable
     return 'https://www.vinted.co.uk';
   } catch (e) {
     if (e.message.includes('ERR_TUNNEL_CONNECTION_FAILED') || e.message.includes('ERR_PROXY_CONNECTION_FAILED')) {
+      await noteVintedUnreachable('tunnel failed');
       throw new Error('PROXY_TUNNEL_FAILED:' + e.message);
     }
     console.warn('[vinted-browser] base resolve failed:', e.message);
+    // A timeout is what a dead proxy actually looks like. Feed the breaker so
+    // the next launch can drop the proxy instead of failing forever.
+    await noteVintedUnreachable('goto timeout');
     if (strict) throw new Error('BASE_UNREACHABLE: could not load vinted.co.uk — ' + e.message);
     return 'https://www.vinted.co.uk';
   }
@@ -1139,6 +1201,7 @@ module.exports = {
   vintedBrowserFetchItem,
   refreshVintedAccessToken,
   vintedBrowserSearchItems,
+  vintedBrowserStatus,
   vintedBrowserBuyItem,
   closeVintedBrowser,
 };
