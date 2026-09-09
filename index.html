@@ -6,7 +6,7 @@
 <link rel="apple-touch-icon" href="favicon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Vendora — The Reseller's Edge</title>
-<meta name="description" content="Vendora is the all-in-one platform and Discord bot for resellers. AI-powered listing tools, smart photo enhancement, market intelligence, and live deal scanning across Vinted, Depop and eBay.">
+<meta name="description" content="Vendora is the all-in-one platform and Discord bot for resellers. AI-powered listing tools, smart photo enhancement, market intelligence, and live deal scanning for Vinted.">
 <meta name="theme-color" content="#e8217a">
 <link rel="canonical" href="https://vendora.site/">
 
@@ -15,7 +15,7 @@
 <meta property="og:site_name" content="Vendora">
 <meta property="og:url" content="https://vendora.site/">
 <meta property="og:title" content="Vendora — The Reseller's Edge">
-<meta property="og:description" content="AI-powered listing tools, photo enhancement, and live deal scanning for Vinted, Depop and eBay resellers. Inside the Vendor Village Discord.">
+<meta property="og:description" content="AI-powered listing tools, photo enhancement, and live deal scanning for Vinted resellers. Inside the Vendor Village Discord.">
 <meta property="og:image" content="https://vendora.site/favicon.png">
 <meta property="og:image:width" content="1254">
 <meta property="og:image:height" content="1254">
@@ -23,7 +23,7 @@
 <!-- Twitter / X -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Vendora — The Reseller's Edge">
-<meta name="twitter:description" content="AI-powered listing tools, photo enhancement, and live deal scanning for resellers. Vinted, Depop, eBay.">
+<meta name="twitter:description" content="AI-powered listing tools, photo enhancement, and live deal scanning for Vinted resellers.">
 <meta name="twitter:image" content="https://vendora.site/favicon.png">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
 <style>
@@ -997,8 +997,8 @@
 
     <div class="hero-metrics">
       <div>
-        <div class="metric-val">3</div>
-        <div class="metric-label">Platforms Live</div>
+        <div class="metric-val">1</div>
+        <div class="metric-label">Platform Live</div>
       </div>
       <div class="metric-sep"></div>
       <div>
@@ -1074,7 +1074,7 @@
           </svg>
         </div>
         <div class="feat-hero-title">Smart Research<br>Engine</div>
-        <p class="feat-hero-desc">Scans Depop, Vinted, and eBay in real time for underpriced listings. Surfaces profit margins, sell velocity, and trending items — before the market cottons on.</p>
+        <p class="feat-hero-desc">Scans Vinted in real time for underpriced listings. Surfaces profit margins, sell velocity, and trending items — before the market cottons on.</p>
         <div class="feat-hero-bottom">
           <div class="feat-point"><span class="feat-point-dot"></span>Live scan across 3 platforms simultaneously</div>
           <div class="feat-point"><span class="feat-point-dot"></span>Profit margin + sell velocity score per item</div>
@@ -1209,18 +1209,18 @@
         <div class="platform-list">
           <div class="plat-item">
             <span class="plat-status live"></span>
-            <span class="plat-name">Depop</span>
-            <span class="plat-cap live">Research + List</span>
-          </div>
-          <div class="plat-item">
-            <span class="plat-status live"></span>
             <span class="plat-name">Vinted</span>
             <span class="plat-cap live">Research + List</span>
           </div>
           <div class="plat-item">
-            <span class="plat-status live"></span>
-            <span class="plat-name">eBay</span>
-            <span class="plat-cap live">Research + List</span>
+            <span class="plat-status soon"></span>
+            <span class="plat-name dim-name">Depop</span>
+            <span class="plat-cap soon">In Progress</span>
+          </div>
+          <div class="plat-item">
+            <span class="plat-status soon"></span>
+            <span class="plat-name dim-name">eBay</span>
+            <span class="plat-cap soon">In Progress</span>
           </div>
           <div class="plat-item">
             <span class="plat-status soon"></span>
@@ -1248,7 +1248,7 @@
           </div>
           <div class="dash-rows">
             <div class="dash-row">
-              <div class="dash-platform">Depop</div>
+              <div class="dash-platform">Vinted</div>
               <div class="dash-item">Nike Air Max 90 UK9</div>
               <div class="dash-range">£28 → £65</div>
               <div class="dash-profit">+£37</div>
@@ -1260,13 +1260,13 @@
               <div class="dash-profit">+£26</div>
             </div>
             <div class="dash-row">
-              <div class="dash-platform">eBay</div>
+              <div class="dash-platform">Vinted</div>
               <div class="dash-item">Stüssy Fleece Jacket M</div>
               <div class="dash-range">£45 → £110</div>
               <div class="dash-profit">+£65</div>
             </div>
             <div class="dash-row">
-              <div class="dash-platform">Depop</div>
+              <div class="dash-platform">Vinted</div>
               <div class="dash-item">New Balance 550 UK8</div>
               <div class="dash-range">£55 → £95</div>
               <div class="dash-profit">+£40</div>
@@ -1499,53 +1499,32 @@
     </div>
     <div class="proof-row reveal">
       <div class="proof-card">
-        <div class="proof-stars">
-          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-        </div>
-        <p class="proof-text">"The scan command alone is worth the Pro sub. Found a Nike Air job lot on Vinted — flipped it on eBay same week. Paid for 3 months in one deal."</p>
+        <p class="proof-text">Seven days of Pro-level access to every Vendora command, inside Discord. No card, no signup, nothing to cancel — when it ends, it just ends.</p>
         <div class="proof-author">
-          <div class="proof-avi">JK</div>
+          <div class="proof-avi">7d</div>
           <div>
-            <div class="proof-name">Jake K.</div>
-            <div class="proof-handle">@flipper_jk · Pro Member</div>
+            <div class="proof-name">Free trial</div>
+            <div class="proof-handle">In the Discord · no card needed</div>
           </div>
         </div>
       </div>
       <div class="proof-card">
-        <div class="proof-stars">
-          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-        </div>
-        <p class="proof-text">"I was spending 2 hours a night manually cross-listing. Now I run /crosslist once and I'm done. The lowballer handler is savage — it keeps buyers engaged without dropping price."</p>
+        <p class="proof-text">Vendora is new and shipping constantly. Every update lands in the Discord the day it goes live, and what you see here is what actually works today — not a roadmap.</p>
         <div class="proof-author">
-          <div class="proof-avi">SR</div>
+          <div class="proof-avi">/ /</div>
           <div>
-            <div class="proof-name">Steph R.</div>
-            <div class="proof-handle">@streetwear_sr · Pro Member</div>
+            <div class="proof-name">Built in the open</div>
+            <div class="proof-handle">Updates posted as they ship</div>
           </div>
         </div>
       </div>
       <div class="proof-card">
-        <div class="proof-stars">
-          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          <svg class="proof-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-        </div>
-        <p class="proof-text">"Elite tier is different. The early deal alerts mean I see deals 10–15 minutes before standard Pro members. In sneakers, that's the whole game."</p>
+        <p class="proof-text">Cancel whenever you like. Your Discord role is removed automatically the moment it lapses — no retention flow, no email to chase, no support ticket.</p>
         <div class="proof-author">
-          <div class="proof-avi">MC</div>
+          <div class="proof-avi">✕</div>
           <div>
-            <div class="proof-name">Marcus C.</div>
-            <div class="proof-handle">@kicks_mc · Elite Member</div>
+            <div class="proof-name">No lock-in</div>
+            <div class="proof-handle">Monthly · cancel any time</div>
           </div>
         </div>
       </div>
