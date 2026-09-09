@@ -4445,6 +4445,7 @@
   const ULOG_REPO = 'Myrthren/vendora';
   const ULOG_DAYS = 3;
   let ULOG_GROUPS = [];
+  let ULOG_VERSION = '';
 
   // One-time cleanup of the old accumulated state, which is all wrong.
   try { localStorage.removeItem('vendora_update_log_v1'); } catch (e) {}
@@ -4485,6 +4486,12 @@
 
     try {
       const since = new Date(Date.now() - ULOG_DAYS * 86400000).toISOString();
+      // Live version for the announcement header. Best effort — a missing
+      // version.json should not cost us the whole log.
+      try {
+        const vr = await fetch('/version.json?t=' + Date.now(), { cache: 'no-store' });
+        if (vr.ok) ULOG_VERSION = (await vr.json()).version || '';
+      } catch (ve) {}
       const r = await fetch('https://api.github.com/repos/' + ULOG_REPO + '/commits?per_page=100&since=' + encodeURIComponent(since));
       if (!r.ok) throw new Error('GitHub returned ' + r.status);
       const commits = await r.json();
@@ -4505,10 +4512,15 @@
         .sort(function (a, b) { return a[0] < b[0] ? 1 : -1; })
         .map(function (pair) {
           const items = pair[1];
+          // Default title: the day's first Feature, else its first change. A
+          // starting point to edit, not a final answer — the header line in a
+          // real announcement has always been written by hand.
+          const lead = items.find(function (i) { return i.kind === 'Feature'; }) || items[0];
           return {
             date: pair[0],
             label: ulogDayLabel(pair[0]),
             hasFeature: items.some(function (i) { return i.kind === 'Feature'; }),
+            title: lead ? lead.text : 'Update',
             items: items
           };
         });
@@ -4544,20 +4556,36 @@
           '<span style="font-size:11px;color:var(--muted);">' + esc(g.date) + ' &middot; ' + g.items.length + ' change' + (g.items.length === 1 ? '' : 's') + '</span>' +
           '<span style="margin-left:auto;"><button class="btn btn-ghost btn-sm" onclick="ulogCopy(' + i + ', this)">Copy</button></span>' +
         '</div>' +
+        '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">' +
+          '<input class="input" id="ulog-ver-' + i + '" value="' + esc(ULOG_VERSION) + '" placeholder="v6.000" ' +
+            'style="width:92px;font-size:12px;padding:6px 8px;font-family:Syne,sans-serif;font-weight:700;color:var(--pink);" ' +
+            'aria-label="Version for this announcement">' +
+          '<input class="input" id="ulog-title-' + i + '" value="' + esc(g.title) + '" placeholder="What this release is" ' +
+            'style="flex:1;min-width:180px;font-size:12px;padding:6px 8px;" aria-label="Announcement title">' +
+        '</div>' +
         '<ul style="margin:8px 0 0 16px;font-size:12px;color:var(--muted2);line-height:1.8;">' + rows + '</ul>' +
       '</div>';
     }).join('');
   }
 
-  function ulogFormat(g) {
-    const lines = ['**Vendora \u2014 ' + g.label + '**', ''];
+  // Matches the announcements already posted in Discord:
+  //   \ud83d\udce6 **Vendora v6.102** \u2014 Whop Set Up Finalisation
+  //   (blank line)
+  //   \u2022 bullet
+  function ulogFormat(g, version, title) {
+    const head = '\ud83d\udce6 **Vendora' + (version ? ' ' + version : '') + '**' + (title ? ' \u2014 ' + title : '');
+    const lines = [head, ''];
     g.items.forEach(function (it) { lines.push('\u2022 ' + it.text); });
     return lines.join('\n');
   }
   function ulogCopy(i, btn) {
     const g = ULOG_GROUPS[i];
     if (!g) return;
-    navigator.clipboard.writeText(ulogFormat(g)).then(function () {
+    const vEl = document.getElementById('ulog-ver-' + i);
+    const tEl = document.getElementById('ulog-title-' + i);
+    const version = vEl ? vEl.value.trim() : ULOG_VERSION;
+    const title   = tEl ? tEl.value.trim() : g.title;
+    navigator.clipboard.writeText(ulogFormat(g, version, title)).then(function () {
       if (btn) { const t = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = t; }, 1400); }
     });
   }
