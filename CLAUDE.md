@@ -42,9 +42,10 @@ POST-RESTORE CHECKLIST (Railway is back as of 2026-07-21 — item 3 is still OUT
 5. The avatar/initials bug is unrelated and will NOT be fixed by the restore.
 
 VERSIONING — how it actually works now
-- Current LIVE version: v6.98 (verified live 2026-07-31 at vendora.site/version.json, built from e3fb47c). Version is stamped automatically by scripts/build-version.js into version.json on every deploy — the local version.json is gitignored and stale (says v6.0), so read the live URL, not the file.
+- Current LIVE version: v6.124 (verified live 2026-09-12 at vendora.site/version.json, built from 938af21). Version is stamped automatically by scripts/build-version.js into version.json on every deploy — the local version.json is gitignored and stale (says v6.0), so read the live URL, not the file.
 - Real flow: commit + push to main (GitHub Myrthren/vendora) → Netlify auto-builds → version.json bumped automatically. There is no manual "stage then owner clicks Publish" gate on the live site deploy.
-- The admin panel has an auto-tracked Update Log (in vendora-dashboard.html): feat:/major commits create a new announcement entry; fix/chore/style/etc. fold into the previous entry and bump its version label. It drafts Discord-ready copy for the owner to paste.
+- GIT AUTH: the remote used to carry a PAT inline, which expired three times. Fixed 2026-09-09 — the remote is now a plain https URL and auth goes through the `gh` credential helper (already logged in as Myrthren). Nothing to rotate.
+- The admin panel Update Log (vendora-dashboard.html, ~line 4437) reads the LAST 3 DAYS OF COMMITS FROM THE GITHUB API and groups them by calendar day. Rewritten 2026-09-09: it used to poll version.json, which only ever holds the single latest commit, and accumulate history in localStorage from whatever it happened to observe while the dashboard was open — so every deploy that shipped with the panel closed was invisible, and one July entry spent two months absorbing unrelated commits. Docs and chores are filtered out; each line is tagged Feature/Fix/Polish. Version and title are editable fields because the announcement header has always been written by hand. Copy output matches the posted format: `📦 **Vendora v6.x** — Title`, blank line, `• bullets`.
 - NOTE: the old "increment by exactly 0.1, owner must Publish" policy below no longer matches reality (kept as owner's stated intent; confirm with Kene before treating as a hard rule). Bot-side stage/publish/revert endpoints exist but the bot is down.
 - When you ship: push to main and let Netlify + build-version.js handle the version. Update "Current LIVE version" in this file when you remember to.
 
@@ -61,12 +62,26 @@ Tiers
 Basic: £9.99/mo | Pro: £24.99/mo | Elite: £49.99/mo
 Annual billing available (~2 months free)
 
-Rate Limits
+Rate Limits (RATE_LIMITS, bot/index.js ~line 198 — hot-editable from the admin panel)
 /scan: Basic 5/day | Pro 50/day | Elite unlimited
-/reply+/lowball: Basic 20/day | Pro 100/day | Elite unlimited
-/research: Basic 3/day | Pro 20/day | Elite unlimited
-/crosslist: Basic 5/day | Pro 30/day | Elite unlimited
+/reply+/lowball+/price: Basic 20/day | Pro 100/day | Elite unlimited
+/research (+/margins /sold /competitor /trends): Basic 3/day | Pro 20/day | Elite unlimited
 /flip: Elite only 20/day
+everything else: Basic 10/day | Pro 50/day | Elite unlimited
+
+TWO SUBSYSTEMS DISAGREE ABOUT BASIC — unresolved, decide before selling Basic.
+RATE_LIMITS gives Basic 5 scans and 3 research a day, but CMD_TIER_REQUIRED
+(~line 213) gates scan/research/margins/pricedrop/trends/tracker/sold/competitor/
+vinted-alert at 'pro'. The tier check runs BEFORE the rate limiter, so those Basic
+allowances are dead code that has never executed. The pricing page was selling
+Basic as "Limited product research", which matches the RATE_LIMITS intent — so the
+gate is probably the later mistake. Site copy was corrected 2026-09-09 to match the
+code as it actually behaves; the alternative fix is to drop those commands from
+CMD_TIER_REQUIRED and let RATE_LIMITS do the tiering, which is what it was written for.
+
+/crosslist IS NOT A DISCORD COMMAND. Zero setName('crosslist') in the bot — it is
+dashboard-only (POST /api/crosslist plus a job scheduler). The old rate-limit row
+for it here described a command that never existed.
 
 Build Status (updated 2026-07-21)
 - index.html — Landing page: BUILT
@@ -299,8 +314,11 @@ BUYER ONBOARDING — three separate problems, don't conflate them:
 
 AFFILIATE PROGRAM (configured 2026-08-02 — LIVE but NOT yet recruited)
 Whop-native, zero code. Dashboard -> Marketing -> Affiliates.
-  Global affiliate rate: 25% recurring   (anyone who refers)
-  Member affiliate rate: 35% recurring   (existing members of the whop)
+  Rate quoted everywhere in code: 30% recurring (AFFILIATE_RATE_PCT, bot/index.js ~195)
+  (An earlier note here said 25% global / 35% member. The code says a flat 30 and
+   every DM, the #affiliates embed and /postaffiliate all read AFFILIATE_RATE_PCT.
+   CONFIRM WHAT WHOP IS ACTUALLY SET TO — quoting a rate Whop does not pay is the
+   one affiliate mistake you cannot walk back.)
 Rates are per-whop and set independently, so members can be paid more than the
 public rate without advertising it. Whop generates each affiliate's link, tracks
 attribution, calculates commission and handles payouts. There is a 30-DAY HOLD
@@ -338,9 +356,139 @@ deliberately. Do not recruit until there are a few paying customers: affiliates
 amplify a funnel that converts, they cannot create one, and promoter goodwill is
 spent once.
 
+VINTED REACHABILITY — read this before debugging "no results" (2026-09-09)
+Every Vinted feature shares one network path, so when it breaks, ALL of them break
+together: /scan /research /price comps, the alert crons, auto-buy, inventory sync,
+the watchlist, the deal feed and Vendex.
+
+WHAT HAPPENED: the SmartProxy (PROXY_URL, proxy.smartproxy.net:3120) stopped
+answering. A dead proxy HANGS rather than refusing, so it surfaced as
+`page.goto: Timeout 25000ms exceeded` and `getVintedBase failed: fetch failed`,
+not as a proxy error. Two bugs turned that into a silent total outage:
+  1. resolveVintedBase caught the timeout and returned the default URL anyway. The
+     caller then ran page.evaluate against a page that never loaded, the inner fetch
+     failed and returned [], so vintedBrowserSearchItems reported { items: [] } with
+     NO error — indistinguishable from "Vinted has nothing matching". Apify was
+     therefore never tried. FIXED: resolveVintedBase(page, strict) throws instead;
+     only search passes strict, since search is the path with a fallback worth reaching.
+  2. The no-proxy retry only matched ERR_TUNNEL_CONNECTION_FAILED and only ran in
+     the login path. FIXED: a circuit breaker in bot/vinted-browser.js — two
+     consecutive failures to reach vinted.co.uk drop the proxy, close the browser and
+     run direct for 30 minutes, then retry the proxy automatically. A datacenter IP
+     risks DataDome, but a proxy that cannot connect is a guaranteed outage.
+
+DIAGNOSE IT IN ONE CALL: GET / now returns a `vinted` block —
+{ playwright, stealth, proxyConfigured, proxyDisabled, proxyRetryAt, consecutiveFails }.
+proxyDisabled:true means the breaker has tripped and it is running direct.
+GET /api/vinted/proxy-test (owner-only) probes the proxy step by step.
+AS OF 2026-09-12 the proxy is STILL DEAD and the breaker is carrying it — Vinted
+works, but on Railway's own IP. Fixing PROXY_URL is still outstanding.
+
+APIFY — migrated off the hot paths 2026-09-09
+The account is on the FREE $5/month cap and kazkn~vinted-smart-scraper is
+pay-per-event ($0.02 a run + $0.002 a result), so a 12-item search is $0.044 —
+about 83 searches a month for ALL users. One Basic customer at 5 scans/day exceeds
+that alone, so no tier structure was affordable on it.
+  - searchVinted (~line 891) is browser-first with a CONCURRENCY GUARD: past 3
+    in-flight browser searches it spills to Apify. Apify is burst capacity now, not
+    the cost of every search — crons are serial but user commands are not, and ten
+    people running /scan at once would otherwise queue behind one Chromium.
+  - vintedItemDetail (~line 824) added for the watchlist cron, which was ~$317/month
+    for one Elite user watching 20 items.
+  - Alert baselining moved off Apify (30 alerts cost $1.80 to set up).
+  - STILL ON APIFY DELIBERATELY: cross-country arbitrage (~line 8337). Credit-gated
+    at ~£0.48 revenue against ~£0.32 cost, and there is no browser equivalent.
+  - Deleted: apifyVintedFetchUserByUsername / apifyVintedFetchUserItems (zero
+    callers) and APIFY_VINTED_USER_ACTOR with them.
+
+THE MARKET — channel feeds (built 2026-09-08/09, bot/feeds.js)
+An owner-curated keyword list searched every 10 min via alertKeywordSearch (browser
+path, £0 per call), filtered to listings >=35% under the median of their OWN search
+results, with a floor at 15% of median to exclude bundle and photo-only listings.
+  #early-deals (Elite) posts at T+0; #deals (Pro) gets the same find 10 minutes
+  later. The delay is the "speed edge" the pricing page sells, so it is a product
+  value, not an artefact. The queue lives in the settings table, NOT a setTimeout —
+  Railway redeploys constantly and timers would silently drop queued finds.
+  #price-drops (Pro) reports category going-rate falls every 6h; #trend-reports (Pro)
+  and #whats-selling (all) post weekly on Sundays at 17:00 and 18:00.
+  DELIBERATELY A GLOBAL SOURCE: processVintedAlerts is PER USER, so piping it into a
+  shared channel would leak what individuals are hunting and go silent when nobody
+  has alerts set.
+Settings keys: feed_keywords (the list), feed_tuning (thresholds, no deploy needed),
+deal_feed_queue, deal_feed_seen_ids, feed_keyword_stats, price_drop_last_posted.
+Channel ids live in bot/feeds.js CHANNELS. #competitor-watch was created then deleted
+— /competitor is a one-shot AI breakdown, nothing is stored and nothing notifies, so
+there was no feed to wire.
+
+VENDEX — public price index (built 2026-09-09, LIVE and producing)
+GET /api/vendex (public, unauthenticated, 5-min memory cache) + vendex.html.
+Median asking price per category from the hourly medians the deal feed already
+records, plus an equal-weighted index rebased to 100 at each category's first
+reading. Averaging RELATIVE change is the only honest way to combine categories
+whose prices differ by an order of magnitude.
+As of 2026-09-12: index 90.3, 6 categories, ~50 samples each since 09-09 21:31.
+NOT LINKED from the main site yet — owner's call.
+KNOWN DATA-QUALITY ISSUE: the search takes the 20 NEWEST listings, which drags some
+medians well below the real market (nike tech fleece reads £16.45 against a true
+£40-80) because kids' sizes, shorts and accessories match the keyword. Fix by
+sampling more items or trimming outliers before taking the median. Worth doing
+before Vendex is linked publicly — resellers will spot it immediately.
+
+FREE TRIAL (built 2026-09-08, bot/trial.js)
+7 days, PRO-EQUIVALENT, DISCORD ONLY — no dashboard, stated on the embed so it does
+not become a day-one support ticket. /posttrial posts and pins the embed in
+#try-vendora (1546270485803704440); the button grants role 1546263632617144411.
+  - Eligibility is STORED (settings key `trials`), never inferred from the role.
+    Someone can leave and rejoin or lose the role, and a role check would hand them a
+    fresh trial each time. `done` is kept forever as the record they have had theirs.
+  - The command gate (~line 3556) accepts an active trial as well as a subscription.
+    Without that branch a trial member gets the role, opens the feeds, runs /scan and
+    is told to subscribe.
+  - Expiry is a 15-min sweep against the stored end time, not a setTimeout. Access is
+    gated on the timestamp, so an expired trial stops working on time even before the
+    sweep strips the role.
+  - Converting mid-trial closes the trial and removes the role: assignRole only
+    manages the tier roles in ROLE_IDS, so it would otherwise leave a Basic subscriber
+    sitting in the Pro feed channels.
+  - DMs: start (also opens the DM channel, which is what makes the later DMs
+    deliverable at all), day 6, and day 7. The closing DM sells on what the trial
+    WITHHELD — the dashboard — which only works because the trial is scoped this way.
+
+OWNER COMMANDS ADDED: /postaffiliate (affiliate embed, channel 1546264798876930151)
+and /posttrial. Both are owner-only, post-and-pin, and edit in place when re-run so
+revising copy does not leave duplicates or lose the pin. Same pattern as /postrules.
+
+SITE HONESTY PASS (2026-09-09) — the landing page was selling things that do not work
+eBay's Finding API is retired (503 every call) and Depop is 403 bot-blocked; both
+fail silently to null. The page said "3 Platforms Live" and listed both as
+"Research + List". Now: 1 Platform Live, Vinted first, Depop and eBay "In Progress",
+feature copy and all three meta/OG/Twitter descriptions say Vinted only, and the
+live-scan mock rows are all Vinted.
+Three fabricated testimonials (named reviewers with handles and "Pro Member" tags,
+against zero customers all-time) were replaced with three factual cards.
+Pricing cards corrected: Basic no longer claims research or DM alerts it cannot
+reach, Pro no longer claims "all platforms" cross-listing or "Competitor tracking"
+that implies monitoring. Checkout step now names Whop as well as PayPal — Whop is the
+only checkout affiliate links can attribute, so naming PayPal alone worked against
+the affiliate program.
+
 Reference Files
 - /docs/vendora-product-document.pdf — Full product spec (27 pages)
 - /index.html — Landing page
+- /vendex.html — Vendex, the public price index
 - /vendora-login.html — Login/auth page
 - /vendora-dashboard.html — User dashboard
-- /bot/index.js — Discord bot entry point
+- /bot/index.js — Discord bot AND backend API (one process)
+- /bot/feeds.js — The Market channel feeds: channel ids, underpriced filter, embeds
+- /bot/trial.js — Free trial payloads
+- /bot/outreach.js — Setup + affiliate DMs, and the #affiliates channel embed
+- /bot/onboarding.js — Onboarding quiz + day-one affiliate DM
+- /bot/winback-embed.js — Win-back DM payload
+- /bot/vinted-browser.js — Playwright flow + the proxy circuit breaker
+- /scripts/discord-server-map.js — read-only dump of every channel, role and
+  permission overwrite. Needs DISCORD_BOT_TOKEN in your own shell.
+- /scripts/vinted-search-compare.js — Apify vs browser field-parity check
+
+CONVENTION: payload builders (feeds/trial/outreach/onboarding/winback-embed) are
+PURE — no client, no database, no config imports — so the exact object the owner
+approves in a preview is the object members receive.
