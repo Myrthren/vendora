@@ -887,6 +887,27 @@
   }
   .price-input:focus { border-color: rgba(232,33,122,0.4); }
 
+  /* Update log — editable announcement header. Same surface treatment as
+     .price-input and .rate-limit-input so the panel reads as one thing. */
+  .ulog-input {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border-dim);
+    border-radius: 3px; padding: 6px 10px;
+    font-size: 12px; color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    transition: border-color .2s, background .2s;
+  }
+  .ulog-input::placeholder { color: var(--muted2); }
+  .ulog-input:hover { border-color: rgba(255,255,255,0.12); }
+  .ulog-input:focus { border-color: rgba(232,33,122,0.4); background: rgba(255,255,255,0.06); }
+  .ulog-input-ver {
+    width: 88px; text-align: center;
+    font-family: 'Syne', sans-serif; font-weight: 700;
+    color: var(--pink); letter-spacing: 0.02em;
+  }
+  .ulog-input-title { flex: 1; min-width: 180px; }
+
   /* Access denied for non-owners */
   .access-denied {
     text-align: center; padding: 80px 40px;
@@ -4557,11 +4578,10 @@
           '<span style="margin-left:auto;"><button class="btn btn-ghost btn-sm" onclick="ulogCopy(' + i + ', this)">Copy</button></span>' +
         '</div>' +
         '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">' +
-          '<input class="input" id="ulog-ver-' + i + '" value="' + esc(ULOG_VERSION) + '" placeholder="v6.000" ' +
-            'style="width:92px;font-size:12px;padding:6px 8px;font-family:Syne,sans-serif;font-weight:700;color:var(--pink);" ' +
-            'aria-label="Version for this announcement">' +
-          '<input class="input" id="ulog-title-' + i + '" value="' + esc(g.title) + '" placeholder="What this release is" ' +
-            'style="flex:1;min-width:180px;font-size:12px;padding:6px 8px;" aria-label="Announcement title">' +
+          '<input class="ulog-input ulog-input-ver" id="ulog-ver-' + i + '" value="' + esc(ULOG_VERSION) + '" ' +
+            'placeholder="v6.000" aria-label="Version for this announcement">' +
+          '<input class="ulog-input ulog-input-title" id="ulog-title-' + i + '" value="' + esc(g.title) + '" ' +
+            'placeholder="What this release is" aria-label="Announcement title">' +
         '</div>' +
         '<ul style="margin:8px 0 0 16px;font-size:12px;color:var(--muted2);line-height:1.8;">' + rows + '</ul>' +
       '</div>';
