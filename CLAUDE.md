@@ -434,6 +434,34 @@ medians well below the real market (nike tech fleece reads £16.45 against a tru
 sampling more items or trimming outliers before taking the median. Worth doing
 before Vendex is linked publicly — resellers will spot it immediately.
 
+DEAL FEED TRACK RECORD (built 2026-09-13, bot/track-record.js — NOT YET DEPLOYED)
+Every find posted to #early-deals is logged (settings key deal_feed_track_log) and
+rechecked at 2h / 24h / 72h. Published as share of finds "gone" by each check:
+GET /api/track-record (public, aggregates only — no titles, links or seller ids),
+a block on vendex.html that stays hidden below 20 resolved finds, and a monthly
+post to #whats-selling on the 1st at 19:00. Hourly sweep at :05, max 25 sellers/run.
+HOW GONE IS DETECTED — probed live 2026-09-13, do not re-derive:
+  - /api/v2/items/{id} 404s WITHOUT a session for live AND nonexistent items. It
+    cannot tell them apart. (vintedItemDetail survives only via its DOM fallback.)
+  - The seller's public wardrobe /api/v2/wardrobe/{sellerId}/items works tokenless,
+    carries is_closed / is_reserved / is_hidden, and sold items are ABSENT from it.
+    Every search result sampled was on page 1 of its seller's wardrobe.
+  - So: in wardrobe = up; missing from a COMPLETE read = gone; partial read or an
+    EMPTY wardrobe = unknown (a soft block can return items: [] with a 200).
+"Gone" includes deleted/hidden, not just sold. All copy says "no longer available",
+never "sold". Keep it that way — it is a public claim.
+
+AUTO-BUY AVAILABILITY CHECK IS PROBABLY WRONG (found 2026-09-13, NOT fixed)
+vintedBrowserBuyItem (vinted-browser.js ~1066) treats an item as available when
+item.status === 'available' || status === 1 || status_id === 1. On Vinted, `status`
+is the CONDITION text ("Good", "Very good" — confirmed live) and status_id is the
+condition id where 1 = "New without tags" (index.js ~5392). So the check refuses
+nearly every item as "no longer available" and only lets NWOT items through. The
+real flags are is_closed / is_reserved / is_hidden. Not fixed because fixing it
+turns on real purchases for anyone with auto-buy alerts — owner decision. The
+authenticated item payload was not probed (no token locally); confirm with one
+real auto-buy log line before changing.
+
 FREE TRIAL (built 2026-09-08, bot/trial.js)
 7 days, PRO-EQUIVALENT, DISCORD ONLY — no dashboard, stated on the embed so it does
 not become a day-one support ticket. /posttrial posts and pins the embed in
@@ -480,6 +508,7 @@ Reference Files
 - /vendora-dashboard.html — User dashboard
 - /bot/index.js — Discord bot AND backend API (one process)
 - /bot/feeds.js — The Market channel feeds: channel ids, underpriced filter, embeds
+- /bot/track-record.js — Deal feed track record: find log, recheck logic, summary, embed
 - /bot/trial.js — Free trial payloads
 - /bot/outreach.js — Setup + affiliate DMs, and the #affiliates channel embed
 - /bot/onboarding.js — Onboarding quiz + day-one affiliate DM
@@ -489,6 +518,6 @@ Reference Files
   permission overwrite. Needs DISCORD_BOT_TOKEN in your own shell.
 - /scripts/vinted-search-compare.js — Apify vs browser field-parity check
 
-CONVENTION: payload builders (feeds/trial/outreach/onboarding/winback-embed) are
+CONVENTION: payload builders (feeds/track-record/trial/outreach/onboarding/winback-embed) are
 PURE — no client, no database, no config imports — so the exact object the owner
 approves in a preview is the object members receive.

@@ -1190,7 +1190,59 @@ async function vintedBrowserFetchPublicUserItems(sellerId) {
   }
 }
 
+// ─── public: a seller's wardrobe, reduced to availability (no token required) ─
+// Powers the deal-feed track record. /api/v2/items/{id} 404s without a session
+// for live and nonexistent items alike, so it cannot say whether a find is
+// gone; the public wardrobe can (probed 2026-09-13). Sold items are absent from
+// it, so `complete` matters: only a wardrobe read to its last page proves an
+// item is missing rather than on a page we did not fetch.
+//
+// Returns { items: { [id]: { closed, reserved, hidden } }, complete } | { error }
+async function vintedBrowserWardrobeStatus(sellerId, maxPages = 3) {
+  if (!chromium) return { error: 'Browser unavailable' };
+  const id = String(sellerId || '').trim();
+  if (!/^\d+$/.test(id)) return { error: 'Numeric seller ID required' };
+  let page;
+  try {
+    const ctx = await ensureBrowser();
+    page = await ctx.newPage();
+    // Strict: an unloaded page would make every item look missing, and a
+    // missing item is recorded as gone. That must be an error, not a result.
+    const base = await resolveVintedBase(page, true);
+
+    return await page.evaluate(async ({ base, id, maxPages }) => {
+      const items = {};
+      for (let p = 1; p <= maxPages; p++) {
+        let d;
+        try {
+          const r = await fetch(`${base}/api/v2/wardrobe/${id}/items?per_page=96&page=${p}&order=newest_first`, {
+            credentials: 'include',
+            headers: { Accept: 'application/json' },
+          });
+          if (!r.ok) return { error: `wardrobe ${r.status}` };
+          d = await r.json();
+        } catch (e) {
+          // A DataDome challenge comes back as HTML and lands here.
+          return { error: `wardrobe unreadable: ${e.message}` };
+        }
+        const list = Array.isArray(d?.items) ? d.items : null;
+        if (!list) return { error: 'wardrobe response had no items array' };
+        for (const x of list) {
+          items[String(x.id)] = { closed: !!x.is_closed, reserved: !!x.is_reserved, hidden: !!x.is_hidden };
+        }
+        if (list.length < 96) return { items, complete: true };
+      }
+      return { items, complete: false };
+    }, { base, id, maxPages });
+  } catch (e) {
+    return { error: e.message };
+  } finally {
+    try { if (page) await page.close(); } catch {}
+  }
+}
+
 module.exports = {
+  vintedBrowserWardrobeStatus,
   vintedBrowserLogin,
   vintedBrowserLookupUser,
   vintedBrowserFetchPublicUserItems,

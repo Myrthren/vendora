@@ -31,6 +31,8 @@ const { buildWinbackPayload } = require('./winback-embed');
 // Channel feeds for The Market category — channel ids, the underpriced filter
 // and the embed builders. Logic only; the posting happens here in index.js.
 const feeds = require('./feeds');
+// Deal-feed track record — did the finds we posted actually go? Pure logic, see bot/track-record.js.
+const trackRecord = require('./track-record');
 
 // Vinted browser flow (Playwright + stealth) — bypasses DataDome by running
 // inside a real Chromium through the residential proxy. Optional dep:
@@ -3754,6 +3756,38 @@ app.get('/api/vendex', async (_req, res) => {
   } catch (e) {
     console.error('[vendex] Failed:', e.message);
     return res.status(500).json({ error: 'Index unavailable' });
+  }
+});
+
+// ── Deal-feed track record — public ──────────────────────────────────────────
+// Aggregates only. No titles, links or seller ids: the individual finds are
+// what Pro and Elite pay for, and seller ids would identify private people.
+let trackRecordCache = { at: 0, body: null };
+
+app.get('/api/track-record', async (_req, res) => {
+  try {
+    if (trackRecordCache.body && Date.now() - trackRecordCache.at < VENDEX_TTL_MS) {
+      res.setHeader('X-Cache', 'HIT');
+      return res.json(trackRecordCache.body);
+    }
+    const log = (await getSetting(TRACK_LOG_KEY)) || [];
+    const s = trackRecord.summarise(log, { days: 30 });
+    const body = {
+      name: 'Vendora deal feed track record',
+      description: 'Underpriced finds posted to the deal feed, rechecked 2, 24 and 72 hours later.',
+      definition: 'Gone means no longer available on Vinted: sold, or removed or hidden by the seller.',
+      updated: Date.now(),
+      minResolved: trackRecord.MIN_RESOLVED,
+      ...s,
+      // A keyword with one or two checked finds would publish 0% or 100%.
+      keywords: s.keywords.filter(k => k.resolved >= 3),
+    };
+    trackRecordCache = { at: Date.now(), body };
+    res.setHeader('X-Cache', 'MISS');
+    return res.json(body);
+  } catch (e) {
+    console.error('[track-record] Failed:', e.message);
+    return res.status(500).json({ error: 'Track record unavailable' });
   }
 });
 
@@ -10176,6 +10210,7 @@ async function postToFeedChannel(channelId, payload, label) {
 const DEAL_QUEUE_KEY = 'deal_feed_queue';
 const FEED_SEEN_KEY  = 'deal_feed_seen_ids';
 const FEED_STATS_KEY = 'feed_keyword_stats';
+const TRACK_LOG_KEY  = 'deal_feed_track_log';
 
 async function runDealFeed() {
   if (!SUPABASE_KEY) return;
@@ -10191,6 +10226,8 @@ async function runDealFeed() {
     // Tunable without a deploy — see feeds.pickUnderpriced for what each does.
     const tuning = (await getSetting('feed_tuning')) || {};
     let posted = 0, sampled = 0;
+    // Finds that actually posted, for the track record. Written after the loop.
+    const postedFinds = [];
     // Per-keyword outcome, so a quiet run says WHY it was quiet. Without this,
     // "no results", "nothing cheap enough" and "cron never ran" are the same
     // silence, which is not a diagnosis.
@@ -10228,6 +10265,8 @@ async function runDealFeed() {
         const payloadElite = feeds.buildDealPayload({ keyword, picks: fresh, median: med, tier: 'elite' });
         if (await postToFeedChannel(feeds.CHANNELS.earlyDeals, payloadElite, 'early-deals')) {
           posted++;
+          // Only what members were actually shown counts toward the track record.
+          postedFinds.push({ keyword, picks: fresh, median: med });
           queue.push({
             dueAt: Date.now() + feeds.PRO_DELAY_MS,
             keyword,
@@ -10250,7 +10289,17 @@ async function runDealFeed() {
     if (posted) {
       await saveSetting(DEAL_QUEUE_KEY, queue);
       await saveSetting(FEED_SEEN_KEY, [...seen].slice(-1000));
-      console.log(`[feed:deals] Posted ${posted} find(s) to #early-deals, ${queue.length} queued for #deals.`);
+      // Re-read immediately before writing: the hourly track-record sweep writes
+      // the same row, and a copy read at the start of this run (which can take
+      // minutes) would overwrite its check results.
+      let trackLog = (await getSetting(TRACK_LOG_KEY)) || [];
+      let tracked = 0;
+      for (const f of postedFinds) {
+        const r = trackRecord.logFinds(trackLog, f);
+        trackLog = r.log; tracked += r.added;
+      }
+      if (tracked) await saveSetting(TRACK_LOG_KEY, trackLog);
+      console.log(`[feed:deals] Posted ${posted} find(s) to #early-deals, ${queue.length} queued for #deals, ${tracked} logged for the track record.`);
     } else {
       // Always say something. A run that posts nothing is the common case and
       // has to be distinguishable from a run that never happened.
@@ -10408,6 +10457,91 @@ async function runTrendReport() {
 // channel is genuinely first rather than a fuller version of old news.
 // runWhatsSelling resets the find counters, so this must stay ahead of it.
 cron.schedule('0 17 * * 0', () => runTrendReport().catch(e => console.error('[feed:trend-report] Unhandled:', e.message)), { timezone: 'Europe/London' });
+
+// ── The Market: deal-feed track record ───────────────────────────────────────
+// Rechecks posted finds at 2h / 24h / 72h against the seller's public wardrobe.
+// One wardrobe read covers every due find from that seller. Capped per run so
+// a busy feed day cannot keep the one shared Chromium occupied for an hour —
+// anything over the cap is simply picked up by the next sweep.
+const TRACK_SWEEP_MAX_SELLERS = 25;
+
+async function runTrackRecordChecks() {
+  if (!SUPABASE_KEY) return;
+  if (!vintedBrowser?.vintedBrowserWardrobeStatus) {
+    console.log('[feed:track-record] Browser flow unavailable — no checks run.');
+    return;
+  }
+  try {
+    const log = (await getSetting(TRACK_LOG_KEY)) || [];
+    const due = trackRecord.dueChecks(log, Date.now());
+    if (!due.length) {
+      console.log(`[feed:track-record] No checks due (${log.length} find(s) logged).`);
+      return;
+    }
+
+    const bySeller = new Map();
+    for (const e of due) {
+      if (!bySeller.has(e.sellerId)) bySeller.set(e.sellerId, []);
+      bySeller.get(e.sellerId).push(e);
+    }
+
+    const updates = {};
+    const tally = { present: 0, reserved: 0, gone: 0, unknown: 0 };
+    let checked = 0, errors = 0;
+    for (const sellerId of [...bySeller.keys()].slice(0, TRACK_SWEEP_MAX_SELLERS)) {
+      const wardrobe = await vintedBrowser.vintedBrowserWardrobeStatus(sellerId);
+      checked++;
+      if (wardrobe?.error) {
+        errors++;
+        console.warn(`[feed:track-record] Seller ${sellerId}: ${wardrobe.error}`);
+      }
+      for (const e of bySeller.get(sellerId)) {
+        const outcome = trackRecord.outcomeFromWardrobe(e.id, wardrobe);
+        tally[outcome]++;
+        updates[e.id] = trackRecord.applyCheck(e, outcome, Date.now());
+      }
+      // Every read failing means Vinted is unreachable, not that these sellers
+      // are odd. Stop rather than spend the sweep confirming it.
+      if (errors >= 3 && errors === checked) {
+        console.warn('[feed:track-record] Three wardrobe reads failed in a row — stopping this sweep.');
+        break;
+      }
+    }
+
+    // Merge onto a fresh read: the deal feed may have appended finds meanwhile.
+    const latest = (await getSetting(TRACK_LOG_KEY)) || [];
+    await saveSetting(TRACK_LOG_KEY, latest.map(e => updates[e.id] || e));
+    console.log(
+      `[feed:track-record] Checked ${Object.keys(updates).length} find(s) across ${checked} seller(s): ` +
+      `${tally.present} still up, ${tally.reserved} reserved, ${tally.gone} gone, ${tally.unknown} unknown · ` +
+      `${errors} wardrobe error(s) · ${Math.max(0, bySeller.size - checked)} seller(s) deferred.`
+    );
+  } catch (e) {
+    console.error('[feed:track-record] Sweep failed:', e.message);
+  }
+}
+
+// Monthly, in the one free channel — this is proof for people who have not paid.
+// Numbers only, no listing links: those are what Pro and Elite pay for.
+async function runTrackRecordPost() {
+  if (!SUPABASE_KEY) return;
+  try {
+    const log = (await getSetting(TRACK_LOG_KEY)) || [];
+    const summary = trackRecord.summarise(log, { days: 30 });
+    if (!summary.enoughData) {
+      console.log(`[feed:track-record] Only ${summary.resolved} resolved find(s) in 30 days (need ${trackRecord.MIN_RESOLVED}) — not posting.`);
+      return;
+    }
+    await postToFeedChannel(feeds.CHANNELS.whatsSelling, trackRecord.buildTrackRecordPayload(summary), 'track-record');
+    console.log(`[feed:track-record] Posted monthly record: ${summary.resolved} finds, ${summary.gone24hPct}% gone within 24h.`);
+  } catch (e) {
+    console.error('[feed:track-record] Monthly post failed:', e.message);
+  }
+}
+
+// :05 past, clear of the deal feed's :00 run starting on the same browser.
+cron.schedule('5 * * * *', () => runTrackRecordChecks().catch(e => console.error('[feed:track-record] Unhandled:', e.message)));
+cron.schedule('0 19 1 * *', () => runTrackRecordPost().catch(e => console.error('[feed:track-record] Unhandled post:', e.message)), { timezone: 'Europe/London' });
 
 // ── Free trial ────────────────────────────────────────────────────────────────
 // Grants TRIAL_ROLE_ID for trial.TRIAL_DAYS, once per account, ever.
