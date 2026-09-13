@@ -377,12 +377,32 @@ not as a proxy error. Two bugs turned that into a silent total outage:
      run direct for 30 minutes, then retry the proxy automatically. A datacenter IP
      risks DataDome, but a proxy that cannot connect is a guaranteed outage.
 
-DIAGNOSE IT IN ONE CALL: GET / now returns a `vinted` block —
-{ playwright, stealth, proxyConfigured, proxyDisabled, proxyRetryAt, consecutiveFails }.
-proxyDisabled:true means the breaker has tripped and it is running direct.
-GET /api/vinted/proxy-test (owner-only) probes the proxy step by step.
-AS OF 2026-09-12 the proxy is STILL DEAD and the breaker is carrying it — Vinted
-works, but on Railway's own IP. Fixing PROXY_URL is still outstanding.
+DIAGNOSE IT IN ONE CALL: GET / returns a `vinted` block —
+{ playwright, stealth, proxyConfigured, proxyDisabled, proxyRetryAt, consecutiveFails,
+  proxyProbe: { ok, status, reason, ms, at } }.
+proxyDisabled:true means it is running direct. proxyProbe.reason says WHY, in words.
+GET /api/vinted/proxy-test (owner-only) probes the APIFY proxy, not PROXY_URL.
+
+PROXY PROBE (built 2026-09-13, bot/proxy-probe.js): the "dead proxy" was misread.
+Probed from outside, proxy.smartproxy.net:3120 (real IP 212.102.56.56) is ALIVE — it
+answers an unauthenticated CONNECT with 407 in ~90ms. Chromium given credentials the
+proxy rejects does not error cleanly; navigation just hits its 25s timeout, so
+"proxy hangs" and "proxy rejects our credentials" looked identical. Most likely cause:
+the Smartproxy/Decodo plan lapsed or ran out of traffic, or the credentials changed.
+The probe sends one CONNECT to www.vinted.co.uk:443 through PROXY_URL at boot and
+every 10 min. Failed → proxy disabled BEFORE any real run uses it (the breaker used to
+cost two timed-out runs after every deploy and every 30-min retry); passed → enabled.
+ensureBrowser waits for the boot probe. index.js vFetch / vintedProxyOpts /
+scrapeProductPage follow it via proxyUsableNow(). Logs only on change.
+LOCAL-TESTING GOTCHA: Virgin Media's resolver (194.168.4.100) answers
+*.smartproxy.net and gate.smartproxy.com with 81.99.162.48, which hangs — an ISP block.
+Use Google DNS for the real IPs. gate.decodo.com resolves normally.
+Smartproxy rebranded to Decodo (April 2025); old endpoints still work per Decodo,
+same username:password format. New rotating residential endpoint: gate.decodo.com:7000.
+THE FIX IS OWNER-SIDE: read proxyProbe.reason on GET / after deploy. If it is the 407
+credentials message, log into Decodo, check the plan/traffic and the proxy user's
+credentials, then update PROXY_URL on Railway (http://USER:PASS@gate.decodo.com:7000
+is the current residential form). The probe re-enables the proxy within 10 min.
 
 APIFY — migrated off the hot paths 2026-09-09
 The account is on the FREE $5/month cap and kazkn~vinted-smart-scraper is

@@ -43,6 +43,8 @@ try {
 }
 
 const PROXY_URL = process.env.PROXY_URL || null;
+// Direct CONNECT probe of PROXY_URL — names WHY a proxy is unusable. See bot/proxy-probe.js.
+const proxyProbe = require('./proxy-probe');
 
 // ─── shared browser state ─────────────────────────────────────────────────────
 let _browser = null;
@@ -107,7 +109,68 @@ function noteVintedReachable() {
   _proxyFailures = 0;
 }
 
+// ─── proxy probe ──────────────────────────────────────────────────────────────
+// The breaker above only learns the proxy is broken by failing real work, and
+// its state is in memory: after every deploy, and at every 30-minute retry, two
+// real Vinted runs time out before it trips again. The probe asks the proxy
+// directly — one CONNECT to Vinted through PROXY_URL, a few seconds — so a
+// broken proxy is dropped before anything uses it and put back as soon as it
+// works, and the health endpoint says WHY (credentials rejected, plan expired,
+// unreachable) instead of "timeout".
+const PROBE_INTERVAL_MS = 10 * 60 * 1000;
+let _lastProbe = null;
+let _probing = null;
+
+async function refreshProxyProbe() {
+  if (!PROXY_URL) return null;
+  if (_probing) return _probing;
+  _probing = (async () => {
+    const raw = await proxyProbe.probeProxy(PROXY_URL);
+    const verdict = proxyProbe.classifyProbe(raw);
+    const prev = _lastProbe;
+    _lastProbe = { ok: verdict.ok, status: raw.status || null, reason: verdict.reason, ms: raw.ms, at: Date.now() };
+
+    if (verdict.ok) {
+      if (proxyCurrentlyDisabled() || (prev && !prev.ok)) console.log('[vinted-browser] Proxy probe passed — proxy enabled.');
+      _proxyDisabledUntil = 0;
+      _proxyFailures = 0;
+      // A browser that launched direct keeps running direct until relaunched.
+      // Closing it can fail an in-flight page, but only on this rare transition.
+      if (_context && _proxySkipped) await closeVintedBrowser();
+    } else {
+      // Log on change only — a probe every 10 minutes repeating the same
+      // failure would bury everything else in the Railway logs.
+      if (!prev || prev.ok || prev.reason !== verdict.reason) {
+        console.warn(`[vinted-browser] Proxy probe failed: ${verdict.reason}. Running direct until it passes.`);
+      }
+      const browserOnProxy = _context && !_proxySkipped;
+      _proxyDisabledUntil = Date.now() + PROXY_COOLDOWN_MS;
+      _proxySkipped = true;
+      if (browserOnProxy) await closeVintedBrowser();
+    }
+    return _lastProbe;
+  })();
+  try { return await _probing; } finally { _probing = null; }
+}
+
+// Probe at boot, then every 10 minutes. ensureBrowser waits for the boot probe,
+// so no launch after a deploy ever uses a proxy nobody has checked.
+const _initialProbe = PROXY_URL
+  ? refreshProxyProbe().catch(e => { console.warn('[vinted-browser] Initial proxy probe threw:', e.message); return null; })
+  : Promise.resolve(null);
+if (PROXY_URL) {
+  const t = setInterval(() => { refreshProxyProbe().catch(() => {}); }, PROBE_INTERVAL_MS);
+  if (t.unref) t.unref();
+}
+
+// Whether PROXY_URL should be used right now. index.js consults this for its
+// undici ProxyAgent calls, so they stop timing out through a broken proxy too.
+function proxyUsable() {
+  return !!PROXY_URL && !proxyCurrentlyDisabled();
+}
+
 // For the health endpoint, so the state is visible without reading logs.
+// proxyProbe carries a status code and a reason — never the URL or credentials.
 function vintedBrowserStatus() {
   return {
     playwright:      !!chromium,
@@ -116,6 +179,7 @@ function vintedBrowserStatus() {
     proxyDisabled:   proxyCurrentlyDisabled(),
     proxyRetryAt:    proxyCurrentlyDisabled() ? _proxyDisabledUntil : null,
     consecutiveFails: _proxyFailures,
+    proxyProbe:      _lastProbe,
   };
 }
 
@@ -151,6 +215,11 @@ async function ensureBrowser() {
   if (_launchingPromise) return _launchingPromise;
 
   _launchingPromise = (async () => {
+    // Never launch on an unchecked proxy: wait for the boot probe, and when a
+    // cooldown has run out after a failed probe, probe again first instead of
+    // spending real runs to find out it is still broken.
+    await _initialProbe;
+    if (PROXY_URL && _lastProbe && !_lastProbe.ok && !proxyCurrentlyDisabled()) await refreshProxyProbe();
     // Honour the circuit breaker: while the proxy is in cooldown, launch direct.
     const useProxy = !proxyCurrentlyDisabled();
     const { browser, context } = await launchBrowser(useProxy);
@@ -1254,6 +1323,8 @@ async function vintedBrowserWardrobeStatus(sellerId, maxPages = 3) {
 }
 
 module.exports = {
+  proxyUsable,
+  refreshProxyProbe,
   vintedBrowserWardrobeStatus,
   vintedBrowserLogin,
   vintedBrowserLookupUser,

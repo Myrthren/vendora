@@ -1377,7 +1377,8 @@ async function scrapeProductPage(rawUrl) {
   };
 
   const fetchOpts = { headers, redirect: 'follow' };
-  if (PROXY_URL && ProxyAgent) fetchOpts.dispatcher = new ProxyAgent(PROXY_URL);
+  // Skipped while the proxy probe says PROXY_URL is unusable (see proxyUsableNow).
+  if (PROXY_URL && ProxyAgent && proxyUsableNow()) fetchOpts.dispatcher = new ProxyAgent(PROXY_URL);
 
   const controller = new AbortController();
   const timeout    = setTimeout(() => controller.abort(), 15000);
@@ -5005,10 +5006,16 @@ async function depopDeleteListing(accessToken, listingId) {
 
 // ── Vinted API ────────────────────────────────────────────────────────────────
 
+// The browser module owns proxy health (boot + 10-minute probe, circuit
+// breaker). The undici calls below follow it, so a broken PROXY_URL stops
+// costing a timeout on every legacy fetch as well. Without the browser module
+// the old behaviour stands: use the agent whenever one was built.
+const proxyUsableNow = () => !vintedBrowser?.proxyUsable || vintedBrowser.proxyUsable();
+
 // vintedProxyOpts — kept for legacy non-Vinted calls (search helpers, pricedrop).
 // NOTE: global fetch silently ignores `dispatcher` — use vFetch() for Vinted API calls.
 function vintedProxyOpts(extraOpts = {}) {
-  if (PROXY_AGENT) return { ...extraOpts, dispatcher: PROXY_AGENT };
+  if (PROXY_AGENT && proxyUsableNow()) return { ...extraOpts, dispatcher: PROXY_AGENT };
   return extraOpts;
 }
 
@@ -5025,7 +5032,7 @@ async function vFetch(url, opts = {}) {
     }
     opts = { ...opts, headers: clean };
   }
-  if (PROXY_AGENT && undFetch) {
+  if (PROXY_AGENT && undFetch && proxyUsableNow()) {
     return undFetch(url, { ...opts, dispatcher: PROXY_AGENT });
   }
   return fetch(url, opts); // fallback to global fetch (no proxy)
