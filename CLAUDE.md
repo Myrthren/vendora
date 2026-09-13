@@ -453,10 +453,15 @@ at all when its group has fewer than minSample comparables. Tech fleece joggers 
 £8 were being posted as 60% under a median set mostly by hoodies.
 FLOOR: floorPct default 25 (was 15): below a quarter of the going rate the probe's
 adult-sized listings looked fake, damaged or misdescribed. Tunable in feed_tuning.
-KNOWN LIMIT: authenticity cannot be read from listing data. Live after this change,
-"nike tech fleece" still produced two picks ~72% under a £35 median ("old season"
-£9.50, "tracksuit set XL+" £10). If the feed keeps posting those, raise floorPct in
-feed_tuning — it is global, there is no per-keyword floor yet.
+KNOWN LIMIT: authenticity cannot be read from listing data. Even with kids' sizes
+and garment groups handled, "nike tech fleece" (48 newest, live) still posted
+joggers at £7-£10 against a £20 bottoms median and a hoodie at £9 against £30.
+PER-KEYWORD TUNING (feeds.tuningFor): feed_tuning may carry
+  { "floorPct": 25, "keywords": { "nike tech fleece": { "floorPct": 45 } } }
+Precedence: global < code DEFAULT_KEYWORD_TUNING < feed_tuning.keywords[kw]. The
+code ships tech fleece at floorPct 45 (keeps a £10 jogger, drops £7-£9). A global
+floor change does NOT override a code default; set the keyword explicitly in
+feed_tuning.keywords to change or switch one off. Non-numeric values are ignored.
 STATS KEYS: feed_keyword_stats_v3 (read by #price-drops, #whats-selling,
 #trend-reports), seeded from v2's weekly counters with empty medians — every change
 of price basis gets a new key, because one series mixing bases reads as a market

@@ -10368,7 +10368,8 @@ async function runDealFeed() {
         const items = await alertKeywordSearch(keyword, 48);
         if (!items?.length) { trace.push(`${keyword}: 0 results`); continue; }
 
-        const { median: med, picks, junk, sample } = feeds.pickUnderpriced(items, tuning, keyword);
+        // Global feed_tuning plus any per-keyword values — see feeds.tuningFor.
+        const { median: med, picks, junk, sample } = feeds.pickUnderpriced(items, feeds.tuningFor(tuning, keyword), keyword);
         trace.push(`${keyword}: ${items.length} results, ${junk} junk removed, ${sample} usable, median £${med ? med.toFixed(0) : '-'}, ${picks.length} under threshold`);
 
         // Record the median every run whether or not anything was underpriced —

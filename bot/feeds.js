@@ -130,6 +130,51 @@ function pickUnderpriced(items, { minDiscountPct = 35, floorPct = 25, minSample 
   return { median: med, picks, junk, sample: priced.length };
 }
 
+// ── Per-keyword tuning ────────────────────────────────────────────────────────
+// feed_tuning is global: { minDiscountPct, floorPct, minSample, maxPicks }. A
+// category can also carry its own values under `keywords`:
+//   { "floorPct": 25, "keywords": { "nike tech fleece": { "floorPct": 45 } } }
+// Precedence, lowest to highest: global feed_tuning < DEFAULT_KEYWORD_TUNING <
+// feed_tuning.keywords[keyword]. A code default outranks the GLOBAL value on
+// purpose — a global floor change is not a statement about tech fleece — but
+// the owner's explicit per-keyword value always wins, so any default here can
+// be switched off from Supabase without a deploy.
+const TUNING_FIELDS = ['minDiscountPct', 'floorPct', 'minSample', 'maxPicks'];
+
+const DEFAULT_KEYWORD_TUNING = {
+  // Live 2026-09-13, after kids' sizes and garment groups were handled: tech
+  // fleece still posted joggers at £7-£10 against a £20 median for bottoms and a
+  // hoodie at £9 against £30. On one of Vinted's most counterfeited items, that
+  // far under the going rate reads as fake. 45% keeps a £10 jogger, drops £7-£9.
+  'nike tech fleece': { floorPct: 45 },
+};
+
+const normKeyword = k => String(k || '').trim().toLowerCase();
+
+// Numeric fields only; anything else (typos, strings, the `keywords` map) is
+// ignored rather than passed into the maths.
+function cleanTuning(t) {
+  const out = {};
+  for (const f of TUNING_FIELDS) {
+    const v = t?.[f];
+    if (v === undefined || v === null || v === '') continue;
+    const n = Number(v);
+    if (Number.isFinite(n)) out[f] = n;
+  }
+  return out;
+}
+
+function tuningFor(tuning, keyword) {
+  const kw = normKeyword(keyword);
+  const owner = {};
+  for (const [k, v] of Object.entries(tuning?.keywords || {})) owner[normKeyword(k)] = v;
+  return {
+    ...cleanTuning(tuning),
+    ...cleanTuning(DEFAULT_KEYWORD_TUNING[kw]),
+    ...cleanTuning(owner[kw]),
+  };
+}
+
 // First run on the filtered series. The weekly counters carry across — a count
 // of finds does not depend on the price basis — but the medians do NOT: a
 // series mixing fee-inclusive, unfiltered medians with the new ones would read
@@ -301,6 +346,7 @@ module.exports = {
   DEFAULT_KEYWORDS,
   median,
   pickUnderpriced,
+  tuningFor,
   seedStatsFromLegacy,
   buildDealPayload,
   buildWhatsSellingPayload,
