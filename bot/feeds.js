@@ -67,7 +67,17 @@ function median(nums) {
 // against a real £40-80 — and an ordinary adult listing could then look
 // "underpriced". Picks come back with priceNum/price set to that item price, so
 // the embed, the Pro queue and the track record all show the same figure.
-function pickUnderpriced(items, { minDiscountPct = 35, floorPct = 15, minSample = 6, maxPicks = 5 } = {}) {
+//
+// QUALITY (2026-09-13, after tech fleece picks at £5-£10 proved to be kids'
+// sizes, joggers and likely fakes):
+//   - junk is judged on size_title and brand as well as the title, via
+//     offers.isJunkItem, so pass the search `keyword` for the brand check;
+//   - each listing is compared with the median of its own garment group
+//     (bottoms vs everything else), and not judged at all when that group has
+//     too few comparables;
+//   - floorPct defaults to 25: on the probe, every adult-sized listing below a
+//     quarter of the going rate looked fake, damaged or misdescribed.
+function pickUnderpriced(items, { minDiscountPct = 35, floorPct = 25, minSample = 6, maxPicks = 5 } = {}, keyword = '') {
   let junk = 0;
   const priced = (items || [])
     // Vinted's catalog endpoint does not always return `url` on an item. Requiring
@@ -75,7 +85,7 @@ function pickUnderpriced(items, { minDiscountPct = 35, floorPct = 15, minSample 
     // and an id is enough to rebuild the link, so rebuild it rather than discard.
     .filter(i => i && (i.url || i.id))
     .filter(i => {
-      if (offers.isJunk(i.title)) { junk++; return false; }
+      if (offers.isJunkItem({ title: i.title, size: i.size, brand: i.brand }, keyword)) { junk++; return false; }
       return true;
     })
     .map(i => {
@@ -94,17 +104,28 @@ function pickUnderpriced(items, { minDiscountPct = 35, floorPct = 15, minSample 
   // than to call a random item a bargain.
   if (priced.length < minSample) return { median: 0, picks: [], junk, sample: priced.length };
 
+  // The overall median is still what the Market stats record: it describes the
+  // category, while picks are judged within their garment group.
   const med = median(priced.map(i => i.priceNum));
-  if (!med) return { median: 0, picks: [] };
+  if (!med) return { median: 0, picks: [], junk, sample: priced.length };
 
-  const ceiling = med * (1 - minDiscountPct / 100);
-  const floor   = med * (floorPct / 100);
+  const groupMedian = {};
+  for (const g of ['bottoms', 'other']) {
+    const prices = priced.filter(i => offers.garmentGroup(i.title) === g).map(i => i.priceNum);
+    groupMedian[g] = prices.length >= minSample ? median(prices) : 0;
+  }
 
   const picks = priced
-    .filter(i => i.priceNum <= ceiling && i.priceNum >= floor)
+    .map(i => {
+      const group = offers.garmentGroup(i.title);
+      return { ...i, group, groupMedian: groupMedian[group] };
+    })
+    .filter(i => i.groupMedian > 0
+      && i.priceNum <= i.groupMedian * (1 - minDiscountPct / 100)
+      && i.priceNum >= i.groupMedian * (floorPct / 100))
     .sort((a, b) => a.priceNum - b.priceNum)
     .slice(0, maxPicks)
-    .map(i => ({ ...i, discountPct: Math.round(((med - i.priceNum) / med) * 100) }));
+    .map(i => ({ ...i, discountPct: Math.round(((i.groupMedian - i.priceNum) / i.groupMedian) * 100) }));
 
   return { median: med, picks, junk, sample: priced.length };
 }
@@ -131,7 +152,10 @@ function buildDealPayload({ keyword, picks, median: med, tier = 'elite' }) {
   const lines = picks.map(i => {
     const title = (i.title || 'Item').slice(0, 60).replace(/[[\]]/g, '');
     const brand = i.brand ? ` · ${i.brand}` : '';
-    return `**[${title}](${i.url})**\n${i.price} — **${i.discountPct}% under** the £${med.toFixed(0)} median${brand}`;
+    // Each pick is measured against its own garment group, so say which median.
+    const ref = i.groupMedian || med;
+    const label = i.group === 'bottoms' ? 'median for bottoms' : 'median';
+    return `**[${title}](${i.url})**\n${i.price} — **${i.discountPct}% under** the £${ref.toFixed(0)} ${label}${brand}`;
   });
 
   const embed = new EmbedBuilder()

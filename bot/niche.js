@@ -68,10 +68,11 @@ function percentile(sorted, q) {
 
 // ── Sampling ──────────────────────────────────────────────────────────────────
 // Raw catalog items → one price sample, or null when there is too little to use.
-function sampleFromItems(rawItems, now = Date.now()) {
+// `keyword` enables the brand check; size_title catches kids' sizes titles miss.
+function sampleFromItems(rawItems, now = Date.now(), keyword = '') {
   const prices = (rawItems || [])
     .map(r => offers.normalise(r, now))
-    .filter(i => i.price > 0 && !offers.isJunk(i.title))
+    .filter(i => i.price > 0 && !offers.isJunkItem(i, keyword))
     .map(i => i.price)
     .sort((a, b) => a - b);
   if (prices.length < SAMPLE_MIN_N) return null;

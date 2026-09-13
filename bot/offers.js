@@ -75,6 +75,51 @@ function isJunk(title) {
   return JUNK_RE.test(String(title || ''));
 }
 
+// Kids' sizing from Vinted's structured size_title, which catches what titles
+// miss. Probed 2026-09-13 on the 96 newest listings: "nike tech fleece" had 17
+// kid-sized listings and 12 of them said nothing in the title; "stone island"
+// 18 and 8. Clothing reads "13 years / 158 cm" or "3-6 months / 62 cm"; shoes
+// read "12 child", "5 baby", "2 junior" or a small EU size.
+const KID_SIZE_RE = /\b(years?|yrs?|months?|mths?|child|children|baby|junior|infant|toddler|kids?)\b|\d\s*cm\b/i;
+
+function isKidSize(size) {
+  const s = String(size || '');
+  if (!s) return false;
+  if (KID_SIZE_RE.test(s)) return true;
+  // EU 35 is the smallest common adult shoe size.
+  const eu = /\bEU\s*(\d{2}(?:[.,]5)?)\b/i.exec(s);
+  return !!eu && parseFloat(eu[1].replace(',', '.')) < 35;
+}
+
+// A listing whose brand shares no word with the search is not the item: probed
+// "zara" and "druids" under stone island, "dh gate" (a replica marketplace)
+// under the north face. Deliberately NOT "must equal the most common brand" —
+// that dropped every "ralph lauren" listing in favour of "polo ralph lauren".
+// An empty brand is unknown, not a mismatch.
+const BRAND_STOP = new Set(['the', 'x', 'and', 'co', 'of', 'by']);
+const words = s => String(s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w && !BRAND_STOP.has(w));
+
+function brandMismatch(brand, keyword) {
+  const b = words(brand);
+  const k = new Set(words(keyword));
+  if (!b.length || !k.size) return false;
+  return !b.some(w => k.has(w));
+}
+
+// Title junk, kids' sizes, or the wrong brand — using every field Vinted gives.
+function isJunkItem({ title, size, brand } = {}, keyword = '') {
+  return isJunk(title) || isKidSize(size) || brandMismatch(brand, keyword);
+}
+
+// Bottoms and tops list at different prices under the same search: tech fleece
+// joggers sit far below hoodies and full tracksuits, so an £8 jogger was being
+// reported as 60% under a median set mostly by hoodies. Compare like with like.
+const BOTTOMS_RE = /\b(joggers?|jogging\s*bottoms|bottoms|trousers|pants|shorts|leggings|sweatpants|trackies|cargos?)\b/i;
+
+function garmentGroup(title) {
+  return BOTTOMS_RE.test(String(title || '')) ? 'bottoms' : 'other';
+}
+
 // Raw /api/v2/catalog/items object → the fields this module needs.
 function normalise(raw, now = Date.now()) {
   const price = parseFloat(raw?.price?.amount ?? raw?.price ?? 0) || 0;
@@ -127,7 +172,7 @@ function findOffers(rawItems, opts = {}, now = Date.now()) {
   const all = (rawItems || []).map(r => normalise(r, now));
   const priced = all.filter(i => {
     if (!(i.price > 0) || !i.id) { excluded.noPrice++; return false; }
-    if (isJunk(i.title))          { excluded.junk++;    return false; }
+    if (isJunkItem(i, o.keyword)) { excluded.junk++;    return false; }
     return true;
   });
 
@@ -203,6 +248,10 @@ module.exports = {
   DEFAULTS,
   buyerFee,
   isJunk,
+  isKidSize,
+  brandMismatch,
+  isJunkItem,
+  garmentGroup,
   normalise,
   maxOfferFor,
   acceptanceHint,

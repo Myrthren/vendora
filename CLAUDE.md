@@ -42,7 +42,7 @@ POST-RESTORE CHECKLIST (Railway is back as of 2026-07-21 — item 3 is still OUT
 5. The avatar/initials bug is unrelated and will NOT be fixed by the restore.
 
 VERSIONING — how it actually works now
-- Current LIVE version: v6.129 (verified live 2026-09-13 at vendora-vv.netlify.app/version.json, built from 0c4e5ed). Version is stamped automatically by scripts/build-version.js into version.json on every deploy — the local version.json is gitignored and stale (says v6.0), so read the live URL, not the file.
+- Current LIVE version: v6.131 (verified live 2026-09-13 at vendora-vv.netlify.app/version.json, built from 1ad0aba). Version is stamped automatically by scripts/build-version.js into version.json on every deploy — the local version.json is gitignored and stale (says v6.0), so read the live URL, not the file.
 - Real flow: commit + push to main (GitHub Myrthren/vendora) → Netlify auto-builds → version.json bumped automatically. There is no manual "stage then owner clicks Publish" gate on the live site deploy.
 - GIT AUTH: the remote used to carry a PAT inline, which expired three times. Fixed 2026-09-09 — the remote is now a plain https URL and auth goes through the `gh` credential helper (already logged in as Myrthren). Nothing to rotate.
 - The admin panel Update Log (vendora-dashboard.html, ~line 4437) reads the LAST 3 DAYS OF COMMITS FROM THE GITHUB API and groups them by calendar day. Rewritten 2026-09-09: it used to poll version.json, which only ever holds the single latest commit, and accumulate history in localStorage from whatever it happened to observe while the dashboard was open — so every deploy that shipped with the panel closed was invisible, and one July entry spent two months absorbing unrelated commits. Docs and chores are filtered out; each line is tagged Feature/Fix/Polish. Version and title are editable fields because the announcement header has always been written by hand. Copy output matches the posted format: `📦 **Vendora v6.x** — Title`, blank line, `• bullets`.
@@ -435,19 +435,35 @@ WHY: it used to read the deal feed's feed_keyword_stats — fee-inclusive, unfil
 6 keywords, 14 days. HISTORY RESET on this switch: the index restarts from the
 first niche sweep (2026-09-13 evening), so change figures return after 2 and 8 days.
 NOT LINKED from the main site yet — owner's call.
-DEAL FEED MOVED TO FILTERED PRICES (2026-09-13): feeds.pickUnderpriced now drops
-junk titles (offers.js filter) before taking the median and compares on the ITEM
-price (mapVintedRawItem.itemPriceNum, excluding the buyer fee; the rare Apify
-fallback has no itemPriceNum and uses priceNum). Picks carry that item price, so
-the embed, the Pro queue and the track record show the same figure.
-Stats moved to a NEW key, feed_keyword_stats_v2, which #price-drops, #whats-selling
-and #trend-reports all read. On the first run it is seeded from the legacy
-feed_keyword_stats with the weekly counters only — medians start empty, because
-one series mixing both bases would read as a drop and fire a bogus #price-drops
-post. Consequences: #price-drops is silent until ~3 days of new medians exist;
-Sunday's #trend-reports / #whats-selling use the new series. The legacy row is left
-untouched. Also fixed: stats were saved only on hourly-sample runs, so finds counted
-on the other five runs an hour were lost and the weekly reports undercounted.
+DEAL FEED ON FILTERED PRICES (2026-09-13): feeds.pickUnderpriced compares on the
+ITEM price (mapVintedRawItem.itemPriceNum, excluding the buyer fee; the rare Apify
+fallback has no itemPriceNum and uses priceNum), over the 48 newest listings.
+JUNK is judged on every structured field via offers.isJunkItem(item, keyword):
+  - title regex (kids/junior/bundle/faulty/box only/replica...);
+  - size_title — offers.isKidSize: "13 years / 158 cm", "3-6 months", "12 child",
+    "5 baby", "2 junior", EU < 35. Probed: 96 newest tech fleece had 17 kid-sized
+    listings, 12 with nothing in the title;
+  - brand — offers.brandMismatch: dropped only when the brand shares NO word with
+    the keyword ("zara" under stone island, "dh gate" under the north face). NOT
+    "must equal the dominant brand", which dropped all "ralph lauren" listings in
+    favour of "polo ralph lauren". Empty brand = unknown, kept.
+GARMENT GROUPS: each listing is compared with the median of its own group —
+bottoms (joggers/trousers/shorts/leggings...) vs everything else — and not judged
+at all when its group has fewer than minSample comparables. Tech fleece joggers at
+£8 were being posted as 60% under a median set mostly by hoodies.
+FLOOR: floorPct default 25 (was 15): below a quarter of the going rate the probe's
+adult-sized listings looked fake, damaged or misdescribed. Tunable in feed_tuning.
+KNOWN LIMIT: authenticity cannot be read from listing data. Live after this change,
+"nike tech fleece" still produced two picks ~72% under a £35 median ("old season"
+£9.50, "tracksuit set XL+" £10). If the feed keeps posting those, raise floorPct in
+feed_tuning — it is global, there is no per-keyword floor yet.
+STATS KEYS: feed_keyword_stats_v3 (read by #price-drops, #whats-selling,
+#trend-reports), seeded from v2's weekly counters with empty medians — every change
+of price basis gets a new key, because one series mixing bases reads as a market
+move and fires a bogus #price-drops post. #price-drops is silent ~3 days after each
+reset. Old rows (feed_keyword_stats, _v2) left untouched. The niche/Vendex series
+moved to niche_daily_v2 for the same reason. Also fixed: stats were saved only on
+hourly-sample runs, losing finds counted on the other five runs an hour.
 
 DEAL FEED TRACK RECORD (built 2026-09-13, bot/track-record.js — LIVE from bcef12e / v6.126)
 Every find posted to #early-deals is logged (settings key deal_feed_track_log) and

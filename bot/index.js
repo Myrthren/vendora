@@ -781,6 +781,8 @@ function mapVintedRawItem(i) {
     currency:  cur,
     url:       i.url || '',
     brand:     i.brand_title || i.brand?.title || '',
+    // size_title is how kids' sizes are recognised ("13 years / 158 cm") — see offers.isKidSize.
+    size:      i.size_title || '',
     condition: i.status || '',
     photo:     i.photo?.url || i.photos?.[0]?.url || '',
     sellerName: i.user?.login || '',
@@ -9617,6 +9619,7 @@ app.post('/api/offers/find', async (req, res) => {
       mixedSpread:  tuning.mixedSpread,
       sellerFeePct: tuning.sellerFeePct,
       minSample:    tuning.minSample,
+      keyword,      // enables the brand-mismatch check
       ...opts,
     });
 
@@ -10323,12 +10326,13 @@ async function postToFeedChannel(channelId, payload, label) {
 // would see gaps with nothing in the logs to explain them.
 const DEAL_QUEUE_KEY = 'deal_feed_queue';
 const FEED_SEEN_KEY  = 'deal_feed_seen_ids';
-// v2 (2026-09-13): medians on the ITEM price with junk titles removed — see
-// feeds.pickUnderpriced. A new key rather than rewriting the old one, because a
-// single series mixing both bases would read as an overnight price drop. The
-// legacy row is left in place untouched; only its weekly counters are carried.
-const FEED_STATS_KEY        = 'feed_keyword_stats_v2';
-const LEGACY_FEED_STATS_KEY = 'feed_keyword_stats';
+// v2 (2026-09-13): medians on the ITEM price with junk titles removed.
+// v3 (same day, hours later): kids' sizes and wrong brands also removed, which
+// moves some medians a long way (tech fleece £20 -> £25) — so, again, a new key
+// rather than a series mixing both, which would read as a sudden move in the
+// weekly reports. Seeded from v2's weekly counters; older rows left untouched.
+const FEED_STATS_KEY        = 'feed_keyword_stats_v3';
+const LEGACY_FEED_STATS_KEY = 'feed_keyword_stats_v2';
 const TRACK_LOG_KEY  = 'deal_feed_track_log';
 
 async function runDealFeed() {
@@ -10358,10 +10362,13 @@ async function runDealFeed() {
 
     for (const keyword of keywords) {
       try {
-        const items = await alertKeywordSearch(keyword, 20);
+        // 48, not 20: still one request, but with garment groups each needing 6
+        // comparables, 20 listings almost never gave bottoms a group of their own,
+        // and the tech fleece median swung £20-£30 between runs.
+        const items = await alertKeywordSearch(keyword, 48);
         if (!items?.length) { trace.push(`${keyword}: 0 results`); continue; }
 
-        const { median: med, picks, junk, sample } = feeds.pickUnderpriced(items, tuning);
+        const { median: med, picks, junk, sample } = feeds.pickUnderpriced(items, tuning, keyword);
         trace.push(`${keyword}: ${items.length} results, ${junk} junk removed, ${sample} usable, median £${med ? med.toFixed(0) : '-'}, ${picks.length} under threshold`);
 
         // Record the median every run whether or not anything was underpriced —
@@ -10674,7 +10681,10 @@ cron.schedule('0 19 1 * *', () => runTrackRecordPost().catch(e => console.error(
 // notes added, stored as a draft. On the 1st the draft is DM'd to the owner;
 // nothing reaches a channel until the owner runs /nichereport post, which
 // publishes the stored draft — the exact object that was previewed.
-const NICHE_DAILY_KEY  = 'niche_daily';
+// v2 (2026-09-13): samples now also drop kids' sizes (size_title) and wrong
+// brands. The v1 row held a few hours of samples on the older filter; mixing
+// them in would show a fake day-on-day jump on Vendex, so the series restarts.
+const NICHE_DAILY_KEY  = 'niche_daily_v2';
 const NICHE_DRAFT_KEY  = 'niche_report_draft';
 const NICHE_POSTED_KEY = 'niche_report_posted';
 const NICHE_DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -10707,7 +10717,7 @@ async function runNicheSweep() {
           if (failures >= 3 && !samples.length) { trace.push('stopped — Vinted unreachable'); break; }
           continue;
         }
-        const sample = niche.sampleFromItems(items);
+        const sample = niche.sampleFromItems(items, Date.now(), keyword);
         if (!sample) { trace.push(`${keyword}: too few usable (${items.length} results)`); continue; }
         samples.push({ keyword, sample });
         trace.push(`${keyword}: £${sample.median} n=${sample.n}`);
