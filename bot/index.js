@@ -37,6 +37,8 @@ const trackRecord = require('./track-record');
 const offerFinder = require('./offers');
 // Monthly niche report — daily niche data, report maths, Claude notes, embeds. Pure, see bot/niche.js.
 const niche = require('./niche');
+// Auto-buy spend rules — availability flags, price ceiling, baseline, daily cap. Pure, see bot/autobuy.js.
+const autobuy = require('./autobuy');
 
 // Vinted browser flow (Playwright + stealth) — bypasses DataDome by running
 // inside a real Chromium through the residential proxy. Optional dep:
@@ -10107,7 +10109,17 @@ cron.schedule('30 */8 * * *', async () => {
 // this cuts detection latency from ~30 min down to ~2 min, which is fast
 // enough to win the competition for desirable items.
 // If the user has a connected Vinted account, attempts to auto-purchase.
-cron.schedule('*/2 * * * *', async () => {
+//
+// Every spend decision lives in bot/autobuy.js (pure, unit tested): no buying
+// without a baseline, without a max price, on a junk title, over the member's
+// daily cap, or while the owner switch in `autobuy_tuning` is off. The item is
+// then rechecked against Vinted's real availability flags and the price ceiling
+// immediately before purchase, inside vintedBrowserBuyItem.
+const AUTOBUY_TUNING_KEY = 'autobuy_tuning';
+const AUTOBUY_LOG_KEY    = 'autobuy_purchases';
+let autoBuyRunning = false;
+
+async function runAutoBuy() {
   if (!SUPABASE_KEY || !vintedBrowser?.vintedBrowserSearchItems) return;
   try {
     const r = await fetch(
@@ -10117,40 +10129,55 @@ cron.schedule('*/2 * * * *', async () => {
     const alerts = await r.json();
     if (!Array.isArray(alerts) || !alerts.length) return;
 
+    const tuning = { ...autobuy.DEFAULT_TUNING, ...((await getSetting(AUTOBUY_TUNING_KEY)) || {}) };
+    let purchaseLog = (await getSetting(AUTOBUY_LOG_KEY)) || {};
+
     for (const alert of alerts) {
       try {
         const { items, error } = await vintedBrowser.vintedBrowserSearchItems(alert.keyword, alert.max_price, 20);
         if (error) { console.warn(`[auto-buy] Search error for "${alert.keyword}":`, error); continue; }
         if (!items.length) continue;
 
-        const seenIds  = new Set(alert.seen_ids || []);
-        const newItems = items.filter(i => {
-          const id = String(i.id || '');
-          return id && !seenIds.has(id);
+        const plan = autobuy.planAlertRun(alert, items, {
+          purchasesLast24h: autobuy.countRecent(purchaseLog, alert.discord_id),
+          tuning,
         });
-        if (!newItems.length) continue;
 
-        // Look up the user's connected Vinted account for auto-purchasing
+        if (plan.baseline) {
+          await dbUpdateVintedAlertSeenIds(alert.id, plan.seenIds);
+          console.log(`[auto-buy] "${alert.keyword}" had no baseline — recorded ${plan.seenIds.length} existing listing(s), bought nothing.`);
+          continue;
+        }
+        if (!plan.considered.length) continue;
+
+        // Only look up the Vinted connection when something may be bought.
         let platformConn = null;
-        try {
-          const ur = await fetch(
-            `${SUPABASE_URL}/rest/v1/profiles?discord_id=eq.${alert.discord_id}&select=id`,
-            { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
-          );
-          const profiles = await ur.json();
-          if (profiles?.[0]?.id) platformConn = await getPlatformConn(profiles[0].id, 'vinted');
-        } catch {}
+        if (plan.toBuy.length) {
+          try {
+            const ur = await fetch(
+              `${SUPABASE_URL}/rest/v1/profiles?discord_id=eq.${encodeURIComponent(alert.discord_id)}&select=id`,
+              { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+            );
+            const profiles = await ur.json();
+            if (profiles?.[0]?.id) platformConn = await getPlatformConn(profiles[0].id, 'vinted');
+          } catch {}
+        }
 
-        for (const item of newItems.slice(0, 3)) {
+        const skipReasons = new Map(plan.notBuying.map(n => [String(n.item.id), n.reason]));
+
+        for (const item of plan.considered) {
           const itemId = String(item.id || '');
-          const price  = item.price?.amount || item.priceNum || item.price || '?';
+          const listed = parseFloat(item.total_item_price?.amount ?? item.price?.amount ?? item.price) || 0;
           const title  = (item.title || 'New listing').slice(0, 80);
           const url    = item.url || `https://www.vinted.co.uk/items/${itemId}`;
 
           let purchaseResult = null;
+          let skipReason = skipReasons.get(itemId) || null;
+          if (!skipReason && !platformConn?.access_token) {
+            skipReason = 'Connect your Vinted account on the dashboard to let auto-buy purchase';
+          }
 
-          // Attempt auto-purchase if user has a valid stored token
-          if (platformConn?.access_token && itemId) {
+          if (!skipReason) {
             try {
               // Refresh token if needed before purchase attempt
               let rawToken = decryptToken(platformConn.access_token);
@@ -10159,40 +10186,54 @@ cron.schedule('*/2 * * * *', async () => {
                 if (refreshed) rawToken = refreshed;
               }
               if (rawToken) {
-                console.log(`[auto-buy] Attempting purchase of item ${itemId} (keyword: "${alert.keyword}")`);
-                purchaseResult = await vintedBrowser.vintedBrowserBuyItem(rawToken, itemId);
-                console.log(`[auto-buy] Item ${itemId}:`, purchaseResult?.ok ? '✅ purchased' : `❌ ${purchaseResult?.error}`);
+                console.log(`[auto-buy] Attempting purchase of item ${itemId} (keyword: "${alert.keyword}", max £${alert.max_price})`);
+                purchaseResult = await vintedBrowser.vintedBrowserBuyItem(rawToken, itemId, { maxPrice: Number(alert.max_price) });
+                console.log(`[auto-buy] Item ${itemId}: ${purchaseResult?.ok ? 'order placed' : purchaseResult?.skipped ? `not bought — ${purchaseResult.error}` : `failed — ${purchaseResult?.error}`}`);
+                if (purchaseResult?.ok) {
+                  // Saved immediately, not at the end of the run: a crash
+                  // mid-run must not forget a purchase and reset the cap.
+                  purchaseLog = autobuy.withPurchase(purchaseLog, alert.discord_id);
+                  await saveSetting(AUTOBUY_LOG_KEY, purchaseLog);
+                }
+              } else {
+                skipReason = 'Your Vinted session has expired — reconnect Vinted on the dashboard';
               }
             } catch (e) {
               console.warn('[auto-buy] Purchase threw:', e.message);
               purchaseResult = { error: e.message };
             }
+          } else {
+            console.log(`[auto-buy] Item ${itemId} (keyword: "${alert.keyword}") alert only — ${skipReason}`);
           }
 
           // DM the user whether purchase succeeded or failed
           try {
             const discordUser = await client.users.fetch(alert.discord_id);
             const bought = purchaseResult?.ok;
+            const priceText = listed ? `£${listed.toFixed(2)}` : 'price unavailable';
 
             const embed = new EmbedBuilder()
               .setColor(bought ? '#4ade80' : '#e8217a')
               .setTimestamp();
 
             if (bought) {
+              // "Order placed", not "bought": Vinted creates the transaction
+              // here, and the member confirms it completed in their app.
               embed
-                .setTitle(`✅ Auto-Bought — "${alert.keyword}"`)
-                .setDescription(`**${title}**\nPrice: £${price}\n\n[View on Vinted](${url})`)
-                .setFooter({ text: 'Vendora Auto-Buy · Check your Vinted app to confirm the order' });
+                .setTitle(`✅ Auto-buy order placed — "${alert.keyword}"`)
+                .setDescription(`**${title}**\nPrice: ${priceText}\n\n[View on Vinted](${url})`)
+                .setFooter({ text: 'Vendora Auto-Buy · Check your Vinted app to confirm the order went through' });
               if (purchaseResult.transaction_id) {
                 embed.addFields({ name: 'Transaction ID', value: purchaseResult.transaction_id, inline: true });
               }
             } else {
-              const failNote = purchaseResult?.error
-                ? `\n⚠️ **Auto-buy failed:** ${purchaseResult.error.slice(0, 120)}`
+              const why = purchaseResult?.error || skipReason;
+              const note = why
+                ? `\n⚠️ **${purchaseResult?.error && !purchaseResult?.skipped ? 'Auto-buy failed' : 'Not auto-bought'}:** ${why.slice(0, 160)}`
                 : '';
               embed
                 .setTitle(`🔔 Auto-Buy Alert — "${alert.keyword}"`)
-                .setDescription(`**${title}**\nPrice: £${price}${failNote}\n\n**[→ Buy Now on Vinted](${url})**`)
+                .setDescription(`**${title}**\nPrice: ${priceText}${note}\n\n**[→ Buy Now on Vinted](${url})**`)
                 .setFooter({ text: 'Vendora Auto-Buy · Found within 2 min of listing' });
             }
 
@@ -10211,8 +10252,7 @@ cron.schedule('*/2 * * * *', async () => {
         }
 
         // Update seen_ids so we don't re-alert for these items
-        const allIds = [...new Set([...seenIds, ...items.map(i => String(i.id || '')).filter(Boolean)])];
-        await dbUpdateVintedAlertSeenIds(alert.id, allIds.slice(-500));
+        await dbUpdateVintedAlertSeenIds(alert.id, plan.seenIds);
       } catch (e) {
         console.warn(`[auto-buy] Error for alert "${alert.keyword}":`, e.message);
       }
@@ -10220,6 +10260,16 @@ cron.schedule('*/2 * * * *', async () => {
   } catch (e) {
     console.error('[auto-buy] Fatal:', e.message);
   }
+}
+
+cron.schedule('*/2 * * * *', () => {
+  // A slow run must not overlap the next tick: two runs over the same alert
+  // could both attempt the same new listing before either stores seen_ids.
+  if (autoBuyRunning) { console.log('[auto-buy] Previous run still going — skipping this tick.'); return; }
+  autoBuyRunning = true;
+  runAutoBuy()
+    .catch(e => console.error('[auto-buy] Unhandled:', e.message))
+    .finally(() => { autoBuyRunning = false; });
 });
 
 // Map a list of Discord IDs → their active subscription tier in one query.
@@ -11235,8 +11285,27 @@ app.patch('/api/vinted/alert/:id', async (req, res) => {
 
   const update = {};
   if (typeof auto_buy === 'boolean') update.auto_buy = auto_buy;
-  if (max_price !== undefined)        update.max_price = max_price === null ? null : Number(max_price);
+  if (max_price !== undefined) {
+    if (max_price === null || max_price === '') {
+      update.max_price = null;
+    } else {
+      // Number(max_price) used to be written unchecked — "abc" became NaN.
+      const n = Number(max_price);
+      if (!Number.isFinite(n) || n <= 0 || n > 10000) {
+        return res.status(400).json({ error: 'max_price must be a positive amount in pounds.' });
+      }
+      update.max_price = Math.round(n * 100) / 100;
+    }
+  }
   if (!Object.keys(update).length)    return res.status(400).json({ error: 'Nothing to update — send auto_buy or max_price' });
+
+  // Auto-buy spends the member's own money on Vinted, so it only runs under a
+  // price ceiling. Checked against the alert as it WILL be after this update.
+  const nextAutoBuy = 'auto_buy' in update ? update.auto_buy : alert.auto_buy;
+  const nextMax     = 'max_price' in update ? update.max_price : alert.max_price;
+  if (nextAutoBuy && !(Number(nextMax) > 0)) {
+    return res.status(400).json({ error: 'Set a max price on this alert before turning on auto-buy.' });
+  }
 
   await dbUpdateVintedAlert(alertId, update);
   res.json({ ok: true, alert: { ...alert, ...update } });

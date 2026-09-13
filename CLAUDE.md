@@ -496,16 +496,33 @@ owner. Nothing posts until `/nichereport post`, which publishes the STORED draft
 month (niche_report_posted). `/nichereport preview` rebuilds the draft (one Claude
 call), `status` shows days collected per niche. Drafts older than 7 days refuse to post.
 
-AUTO-BUY AVAILABILITY CHECK IS PROBABLY WRONG (found 2026-09-13, NOT fixed)
-vintedBrowserBuyItem (vinted-browser.js ~1066) treats an item as available when
-item.status === 'available' || status === 1 || status_id === 1. On Vinted, `status`
-is the CONDITION text ("Good", "Very good" — confirmed live) and status_id is the
-condition id where 1 = "New without tags" (index.js ~5392). So the check refuses
-nearly every item as "no longer available" and only lets NWOT items through. The
-real flags are is_closed / is_reserved / is_hidden. Not fixed because fixing it
-turns on real purchases for anyone with auto-buy alerts — owner decision. The
-authenticated item payload was not probed (no token locally); confirm with one
-real auto-buy log line before changing.
+AUTO-BUY (availability check FIXED 2026-09-13, bot/autobuy.js)
+The old check read item.status === 'available' || status_id === 1. On Vinted
+`status` is the CONDITION ("Good") and status_id 1 = "New without tags", so it
+refused nearly everything and only let NWOT items through. Availability now comes
+from is_closed / is_reserved / is_hidden / is_draft / is_processing /
+transaction_permitted, and FAILS CLOSED if the response carries none of them.
+Fixing it switched real purchases on, so the holes that were harmless while nothing
+bought are closed in the same change — all in autobuy.js, all unit tested:
+  - no baseline (empty seen_ids) → record current listings, buy nothing that run;
+  - no max_price → alert only, never buy; the PATCH route refuses to enable
+    auto_buy without one and rejects non-numeric max_price (it used to store NaN);
+  - price ceiling rechecked on the live item just before purchase, against the
+    fee-inclusive total — the same figure the alert cron compares;
+  - junk titles (offers.js filter) → alert only;
+  - per-member cap: 3 successful purchases per rolling 24h (settings
+    autobuy_purchases), max 3 listings considered per alert per run;
+  - owner kill switch: settings autobuy_tuning { enabled, dailyCap, maxPerRun } —
+    set enabled:false to stop all purchasing instantly, alerts keep working;
+  - runs cannot overlap (a slow run skips the next 2-minute tick).
+DMs say "order placed", not "bought": POST /api/v2/transactions creates the
+transaction and it is NOT verified that this completes payment.
+STILL UNVERIFIED: the AUTHENTICATED /api/v2/items/{id} payload was never probed (no
+token locally). If it lacks the flags, every attempt logs "Vinted did not say
+whether the item is available" and nothing is bought — safe, but check the first
+`[auto-buy] Item ... not bought` lines after deploy.
+WHO CAN TRIGGER IT: nothing in the repo sets auto_buy=true — the dashboard never
+calls PATCH /api/vinted/alert/:id. Any live auto-buy alerts were set in Supabase.
 
 FREE TRIAL (built 2026-09-08, bot/trial.js)
 7 days, PRO-EQUIVALENT, DISCORD ONLY — no dashboard, stated on the embed so it does

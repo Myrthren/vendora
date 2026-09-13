@@ -1027,6 +1027,9 @@ async function vintedBrowserSearchItems(keyword, maxPrice = null, perPage = 20, 
   }
 }
 
+// Pure purchase rules — availability, price ceiling. See bot/autobuy.js.
+const autobuy = require('./autobuy');
+
 // ─── public: buy item (auto-buy) ──────────────────────────────────────────────
 // Attempts to purchase a Vinted item on behalf of a connected user via the
 // internal Vinted transactions API, called from inside the browser context.
@@ -1037,72 +1040,78 @@ async function vintedBrowserSearchItems(keyword, maxPrice = null, perPage = 20, 
 //   • The item must still be available (not already sold).
 //
 // Returns { ok, transaction_id, total } | { error }
-async function vintedBrowserBuyItem(accessToken, itemId) {
+// `maxPrice` is the alert's ceiling, rechecked here against the live item —
+// the search filter alone is not a spending limit.
+// Returns { ok, transaction_id, status, total } | { error, skipped? } where
+// `skipped: true` means the rules declined the purchase, not that it failed.
+async function vintedBrowserBuyItem(accessToken, itemId, { maxPrice = null } = {}) {
   if (!chromium) return { error: 'Browser unavailable' };
   if (!accessToken) return { error: 'No access token — reconnect your Vinted account' };
   if (!itemId) return { error: 'No item ID provided' };
+  const id = String(itemId);
+  if (!/^\d+$/.test(id)) return { error: 'Invalid item ID' };
   let page;
   try {
     const ctx = await ensureBrowser();
     await setAuthCookie(ctx, accessToken);
     page = await ctx.newPage();
-    const base = await resolveVintedBase(page);
+    // Strict: a purchase must never run against a page that did not load.
+    const base = await resolveVintedBase(page, true);
 
-    const result = await page.evaluate(async ({ base, itemId }) => {
-      async function api(path, opts = {}) {
-        const r = await fetch(`${base}${path}`, {
-          credentials: 'include',
-          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-          ...opts,
-        });
-        const text = await r.text();
-        try { return { ok: r.ok, status: r.status, data: JSON.parse(text) }; }
-        catch { return { ok: false, status: r.status, raw: text.slice(0, 300) }; }
-      }
-
-      // 1. Verify item is still available
-      const itemRes = await api(`/api/v2/items/${itemId}`);
-      if (!itemRes.ok) return { error: `Item fetch failed (${itemRes.status})` };
-      const item = itemRes.data?.item || itemRes.data;
-      if (!item) return { error: 'Item data not found in response' };
-      // Vinted uses status = 'available' (string) or status_id = 1 (int)
-      const avail = item.status === 'available' || item.status === 1 || item.status_id === 1;
-      if (!avail) return { error: `Item is no longer available (status: ${item.status})` };
-
-      // 2. Get shipping options for this item
-      const shipRes = await api(`/api/v2/items/${itemId}/shipping_options`);
-      const shippingOptions = shipRes.data?.shipping_options || shipRes.data?.options || [];
-      const shipping = shippingOptions[0]; // cheapest/first option
-
-      // 3. Initiate the transaction
-      const txPayload = {
-        transaction: {
-          item_id: Number(itemId),
-          ...(shipping?.id ? { shipping_option_id: Number(shipping.id) } : {}),
-        },
-      };
-      const txRes = await api('/api/v2/transactions', {
-        method: 'POST',
-        body: JSON.stringify(txPayload),
+    // One authenticated request from inside the page (DataDome already solved).
+    const api = (path, opts = {}) => page.evaluate(async ({ base, path, opts }) => {
+      const r = await fetch(`${base}${path}`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        ...opts,
       });
+      const text = await r.text();
+      try { return { ok: r.ok, status: r.status, data: JSON.parse(text) }; }
+      catch { return { ok: false, status: r.status, raw: text.slice(0, 300) }; }
+    }, { base, path, opts });
 
-      if (!txRes.ok) {
-        const msg = txRes.data?.message || txRes.data?.error || txRes.raw || `HTTP ${txRes.status}`;
-        // Surface payment-not-configured errors clearly
-        if (/payment|card|wallet/i.test(msg)) {
-          return { error: `Purchase failed — no payment method configured in your Vinted account. Add one in the Vinted app first. (${msg.slice(0, 100)})` };
-        }
-        return { error: `Purchase failed (${txRes.status}): ${msg.slice(0, 200)}` };
+    // 1. Fetch the item and decide IN NODE with autobuy.checkBuyable, where the
+    //    rules are unit tested. Availability comes from Vinted's is_closed /
+    //    is_reserved / is_hidden flags — never from `status`, which is condition.
+    const itemRes = await api(`/api/v2/items/${id}`);
+    if (!itemRes.ok) return { error: `Item fetch failed (${itemRes.status})` };
+    const item = itemRes.data?.item || itemRes.data;
+    const verdict = autobuy.checkBuyable(item, { maxPrice });
+    if (!verdict.ok) return { error: verdict.reason, skipped: true };
+
+    // 2. Shipping options for this item
+    const shipRes = await api(`/api/v2/items/${id}/shipping_options`);
+    const shippingOptions = shipRes.data?.shipping_options || shipRes.data?.options || [];
+    const shipping = shippingOptions[0]; // cheapest/first option
+
+    // 3. Initiate the transaction
+    const txPayload = {
+      transaction: {
+        item_id: Number(id),
+        ...(shipping?.id ? { shipping_option_id: Number(shipping.id) } : {}),
+      },
+    };
+    const txRes = await api('/api/v2/transactions', {
+      method: 'POST',
+      body: JSON.stringify(txPayload),
+    });
+
+    if (!txRes.ok) {
+      const msg = String(txRes.data?.message || txRes.data?.error || txRes.raw || `HTTP ${txRes.status}`);
+      // Surface payment-not-configured errors clearly
+      if (/payment|card|wallet/i.test(msg)) {
+        return { error: `Purchase failed — no payment method configured in your Vinted account. Add one in the Vinted app first. (${msg.slice(0, 100)})` };
       }
+      return { error: `Purchase failed (${txRes.status}): ${msg.slice(0, 200)}` };
+    }
 
-      const tx = txRes.data?.transaction || txRes.data;
-      return {
-        ok:             true,
-        transaction_id: String(tx?.id || ''),
-        status:         tx?.status || 'created',
-        total:          tx?.total_price || item.price?.amount || '?',
-      };
-    }, { base, itemId: String(itemId) });
+    const tx = txRes.data?.transaction || txRes.data;
+    const result = {
+      ok:             true,
+      transaction_id: String(tx?.id || ''),
+      status:         tx?.status || 'created',
+      total:          tx?.total_price?.amount ?? tx?.total_price ?? verdict.total,
+    };
 
     return result;
   } catch (e) {
