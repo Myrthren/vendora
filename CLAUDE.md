@@ -42,7 +42,7 @@ POST-RESTORE CHECKLIST (Railway is back as of 2026-07-21 — item 3 is still OUT
 5. The avatar/initials bug is unrelated and will NOT be fixed by the restore.
 
 VERSIONING — how it actually works now
-- Current LIVE version: v6.127 (verified live 2026-09-13 at vendora-vv.netlify.app/version.json, built from 313b022). Version is stamped automatically by scripts/build-version.js into version.json on every deploy — the local version.json is gitignored and stale (says v6.0), so read the live URL, not the file.
+- Current LIVE version: v6.129 (verified live 2026-09-13 at vendora-vv.netlify.app/version.json, built from 0c4e5ed). Version is stamped automatically by scripts/build-version.js into version.json on every deploy — the local version.json is gitignored and stale (says v6.0), so read the live URL, not the file.
 - Real flow: commit + push to main (GitHub Myrthren/vendora) → Netlify auto-builds → version.json bumped automatically. There is no manual "stage then owner clicks Publish" gate on the live site deploy.
 - GIT AUTH: the remote used to carry a PAT inline, which expired three times. Fixed 2026-09-09 — the remote is now a plain https URL and auth goes through the `gh` credential helper (already logged in as Myrthren). Nothing to rotate.
 - The admin panel Update Log (vendora-dashboard.html, ~line 4437) reads the LAST 3 DAYS OF COMMITS FROM THE GITHUB API and groups them by calendar day. Rewritten 2026-09-09: it used to poll version.json, which only ever holds the single latest commit, and accumulate history in localStorage from whatever it happened to observe while the dashboard was open — so every deploy that shipped with the panel closed was invisible, and one July entry spent two months absorbing unrelated commits. Docs and chores are filtered out; each line is tagged Feature/Fix/Polish. Version and title are editable fields because the announcement header has always been written by hand. Copy output matches the posted format: `📦 **Vendora v6.x** — Title`, blank line, `• bullets`.
@@ -420,19 +420,26 @@ Channel ids live in bot/feeds.js CHANNELS. #competitor-watch was created then de
 — /competitor is a one-shot AI breakdown, nothing is stored and nothing notifies, so
 there was no feed to wire.
 
-VENDEX — public price index (built 2026-09-09, LIVE and producing)
+VENDEX — public price index (built 2026-09-09; data source REBUILT 2026-09-13)
 GET /api/vendex (public, unauthenticated, 5-min memory cache) + vendex.html.
-Median asking price per category from the hourly medians the deal feed already
-records, plus an equal-weighted index rebased to 100 at each category's first
-reading. Averaging RELATIVE change is the only honest way to combine categories
-whose prices differ by an order of magnitude.
-As of 2026-09-12: index 90.3, 6 categories, ~50 samples each since 09-09 21:31.
+Maths in niche.buildVendex (unit tested). Equal-weighted index rebased to 100 at
+each category's first reading — averaging RELATIVE change is the only honest way to
+combine categories whose prices differ by an order of magnitude.
+SOURCE is now niche_daily (the niche report's data): 20 niches, 48 newest listings
+every 3h, junk titles filtered with offers.js, ITEM price excluding Vinted's buyer
+fee, one price per niche per day, 90 days. Changes are day-on-day (only against the
+immediately previous day) and week-on-week (7 days back, ±1 day). Cards show the
+p25-p75 range ("most listed £x-£y") so one median is not the whole story.
+WHY: it used to read the deal feed's feed_keyword_stats — fee-inclusive, unfiltered
+(nike tech fleece read £16.45 against a real £40-80 because kids' sizes matched),
+6 keywords, 14 days. HISTORY RESET on this switch: the index restarts from the
+first niche sweep (2026-09-13 evening), so change figures return after 2 and 8 days.
 NOT LINKED from the main site yet — owner's call.
-KNOWN DATA-QUALITY ISSUE: the search takes the 20 NEWEST listings, which drags some
-medians well below the real market (nike tech fleece reads £16.45 against a true
-£40-80) because kids' sizes, shorts and accessories match the keyword. Fix by
-sampling more items or trimming outliers before taking the median. Worth doing
-before Vendex is linked publicly — resellers will spot it immediately.
+STILL ON THE OLD DATA: the deal feed itself. feed_keyword_stats (fee-inclusive,
+unfiltered) still drives the underpriced filter, #price-drops, #whats-selling and
+#trend-reports — kids' listings can still drag a feed median down and make an adult
+item look "underpriced". Switching those needs care: a series mixing old and new
+medians would show a fake ~7% drop and trigger a bogus #price-drops post.
 
 DEAL FEED TRACK RECORD (built 2026-09-13, bot/track-record.js — LIVE from bcef12e / v6.126)
 Every find posted to #early-deals is logged (settings key deal_feed_track_log) and

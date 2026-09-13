@@ -3710,15 +3710,21 @@ app.get('/', (_req, res) => res.json({
 }));
 
 // ── Vendex — the public price index ──────────────────────────────────────────
-// What UK resellers are actually asking, per category, from the hourly medians
-// the deal feed already records. Deliberately PUBLIC and unauthenticated: the
-// whole point is to be linkable and citable by people who have never heard of
-// Vendora.
+// What UK resellers are actually asking, per category. Deliberately PUBLIC and
+// unauthenticated: the whole point is to be linkable and citable by people who
+// have never heard of Vendora.
 //
-// Nothing here is user data — it is aggregate asking prices scraped from public
-// Vinted listings, so there is no scoping question. Cached in memory because
-// the underlying numbers only change hourly and this is the one route a
-// stranger can hit as often as they like.
+// SOURCE (changed 2026-09-13): the niche report's niche_daily data — junk-titles
+// filtered, item price excluding Vinted's buyer fee, 20 niches, 90 days. It used
+// to read the deal feed's feed_keyword_stats, which were fee-inclusive,
+// unfiltered (nike tech fleece read £16.45 against a real £40-80 because kids'
+// sizes matched) and only kept 14 days. The maths lives in niche.buildVendex,
+// where it is unit tested.
+//
+// Nothing here is user data — it is aggregate asking prices from public Vinted
+// listings, so there is no scoping question. Cached in memory because the data
+// changes every three hours and this is the one route a stranger can hit as
+// often as they like.
 let vendexCache = { at: 0, body: null };
 const VENDEX_TTL_MS = 5 * 60 * 1000;
 
@@ -3729,77 +3735,8 @@ app.get('/api/vendex', async (_req, res) => {
       return res.json(vendexCache.body);
     }
 
-    const stats = (await getSetting(FEED_STATS_KEY)) || {};
     const now = Date.now();
-    const H = 60 * 60 * 1000;
-
-    // Average over a window rather than taking a single point: one outlier
-    // listing should not read as a market move.
-    const avgIn = (pts, fromAgo, toAgo) => {
-      const w = pts.filter(p => p.t <= now - toAgo && p.t > now - fromAgo);
-      return w.length ? w.reduce((t, p) => t + p.median, 0) / w.length : null;
-    };
-
-    const categories = Object.entries(stats).map(([keyword, s]) => {
-      const pts = (s.medians || []).slice().sort((a, b) => a.t - b.t);
-      if (!pts.length) return null;
-
-      const current = pts[pts.length - 1].median;
-      const d1 = avgIn(pts, 48 * H, 24 * H);
-      const d7 = avgIn(pts, 8 * 24 * H, 7 * 24 * H);
-      const pct = (from) => from ? Math.round(((current - from) / from) * 1000) / 10 : null;
-
-      return {
-        keyword,
-        median: Math.round(current * 100) / 100,
-        change24h: pct(d1),
-        change7d:  pct(d7),
-        samples:   pts.length,
-        since:     pts[0].t,
-        // Thinned for the sparkline — a page does not need 336 points.
-        series: pts.filter((_, i) => i % Math.max(1, Math.ceil(pts.length / 48)) === 0)
-                   .map(p => ({ t: p.t, v: Math.round(p.median * 100) / 100 })),
-      };
-    }).filter(Boolean).sort((a, b) => b.median - a.median);
-
-    // The headline number. An index needs one — "Vendex is at 103.2" is citable
-    // in a way that a grid of category prices is not.
-    //
-    // Equal-weighted and rebased to 100 at each category's first reading, so a
-    // £140 jacket category cannot drown out a £25 one. Averaging RELATIVE change
-    // is the only honest way to combine categories whose absolute prices differ
-    // by an order of magnitude.
-    const rebased = categories
-      .filter(c => c.series.length >= 2)
-      .map(c => {
-        const first = c.series[0].v;
-        return first ? (c.median / first) * 100 : null;
-      })
-      .filter(v => v !== null);
-
-    const mean = arr => arr.length ? arr.reduce((t, v) => t + v, 0) / arr.length : null;
-    const meanOf = key => {
-      const vals = categories.map(c => c[key]).filter(v => v !== null && v !== undefined);
-      return vals.length ? Math.round(mean(vals) * 10) / 10 : null;
-    };
-
-    const indexValue = rebased.length ? Math.round(mean(rebased) * 10) / 10 : null;
-    const earliest = categories.reduce((min, c) => Math.min(min, c.since), Infinity);
-
-    const body = {
-      name: 'Vendex',
-      description: 'Median asking price for UK Vinted listings, sampled hourly.',
-      updated: now,
-      index: {
-        value:     indexValue,
-        base:      100,
-        since:     Number.isFinite(earliest) ? earliest : null,
-        change24h: meanOf('change24h'),
-        change7d:  meanOf('change7d'),
-        basis:     'Equal-weighted, rebased to 100 at first reading',
-      },
-      categories,
-    };
+    const body = niche.buildVendex((await getSetting(NICHE_DAILY_KEY)) || {}, { now });
 
     vendexCache = { at: now, body };
     res.setHeader('X-Cache', 'MISS');

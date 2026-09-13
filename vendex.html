@@ -4,16 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Vendex — UK Vinted price index | Vendora</title>
-<meta name="description" content="Vendex tracks the median asking price of UK Vinted listings, sampled every hour. See which categories are rising, which are falling, and when to buy.">
+<meta name="description" content="Vendex tracks the median asking price of UK Vinted listings across 20 resale categories, sampled every three hours. See which categories are rising, which are falling, and when to buy.">
 <link rel="icon" type="image/png" href="favicon.png">
 <meta property="og:title" content="Vendex — UK Vinted price index">
-<meta property="og:description" content="Median asking prices across UK Vinted, sampled hourly. Rising means sell into it; falling means source into it.">
+<meta property="og:description" content="Median asking prices across UK Vinted, sampled every three hours. Rising means sell into it; falling means source into it.">
 <meta property="og:image" content="https://vendora.site/vendora-icon.png">
 <meta property="og:url" content="https://vendora.site/vendex.html">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Vendex — UK Vinted price index">
-<meta name="twitter:description" content="Median asking prices across UK Vinted, sampled hourly.">
+<meta name="twitter:description" content="Median asking prices across UK Vinted, sampled every three hours.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
@@ -140,12 +140,12 @@
 <header><div class="inner">
   <div class="mast">
     <div>
-      <div class="eyebrow"><span class="dot"></span> Live · sampled hourly</div>
+      <div class="eyebrow"><span class="dot"></span> Live · sampled every 3 hours</div>
       <h1>Vendex<br><span class="dim">the UK resale index</span></h1>
       <p class="lede">
-        The <strong>median asking price</strong> across UK Vinted. A rising index means the
-        market will pay more — sell into it. A falling one means stock is getting cheaper —
-        source into it.
+        The <strong>median asking price</strong> across UK Vinted, before Vinted's buyer fee.
+        A rising index means the market will pay more — sell into it. A falling one means
+        stock is getting cheaper — source into it.
       </p>
     </div>
     <div class="readout">
@@ -166,9 +166,9 @@
 
 <div class="inner">
   <div class="note" id="young" hidden>
-    <b>Vendex is still filling up.</b> It samples once an hour, so daily movement appears
-    after 48 hours and weekly after eight days. Every price shown is real from the first
-    reading — only the change figures need time.
+    <b>Vendex is still filling up.</b> It samples every three hours and settles each day into
+    one price, so daily movement appears after two days and weekly after eight. Every price
+    shown is real from the first reading — only the change figures need time.
   </div>
 
   <!-- Hidden until the feed has enough checked finds for a percentage to mean anything. -->
@@ -197,7 +197,7 @@
 </div>
 
 <footer><div class="inner">
-  <div>Built from public Vinted listings. Asking prices, not sold prices.</div>
+  <div>Built from the 48 newest public UK Vinted listings per category, excluding Vinted's buyer fee, with kids' sizes, bundles and faulty stock filtered out. Asking prices, not sold prices.</div>
   <div><a href="/">Vendora</a> · <a href="/#pricing">Plans</a> · <a href="/vendora-tos.html">Terms</a></div>
 </div></footer>
 
@@ -272,7 +272,11 @@
       +   '<div class="price">£' + c.median.toFixed(2) + '</div>'
       +   '<div class="badge ' + k + ' ' + k + '">' + fmtPct(mv) + '</div>'
       + '</div>'
-      + '<div class="sub">median asking price</div>'
+      // The middle half of listings, so a reader can see how wide the market is
+      // rather than trusting one number.
+      + '<div class="sub">median asking price'
+      +   (c.range && c.range.p25 ? ' · most listed £' + Math.round(c.range.p25) + '–£' + Math.round(c.range.p75) : '')
+      + '</div>'
       + spark(c.series, risingSeries)
       + '<div class="foot"><span>' + c.samples + ' reading' + (c.samples === 1 ? '' : 's') + '</span>'
       +   '<span>7d ' + fmtPct(c.change7d) + '</span></div>'

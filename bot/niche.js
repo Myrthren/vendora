@@ -381,6 +381,91 @@ function applyNotes(report, parsed) {
   };
 }
 
+// ── Vendex ────────────────────────────────────────────────────────────────────
+// The public price index, built from niche_daily. It used to read the deal
+// feed's feed_keyword_stats, which had three flaws for a public number: medians
+// were fee-INCLUSIVE (total_item_price), nothing was junk-filtered (nike tech
+// fleece read £16.45 because kids' sizes matched), and only 14 days were kept.
+// niche_daily fixes all three and covers 20 niches instead of 6.
+//
+// Resolution is one price per niche per day (today live from its 3-hourly
+// samples), so the changes are day-on-day and week-on-week.
+function pctChange(from, to) {
+  return from ? Math.round(((to - from) / from) * 1000) / 10 : null;
+}
+
+function buildVendex(daily, { now = Date.now(), maxPoints = 48 } = {}) {
+  const today = dayKey(now);
+  const noon = day => Date.parse(`${day}T12:00:00Z`);
+
+  const categories = Object.entries(daily || {}).map(([keyword, list]) => {
+    const days = readDays(list);
+    if (!days.length) return null;
+    const last = days[days.length - 1];
+    const tOf = d => (d.day === today ? now : noon(d.day));
+
+    // The reading N days before the latest one. The weekly comparison allows a
+    // day either side, so one missed sweep day does not blank the 7-day figure.
+    const back = (n, slack = 0) => {
+      for (const off of slack ? [n, n - 1, n + 1] : [n]) {
+        const hit = days.find(d => d.day === dayKey(noon(last.day) - off * DAY));
+        if (hit && hit !== last) return hit;
+      }
+      return null;
+    };
+    const d1 = back(1);
+    const d7 = back(7, 1);
+
+    const series = days.map(d => ({ t: tOf(d), v: d.median }));
+    const step = Math.max(1, Math.ceil(series.length / maxPoints));
+
+    return {
+      keyword,
+      median:    last.median,
+      range:     { p25: last.p25, p75: last.p75 },
+      change24h: d1 ? pctChange(d1.median, last.median) : null,
+      change7d:  d7 ? pctChange(d7.median, last.median) : null,
+      days:      days.length,
+      samples:   days.reduce((t, d) => t + (d.runs || 0), 0),
+      since:     tOf(days[0]),
+      series:    series.filter((_, i) => i % step === 0 || i === series.length - 1),
+    };
+  }).filter(Boolean).sort((a, b) => b.median - a.median);
+
+  // Equal-weighted, each category rebased to 100 at its first reading, so a
+  // £140 jacket category cannot drown out a £25 one.
+  const mean = arr => (arr.length ? arr.reduce((t, v) => t + v, 0) / arr.length : null);
+  const rebased = categories
+    .filter(c => c.series.length >= 2 && c.series[0].v)
+    .map(c => (c.median / c.series[0].v) * 100);
+  const meanOf = key => {
+    const vals = categories.map(c => c[key]).filter(v => v !== null && v !== undefined);
+    return vals.length ? Math.round(mean(vals) * 10) / 10 : null;
+  };
+  const earliest = categories.reduce((m, c) => Math.min(m, c.since), Infinity);
+
+  return {
+    name: 'Vendex',
+    description: "Median asking price for UK Vinted listings, excluding Vinted's buyer fee, sampled every three hours.",
+    updated: now,
+    index: {
+      value:     rebased.length ? Math.round(mean(rebased) * 10) / 10 : null,
+      base:      100,
+      since:     Number.isFinite(earliest) ? earliest : null,
+      change24h: meanOf('change24h'),
+      change7d:  meanOf('change7d'),
+      basis:     'Equal-weighted, rebased to 100 at first reading',
+    },
+    method: {
+      cadence:    'Every three hours, rolled up to one price per day',
+      sample:     'The 48 newest listings per category',
+      priceBasis: "Item price, excluding Vinted's buyer fee",
+      filtered:   "Kids' sizes, bundles, faulty stock and listings that are not the item itself",
+    },
+    categories,
+  };
+}
+
 // ── Discord payloads ──────────────────────────────────────────────────────────
 const SECTION_TITLES = {
   rising:  'Rising — sell into it',
@@ -469,4 +554,5 @@ module.exports = {
   applyNotes,
   buildNicheReportPayload,
   buildStatusPayload,
+  buildVendex,
 };
