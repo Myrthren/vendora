@@ -435,11 +435,19 @@ WHY: it used to read the deal feed's feed_keyword_stats — fee-inclusive, unfil
 6 keywords, 14 days. HISTORY RESET on this switch: the index restarts from the
 first niche sweep (2026-09-13 evening), so change figures return after 2 and 8 days.
 NOT LINKED from the main site yet — owner's call.
-STILL ON THE OLD DATA: the deal feed itself. feed_keyword_stats (fee-inclusive,
-unfiltered) still drives the underpriced filter, #price-drops, #whats-selling and
-#trend-reports — kids' listings can still drag a feed median down and make an adult
-item look "underpriced". Switching those needs care: a series mixing old and new
-medians would show a fake ~7% drop and trigger a bogus #price-drops post.
+DEAL FEED MOVED TO FILTERED PRICES (2026-09-13): feeds.pickUnderpriced now drops
+junk titles (offers.js filter) before taking the median and compares on the ITEM
+price (mapVintedRawItem.itemPriceNum, excluding the buyer fee; the rare Apify
+fallback has no itemPriceNum and uses priceNum). Picks carry that item price, so
+the embed, the Pro queue and the track record show the same figure.
+Stats moved to a NEW key, feed_keyword_stats_v2, which #price-drops, #whats-selling
+and #trend-reports all read. On the first run it is seeded from the legacy
+feed_keyword_stats with the weekly counters only — medians start empty, because
+one series mixing both bases would read as a drop and fire a bogus #price-drops
+post. Consequences: #price-drops is silent until ~3 days of new medians exist;
+Sunday's #trend-reports / #whats-selling use the new series. The legacy row is left
+untouched. Also fixed: stats were saved only on hourly-sample runs, so finds counted
+on the other five runs an hour were lost and the weekly reports undercounted.
 
 DEAL FEED TRACK RECORD (built 2026-09-13, bot/track-record.js — LIVE from bcef12e / v6.126)
 Every find posted to #early-deals is logged (settings key deal_feed_track_log) and

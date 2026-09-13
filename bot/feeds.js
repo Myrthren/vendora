@@ -10,6 +10,8 @@
 // list, searched on a schedule.
 
 const { EmbedBuilder } = require('discord.js');
+// Pure junk-title filter shared with the Offer Finder, Vendex and the niche report.
+const offers = require('./offers');
 
 const PINK = '#e8217a';
 const GOLD = '#e8a121';
@@ -57,16 +59,40 @@ function median(nums) {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
+//
+// PRICE BASIS (changed 2026-09-13): the ITEM price, excluding Vinted's buyer fee
+// (£0.70 + 5%), and junk titles removed BEFORE the median is taken. It used to
+// compare total_item_price over every result, so kids' sizes and bundles that
+// matched the keyword dragged the median down — nike tech fleece read £16.45
+// against a real £40-80 — and an ordinary adult listing could then look
+// "underpriced". Picks come back with priceNum/price set to that item price, so
+// the embed, the Pro queue and the track record all show the same figure.
 function pickUnderpriced(items, { minDiscountPct = 35, floorPct = 15, minSample = 6, maxPicks = 5 } = {}) {
-  // Vinted's catalog endpoint does not always return `url` on an item. Requiring
-  // it would drop every result on those runs and post nothing, with no error —
-  // and an id is enough to rebuild the link, so rebuild it rather than discard.
+  let junk = 0;
   const priced = (items || [])
-    .filter(i => i && i.priceNum > 0 && (i.url || i.id))
-    .map(i => i.url ? i : { ...i, url: `https://www.vinted.co.uk/items/${i.id}` });
+    // Vinted's catalog endpoint does not always return `url` on an item. Requiring
+    // it would drop every result on those runs and post nothing, with no error —
+    // and an id is enough to rebuild the link, so rebuild it rather than discard.
+    .filter(i => i && (i.url || i.id))
+    .filter(i => {
+      if (offers.isJunk(i.title)) { junk++; return false; }
+      return true;
+    })
+    .map(i => {
+      // itemPriceNum comes from mapVintedRawItem. The Apify fallback does not set
+      // it, so those rare runs fall back to priceNum.
+      const basis = i.itemPriceNum > 0 ? i.itemPriceNum : i.priceNum;
+      return {
+        ...i,
+        url:      i.url || `https://www.vinted.co.uk/items/${i.id}`,
+        priceNum: basis,
+        price:    basis > 0 ? `£${basis.toFixed(2)}` : i.price,
+      };
+    })
+    .filter(i => i.priceNum > 0);
   // Too few comparables and the median means nothing — better to post nothing
   // than to call a random item a bargain.
-  if (priced.length < minSample) return { median: 0, picks: [] };
+  if (priced.length < minSample) return { median: 0, picks: [], junk, sample: priced.length };
 
   const med = median(priced.map(i => i.priceNum));
   if (!med) return { median: 0, picks: [] };
@@ -80,7 +106,19 @@ function pickUnderpriced(items, { minDiscountPct = 35, floorPct = 15, minSample 
     .slice(0, maxPicks)
     .map(i => ({ ...i, discountPct: Math.round(((med - i.priceNum) / med) * 100) }));
 
-  return { median: med, picks };
+  return { median: med, picks, junk, sample: priced.length };
+}
+
+// First run on the filtered series. The weekly counters carry across — a count
+// of finds does not depend on the price basis — but the medians do NOT: a
+// series mixing fee-inclusive, unfiltered medians with the new ones would read
+// as an overnight drop of several percent and fire a bogus #price-drops post.
+function seedStatsFromLegacy(legacy) {
+  const out = {};
+  for (const [keyword, s] of Object.entries(legacy || {})) {
+    out[keyword] = { medians: [], finds: s?.finds || 0, bestDiscountPct: s?.bestDiscountPct || 0 };
+  }
+  return out;
 }
 
 // ── Deal feed payload ─────────────────────────────────────────────────────────
@@ -239,6 +277,7 @@ module.exports = {
   DEFAULT_KEYWORDS,
   median,
   pickUnderpriced,
+  seedStatsFromLegacy,
   buildDealPayload,
   buildWhatsSellingPayload,
   detectPriceDrops,

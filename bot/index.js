@@ -768,11 +768,16 @@ function mapApifyVintedItem(i) {
 function mapVintedRawItem(i) {
   const cur = String(i.total_item_price?.currency_code || i.currency || 'GBP').toUpperCase();
   const num = parseFloat(i.total_item_price?.amount ?? i.price?.amount ?? i.price ?? 0) || 0;
+  // priceNum is what the buyer pays before postage (item + Vinted's buyer fee).
+  // itemPriceNum is the item price alone — what a seller lists at and receives —
+  // which the deal feed, Vendex and the niche report all compare on.
+  const itemNum = parseFloat(i.price?.amount ?? i.price ?? 0) || 0;
   return {
     id:        String(i.id || ''),
     title:     i.title || '',
     price:     num ? `${currencySymbol(cur)}${num.toFixed(2)}` : '—',
     priceNum:  num,
+    itemPriceNum: itemNum,
     currency:  cur,
     url:       i.url || '',
     brand:     i.brand_title || i.brand?.title || '',
@@ -10318,7 +10323,12 @@ async function postToFeedChannel(channelId, payload, label) {
 // would see gaps with nothing in the logs to explain them.
 const DEAL_QUEUE_KEY = 'deal_feed_queue';
 const FEED_SEEN_KEY  = 'deal_feed_seen_ids';
-const FEED_STATS_KEY = 'feed_keyword_stats';
+// v2 (2026-09-13): medians on the ITEM price with junk titles removed — see
+// feeds.pickUnderpriced. A new key rather than rewriting the old one, because a
+// single series mixing both bases would read as an overnight price drop. The
+// legacy row is left in place untouched; only its weekly counters are carried.
+const FEED_STATS_KEY        = 'feed_keyword_stats_v2';
+const LEGACY_FEED_STATS_KEY = 'feed_keyword_stats';
 const TRACK_LOG_KEY  = 'deal_feed_track_log';
 
 async function runDealFeed() {
@@ -10331,7 +10341,11 @@ async function runDealFeed() {
 
     const seen  = new Set((await getSetting(FEED_SEEN_KEY)) || []);
     const queue = (await getSetting(DEAL_QUEUE_KEY)) || [];
-    const stats = (await getSetting(FEED_STATS_KEY)) || {};
+    let stats = await getSetting(FEED_STATS_KEY);
+    if (!stats) {
+      stats = feeds.seedStatsFromLegacy(await getSetting(LEGACY_FEED_STATS_KEY));
+      console.log(`[feed:deals] Starting the filtered stats series (${FEED_STATS_KEY}) — weekly counters carried over for ${Object.keys(stats).length} keyword(s), medians start fresh.`);
+    }
     // Tunable without a deploy — see feeds.pickUnderpriced for what each does.
     const tuning = (await getSetting('feed_tuning')) || {};
     let posted = 0, sampled = 0;
@@ -10347,9 +10361,8 @@ async function runDealFeed() {
         const items = await alertKeywordSearch(keyword, 20);
         if (!items?.length) { trace.push(`${keyword}: 0 results`); continue; }
 
-        const usable = items.filter(i => i && i.priceNum > 0 && i.url).length;
-        const { median: med, picks } = feeds.pickUnderpriced(items, tuning);
-        trace.push(`${keyword}: ${items.length} results, ${usable} usable, median £${med ? med.toFixed(0) : '-'}, ${picks.length} under threshold`);
+        const { median: med, picks, junk, sample } = feeds.pickUnderpriced(items, tuning);
+        trace.push(`${keyword}: ${items.length} results, ${junk} junk removed, ${sample} usable, median £${med ? med.toFixed(0) : '-'}, ${picks.length} under threshold`);
 
         // Record the median every run whether or not anything was underpriced —
         // #whats-selling reports price movement, which needs the quiet weeks too.
@@ -10394,7 +10407,10 @@ async function runDealFeed() {
       }
     }
 
-    if (sampled) await saveSetting(FEED_STATS_KEY, stats);
+    // Save when a median was sampled OR a find was posted. It used to save only
+    // on sampled runs (one in six), so finds and best-discount counted on the
+    // other runs were dropped and the weekly reports undercounted.
+    if (sampled || posted) await saveSetting(FEED_STATS_KEY, stats);
     if (posted) {
       await saveSetting(DEAL_QUEUE_KEY, queue);
       await saveSetting(FEED_SEEN_KEY, [...seen].slice(-1000));
