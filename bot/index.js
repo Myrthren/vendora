@@ -33,6 +33,8 @@ const { buildWinbackPayload } = require('./winback-embed');
 const feeds = require('./feeds');
 // Deal-feed track record — did the finds we posted actually go? Pure logic, see bot/track-record.js.
 const trackRecord = require('./track-record');
+// Offer Finder maths — fees, max offer, junk filter. Pure, see bot/offers.js.
+const offerFinder = require('./offers');
 
 // Vinted browser flow (Playwright + stealth) — bypasses DataDome by running
 // inside a real Chromium through the residential proxy. Optional dep:
@@ -306,6 +308,9 @@ const API_RATE_LIMITS = {
   sync:      { burst: { basic: 1, pro: 2, elite: 3  }, day: { basic: 4,  pro: 12,  elite: 40  } },
   listing:   { burst: { basic: 2, pro: 5, elite: 10 }, day: { basic: 10, pro: 50,  elite: 200 } },
   monitor:   { burst: { basic: 2, pro: 4, elite: 8  }, day: { basic: 5,  pro: 25,  elite: 100 } },
+  // Offer Finder: one 96-item browser search per call. £0 to run, but it holds a
+  // page on the one shared Chromium the deal feed and alerts also depend on.
+  offers:    { burst: { basic: 1, pro: 3, elite: 6  }, day: { basic: 5,  pro: 40,  elite: 150 } },
   // Model calls — Anthropic, OpenAI (text and image), remove.bg, PhotoRoom.
   // A different cost centre from the scrapers but the same failure mode: metered
   // third-party spend behind an endpoint a logged-in client can call in a loop.
@@ -320,6 +325,7 @@ const API_GROUP_LABEL = {
   sync:      'inventory syncs',
   listing:   'listing actions',
   monitor:   'alert changes',
+  offers:    'offer searches',
   ai:        'AI actions',
 };
 
@@ -9570,6 +9576,79 @@ No markdown, just JSON.`;
   } catch (e) {
     console.error('[flip-score]', e.message);
     res.status(500).json({ error: 'Failed to score this flip.' });
+  }
+});
+
+// ── Offer Finder ───────────────────────────────────────────────────────────────
+// At-market listings where an offer still clears the member's margin. Browser
+// ONLY: no Apify fallback, because a user-triggered 96-item search on Apify is
+// ~$0.21 a call against the $5/month cap. When the browser is saturated the
+// member is asked to retry in a few seconds instead.
+app.post('/api/offers/find', async (req, res) => {
+  const user = await requireAuth(req, res); if (!user) return;
+  const profile = await getProfileByUserId(user.id);
+  if (!profile || TIER_RANK[profile.tier] < TIER_RANK.pro) return res.status(403).json({ error: 'Pro subscription required.' });
+
+  const keyword = String(req.body?.keyword || '').trim().slice(0, 80);
+  if (keyword.length < 2) return res.status(400).json({ error: 'Enter an item or category to search.' });
+
+  // Clamp everything from the client: these feed straight into the maths.
+  const num = (v, min, max) => {
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : undefined;
+  };
+  const opts = {
+    targetMarginPct: num(req.body?.targetMarginPct, 5, 100),
+    postage:         num(req.body?.postage, 0, 20),
+    budget:          num(req.body?.budget, 1, 5000),
+  };
+
+  if (!vintedBrowser?.vintedBrowserSearchItems) {
+    return res.status(503).json({ error: 'Offer Finder is temporarily unavailable.' });
+  }
+  // Checked BEFORE the rate limiter so a busy browser does not cost quota.
+  if (browserSearchInflight >= BROWSER_SEARCH_MAX_INFLIGHT) {
+    res.set('Retry-After', '15');
+    return res.status(503).json({ error: 'Vendora is busy searching Vinted right now. Try again in a few seconds.' });
+  }
+  if (!enforceApiLimit(res, user.id, 'offers', profile.tier, discordIdFromUser(user))) return;
+
+  browserSearchInflight++;
+  try {
+    // Relevance, not newest: a listing up for ten minutes is the worst offer target.
+    const { items, error } = await vintedBrowser.vintedBrowserSearchItems(keyword, null, 96, 'relevance');
+    if (error || !Array.isArray(items)) {
+      console.warn(`[offers] "${keyword}" search failed: ${error || 'bad response'}`);
+      return res.status(502).json({ error: 'Could not reach Vinted just now. Try again shortly.' });
+    }
+
+    // Thresholds are owner-tunable without a deploy — see DEFAULTS in bot/offers.js.
+    const tuning = (await getSetting('offer_tuning')) || {};
+    const result = offerFinder.findOffers(items, {
+      maxAskPct:    tuning.maxAskPct,
+      minAskPct:    tuning.minAskPct,
+      mixedSpread:  tuning.mixedSpread,
+      sellerFeePct: tuning.sellerFeePct,
+      minSample:    tuning.minSample,
+      ...opts,
+    });
+
+    // Always log the shape of the answer, including an empty one — "no targets"
+    // and "search returned nothing" must be distinguishable in the logs.
+    console.log(
+      `[offers] "${keyword}" — ${items.length} results, ${result.sample} usable, ` +
+      `median £${result.median || '-'}${result.mixedMarket ? ' (MIXED market)' : ''}, max offer £${result.maxOffer ?? '-'}, ` +
+      `${result.matched || 0} target(s), excluded ${JSON.stringify(result.excluded)}`
+    );
+
+    // Seller usernames are not needed to act on a pick and are not shown.
+    const picks = result.picks.map(({ sellerName, ...p }) => p);
+    return res.json({ ok: true, keyword, ...result, picks });
+  } catch (e) {
+    console.error('[offers]', e.message);
+    return res.status(500).json({ error: 'Offer search failed.' });
+  } finally {
+    browserSearchInflight--;
   }
 });
 

@@ -42,7 +42,7 @@ POST-RESTORE CHECKLIST (Railway is back as of 2026-07-21 — item 3 is still OUT
 5. The avatar/initials bug is unrelated and will NOT be fixed by the restore.
 
 VERSIONING — how it actually works now
-- Current LIVE version: v6.124 (verified live 2026-09-12 at vendora.site/version.json, built from 938af21). Version is stamped automatically by scripts/build-version.js into version.json on every deploy — the local version.json is gitignored and stale (says v6.0), so read the live URL, not the file.
+- Current LIVE version: v6.126 (verified live 2026-09-13 at vendora-vv.netlify.app/version.json, built from bcef12e). Version is stamped automatically by scripts/build-version.js into version.json on every deploy — the local version.json is gitignored and stale (says v6.0), so read the live URL, not the file.
 - Real flow: commit + push to main (GitHub Myrthren/vendora) → Netlify auto-builds → version.json bumped automatically. There is no manual "stage then owner clicks Publish" gate on the live site deploy.
 - GIT AUTH: the remote used to carry a PAT inline, which expired three times. Fixed 2026-09-09 — the remote is now a plain https URL and auth goes through the `gh` credential helper (already logged in as Myrthren). Nothing to rotate.
 - The admin panel Update Log (vendora-dashboard.html, ~line 4437) reads the LAST 3 DAYS OF COMMITS FROM THE GITHUB API and groups them by calendar day. Rewritten 2026-09-09: it used to poll version.json, which only ever holds the single latest commit, and accumulate history in localStorage from whatever it happened to observe while the dashboard was open — so every deploy that shipped with the panel closed was invisible, and one July entry spent two months absorbing unrelated commits. Docs and chores are filtered out; each line is tagged Feature/Fix/Polish. Version and title are editable fields because the announcement header has always been written by hand. Copy output matches the posted format: `📦 **Vendora v6.x** — Title`, blank line, `• bullets`.
@@ -434,7 +434,7 @@ medians well below the real market (nike tech fleece reads £16.45 against a tru
 sampling more items or trimming outliers before taking the median. Worth doing
 before Vendex is linked publicly — resellers will spot it immediately.
 
-DEAL FEED TRACK RECORD (built 2026-09-13, bot/track-record.js — NOT YET DEPLOYED)
+DEAL FEED TRACK RECORD (built 2026-09-13, bot/track-record.js — LIVE from bcef12e / v6.126)
 Every find posted to #early-deals is logged (settings key deal_feed_track_log) and
 rechecked at 2h / 24h / 72h. Published as share of finds "gone" by each check:
 GET /api/track-record (public, aggregates only — no titles, links or seller ids),
@@ -450,6 +450,26 @@ HOW GONE IS DETECTED — probed live 2026-09-13, do not re-derive:
     EMPTY wardrobe = unknown (a soft block can return items: [] with a 200).
 "Gone" includes deleted/hidden, not just sold. All copy says "no longer available",
 never "sold". Keep it that way — it is a public claim.
+
+OFFER FINDER (built 2026-09-13, bot/offers.js + POST /api/offers/find, Pro+)
+Dashboard → Sourcing → Offer Finder. One 96-item browser search (order=relevance —
+fresh listings are the worst offer targets), then pure maths: median ITEM price,
+max offer that clears the member's target margin after buyer fee + postage, and
+listings at or below the median where that offer is a 5-30% ask. Ranked by
+smallest ask. It never sends offers — "Copy offer" puts a message on the clipboard.
+VINTED BUYER FEE, probed live across 40 listings, exact on every one:
+  service_fee = £0.70 + 5% of item price; total_item_price = price + service_fee.
+  mapVintedRawItem.priceNum is total_item_price (fee-INCLUSIVE) — so the deal
+  feed and Vendex medians include the fee. offers.js reads raw price.amount.
+BROWSER ONLY, no Apify fallback: a 96-item Apify search is ~$0.21. When
+browserSearchInflight is at max it returns 503 "busy" BEFORE the rate limiter, so
+it costs no quota. Rate-limit group `offers` (Pro 3/min, 40/day).
+Tunable without a deploy via settings key offer_tuning: maxAskPct, minAskPct,
+mixedSpread, sellerFeePct, minSample (defaults in offers.js DEFAULTS).
+MIXED MARKET WARNING: p75/p25 > 2.5 flags a search whose median blends different
+items. Live: "nike tech fleece" 2.54 (flagged), "carhartt detroit jacket" 1.61.
+The junk-title regex (kids/junior/bundle/faulty/box only/replica...) lives in
+offers.js and is the same fix Vendex needs — reuse it there rather than rewriting.
 
 AUTO-BUY AVAILABILITY CHECK IS PROBABLY WRONG (found 2026-09-13, NOT fixed)
 vintedBrowserBuyItem (vinted-browser.js ~1066) treats an item as available when
@@ -509,6 +529,7 @@ Reference Files
 - /bot/index.js — Discord bot AND backend API (one process)
 - /bot/feeds.js — The Market channel feeds: channel ids, underpriced filter, embeds
 - /bot/track-record.js — Deal feed track record: find log, recheck logic, summary, embed
+- /bot/offers.js — Offer Finder maths: Vinted buyer fee, max offer, junk-title filter
 - /bot/trial.js — Free trial payloads
 - /bot/outreach.js — Setup + affiliate DMs, and the #affiliates channel embed
 - /bot/onboarding.js — Onboarding quiz + day-one affiliate DM

@@ -161,6 +161,11 @@
   .nav-item-text { flex: 1; min-width: 0; }
   .nav-item-name { font-size: 12.5px; }
   .nav-item-desc { font-size: 10.5px; color: rgba(255,255,255,0.28); margin-top: 1px; line-height: 1.35; }
+  /* Offer Finder grids are set inline for desktop; collapse them on narrow screens. */
+  @media (max-width: 900px) {
+    .offers-form  { grid-template-columns: 1fr 1fr !important; }
+    .offers-stats { grid-template-columns: 1fr 1fr !important; }
+  }
   .nav-item:hover .nav-item-desc, .nav-item.active .nav-item-desc { color: rgba(255,255,255,0.42); }
 
   .nav-item-badge {
@@ -982,6 +987,13 @@
           <div class="nav-item-text">
             <div class="nav-item-name">Flip Score</div>
             <div class="nav-item-desc">Demand, competition and profit — scored /100</div>
+          </div>
+        </div>
+        <div class="nav-item" id="offer-finder-nav-item" onclick="showSection('offer-finder', this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          <div class="nav-item-text">
+            <div class="nav-item-name">Offer Finder</div>
+            <div class="nav-item-desc">Listings an offer turns into a flip</div>
           </div>
         </div>
         <div class="nav-item" id="seller-intel-nav-item" onclick="showSection('seller-intelligence', this)">
@@ -2402,6 +2414,55 @@
       </div>
     </div>
 
+    <!-- ── OFFER FINDER ── -->
+    <div class="section" id="section-offer-finder">
+      <div class="page-header">
+        <div class="page-eyebrow">Tools</div>
+        <div class="page-title">Offer Finder <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(232,33,122,0.14);color:var(--pink);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Pro+</span></div>
+        <div class="page-sub">Search a Vinted category and find listings at or near market price where the right offer still leaves you a margin. You send the offer yourself from the Vinted app.</div>
+      </div>
+      <div id="offers-gate" style="display:none;"><div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px;text-align:center;"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">Pro Required</div><div style="font-size:13px;color:var(--muted2);max-width:300px;">Offer Finder is available on Vendora Pro and Elite.</div><button class="btn btn-primary btn-sm" onclick="showSection('subscription',document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Pro</button></div></div>
+      <div id="offers-tool">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title" style="margin-bottom:14px;">Search</div>
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:10px;align-items:end;" class="offers-form">
+            <div>
+              <label class="form-label" for="offers-keyword">Item or category *</label>
+              <input id="offers-keyword" type="text" class="form-select" style="height:auto;padding:10px 14px;" placeholder="e.g. carhartt detroit jacket" onkeydown="if(event.key==='Enter')offersFind()">
+            </div>
+            <div>
+              <label class="form-label" for="offers-margin">Target margin</label>
+              <select id="offers-margin" class="form-select">
+                <option value="15">15%</option>
+                <option value="25" selected>25%</option>
+                <option value="40">40%</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label" for="offers-postage">Your postage (£)</label>
+              <input id="offers-postage" type="number" min="0" step="0.01" value="3.00" class="form-select" style="height:auto;padding:10px 14px;">
+            </div>
+            <div>
+              <label class="form-label" for="offers-budget">Max spend (£)</label>
+              <input id="offers-budget" type="number" min="0" step="1" class="form-select" style="height:auto;padding:10px 14px;" placeholder="Any">
+            </div>
+            <button id="offers-btn" class="btn btn-primary" onclick="offersFind()" style="white-space:nowrap;">Find Offers</button>
+          </div>
+          <div id="offers-msg" style="display:none;margin-top:10px;font-size:12px;"></div>
+        </div>
+        <div id="offers-loading" style="display:none;padding:60px 20px;text-align:center;">
+          <div class="spinner" style="width:28px;height:28px;margin:0 auto 12px;"></div>
+          <div style="font-size:13px;color:var(--muted);">Reading the market and working out offers…</div>
+        </div>
+        <div id="offers-results" style="display:none;">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;" id="offers-stats" class="offers-stats"></div>
+          <div id="offers-warn" style="display:none;margin-bottom:14px;padding:11px 14px;border-radius:7px;font-size:12.5px;line-height:1.6;background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.22);color:#f59e0b;"></div>
+          <div id="offers-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+          <div id="offers-basis" style="margin-top:14px;font-size:11.5px;color:var(--muted2);line-height:1.6;"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── PRICE ELASTICITY ── -->
     <div class="section" id="section-price-elasticity">
       <div class="page-header">
@@ -3453,6 +3514,7 @@
     initToolAccess('draft-gate','draft-tool', tier, 'basic', 'auto-draft-nav-item');
     initToolAccess('sintel-gate','sintel-tool', tier, 'basic', 'seller-intel-nav-item');
     initToolAccess('fscore-gate','fscore-tool', tier, 'pro', 'flip-score-nav-item');
+    initToolAccess('offers-gate','offers-tool', tier, 'pro', 'offer-finder-nav-item');
     initToolAccess('pelast-gate','pelast-tool', tier, 'pro', 'price-elasticity-nav-item');
     initToolAccess('rcal-gate','rcal-tool', tier, 'basic', 'resell-calendar-nav-item');
     initToolAccess('inv-gate','inv-tool', tier, 'pro', 'inventory-nav-item');
@@ -8388,6 +8450,128 @@
       if(res_) res_.style.display='';
     } catch(e) { showMsg(msg,'error','Network error. Try again.'); if(load) load.style.display='none'; }
     btn.disabled=false; btn.textContent='Score This Flip';
+  }
+
+  // ── Offer Finder ──────────────────────────────────────────────────────────────
+  // Every string from Vinted goes through esc()/safeUrl() — titles, brands and
+  // seller names are user-written and scraped.
+  let offersLast = [];
+
+  async function offersFind() {
+    const keyword = document.getElementById('offers-keyword')?.value?.trim();
+    const btn  = document.getElementById('offers-btn');
+    const msg  = document.getElementById('offers-msg');
+    const load = document.getElementById('offers-loading');
+    const res_ = document.getElementById('offers-results');
+    if (!keyword) { showMsg(msg,'error','Enter an item or category to search.'); return; }
+    const body = {
+      keyword,
+      targetMarginPct: parseFloat(document.getElementById('offers-margin')?.value) || 25,
+      postage: parseFloat(document.getElementById('offers-postage')?.value),
+      budget: parseFloat(document.getElementById('offers-budget')?.value) || null,
+    };
+    if (!(body.postage >= 0)) body.postage = 3;
+    btn.disabled=true; btn.textContent='Searching…';
+    if(res_) res_.style.display='none';
+    if(load) load.style.display='';
+    msg.style.display='none';
+    try {
+      const { data:{ session } } = await sb.auth.getSession();
+      const r = await fetch(`${BOT_API}/api/offers/find`, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${session.access_token}` },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json();
+      if(load) load.style.display='none';
+      if (!r.ok) { showMsg(msg,'error', esc(j.error||'Offer search failed.')); btn.disabled=false; btn.textContent='Find Offers'; return; }
+      offersRender(j);
+      if(res_) res_.style.display='';
+    } catch(e) { showMsg(msg,'error','Network error. Try again.'); if(load) load.style.display='none'; }
+    btn.disabled=false; btn.textContent='Find Offers';
+  }
+
+  function offersRender(j) {
+    const ex = j.excluded || {};
+    const statsEl = document.getElementById('offers-stats');
+    const listEl  = document.getElementById('offers-list');
+    const basisEl = document.getElementById('offers-basis');
+    offersLast = j.picks || [];
+
+    const stat = (label, value, sub) => `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-val" style="font-size:18px;">${value}</div>${sub?`<div class="stat-sub">${sub}</div>`:''}</div>`;
+    const rangeSub = j.range && j.range.p25 ? `most listed £${Number(j.range.p25).toFixed(0)}–£${Number(j.range.p75).toFixed(0)}` : 'asking price';
+    statsEl.innerHTML =
+      stat('Market median', j.median ? '£' + Number(j.median).toFixed(2) : '—', rangeSub) +
+      stat('Your max offer', j.maxOffer ? '£' + Number(j.maxOffer).toFixed(2) : '—', `clears ${esc(j.assumptions?.targetMarginPct)}% margin`) +
+      stat('Comparables', esc(j.sample ?? 0), `${esc(ex.junk||0)} junk listings removed`) +
+      stat('Offer targets', esc(j.matched ?? 0), j.matched > offersLast.length ? `showing best ${offersLast.length}` : 'at or near market');
+
+    // A wide spread means the search mixes different items, so the median is not
+    // a resale price for any one of them — and every offer is built on it.
+    const warnEl = document.getElementById('offers-warn');
+    if (j.mixedMarket && j.range) {
+      warnEl.innerHTML = `<b>Mixed search.</b> Most listings here run from £${Number(j.range.p25).toFixed(0)} to £${Number(j.range.p75).toFixed(0)}, so the £${Number(j.median).toFixed(0)} median may not be what <i>your</i> item resells for. Add a model, size or colour to tighten it before trusting these offers.`;
+      warnEl.style.display = '';
+    } else {
+      warnEl.style.display = 'none';
+    }
+
+    if (j.tooFewComparables) {
+      listEl.innerHTML = `<div class="card" style="text-align:center;padding:36px 20px;color:var(--muted);font-size:13px;">Only ${esc(j.sample)} usable listings came back — not enough to trust a median. Try a broader search.</div>`;
+    } else if (!offersLast.length) {
+      const why = [];
+      if (ex.alreadyUnder) why.push(`${ex.alreadyUnder} already at or near your max offer as listed — buy those at list`);
+      if (ex.tooDeep) why.push(`${ex.tooDeep} would need more than ${esc(j.assumptions?.maxAskPct)}% off`);
+      if (ex.overBudget) why.push(`${ex.overBudget} over your max spend`);
+      listEl.innerHTML = `<div class="card" style="text-align:center;padding:36px 20px;color:var(--muted);font-size:13px;line-height:1.7;">No offer targets at this margin.${why.length?'<br>'+why.map(esc).join('<br>'):''}<br>Try a lower target margin.</div>`;
+    } else {
+      const chanceStyle = {
+        'likely':    'background:rgba(74,222,128,0.1);color:var(--green);',
+        'fair':      'background:rgba(245,158,11,0.1);color:#f59e0b;',
+        'long shot': 'background:rgba(255,255,255,0.05);color:var(--muted);',
+      };
+      listEl.innerHTML = offersLast.map((p, idx) => {
+        const meta = [p.brand, p.size, p.condition].filter(Boolean).map(esc).join(' · ');
+        const age  = p.ageDays === null || p.ageDays === undefined ? '' : (p.ageDays === 0 ? 'listed today' : `listed ${p.ageDays}d ago`);
+        const favs = p.favourites ? `${p.favourites} favourite${p.favourites===1?'':'s'}` : '';
+        const photo = safeUrl(p.photo);
+        const link  = safeUrl(p.url);
+        return `<div class="card" style="display:grid;grid-template-columns:64px 1fr auto;gap:14px;align-items:center;padding:12px 14px;">
+          <div style="width:64px;height:64px;border-radius:6px;overflow:hidden;background:var(--bg3,#111);">${photo?`<img src="${photo}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;">`:''}</div>
+          <div style="min-width:0;">
+            <div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(p.title)}</div>
+            <div style="font-size:11px;color:var(--muted2);margin-top:2px;">${meta}${meta&&(age||favs)?' · ':''}${esc([age,favs].filter(Boolean).join(' · '))}</div>
+            <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;">
+              <span style="color:var(--muted);">Listed <b style="color:var(--text);">£${Number(p.price).toFixed(2)}</b></span>
+              <span style="color:var(--muted);">Offer <b style="color:var(--pink);">£${Number(p.offer).toFixed(2)}</b> <span style="color:var(--muted2);">(${esc(p.askPct)}% off)</span></span>
+              <span style="color:var(--muted);">Profit <b style="color:var(--green);">£${Number(p.profit).toFixed(2)}</b> <span style="color:var(--muted2);">${esc(p.roiPct)}% ROI</span></span>
+              <span style="font-size:11px;padding:1px 8px;border-radius:4px;font-weight:600;${chanceStyle[p.chance]||chanceStyle['long shot']}">${esc(p.chance)}</span>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            ${link?`<a class="btn btn-sm" href="${link}" target="_blank" rel="noopener noreferrer" style="text-align:center;">Open</a>`:''}
+            <button class="btn btn-sm btn-primary" onclick="offersCopy(${idx}, this)">Copy offer</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    const a = j.assumptions || {};
+    basisEl.textContent =
+      `Cost to buy includes Vinted's buyer fee (${a.buyerFee || '£0.70 + 5%'}) and £${Number(a.postage ?? 3).toFixed(2)} postage. ` +
+      `Profit assumes you resell at the market median. ${a.basis || ''} ` +
+      `Chance is a rough guide from how deep the offer is and how long the item has been listed.`;
+  }
+
+  async function offersCopy(idx, btn) {
+    const p = offersLast[idx];
+    if (!p) return;
+    try {
+      await navigator.clipboard.writeText(p.message);
+      const old = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = old; }, 1400);
+    } catch {
+      window.prompt('Copy this message:', p.message);
+    }
   }
 
   // ── Price Elasticity ──────────────────────────────────────────────────────────

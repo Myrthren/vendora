@@ -986,7 +986,10 @@ async function refreshVintedAccessToken(refreshToken) {
 // DataDome is already solved so this is much faster than spinning up Apify.
 // Used by the 2-minute auto-buy cron to detect new listings near-instantly.
 // Returns { items: Array } | { items: [], error: string }
-async function vintedBrowserSearchItems(keyword, maxPrice = null, perPage = 20) {
+// `order` defaults to newest_first, which every alert and feed path relies on.
+// The Offer Finder passes 'relevance': fresh listings are the worst offer
+// candidates, since their sellers have not yet seen the list price fail.
+async function vintedBrowserSearchItems(keyword, maxPrice = null, perPage = 20, order = 'newest_first') {
   if (!chromium) return { items: [], error: 'Browser unavailable' };
   let page;
   try {
@@ -996,10 +999,10 @@ async function vintedBrowserSearchItems(keyword, maxPrice = null, perPage = 20) 
     // fabricated empty result.
     const base = await resolveVintedBase(page, true);
 
-    const items = await page.evaluate(async ({ base, keyword, maxPrice, perPage }) => {
+    const items = await page.evaluate(async ({ base, keyword, maxPrice, perPage, order }) => {
       const params = new URLSearchParams({
         search_text: keyword,
-        order:       'newest_first',
+        order,
         per_page:    String(perPage),
         currency:    'GBP',
         country_id:  '7', // UK
@@ -1014,7 +1017,7 @@ async function vintedBrowserSearchItems(keyword, maxPrice = null, perPage = 20) 
         const d = await r.json();
         return d.items || d.item || d.data || [];
       } catch { return []; }
-    }, { base, keyword, maxPrice, perPage });
+    }, { base, keyword, maxPrice, perPage, order });
 
     return { items: Array.isArray(items) ? items : [] };
   } catch (e) {
