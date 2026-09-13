@@ -35,6 +35,8 @@ const feeds = require('./feeds');
 const trackRecord = require('./track-record');
 // Offer Finder maths — fees, max offer, junk filter. Pure, see bot/offers.js.
 const offerFinder = require('./offers');
+// Monthly niche report — daily niche data, report maths, Claude notes, embeds. Pure, see bot/niche.js.
+const niche = require('./niche');
 
 // Vinted browser flow (Playwright + stealth) — bypasses DataDome by running
 // inside a real Chromium through the residential proxy. Optional dep:
@@ -1227,6 +1229,13 @@ const commands = [
       .addChannelTypes(ChannelType.GuildText).setRequired(false))
     .addBooleanOption(o => o.setName('new').setDescription('Post a fresh message instead of editing the existing one')
       .setRequired(false)),
+
+  new SlashCommandBuilder().setName('nichereport')
+    .setDescription('Preview, publish or check the monthly niche report [Owner]')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addSubcommand(s => s.setName('preview').setDescription('Build a fresh draft from current data and show it to you — posts nothing'))
+    .addSubcommand(s => s.setName('post').setDescription('Publish the last previewed draft to #trend-reports (Pro) and #elite-lounge (Elite)'))
+    .addSubcommand(s => s.setName('status').setDescription('How many days of data each niche has collected')),
 
   new SlashCommandBuilder().setName('outreach')
     .setDescription('Manage the setup + affiliate DM campaign for existing members [Owner]')
@@ -3019,6 +3028,40 @@ async function executeCommand(interaction, commandName, tier, profile) {
       .setTitle('Rules posted')
       .setDescription(`Posted to ${channel}. Run this again to edit that message in place.`)
     ]});
+  }
+
+  if (commandName === 'nichereport') {
+    if (interaction.user.id !== OWNER_ID) {
+      return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Owner Only').setDescription('This command is owner-only.')] });
+    }
+    const sub = opts.getSubcommand();
+
+    if (sub === 'status') {
+      const daily = (await getSetting(NICHE_DAILY_KEY)) || {};
+      return interaction.editReply(niche.buildStatusPayload(niche.dataStatus(daily)));
+    }
+
+    if (sub === 'preview') {
+      const { report, status } = await generateNicheReport();
+      if (status) return interaction.editReply(niche.buildStatusPayload(status));
+      return interaction.editReply(nichePreviewPayload(report));
+    }
+
+    if (sub === 'post') {
+      const draft = await getSetting(NICHE_DRAFT_KEY);
+      if (!draft?.rows?.length) {
+        return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('No draft')
+          .setDescription('There is no draft to publish. Run `/nichereport preview` first.')] });
+      }
+      const ageMs = Date.now() - (draft.generatedAt || 0);
+      if (ageMs > NICHE_DRAFT_MAX_AGE_MS) {
+        return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Draft is out of date')
+          .setDescription(`The stored draft is ${Math.floor(ageMs / 86400000)} days old. Run \`/nichereport preview\` to rebuild it, check it, then post.`)] });
+      }
+      const results = await postNicheReport(draft);
+      return interaction.editReply({ embeds: [baseEmbed('#4ade80').setTitle(`Niche report published — ${draft.label}`)
+        .setDescription(results.join('\n'))] });
+    }
   }
 
   if (commandName === 'posttrial') {
@@ -10621,6 +10664,173 @@ async function runTrackRecordPost() {
 // :05 past, clear of the deal feed's :00 run starting on the same browser.
 cron.schedule('5 * * * *', () => runTrackRecordChecks().catch(e => console.error('[feed:track-record] Unhandled:', e.message)));
 cron.schedule('0 19 1 * *', () => runTrackRecordPost().catch(e => console.error('[feed:track-record] Unhandled post:', e.message)), { timezone: 'Europe/London' });
+
+// ── The Market: monthly niche report ─────────────────────────────────────────
+// Data: a 3-hourly sweep of the report keywords into one entry per niche per
+// day (niche_daily, kept 90 days). Report: built on demand from that data, AI
+// notes added, stored as a draft. On the 1st the draft is DM'd to the owner;
+// nothing reaches a channel until the owner runs /nichereport post, which
+// publishes the stored draft — the exact object that was previewed.
+const NICHE_DAILY_KEY  = 'niche_daily';
+const NICHE_DRAFT_KEY  = 'niche_report_draft';
+const NICHE_POSTED_KEY = 'niche_report_posted';
+const NICHE_DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+async function runNicheSweep() {
+  if (!SUPABASE_KEY) return;
+  if (!vintedBrowser?.vintedBrowserSearchItems) {
+    console.log('[niche] Browser flow unavailable — no sweep run.');
+    return;
+  }
+  try {
+    const keywords = (await getSetting('report_keywords')) || niche.DEFAULT_REPORT_KEYWORDS;
+    if (!Array.isArray(keywords) || !keywords.length) {
+      console.log('[niche] report_keywords is empty — no sweep run.');
+      return;
+    }
+
+    const samples = [];
+    const trace = [];
+    let failures = 0;
+    // Serial on purpose: this shares the one Chromium with the deal feed and
+    // alerts, and nothing about a 3-hourly sample needs to be fast.
+    for (const keyword of keywords) {
+      try {
+        const { items, error } = await vintedBrowser.vintedBrowserSearchItems(keyword, null, 48);
+        if (error) {
+          failures++;
+          trace.push(`${keyword}: error`);
+          console.warn(`[niche] "${keyword}" search failed: ${error}`);
+          if (failures >= 3 && !samples.length) { trace.push('stopped — Vinted unreachable'); break; }
+          continue;
+        }
+        const sample = niche.sampleFromItems(items);
+        if (!sample) { trace.push(`${keyword}: too few usable (${items.length} results)`); continue; }
+        samples.push({ keyword, sample });
+        trace.push(`${keyword}: £${sample.median} n=${sample.n}`);
+      } catch (e) {
+        failures++;
+        console.warn(`[niche] "${keyword}" threw: ${e.message}`);
+      }
+    }
+
+    if (samples.length) {
+      // Read right before writing — nothing else writes this row, but a slow
+      // sweep should never hold a stale copy for its whole run.
+      let daily = (await getSetting(NICHE_DAILY_KEY)) || {};
+      for (const { keyword, sample } of samples) daily = niche.recordSample(daily, keyword, sample);
+      await saveSetting(NICHE_DAILY_KEY, daily);
+    }
+    console.log(`[niche] Sweep recorded ${samples.length}/${keywords.length} niche(s) — ${trace.join(' | ')}`);
+  } catch (e) {
+    console.error('[niche] Sweep failed:', e.message);
+  }
+}
+
+async function nicheNotesFromClaude(report) {
+  if (!ai) return { error: 'ANTHROPIC_API_KEY not set' };
+  try {
+    const { params, options } = niche.buildNotesParams(report);
+    const msg = await ai.messages.create(params, options);
+    return niche.extractNotesJson(msg);
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// Returns { report } when there is enough data (and saves it as the draft), or
+// { report, status } when there is not.
+async function generateNicheReport() {
+  const daily = (await getSetting(NICHE_DAILY_KEY)) || {};
+  const trackLog = (await getSetting(TRACK_LOG_KEY)) || [];
+  const feedKeywords = trackRecord.summarise(trackLog, { days: 30 }).keywords;
+
+  let report = niche.buildReport(daily, feedKeywords);
+  if (!report.enoughData) return { report, status: niche.dataStatus(daily) };
+
+  // The report works without Claude: code-written notes are already in place,
+  // and a failed or refused call only means they stay.
+  const result = await nicheNotesFromClaude(report);
+  if (result.parsed) report = niche.applyNotes(report, result.parsed);
+  report.aiError    = result.error || null;
+  report.aiModel    = result.model || null;
+  report.aiFellBack = !!result.fellBack;
+
+  await saveSetting(NICHE_DRAFT_KEY, report);
+  console.log(
+    `[niche] Draft built: ${report.rows.length} niches · ` +
+    (report.aiUsed
+      ? `notes from ${report.aiModel}${report.aiFellBack ? ' (fallback)' : ''}, ${report.aiDropped} rejected`
+      : `AI notes not used (${report.aiError || 'nothing usable returned'})`)
+  );
+  return { report };
+}
+
+function nichePreviewPayload(report) {
+  const notesLine = report.aiUsed
+    ? `Notes written by ${report.aiModel}${report.aiFellBack ? ' (after a fallback)' : ''}${report.aiDropped ? `, ${report.aiDropped} rejected for containing figures and replaced` : ''}.`
+    : `Notes are code-written — AI was not used (${report.aiError || 'nothing usable returned'}).`;
+  const skipped = report.skipped.length ? ` ${report.skipped.length} niche(s) left out for too little data.` : '';
+  const pro   = niche.buildNicheReportPayload(report, { tier: 'pro' });
+  const elite = niche.buildNicheReportPayload(report, { tier: 'elite' });
+  return {
+    content: `**Draft — not posted.** ${notesLine}${skipped}\nPro version first, Elite second. Run \`/nichereport post\` to publish this exact draft.`,
+    embeds: [...pro.embeds, ...elite.embeds],
+  };
+}
+
+async function postNicheReport(report) {
+  const prev = (await getSetting(NICHE_POSTED_KEY)) || {};
+  // Edit in place only within the same month; a new month is a new post.
+  const posted = prev.label === report.label ? { ...prev } : {};
+  const results = [];
+
+  for (const [tier, channelId] of [['pro', feeds.CHANNELS.trendReports], ['elite', feeds.CHANNELS.eliteLounge]]) {
+    const channel = await client.channels.fetch(channelId).catch(() => null);
+    if (!channel) { results.push(`${tier}: channel ${channelId} not found — skipped`); continue; }
+    const payload = niche.buildNicheReportPayload(report, { tier });
+
+    if (posted[tier]) {
+      try {
+        const existing = await channel.messages.fetch(posted[tier]);
+        await existing.edit(payload);
+        results.push(`${tier}: edited the existing post in <#${channelId}>`);
+        continue;
+      } catch (e) {
+        console.warn(`[niche] Stored ${tier} message gone, posting a new one:`, e.message);
+      }
+    }
+    const sent = await channel.send(payload);
+    posted[tier] = sent.id;
+    results.push(`${tier}: posted to <#${channelId}>`);
+  }
+
+  await saveSetting(NICHE_POSTED_KEY, { ...posted, label: report.label, postedAt: Date.now() });
+  console.log(`[niche] Published "${report.label}": ${results.join(' · ')}`);
+  return results;
+}
+
+async function runMonthlyNicheDraft() {
+  if (!SUPABASE_KEY) return;
+  try {
+    const { report, status } = await generateNicheReport();
+    const owner = await client.users.fetch(OWNER_ID);
+    if (status) {
+      await owner.send(niche.buildStatusPayload(status));
+      console.log(`[niche] Monthly draft skipped — ${status.ready}/${status.minKeywords} niches ready. Status DM sent.`);
+      return;
+    }
+    await owner.send(nichePreviewPayload(report));
+    console.log('[niche] Monthly draft DM\'d to owner for approval.');
+  } catch (e) {
+    console.error('[niche] Monthly draft failed:', e.message);
+  }
+}
+
+// :20 past every third hour — clear of the deal feed's :00 start and the
+// track-record sweep at :05.
+cron.schedule('20 */3 * * *', () => runNicheSweep().catch(e => console.error('[niche] Unhandled sweep:', e.message)));
+cron.schedule('0 9 1 * *', () => runMonthlyNicheDraft().catch(e => console.error('[niche] Unhandled monthly draft:', e.message)), { timezone: 'Europe/London' });
 
 // ── Free trial ────────────────────────────────────────────────────────────────
 // Grants TRIAL_ROLE_ID for trial.TRIAL_DAYS, once per account, ever.

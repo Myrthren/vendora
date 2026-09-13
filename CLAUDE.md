@@ -42,7 +42,7 @@ POST-RESTORE CHECKLIST (Railway is back as of 2026-07-21 — item 3 is still OUT
 5. The avatar/initials bug is unrelated and will NOT be fixed by the restore.
 
 VERSIONING — how it actually works now
-- Current LIVE version: v6.126 (verified live 2026-09-13 at vendora-vv.netlify.app/version.json, built from bcef12e). Version is stamped automatically by scripts/build-version.js into version.json on every deploy — the local version.json is gitignored and stale (says v6.0), so read the live URL, not the file.
+- Current LIVE version: v6.127 (verified live 2026-09-13 at vendora-vv.netlify.app/version.json, built from 313b022). Version is stamped automatically by scripts/build-version.js into version.json on every deploy — the local version.json is gitignored and stale (says v6.0), so read the live URL, not the file.
 - Real flow: commit + push to main (GitHub Myrthren/vendora) → Netlify auto-builds → version.json bumped automatically. There is no manual "stage then owner clicks Publish" gate on the live site deploy.
 - GIT AUTH: the remote used to carry a PAT inline, which expired three times. Fixed 2026-09-09 — the remote is now a plain https URL and auth goes through the `gh` credential helper (already logged in as Myrthren). Nothing to rotate.
 - The admin panel Update Log (vendora-dashboard.html, ~line 4437) reads the LAST 3 DAYS OF COMMITS FROM THE GITHUB API and groups them by calendar day. Rewritten 2026-09-09: it used to poll version.json, which only ever holds the single latest commit, and accumulate history in localStorage from whatever it happened to observe while the dashboard was open — so every deploy that shipped with the panel closed was invisible, and one July entry spent two months absorbing unrelated commits. Docs and chores are filtered out; each line is tagged Feature/Fix/Polish. Version and title are editable fields because the announcement header has always been written by hand. Copy output matches the posted format: `📦 **Vendora v6.x** — Title`, blank line, `• bullets`.
@@ -471,6 +471,31 @@ items. Live: "nike tech fleece" 2.54 (flagged), "carhartt detroit jacket" 1.61.
 The junk-title regex (kids/junior/bundle/faulty/box only/replica...) lives in
 offers.js and is the same fix Vendex needs — reuse it there rather than rewriting.
 
+MONTHLY NICHE REPORT (built 2026-09-13, bot/niche.js — data collection starts on deploy)
+DATA: every 3h at :20, each keyword in settings `report_keywords` (fallback: 20 in
+niche.DEFAULT_REPORT_KEYWORDS) is searched, 48 newest listings, junk titles dropped
+with offers.js's filter, median ITEM price (fee-exclusive) + p25/p75 recorded into
+settings `niche_daily` — one compact entry per niche per day, 90 days. Deliberately
+NOT the deal feed's feed_keyword_stats: those are fee-inclusive, unfiltered, 14 days.
+REPORT: a niche needs 21 days inside the 30-day window; the report needs 5 such
+niches. So the 1 Oct 2026 run will only DM a "still collecting" status — the first
+real report is 1 Nov 2026. Groups: rising / falling (last-7-day vs first-7-day
+median, ±8%), steady, or "handle with care" (day-to-day volatility >25% or spread
+p75/p25 >3.0). Elite version adds buy-under = offers.maxOfferFor at 25% margin.
+Deal-feed speed (track record gone24Pct) is shown where a niche overlaps the feed.
+CLAUDE WRITES WORDS ONLY: claude-opus-5, adaptive thinking, effort medium,
+structured output (output_config.format json_schema), fallbacks:'default' with beta
+header server-side-fallback-2026-07-01. Every number is code-computed; any note or
+summary containing a digit, £, $, €, % or emoji is REJECTED and the code-written
+note kept. If the call fails or is refused the report still ships with code notes.
+The bot's @anthropic-ai/sdk is 0.39 — older than these params — but create()
+serialises the body as given; proven by a captured request, not assumed.
+FLOW: 1st of month 09:00 London → draft built, saved (niche_report_draft), DM'd to
+owner. Nothing posts until `/nichereport post`, which publishes the STORED draft to
+#trend-reports (Pro) and #elite-lounge (Elite), editing in place within the same
+month (niche_report_posted). `/nichereport preview` rebuilds the draft (one Claude
+call), `status` shows days collected per niche. Drafts older than 7 days refuse to post.
+
 AUTO-BUY AVAILABILITY CHECK IS PROBABLY WRONG (found 2026-09-13, NOT fixed)
 vintedBrowserBuyItem (vinted-browser.js ~1066) treats an item as available when
 item.status === 'available' || status === 1 || status_id === 1. On Vinted, `status`
@@ -530,6 +555,7 @@ Reference Files
 - /bot/feeds.js — The Market channel feeds: channel ids, underpriced filter, embeds
 - /bot/track-record.js — Deal feed track record: find log, recheck logic, summary, embed
 - /bot/offers.js — Offer Finder maths: Vinted buyer fee, max offer, junk-title filter
+- /bot/niche.js — Monthly niche report: daily roll-up, report maths, Claude request + note guard, embeds
 - /bot/trial.js — Free trial payloads
 - /bot/outreach.js — Setup + affiliate DMs, and the #affiliates channel embed
 - /bot/onboarding.js — Onboarding quiz + day-one affiliate DM
@@ -539,6 +565,6 @@ Reference Files
   permission overwrite. Needs DISCORD_BOT_TOKEN in your own shell.
 - /scripts/vinted-search-compare.js — Apify vs browser field-parity check
 
-CONVENTION: payload builders (feeds/track-record/trial/outreach/onboarding/winback-embed) are
+CONVENTION: payload builders (feeds/track-record/offers/niche/trial/outreach/onboarding/winback-embed) are
 PURE — no client, no database, no config imports — so the exact object the owner
 approves in a preview is the object members receive.
