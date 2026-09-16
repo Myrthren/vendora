@@ -1058,6 +1058,41 @@ async function refreshVintedAccessToken(refreshToken) {
 // `order` defaults to newest_first, which every alert and feed path relies on.
 // The Offer Finder passes 'relevance': fresh listings are the worst offer
 // candidates, since their sellers have not yet seen the list price fail.
+// svc-catalogue items no longer carry brand_title / size_title / status at the
+// top level, and `url` is a relative path. They moved into item_box:
+//   first_line  → brand                  ("Nike")
+//   second_line → "size · condition"     ("13 years / 158 cm · Very good")
+// Every caller (deal feed, niche, alerts, auto-buy, Offer Finder, /scan) reads
+// the old field names, so they are restored here rather than in each caller.
+// Labels follow the context locale, which is en-GB — offers.isKidSize expects
+// English sizes. Existing top-level values win if Vinted ever sends them again.
+// In practice the labels have come back in FRENCH even to an en-GB context
+// ("13 ans / 158 cm · Neuf sans étiquette"), so both languages are recognised
+// here and in offers.isKidSize.
+const CONDITIONS_EN = new Set([
+  'new with tags', 'new without tags', 'very good', 'good', 'satisfactory',
+  'neuf avec étiquette', 'neuf sans étiquette', 'très bon état', 'bon état', 'satisfaisant',
+]);
+
+function normaliseCatalogItem(i) {
+  if (!i || typeof i !== 'object') return i;
+  const box = i.item_box || {};
+  const parts = String(box.second_line || '').split(' · ').map(s => s.trim()).filter(Boolean);
+  let size = '', condition = '';
+  if (parts.length >= 2) { size = parts[0]; condition = parts[parts.length - 1]; }
+  else if (parts.length === 1) {
+    if (CONDITIONS_EN.has(parts[0].toLowerCase())) condition = parts[0]; else size = parts[0];
+  }
+  const url = i.url && !/^https?:/i.test(i.url) ? `https://www.vinted.co.uk${i.url.startsWith('/') ? '' : '/'}${i.url}` : i.url;
+  return {
+    ...i,
+    url:         url || (i.id ? `https://www.vinted.co.uk/items/${i.id}` : ''),
+    brand_title: i.brand_title || box.first_line || '',
+    size_title:  i.size_title || size,
+    status:      i.status || condition,
+  };
+}
+
 async function vintedBrowserSearchItems(keyword, maxPrice = null, perPage = 20, order = 'newest_first') {
   if (!chromium) return { items: [], error: 'Browser unavailable' };
   let page;
@@ -1068,8 +1103,9 @@ async function vintedBrowserSearchItems(keyword, maxPrice = null, perPage = 20, 
     // fabricated empty result.
     const base = await resolveVintedBase(page, true);
 
-    const items = await page.evaluate(async ({ base, keyword, maxPrice, perPage, order }) => {
+    const items = await page.evaluate(async ({ keyword, maxPrice, perPage, order }) => {
       const params = new URLSearchParams({
+        page:        '1',
         search_text: keyword,
         order,
         per_page:    String(perPage),
@@ -1080,8 +1116,13 @@ async function vintedBrowserSearchItems(keyword, maxPrice = null, perPage = 20, 
       // A blocked or failed request is reported as an error, not as an empty
       // result: callers cannot otherwise tell "Vinted blocked us" from "nothing
       // matches", and a block would look like a quiet day.
+      //
+      // ENDPOINT MOVED 2026-09-14 ~12:10 UTC: /api/v2/catalog/items now 404s
+      // (confirmed from a normal UK browser, not only from Railway). The site's
+      // own search calls api.vinted.co.uk/svc-catalogue/items, found by watching
+      // the catalog page's requests. Same cookies, same query params.
       try {
-        const r = await fetch(`${base}/api/v2/catalog/items?${params}`, {
+        const r = await fetch(`https://api.vinted.co.uk/svc-catalogue/items?${params}`, {
           credentials: 'include',
           headers: { Accept: 'application/json' },
         });
@@ -1089,10 +1130,10 @@ async function vintedBrowserSearchItems(keyword, maxPrice = null, perPage = 20, 
         const d = await r.json();
         return { items: d.items || d.item || d.data || [] };
       } catch (e) { return { error: `Vinted search request failed: ${e.message}` }; }
-    }, { base, keyword, maxPrice, perPage, order });
+    }, { keyword, maxPrice, perPage, order });
 
     if (items?.error) return { items: [], error: items.error };
-    return { items: Array.isArray(items?.items) ? items.items : [] };
+    return { items: Array.isArray(items?.items) ? items.items.map(normaliseCatalogItem) : [] };
   } catch (e) {
     return { items: [], error: e.message };
   } finally {

@@ -80,7 +80,9 @@ function isJunk(title) {
 // kid-sized listings and 12 of them said nothing in the title; "stone island"
 // 18 and 8. Clothing reads "13 years / 158 cm" or "3-6 months / 62 cm"; shoes
 // read "12 child", "5 baby", "2 junior" or a small EU size.
-const KID_SIZE_RE = /\b(years?|yrs?|months?|mths?|child|children|baby|junior|infant|toddler|kids?)\b|\d\s*cm\b/i;
+// French forms too: since the 2026-09-14 search endpoint move, Vinted has been
+// seen returning size labels in French ("13 ans / 158 cm") to an en-GB browser.
+const KID_SIZE_RE = /\b(years?|yrs?|months?|mths?|child|children|baby|junior|infant|toddler|kids?|ans|mois|enfants?)\b|\bb[eé]b[eé]|\d\s*cm\b/i;
 
 function isKidSize(size) {
   const s = String(size || '');
