@@ -45,6 +45,8 @@ try {
 const PROXY_URL = process.env.PROXY_URL || null;
 // Direct CONNECT probe of PROXY_URL — names WHY a proxy is unusable. See bot/proxy-probe.js.
 const proxyProbe = require('./proxy-probe');
+// Reading /api/v2/users/current_user — shared with index.js's direct path. See bot/vinted-session.js.
+const vintedSession = require('./vinted-session');
 
 // ─── shared browser state ─────────────────────────────────────────────────────
 let _browser = null;
@@ -594,25 +596,24 @@ async function vintedBrowserValidateToken(token) {
   let ctx;
   try {
     ctx = await isolatedContext();
-    await setAuthCookie(ctx, token);
     page = await ctx.newPage();
     const base = await resolveVintedBase(page);
-    const res = await page.evaluate(async (base) => {
+    // Cookie AFTER the homepage load, not before: loading the page with an
+    // invalid token makes Vinted replace it with a fresh anonymous one, so a
+    // dead token read back as "signed out" instead of 401 (seen 2026-09-16).
+    await setAuthCookie(ctx, token);
+    const res = await page.evaluate(async ({ base, path }) => {
       try {
-        const r = await fetch(`${base}/api/v2/users/me`, { credentials: 'include', headers: { 'Accept': 'application/json' } });
+        const r = await fetch(`${base}${path}`, { credentials: 'include', headers: { 'Accept': 'application/json' } });
         const t = await r.text();
-        try { return { status: r.status, data: JSON.parse(t) }; }
+        try { return { status: r.status, data: t ? JSON.parse(t) : null }; }
         catch { return { status: r.status, html: t.slice(0, 300) }; }
       } catch (e) { return { error: e.message }; }
-    }, base);
-    if (res.status === 200 && res.data) {
-      const u = res.data.user || res.data;
-      return { valid: true, username: u.login || u.username || '', user_id: String(u.id || '') };
-    }
-    if (res.status === 401 || res.status === 403) {
-      return { valid: false, error: 'Token invalid or expired.' };
-    }
-    return { valid: null, warning: `Vinted returned ${res.status || 'no-status'} during validation — token saved.` };
+    }, { base, path: vintedSession.CURRENT_USER_PATH });
+    if (res.error) return { valid: null, warning: `Validation error: ${res.error}` };
+    // An HTML body is a bot-protection page, not an answer about the token.
+    if (res.html) return { valid: null, warning: `Bot-protection blocked the validation request (${res.status}) — token saved.` };
+    return vintedSession.interpretCurrentUser(res.status, res.data);
   } catch (e) {
     return { valid: null, warning: `Validation error: ${e.message}` };
   } finally {
@@ -801,7 +802,7 @@ async function vintedBrowserFetchAnalytics(accessToken, userId) {
 
       const targetId = uid || 'me';
       const [meRes, itemsRes] = await Promise.all([
-        apiFetch(`${base}/api/v2/users/me`),
+        apiFetch(`${base}/api/v2/users/current_user`),
         apiFetch(`${base}/api/v2/users/${targetId}/items?per_page=96&page=1&order=newest_first`),
       ]);
 

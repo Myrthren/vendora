@@ -31,6 +31,8 @@ const { buildWinbackPayload } = require('./winback-embed');
 // Channel feeds for The Market category — channel ids, the underpriced filter
 // and the embed builders. Logic only; the posting happens here in index.js.
 const feeds = require('./feeds');
+// Reading Vinted's session endpoint (/api/v2/users/current_user) for token validation. Pure, see bot/vinted-session.js.
+const vintedSession = require('./vinted-session');
 // Deal feed health — owner DM on failing searches, channel notice after an hour. Pure, see bot/feed-health.js.
 const feedHealth = require('./feed-health');
 // Deal-feed track record — did the finds we posted actually go? Pure logic, see bot/track-record.js.
@@ -5482,7 +5484,7 @@ async function legacyVintedCreateListing(accessToken, listingData, fetchFn = vFe
   } catch (e) { return { error: e.message }; }
 }
 
-// Validate a Vinted access token by calling /api/v2/users/me.
+// Validate a Vinted access token against /api/v2/users/current_user — see bot/vinted-session.js.
 // Returns { valid: true, username, user_id } | { valid: false, error } | { valid: null, warning }
 async function validateVintedToken(token) {
   // Try direct HTTP first — it's faster and doesn't need Playwright
@@ -5497,51 +5499,26 @@ async function validateVintedToken(token) {
 }
 
 async function legacyValidateVintedToken(token) {
-  // Decode JWT payload to extract user_id so we can hit /api/v2/users/{id}
-  // instead of /api/v2/users/me — which does not exist on Vinted.
-  let jwtUserId = '';
-  try {
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-      jwtUserId = String(payload.user_id || payload.sub || payload.id || payload.uid || '').replace(/\D/g, '');
-    }
-  } catch {}
-
-  // Use /api/v2/users/{id} if we have the ID from the JWT, otherwise try a
-  // lightweight catalog call that doesn't need a user endpoint at all.
-  const testPath = jwtUserId
-    ? `/api/v2/users/${jwtUserId}`
-    : `/api/v2/catalog/items?page=1&per_page=1`;
-
+  // NOT /api/v2/users/{id}: that is a public profile and answers for any token,
+  // so an expired token used to come back valid. current_user is the session.
   try {
     const vintedBase = await getVintedBase();
-    const r = await vFetch(`${vintedBase}${testPath}`, {
+    const r = await vFetch(`${vintedBase}${vintedSession.CURRENT_USER_PATH}`, {
       headers: VINTED_HEADERS(token),
       signal: AbortSignal.timeout(10000),
     });
     const text = await r.text();
-    let data;
-    try { data = JSON.parse(text); } catch {
-      if (text.includes('captcha-delivery.com') || text.includes('datadome') || text.startsWith('<!')) {
+    let data = null;
+    if (text) {
+      try { data = JSON.parse(text); } catch {
+        // An HTML body is bot protection, not an answer about the token.
         return { valid: null, warning: 'Bot-protection blocked the validation request. Token saved — it will fail with a clear error if incorrect when you use it.' };
       }
-      return { valid: false, error: 'Unexpected non-JSON response from Vinted — token may be invalid.' };
     }
-    if (!r.ok) {
-      if (data?.url?.includes('captcha-delivery.com') || data?.url?.includes('datadome')) {
-        return { valid: null, warning: 'Bot-protection blocked the validation request. Token saved.' };
-      }
-      const code = data?.message_code || data?.error || '';
-      if (r.status === 401 || code.includes('unauthenticated') || code.includes('invalid_auth')) {
-        return { valid: false, error: 'Token is invalid or expired. Copy a fresh access_token_web cookie from your Vinted browser session and paste it again.' };
-      }
-      return { valid: null, warning: `Vinted returned ${r.status} during validation — token saved.` };
+    if (data?.url?.includes('captcha-delivery.com') || data?.url?.includes('datadome')) {
+      return { valid: null, warning: 'Bot-protection blocked the validation request. Token saved.' };
     }
-    // Success — extract user info from the response
-    const u = data.user || data;
-    const resolvedId = String(u.id || jwtUserId || '');
-    return { valid: true, username: u.login || u.username || '', user_id: resolvedId };
+    return vintedSession.interpretCurrentUser(r.status, data);
   } catch (e) {
     return { valid: null, warning: `Could not reach Vinted to validate token (${e.message}). Token saved.` };
   }
@@ -5556,7 +5533,7 @@ async function fetchVintedAnalyticsDirect(accessToken, userId) {
     const targetId = userId || 'me';
 
     const [meRes, itemsRes] = await Promise.all([
-      vFetch(`${base}/api/v2/users/me`, { headers, signal: AbortSignal.timeout(10000) }),
+      vFetch(`${base}${vintedSession.CURRENT_USER_PATH}`, { headers, signal: AbortSignal.timeout(10000) }),
       vFetch(`${base}/api/v2/users/${targetId}/items?per_page=96&page=1&order=newest_first`,
         { headers, signal: AbortSignal.timeout(10000) }),
     ]);
@@ -5579,7 +5556,7 @@ async function fetchVintedAnalyticsDirect(accessToken, userId) {
     } catch {}
 
     if (!user.id && !user.login) {
-      console.warn('[vinted-analytics-direct] /users/me returned unexpected:', meText.slice(0, 200));
+      console.warn('[vinted-analytics-direct] /users/current_user returned unexpected:', meText.slice(0, 200));
     }
 
     return { user, items };
@@ -6269,21 +6246,20 @@ app.post('/api/vinted/connect-username', async (req, res) => {
 });
 
 // Resolve the numeric Vinted user ID from the stored access_token_web.
-// Calls /api/v2/users/me via direct HTTP, then Playwright fallback.
+// Calls /api/v2/users/current_user via direct HTTP, then Playwright fallback.
 // Returns the numeric ID string, or null on failure.
 async function resolveVintedUserIdFromToken(accessToken) {
   if (!accessToken) return null;
   try {
     const base = await getVintedBase();
-    const r = await vFetch(`${base}/api/v2/users/me`, {
+    const r = await vFetch(`${base}${vintedSession.CURRENT_USER_PATH}`, {
       headers: VINTED_HEADERS(accessToken, base),
       signal:  AbortSignal.timeout(10000),
     });
-    if (r?.ok) {
-      const d = await r.json().catch(() => null);
-      const u = d?.user || d;
-      if (u?.id) { console.log(`[resolve-userid] direct HTTP → id ${u.id}`); return String(u.id); }
-    }
+    const d = r ? await r.json().catch(() => null) : null;
+    // interpretCurrentUser rejects the anonymous placeholder, whose id is not the member's.
+    const v = r ? vintedSession.interpretCurrentUser(r.status, d) : null;
+    if (v?.valid === true && v.user_id) { console.log(`[resolve-userid] direct HTTP → id ${v.user_id}`); return v.user_id; }
   } catch (e) { console.warn('[resolve-userid] direct HTTP failed:', e.message); }
 
   // Playwright fallback — bypasses DataDome
