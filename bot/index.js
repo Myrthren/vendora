@@ -10319,6 +10319,7 @@ const FEED_SEEN_KEY  = 'deal_feed_seen_ids';
 const FEED_STATS_KEY        = 'feed_keyword_stats_v3';
 const LEGACY_FEED_STATS_KEY = 'feed_keyword_stats_v2';
 const TRACK_LOG_KEY  = 'deal_feed_track_log';
+const HOURLY_POOL_KEY = 'deal_feed_hourly_pool';
 
 // Browser only — deliberately NO Apify fallback. A 48-item Apify search is
 // ~$0.12, and the feed runs every keyword every 10 minutes: a Vinted block
@@ -10522,6 +10523,11 @@ async function runDealFeed() {
         trackLog = r.log; tracked += r.added;
       }
       if (tracked) await saveSetting(TRACK_LOG_KEY, trackLog);
+      // Candidates for the hourly #deals post. Re-read before writing: the
+      // hourly job removes the find it posts from this same row.
+      let hourlyPool = (await getSetting(HOURLY_POOL_KEY)) || [];
+      for (const f of postedFinds) hourlyPool = feeds.addToHourlyPool(hourlyPool, f);
+      await saveSetting(HOURLY_POOL_KEY, hourlyPool);
       const byCat = Object.entries(postedByCategory).map(([id, n]) => `${id} ${n}`).join(', ');
       console.log(`[feed:deals] Posted ${posted} find(s) to Elite monitors (${byCat}), ${queue.length} queued for Pro, ${tracked} logged for the track record.`);
     } else {
@@ -10565,10 +10571,33 @@ async function flushDealQueue() {
   }
 }
 
+// #deals — one find an hour, the biggest discount among Monitors finds that are
+// at least 30 minutes old. Searches nothing; see feeds.pickHourlyFind.
+async function postHourlyDeal() {
+  if (!SUPABASE_KEY) return;
+  try {
+    const { choice, pool } = feeds.pickHourlyFind((await getSetting(HOURLY_POOL_KEY)) || []);
+    if (!choice) {
+      await saveSetting(HOURLY_POOL_KEY, pool);
+      console.log(`[feed:hourly] No find old enough to post this hour (${pool.length} waiting).`);
+      return;
+    }
+    const payload = feeds.buildDealPayload({ keyword: choice.keyword, picks: [choice.pick], median: choice.median, tier: 'hourly' });
+    const ok = await postToFeedChannel(feeds.CHANNELS.deals, payload, 'hourly');
+    // Removed from the pool only once it posted, so a failed post is retried next hour.
+    if (ok) await saveSetting(HOURLY_POOL_KEY, pool);
+    console.log(`[feed:hourly] ${ok ? 'Posted' : 'Could not post'} "${choice.keyword}" (${choice.pick.discountPct}% under) to #deals.`);
+  } catch (e) {
+    console.error('[feed:hourly] Failed:', e.message);
+  }
+}
+
 // Every 10 minutes: fresh enough that the Elite edge is real, infrequent enough
 // that a long keyword list does not keep a browser open continuously.
 cron.schedule('*/10 * * * *', () => runDealFeed().catch(e => console.error('[feed:deals] Unhandled:', e.message)));
 cron.schedule('* * * * *',    () => flushDealQueue().catch(e => console.error('[feed:deals] Unhandled flush:', e.message)));
+// :45 — clear of the feed's :40 run and the track-record sweep at :05.
+cron.schedule('45 * * * *',   () => postHourlyDeal().catch(e => console.error('[feed:hourly] Unhandled:', e.message)));
 
 // ── The Market: weekly #whats-selling ────────────────────────────────────────
 // The only channel in the category a non-subscriber can read, so it reports

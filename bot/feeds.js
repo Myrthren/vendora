@@ -19,8 +19,8 @@ const GOLD = '#e8a121';
 // The Market. IDs rather than names so a rename cannot break the feed.
 const CHANNELS = {
   codes:          '1495135910159847454',
-  // Retired as a feed destination 2026-09-17 — replaced by the Monitors channels
-  // (DEFAULT_CATEGORIES). Still the release target for finds queued before the switch.
+  // The slow feed since 2026-09-17: one find an hour (see pickHourlyFind). Live
+  // finds moved to the Monitors channels (DEFAULT_CATEGORIES).
   deals:          '1474034014888394852',
   priceDrops:     '1546952769141870643',
   whatsSelling:   '1474034064531919025',
@@ -94,6 +94,40 @@ function resolveCategories(setting) {
 // "feed disrupted" notice.
 function monitorChannelIds(categories) {
   return [...new Set(categories.flatMap(c => [c.channels.elite, c.channels.pro]))];
+}
+
+// ── #deals: one find an hour ────────────────────────────────────────────────
+// Kept alive on 2026-09-17 as the slow, public-facing feed rather than retired.
+// It searches nothing: every find posted to an Elite monitor is also added to a
+// pool, and once an hour the single biggest discount in it is posted.
+//
+// Only finds at least HOURLY_MIN_AGE_MS old are eligible, so this channel can
+// never show a listing before Pro has had it for their full 10 minutes plus
+// margin. The cost of that ordering is that some finds will have gone by then,
+// and the footer says so.
+const HOURLY_MIN_AGE_MS = 30 * 60 * 1000;
+const HOURLY_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+
+// Add freshly posted picks to the pool. Entries past HOURLY_MAX_AGE_MS are
+// dropped, so the pool stays a couple of hours of finds at most.
+function addToHourlyPool(pool, { keyword, picks, median: med, now = Date.now() }) {
+  const known = new Set((pool || []).map(e => e.pick?.id));
+  const kept = (pool || []).filter(e => now - e.foundAt <= HOURLY_MAX_AGE_MS);
+  for (const p of picks || []) {
+    if (!p?.id || known.has(p.id)) continue;
+    kept.push({ keyword, median: med, pick: p, foundAt: now });
+  }
+  return kept;
+}
+
+// The find to post this hour, or null. Returns the pool with the chosen entry
+// and anything too old removed.
+function pickHourlyFind(pool, now = Date.now()) {
+  const fresh = (pool || []).filter(e => now - e.foundAt <= HOURLY_MAX_AGE_MS);
+  const eligible = fresh.filter(e => now - e.foundAt >= HOURLY_MIN_AGE_MS);
+  if (!eligible.length) return { choice: null, pool: fresh };
+  const choice = eligible.reduce((best, e) => ((e.pick.discountPct || 0) > (best.pick.discountPct || 0) ? e : best));
+  return { choice, pool: fresh.filter(e => e !== choice) };
 }
 
 // Kept for anything still reading the flat list; the feed itself uses categories.
@@ -249,6 +283,7 @@ function seedStatsFromLegacy(legacy) {
 // the member can see for themselves that the find is still live.
 function buildDealPayload({ keyword, picks, median: med, tier = 'elite' }) {
   const isElite = tier === 'elite';
+  const isHourly = tier === 'hourly';
 
   const lines = picks.map(i => {
     const title = (i.title || 'Item').slice(0, 60).replace(/[[\]]/g, '');
@@ -261,7 +296,7 @@ function buildDealPayload({ keyword, picks, median: med, tier = 'elite' }) {
 
   const embed = new EmbedBuilder()
     .setColor(isElite ? GOLD : PINK)
-    .setTitle(`Underpriced now — ${keyword}`)
+    .setTitle(isHourly ? `Find of the hour — ${keyword}` : `Underpriced now — ${keyword}`)
     .setDescription(lines.join('\n\n'))
     .addFields(
       { name: 'Median asking price', value: `£${med.toFixed(2)}`, inline: true },
@@ -270,7 +305,9 @@ function buildDealPayload({ keyword, picks, median: med, tier = 'elite' }) {
     .setFooter({
       text: isElite
         ? 'Elite — you are seeing this first. Pro members get it in 10 minutes.'
-        : 'Elite members saw this 10 minutes ago. Upgrade for first look.',
+        : isHourly
+          ? 'One find an hour, posted at least 30 minutes after it was spotted — it may already be gone. Pro and Elite get every find as it happens in the Monitors channels.'
+          : 'Elite members saw this 10 minutes ago. Upgrade for first look.',
     })
     .setTimestamp();
 
@@ -402,6 +439,9 @@ module.exports = {
   DEFAULT_KEYWORDS,
   DEFAULT_CATEGORIES,
   resolveCategories,
+  HOURLY_MIN_AGE_MS,
+  addToHourlyPool,
+  pickHourlyFind,
   monitorChannelIds,
   median,
   pickUnderpriced,
