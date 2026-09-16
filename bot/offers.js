@@ -101,11 +101,18 @@ function isKidSize(size) {
 const BRAND_STOP = new Set(['the', 'x', 'and', 'co', 'of', 'by']);
 const words = s => String(s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w && !BRAND_STOP.has(w));
 
+// Punctuation-free form, so "Arc'teryx" matches "arcteryx" and "Levi's" matches
+// "levis". Splitting on the apostrophe alone gave "arc teryx" / "levi s", which
+// share no word with the search — every listing was dropped (48/48, 2026-09-16).
+const compact = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
 function brandMismatch(brand, keyword) {
   const b = words(brand);
   const k = new Set(words(keyword));
   if (!b.length || !k.size) return false;
-  return !b.some(w => k.has(w));
+  if (b.some(w => k.has(w))) return false;
+  const cb = compact(brand);
+  return !(cb.length >= 3 && (k.has(cb) || compact(keyword).includes(cb)));
 }
 
 // Title junk, kids' sizes, or the wrong brand — using every field Vinted gives.

@@ -1,5 +1,5 @@
 // ── Deal-feed track record ────────────────────────────────────────────────────
-// Every find posted to #early-deals is logged, then rechecked at 2h, 24h and
+// Every find posted to an Elite monitor channel is logged, then rechecked at 2h, 24h and
 // 72h to see whether it is still buyable. The published number is the share of
 // finds that were gone by each check — proof that the feed calls things people
 // actually want, in place of the testimonials the honesty pass removed.
@@ -181,7 +181,7 @@ function buildTrackRecordPayload(summary) {
       { name: 'Gone within 3 days',   value: `${summary.gone72hPct}%`,       inline: true },
       { name: 'Average discount',     value: `${summary.avgDiscountPct}% under median`, inline: true },
     )
-    .setFooter({ text: '"Gone" means no longer available on Vinted — sold, or removed or hidden by the seller. Pro and Elite see these finds live in #deals and #early-deals.' })
+    .setFooter({ text: '"Gone" means no longer available on Vinted — sold, or removed or hidden by the seller. Pro and Elite see these finds live in the Monitors channels.' })
     .setTimestamp();
 
   return { embeds: [embed] };

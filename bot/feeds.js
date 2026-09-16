@@ -19,6 +19,8 @@ const GOLD = '#e8a121';
 // The Market. IDs rather than names so a rename cannot break the feed.
 const CHANNELS = {
   codes:          '1495135910159847454',
+  // Retired as a feed destination 2026-09-16 (see DEFAULT_CATEGORIES). #deals
+  // stands in as Pro streetwear until that channel exists.
   deals:          '1474034014888394852',
   priceDrops:     '1546952769141870643',
   whatsSelling:   '1474034064531919025',
@@ -32,16 +34,71 @@ const CHANNELS = {
 // value, not a technical artefact — changing it changes what Elite is worth.
 const PRO_DELAY_MS = 10 * 60 * 1000;
 
-// Keywords the feed watches. Owner-editable via the `feed_keywords` setting;
-// this list is only the fallback when that setting is unset.
-const DEFAULT_KEYWORDS = [
-  'nike tech fleece',
-  'carhartt jacket',
-  'stone island',
-  'the north face puffer',
-  'ralph lauren jumper',
-  'adidas samba',
+// ── Monitors: one Elite and one Pro channel per category ─────────────────────
+// Replaced the single #early-deals / #deals pair on 2026-09-16. Each keyword is
+// searched once per run; the find goes to its category's Elite channel at once
+// and to the Pro channel after PRO_DELAY_MS, so a second tier costs no searches.
+//
+// Owner-editable without a deploy via the `feed_categories` setting (same shape
+// as below). That setting supersedes the older flat `feed_keywords` list.
+//
+// Keywords are items that are interchangeable enough for a median to mean
+// something — "vintage" on its own is not, which is why the denim category
+// names specific cuts rather than eras.
+const DEFAULT_CATEGORIES = [
+  {
+    id: 'outerwear', label: 'Outerwear',
+    keywords: ['carhartt detroit jacket', 'the north face nuptse', 'arcteryx jacket', 'barbour jacket'],
+    channels: { elite: '1549900491025154179', pro: '1549902007224111124' },
+  },
+  {
+    id: 'streetwear', label: 'Streetwear',
+    keywords: ['nike tech fleece', 'stone island jumper', 'ralph lauren quarter zip'],
+    // No Pro streetwear channel yet — the old #deals (already Pro-gated) holds it.
+    channels: { elite: '1549900533010137239', pro: CHANNELS.deals },
+  },
+  {
+    id: 'trainers', label: 'Trainers',
+    keywords: ['adidas samba og', 'new balance 550', 'salomon xt-6'],
+    channels: { elite: '1549900579084439633', pro: '1549902380756373514' },
+  },
+  {
+    id: 'denim-vintage', label: 'Denim & Vintage',
+    keywords: ['levis 501', 'carhartt double knee', 'diesel jeans'],
+    channels: { elite: '1549901762276757554', pro: '1549902443897430217' },
+  },
 ];
+
+// A usable category list from the `feed_categories` setting, or the defaults.
+// Malformed entries are dropped rather than trusted: a typo in Supabase must
+// not post finds to a wrong or missing channel. Keywords are lower-cased and
+// de-duplicated across categories (first category wins), because the seen-ids
+// set is global and a keyword in two categories would only ever post in one.
+function resolveCategories(setting) {
+  const source = Array.isArray(setting) && setting.length ? setting : DEFAULT_CATEGORIES;
+  const seen = new Set();
+  const out = [];
+  for (const c of source) {
+    const elite = String(c?.channels?.elite || '');
+    const pro   = String(c?.channels?.pro || '');
+    if (!c?.id || !/^\d{17,20}$/.test(elite) || !/^\d{17,20}$/.test(pro)) continue;
+    const keywords = (Array.isArray(c.keywords) ? c.keywords : [])
+      .map(k => String(k || '').trim().toLowerCase())
+      .filter(k => k && !seen.has(k) && seen.add(k));
+    if (!keywords.length) continue;
+    out.push({ id: String(c.id), label: String(c.label || c.id), keywords, channels: { elite, pro } });
+  }
+  return out.length ? out : (source === DEFAULT_CATEGORIES ? [] : resolveCategories(null));
+}
+
+// Every channel a monitor posts to — the default recipients of the
+// "feed disrupted" notice.
+function monitorChannelIds(categories) {
+  return [...new Set(categories.flatMap(c => [c.channels.elite, c.channels.pro]))];
+}
+
+// Kept for anything still reading the flat list; the feed itself uses categories.
+const DEFAULT_KEYWORDS = DEFAULT_CATEGORIES.flatMap(c => c.keywords);
 
 // ── Underpriced detection ─────────────────────────────────────────────────────
 // A feed of "new listings" is not a deal feed — it is a firehose. What makes an
@@ -246,7 +303,7 @@ function buildWhatsSellingPayload({ rows, days = 7 }) {
       `genuinely underpriced listings turned up in each over the last ${days} days.\n\n` +
       lines.join('\n')
     )
-    .setFooter({ text: 'Live finds as they happen go to #deals — Pro and above.' })
+    .setFooter({ text: 'Live finds as they happen go to the Monitors channels — Pro and above.' })
     .setTimestamp();
 
   return { embeds: [embed] };
@@ -344,6 +401,9 @@ module.exports = {
   CHANNELS,
   PRO_DELAY_MS,
   DEFAULT_KEYWORDS,
+  DEFAULT_CATEGORIES,
+  resolveCategories,
+  monitorChannelIds,
   median,
   pickUnderpriced,
   tuningFor,

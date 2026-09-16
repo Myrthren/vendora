@@ -10285,7 +10285,7 @@ cron.schedule('*/30 * * * *', () => processVintedAlerts(['pro'],   'pro'));
 // ── The Market: global deal feed ─────────────────────────────────────────────
 // Distinct from processVintedAlerts above, which is per-user and DM-only. This
 // searches an owner-curated keyword list and posts genuinely underpriced finds
-// to #early-deals immediately, then to #deals after PRO_DELAY_MS.
+// to its category's Elite monitor immediately, then its Pro monitor after PRO_DELAY_MS.
 //
 // Runs on alertKeywordSearch, so it is the free browser path — a paid-search
 // version of this cron would bill roughly $0.06 per keyword per run.
@@ -10337,10 +10337,8 @@ async function feedKeywordSearch(keyword, maxItems) {
 }
 
 const FEED_HEALTH_KEY = 'feed_health';
-// Channels that receive the "feed disrupted" notice. Owner-editable via the
-// `feed_alert_channels` setting (an array of channel ids), so new monitor
-// channels can be added without a deploy.
-const DEFAULT_FEED_ALERT_CHANNELS = [feeds.CHANNELS.earlyDeals, feeds.CHANNELS.deals];
+// Channels that receive the "feed disrupted" notice: every Monitors channel by
+// default, or the `feed_alert_channels` setting (an array of channel ids).
 
 async function updateFeedHealth({ failures, searched }) {
   try {
@@ -10360,7 +10358,9 @@ async function updateFeedHealth({ failures, searched }) {
 
     if (actions.postAlert) {
       const configured = await getSetting('feed_alert_channels');
-      const channelIds = Array.isArray(configured) && configured.length ? configured : DEFAULT_FEED_ALERT_CHANNELS;
+      const channelIds = Array.isArray(configured) && configured.length
+        ? configured
+        : feeds.monitorChannelIds(feeds.resolveCategories(await getSetting('feed_categories')));
       const posted = {};
       for (const channelId of channelIds) {
         const channel = await client.channels.fetch(channelId).catch(() => null);
@@ -10401,8 +10401,12 @@ async function runDealFeed() {
   if (!SUPABASE_KEY) return;
 
   try {
-    const keywords = (await getSetting('feed_keywords')) || feeds.DEFAULT_KEYWORDS;
-    if (!Array.isArray(keywords) || !keywords.length) return;
+    // Monitors: each keyword belongs to a category with its own Elite and Pro
+    // channel. `feed_categories` overrides the defaults; the older flat
+    // `feed_keywords` setting is no longer read.
+    const categories = feeds.resolveCategories(await getSetting('feed_categories'));
+    const targets = categories.flatMap(category => category.keywords.map(keyword => ({ keyword, category })));
+    if (!targets.length) { console.warn('[feed:deals] No valid monitor categories — nothing to search.'); return; }
 
     const seen  = new Set((await getSetting(FEED_SEEN_KEY)) || []);
     const queue = (await getSetting(DEAL_QUEUE_KEY)) || [];
@@ -10421,15 +10425,16 @@ async function runDealFeed() {
     // silence, which is not a diagnosis.
     const trace = [];
     const failures = [];
+    const postedByCategory = {};
     let searched = 0;
 
-    for (const [index, keyword] of keywords.entries()) {
+    for (const [index, { keyword, category }] of targets.entries()) {
       // Three failures before any success means Vinted is unreachable, not
       // that three keywords are odd. Each failure can hold the browser for a
       // 25s timeout, so stop rather than run past the next 10-minute tick.
       if (failures.length >= 3 && failures.length === searched) {
-        for (const rest of keywords.slice(index)) failures.push({ keyword: rest, error: 'skipped — the first three searches all failed' });
-        searched = keywords.length;
+        for (const rest of targets.slice(index)) failures.push({ keyword: rest.keyword, error: 'skipped — the first three searches all failed' });
+        searched = targets.length;
         trace.push('stopped — Vinted unreachable');
         break;
       }
@@ -10471,8 +10476,9 @@ async function runDealFeed() {
         if (!fresh.length) continue;
 
         const payloadElite = feeds.buildDealPayload({ keyword, picks: fresh, median: med, tier: 'elite' });
-        if (await postToFeedChannel(feeds.CHANNELS.earlyDeals, payloadElite, 'early-deals')) {
+        if (await postToFeedChannel(category.channels.elite, payloadElite, `elite-${category.id}`)) {
           posted++;
+          postedByCategory[category.id] = (postedByCategory[category.id] || 0) + 1;
           // Only what members were actually shown counts toward the track record.
           postedFinds.push({ keyword, picks: fresh, median: med });
           queue.push({
@@ -10480,6 +10486,10 @@ async function runDealFeed() {
             keyword,
             median: med,
             picks: fresh,
+            // Resolved now, not at release: a category edit in the next ten
+            // minutes must not send an already-queued find somewhere else.
+            channelId: category.channels.pro,
+            category: category.id,
           });
         }
 
@@ -10499,7 +10509,9 @@ async function runDealFeed() {
     if (sampled || posted) await saveSetting(FEED_STATS_KEY, stats);
     if (posted) {
       await saveSetting(DEAL_QUEUE_KEY, queue);
-      await saveSetting(FEED_SEEN_KEY, [...seen].slice(-1000));
+      // 5,000, not 1,000: with ~13 keywords a smaller window could forget a
+      // listing that is still live and post it a second time.
+      await saveSetting(FEED_SEEN_KEY, [...seen].slice(-5000));
       // Re-read immediately before writing: the hourly track-record sweep writes
       // the same row, and a copy read at the start of this run (which can take
       // minutes) would overwrite its check results.
@@ -10510,7 +10522,8 @@ async function runDealFeed() {
         trackLog = r.log; tracked += r.added;
       }
       if (tracked) await saveSetting(TRACK_LOG_KEY, trackLog);
-      console.log(`[feed:deals] Posted ${posted} find(s) to #early-deals, ${queue.length} queued for #deals, ${tracked} logged for the track record.`);
+      const byCat = Object.entries(postedByCategory).map(([id, n]) => `${id} ${n}`).join(', ');
+      console.log(`[feed:deals] Posted ${posted} find(s) to Elite monitors (${byCat}), ${queue.length} queued for Pro, ${tracked} logged for the track record.`);
     } else {
       // Always say something. A run that posts nothing is the common case and
       // has to be distinguishable from a run that never happened.
@@ -10523,7 +10536,7 @@ async function runDealFeed() {
   }
 }
 
-// Releases queued finds into #deals once their delay has elapsed.
+// Releases queued finds into their Pro monitor channel once the delay has elapsed.
 async function flushDealQueue() {
   if (!SUPABASE_KEY) return;
   try {
@@ -10541,11 +10554,12 @@ async function flushDealQueue() {
         median:  item.median,
         tier:    'pro',
       });
-      await postToFeedChannel(feeds.CHANNELS.deals, payload, 'deals');
+      // Finds queued before the Monitors switch carry no channelId; they belong in #deals.
+      await postToFeedChannel(item.channelId || feeds.CHANNELS.deals, payload, `pro-${item.category || 'deals'}`);
     }
 
     await saveSetting(DEAL_QUEUE_KEY, queue.filter(q => q.dueAt > now));
-    console.log(`[feed:deals] Released ${due.length} find(s) to #deals.`);
+    console.log(`[feed:deals] Released ${due.length} find(s) to Pro monitors.`);
   } catch (e) {
     console.error('[feed:deals] Flush failed:', e.message);
   }

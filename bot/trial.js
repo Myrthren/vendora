@@ -36,7 +36,7 @@ function buildTrialPayload({ days = TRIAL_DAYS } = {}) {
       '`/margins` — profit after fees and postage\n' +
       '`/price` `/reply` `/lowball` — pricing and buyer messages\n' +
       '`/trends` `/sold` `/competitor` `/pricedrop` `/vinted-alert`\n\n' +
-      `**Plus the feeds** — #deals, #price-drops and #trend-reports open up ` +
+      `**Plus the feeds** — the Pro Monitors channels, #price-drops and #trend-reports open up ` +
       `while your trial is running.\n\n` +
       `When the ${days} days are up the role comes off automatically. Nothing to cancel, ` +
       `nothing to remember.`
@@ -110,7 +110,7 @@ function buildTrialStartedDM({ username, endsAt, days = TRIAL_DAYS }) {
       '`/margins` — profit after fees and postage\n' +
       '`/lowball` — a firm reply that keeps the buyer without dropping your price\n' +
       '`/vinted-alert` — get pinged when something matching your keyword lists\n\n' +
-      `The **#deals**, **#price-drops** and **#trend-reports** channels are open to you now too.`
+      `The **Pro Monitors** channels, **#price-drops** and **#trend-reports** are open to you now too.`
     )
     .addFields(
       { name: 'Ends',   value: when,          inline: false },
