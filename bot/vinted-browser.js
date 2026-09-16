@@ -196,6 +196,11 @@ async function launchBrowser(useProxy = true) {
       '--disable-dev-shm-usage',
     ],
   });
+  const context = await newVintedContext(browser);
+  return { browser, context };
+}
+
+async function newVintedContext(browser) {
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     locale: 'en-GB',
@@ -206,7 +211,25 @@ async function launchBrowser(useProxy = true) {
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
   });
-  return { browser, context };
+  return context;
+}
+
+// Anything that puts a MEMBER'S token in a cookie runs in a context of its own,
+// closed when the call ends. The shared context (ensureBrowser) stays anonymous.
+//
+// WHY: setAuthCookie used to write into the shared context and nothing removed
+// it. From 2026-09-14 19:05 every anonymous wardrobe read returned 401, because
+// an expired member token was still sitting in the cookie jar and was sent with
+// every request. Worse, two members' authenticated calls overlapping could
+// overwrite each other's cookie — a purchase or listing made on the wrong
+// Vinted account.
+async function isolatedContext() {
+  await ensureBrowser();
+  return newVintedContext(_browser);
+}
+
+async function closeQuietly(ctx) {
+  try { if (ctx) await ctx.close(); } catch {}
 }
 
 async function ensureBrowser() {
@@ -250,7 +273,46 @@ async function closeVintedBrowser() {
 // fails, returns [], and the caller cannot tell that apart from "Vinted has no
 // listings for this". Search then reports a successful empty result and the
 // Apify fallback is never tried — a total outage that looks like a quiet day.
+// Vinted's ANONYMOUS session: access_token_web is a JWT that expires 24h after
+// it is issued, but the cookie holding it lives for 7 days (probed 2026-09-16:
+// jwt lifetime 24.0h, cookie 168h). The shared context runs for days, so after
+// its first 24 hours every request carried a dead token — and loading the
+// homepage does NOT replace a cookie that is still present. That is the
+// "wardrobe 401" that started exactly 24h after the 2026-09-13 19:00 launch.
+//
+// So before each page load on the SHARED context, drop the anonymous tokens
+// once they are within the margin of expiry; the homepage then issues fresh
+// ones. Isolated contexts carry a member's token and are left alone — clearing
+// those would silently turn an authenticated call anonymous.
+const ANON_TOKEN_MARGIN_MS = 60 * 60 * 1000;
+
+function jwtExpiryMs(token) {
+  try {
+    const parts = String(token || '').split('.');
+    if (parts.length !== 3) return null;
+    const exp = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')).exp;
+    return exp ? exp * 1000 : null;
+  } catch { return null; }
+}
+
+async function refreshAnonSessionIfStale(ctx) {
+  if (!ctx || ctx !== _context) return;
+  try {
+    const cookies = await ctx.cookies('https://www.vinted.co.uk');
+    const access = cookies.find(c => c.name === 'access_token_web');
+    if (!access) return;
+    const exp = jwtExpiryMs(access.value);
+    if (exp && exp - Date.now() > ANON_TOKEN_MARGIN_MS) return;
+    await ctx.clearCookies({ name: 'access_token_web' });
+    await ctx.clearCookies({ name: 'refresh_token_web' });
+    console.log(`[vinted-browser] Anonymous session token ${exp && exp < Date.now() ? 'expired' : 'near expiry'} — cleared so the homepage issues a fresh one.`);
+  } catch (e) {
+    console.warn('[vinted-browser] Anonymous session check failed:', e.message);
+  }
+}
+
 async function resolveVintedBase(page, strict = false) {
+  await refreshAnonSessionIfStale(page.context());
   try {
     await page.goto('https://www.vinted.co.uk/', { waitUntil: 'domcontentloaded', timeout: 25000 });
     noteVintedReachable();
@@ -299,10 +361,10 @@ async function vintedBrowserLogin(username, password) {
   if (!username || !password) return { error: 'Username and password required.' };
 
   let page;
+  let ctx;
   try {
-    let ctx;
     try {
-      ctx = await ensureBrowser();
+      ctx = await isolatedContext();
       page = await ctx.newPage();
     } catch (e) {
       return { error: `Browser failed to launch: ${e.message}` };
@@ -320,7 +382,8 @@ async function vintedBrowserLogin(username, password) {
         _proxySkipped = true;
         const { browser: b2, context: c2 } = await launchBrowser(false);
         _browser = b2; _context = c2;
-        page = await c2.newPage();
+        ctx = await newVintedContext(b2);
+        page = await ctx.newPage();
         base = await resolveVintedBase(page).catch(() => 'https://www.vinted.co.uk');
         console.warn('[vinted-browser-login] Running WITHOUT proxy — DataDome may block login from this IP. Fix: set PROXY_URL to a residential proxy that supports HTTPS on port 443.');
       } else {
@@ -519,6 +582,7 @@ async function vintedBrowserLogin(username, password) {
     return { error: e.message || 'Browser login failed' };
   } finally {
     try { if (page) await page.close(); } catch {}
+    await closeQuietly(ctx);
   }
 }
 
@@ -527,8 +591,9 @@ async function vintedBrowserLogin(username, password) {
 async function vintedBrowserValidateToken(token) {
   if (!chromium) return { valid: null, warning: 'Browser unavailable — token saved unvalidated.' };
   let page;
+  let ctx;
   try {
-    const ctx = await ensureBrowser();
+    ctx = await isolatedContext();
     await setAuthCookie(ctx, token);
     page = await ctx.newPage();
     const base = await resolveVintedBase(page);
@@ -552,6 +617,7 @@ async function vintedBrowserValidateToken(token) {
     return { valid: null, warning: `Validation error: ${e.message}` };
   } finally {
     try { if (page) await page.close(); } catch {}
+    await closeQuietly(ctx);
   }
 }
 
@@ -559,8 +625,9 @@ async function vintedBrowserValidateToken(token) {
 async function vintedBrowserUploadPhoto(accessToken, base64, mimeType = 'image/jpeg') {
   if (!chromium) return { error: 'Browser unavailable' };
   let page;
+  let ctx;
   try {
-    const ctx = await ensureBrowser();
+    ctx = await isolatedContext();
     await setAuthCookie(ctx, accessToken);
     page = await ctx.newPage();
     const base = await resolveVintedBase(page);
@@ -595,6 +662,7 @@ async function vintedBrowserUploadPhoto(accessToken, base64, mimeType = 'image/j
     return { error: e.message };
   } finally {
     try { if (page) await page.close(); } catch {}
+    await closeQuietly(ctx);
   }
 }
 
@@ -627,8 +695,9 @@ async function vintedBrowserCreateListing(accessToken, listingData) {
   if (photo_ids.length) body.photos = photo_ids.map(id => ({ id }));
 
   let page;
+  let ctx;
   try {
-    const ctx = await ensureBrowser();
+    ctx = await isolatedContext();
     await setAuthCookie(ctx, accessToken);
     page = await ctx.newPage();
     const base = await resolveVintedBase(page);
@@ -671,6 +740,7 @@ async function vintedBrowserCreateListing(accessToken, listingData) {
     return { error: e.message };
   } finally {
     try { if (page) await page.close(); } catch {}
+    await closeQuietly(ctx);
   }
 }
 
@@ -681,8 +751,9 @@ async function vintedBrowserCreateListing(accessToken, listingData) {
 async function vintedBrowserFetchAnalytics(accessToken, userId) {
   if (!chromium) return { error: 'Browser unavailable' };
   let page;
+  let ctx;
   try {
-    const ctx = await ensureBrowser();
+    ctx = await isolatedContext();
 
     // Set cookie for the .co.uk domain first, then we'll resolve the real base
     await ctx.addCookies([{
@@ -743,6 +814,7 @@ async function vintedBrowserFetchAnalytics(accessToken, userId) {
     return { error: e.message };
   } finally {
     try { if (page) await page.close(); } catch {}
+    await closeQuietly(ctx);
   }
 }
 
@@ -983,8 +1055,9 @@ async function refreshVintedAccessToken(refreshToken) {
   if (!chromium) return { error: 'Browser unavailable' };
   if (!refreshToken) return { error: 'No refresh token provided' };
   let page;
+  let ctx;
   try {
-    const ctx = await ensureBrowser();
+    ctx = await isolatedContext();
     page = await ctx.newPage();
     const base = await resolveVintedBase(page);
 
@@ -1047,6 +1120,7 @@ async function refreshVintedAccessToken(refreshToken) {
     return { error: e.message };
   } finally {
     try { if (page) await page.close(); } catch {}
+    await closeQuietly(ctx);
   }
 }
 
@@ -1165,8 +1239,9 @@ async function vintedBrowserBuyItem(accessToken, itemId, { maxPrice = null } = {
   const id = String(itemId);
   if (!/^\d+$/.test(id)) return { error: 'Invalid item ID' };
   let page;
+  let ctx;
   try {
-    const ctx = await ensureBrowser();
+    ctx = await isolatedContext();
     await setAuthCookie(ctx, accessToken);
     page = await ctx.newPage();
     // Strict: a purchase must never run against a page that did not load.
@@ -1232,6 +1307,7 @@ async function vintedBrowserBuyItem(accessToken, itemId, { maxPrice = null } = {
     return { error: e.message };
   } finally {
     try { if (page) await page.close(); } catch {}
+    await closeQuietly(ctx);
   }
 }
 
