@@ -19,8 +19,8 @@ const GOLD = '#e8a121';
 // The Market. IDs rather than names so a rename cannot break the feed.
 const CHANNELS = {
   codes:          '1495135910159847454',
-  // Retired as a feed destination 2026-09-16 (see DEFAULT_CATEGORIES). #deals
-  // stands in as Pro streetwear until that channel exists.
+  // Retired as a feed destination 2026-09-17 — replaced by the Monitors channels
+  // (DEFAULT_CATEGORIES). Still the release target for finds queued before the switch.
   deals:          '1474034014888394852',
   priceDrops:     '1546952769141870643',
   whatsSelling:   '1474034064531919025',
@@ -54,8 +54,7 @@ const DEFAULT_CATEGORIES = [
   {
     id: 'streetwear', label: 'Streetwear',
     keywords: ['nike tech fleece', 'stone island jumper', 'ralph lauren quarter zip'],
-    // No Pro streetwear channel yet — the old #deals (already Pro-gated) holds it.
-    channels: { elite: '1549900533010137239', pro: CHANNELS.deals },
+    channels: { elite: '1549900533010137239', pro: '1549902285734158397' },
   },
   {
     id: 'trainers', label: 'Trainers',
