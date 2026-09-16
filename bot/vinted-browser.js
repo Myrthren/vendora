@@ -1077,18 +1077,22 @@ async function vintedBrowserSearchItems(keyword, maxPrice = null, perPage = 20, 
         country_id:  '7', // UK
       });
       if (maxPrice) params.set('price_to', String(maxPrice));
+      // A blocked or failed request is reported as an error, not as an empty
+      // result: callers cannot otherwise tell "Vinted blocked us" from "nothing
+      // matches", and a block would look like a quiet day.
       try {
         const r = await fetch(`${base}/api/v2/catalog/items?${params}`, {
           credentials: 'include',
           headers: { Accept: 'application/json' },
         });
-        if (!r.ok) return [];
+        if (!r.ok) return { error: `Vinted search returned HTTP ${r.status}` };
         const d = await r.json();
-        return d.items || d.item || d.data || [];
-      } catch { return []; }
+        return { items: d.items || d.item || d.data || [] };
+      } catch (e) { return { error: `Vinted search request failed: ${e.message}` }; }
     }, { base, keyword, maxPrice, perPage, order });
 
-    return { items: Array.isArray(items) ? items : [] };
+    if (items?.error) return { items: [], error: items.error };
+    return { items: Array.isArray(items?.items) ? items.items : [] };
   } catch (e) {
     return { items: [], error: e.message };
   } finally {

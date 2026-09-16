@@ -31,6 +31,8 @@ const { buildWinbackPayload } = require('./winback-embed');
 // Channel feeds for The Market category — channel ids, the underpriced filter
 // and the embed builders. Logic only; the posting happens here in index.js.
 const feeds = require('./feeds');
+// Deal feed health — owner DM on failing searches, channel notice after an hour. Pure, see bot/feed-health.js.
+const feedHealth = require('./feed-health');
 // Deal-feed track record — did the finds we posted actually go? Pure logic, see bot/track-record.js.
 const trackRecord = require('./track-record');
 // Offer Finder maths — fees, max offer, junk filter. Pure, see bot/offers.js.
@@ -10342,9 +10344,85 @@ const FEED_STATS_KEY        = 'feed_keyword_stats_v3';
 const LEGACY_FEED_STATS_KEY = 'feed_keyword_stats_v2';
 const TRACK_LOG_KEY  = 'deal_feed_track_log';
 
+// Browser only — deliberately NO Apify fallback. A 48-item Apify search is
+// ~$0.12, and the feed runs every keyword every 10 minutes: a Vinted block
+// would empty the $5 monthly cap within the hour and take Apify away from
+// member searches and arbitrage for the rest of the month. A failed keyword is
+// skipped instead, and reported through feed health.
+async function feedKeywordSearch(keyword, maxItems) {
+  if (!vintedBrowser?.vintedBrowserSearchItems) return { error: 'Browser flow unavailable' };
+  try {
+    const { items, error } = await vintedBrowser.vintedBrowserSearchItems(keyword, null, maxItems);
+    if (error || !Array.isArray(items)) return { error: error || 'bad response' };
+    return { items: items.slice(0, maxItems).map(mapVintedRawItem) };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+const FEED_HEALTH_KEY = 'feed_health';
+// Channels that receive the "feed disrupted" notice. Owner-editable via the
+// `feed_alert_channels` setting (an array of channel ids), so new monitor
+// channels can be added without a deploy.
+const DEFAULT_FEED_ALERT_CHANNELS = [feeds.CHANNELS.earlyDeals, feeds.CHANNELS.deals];
+
+async function updateFeedHealth({ failures, searched }) {
+  try {
+    const now = Date.now();
+    const { state, actions, closed } = feedHealth.nextHealth(await getSetting(FEED_HEALTH_KEY), { failures, searched, now });
+    if (!actions.dmDown && !actions.postAlert && !actions.resolve) {
+      if (failures.length) await saveSetting(FEED_HEALTH_KEY, state);
+      return;
+    }
+
+    const owner = await client.users.fetch(OWNER_ID).catch(() => null);
+
+    if (actions.dmDown) {
+      if (owner) await owner.send(feedHealth.buildOwnerDownPayload({ failures, searched, now })).catch(e => console.warn('[feed:health] Owner DM failed:', e.message));
+      console.warn(`[feed:health] Outage opened — ${failures.length}/${searched} keyword search(es) failed. Owner DM'd.`);
+    }
+
+    if (actions.postAlert) {
+      const configured = await getSetting('feed_alert_channels');
+      const channelIds = Array.isArray(configured) && configured.length ? configured : DEFAULT_FEED_ALERT_CHANNELS;
+      const posted = {};
+      for (const channelId of channelIds) {
+        const channel = await client.channels.fetch(channelId).catch(() => null);
+        if (!channel) { console.warn(`[feed:health] Alert channel ${channelId} not found — skipping`); continue; }
+        const msg = await channel.send(feedHealth.buildChannelAlertPayload({ failingSince: state.failingSince, now })).catch(e => {
+          console.warn(`[feed:health] Alert post to ${channelId} failed:`, e.message);
+          return null;
+        });
+        if (msg) posted[channelId] = msg.id;
+      }
+      // Recorded even when every post failed, so a missing channel does not
+      // retry (and warn) on every run for the rest of the outage.
+      state.alertMessages = posted;
+      console.warn(`[feed:health] Still failing after 1h — notice posted to ${Object.keys(posted).length}/${channelIds.length} channel(s).`);
+    }
+
+    if (actions.resolve) {
+      if (owner) await owner.send(feedHealth.buildOwnerResolvedPayload({ closed, now })).catch(e => console.warn('[feed:health] Owner DM failed:', e.message));
+      for (const [channelId, messageId] of Object.entries(closed.alertMessages || {})) {
+        try {
+          const channel = await client.channels.fetch(channelId);
+          const msg = await channel.messages.fetch(messageId);
+          await msg.edit(feedHealth.buildChannelResolvedPayload({ closed, now }));
+        } catch (e) {
+          console.warn(`[feed:health] Could not update the notice in ${channelId}:`, e.message);
+        }
+      }
+      console.log(`[feed:health] Outage closed after ${feedHealth.formatDuration(now - closed.failingSince)}.`);
+    }
+
+    await saveSetting(FEED_HEALTH_KEY, state);
+  } catch (e) {
+    console.error('[feed:health] Update failed:', e.message);
+  }
+}
+
 async function runDealFeed() {
   if (!SUPABASE_KEY) return;
-  if (!vintedBrowser?.vintedBrowserSearchItems && !APIFY_TOKEN) return;
 
   try {
     const keywords = (await getSetting('feed_keywords')) || feeds.DEFAULT_KEYWORDS;
@@ -10366,14 +10444,31 @@ async function runDealFeed() {
     // "no results", "nothing cheap enough" and "cron never ran" are the same
     // silence, which is not a diagnosis.
     const trace = [];
+    const failures = [];
+    let searched = 0;
 
-    for (const keyword of keywords) {
+    for (const [index, keyword] of keywords.entries()) {
+      // Three failures before any success means Vinted is unreachable, not
+      // that three keywords are odd. Each failure can hold the browser for a
+      // 25s timeout, so stop rather than run past the next 10-minute tick.
+      if (failures.length >= 3 && failures.length === searched) {
+        for (const rest of keywords.slice(index)) failures.push({ keyword: rest, error: 'skipped — the first three searches all failed' });
+        searched = keywords.length;
+        trace.push('stopped — Vinted unreachable');
+        break;
+      }
       try {
         // 48, not 20: still one request, but with garment groups each needing 6
         // comparables, 20 listings almost never gave bottoms a group of their own,
         // and the tech fleece median swung £20-£30 between runs.
-        const items = await alertKeywordSearch(keyword, 48);
-        if (!items?.length) { trace.push(`${keyword}: 0 results`); continue; }
+        searched++;
+        const { items, error } = await feedKeywordSearch(keyword, 48);
+        if (error) {
+          failures.push({ keyword, error });
+          trace.push(`${keyword}: search failed (${error})`);
+          continue;
+        }
+        if (!items.length) { trace.push(`${keyword}: 0 results`); continue; }
 
         // Global feed_tuning plus any per-keyword values — see feeds.tuningFor.
         const { median: med, picks, junk, sample } = feeds.pickUnderpriced(items, feeds.tuningFor(tuning, keyword), keyword);
@@ -10445,6 +10540,8 @@ async function runDealFeed() {
       // has to be distinguishable from a run that never happened.
       console.log(`[feed:deals] Nothing posted this run — ${trace.join(' | ')}`);
     }
+
+    await updateFeedHealth({ failures, searched });
   } catch (e) {
     console.error('[feed:deals] Fatal:', e.message);
   }
