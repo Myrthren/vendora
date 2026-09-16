@@ -629,9 +629,12 @@ async function vintedBrowserUploadPhoto(accessToken, base64, mimeType = 'image/j
   let ctx;
   try {
     ctx = await isolatedContext();
-    await setAuthCookie(ctx, accessToken);
     page = await ctx.newPage();
     const base = await resolveVintedBase(page);
+    // Cookie AFTER the homepage load: loading the page with a dead token makes
+    // Vinted swap it for an anonymous one, so the call would fail vaguely instead
+    // of with a clear session-expired error. See vintedBrowserValidateToken.
+    await setAuthCookie(ctx, accessToken);
 
     const result = await page.evaluate(async ({ base, b64, mime }) => {
       try {
@@ -699,9 +702,12 @@ async function vintedBrowserCreateListing(accessToken, listingData) {
   let ctx;
   try {
     ctx = await isolatedContext();
-    await setAuthCookie(ctx, accessToken);
     page = await ctx.newPage();
     const base = await resolveVintedBase(page);
+    // Cookie AFTER the homepage load: loading the page with a dead token makes
+    // Vinted swap it for an anonymous one, so the call would fail vaguely instead
+    // of with a clear session-expired error. See vintedBrowserValidateToken.
+    await setAuthCookie(ctx, accessToken);
 
     const result = await page.evaluate(async ({ base, body }) => {
       try {
@@ -756,36 +762,12 @@ async function vintedBrowserFetchAnalytics(accessToken, userId) {
   try {
     ctx = await isolatedContext();
 
-    // Set cookie for the .co.uk domain first, then we'll resolve the real base
-    await ctx.addCookies([{
-      name: 'access_token_web',
-      value: accessToken,
-      domain: '.vinted.co.uk',
-      path: '/',
-      httpOnly: true,
-      secure: true,
-      sameSite: 'Lax',
-    }]).catch(() => {});
-
     page = await ctx.newPage();
     const base = await resolveVintedBase(page);
-
-    // Re-set cookie for the resolved domain (may differ from .co.uk)
-    try {
-      const resolvedHost = new URL(base).hostname;
-      const cookieDomain = '.' + resolvedHost;
-      if (cookieDomain !== '.www.vinted.co.uk') {
-        await ctx.addCookies([{
-          name: 'access_token_web',
-          value: accessToken,
-          domain: cookieDomain,
-          path: '/',
-          httpOnly: true,
-          secure: true,
-          sameSite: 'Lax',
-        }]).catch(() => {});
-      }
-    } catch {}
+    // Cookie AFTER the homepage load: loading the page with a dead token makes
+    // Vinted swap it for an anonymous one, so the call would fail vaguely instead
+    // of with a clear session-expired error. See vintedBrowserValidateToken.
+    await setAuthCookie(ctx, accessToken);
 
     const result = await page.evaluate(async ({ base, uid }) => {
       async function apiFetch(url) {
@@ -1243,10 +1225,13 @@ async function vintedBrowserBuyItem(accessToken, itemId, { maxPrice = null } = {
   let ctx;
   try {
     ctx = await isolatedContext();
-    await setAuthCookie(ctx, accessToken);
     page = await ctx.newPage();
     // Strict: a purchase must never run against a page that did not load.
     const base = await resolveVintedBase(page, true);
+    // Cookie AFTER the homepage load: loading the page with a dead token makes
+    // Vinted swap it for an anonymous one, so the call would fail vaguely instead
+    // of with a clear session-expired error. See vintedBrowserValidateToken.
+    await setAuthCookie(ctx, accessToken);
 
     // One authenticated request from inside the page (DataDome already solved).
     const api = (path, opts = {}) => page.evaluate(async ({ base, path, opts }) => {
