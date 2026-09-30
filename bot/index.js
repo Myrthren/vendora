@@ -12,6 +12,7 @@ const {
 } = require('discord.js');
 const express  = require('express');
 const Anthropic = require('@anthropic-ai/sdk');
+const { createGroqClient } = require('./groq-shim');
 const cron     = require('node-cron');
 const crypto   = require('crypto');
 
@@ -70,6 +71,7 @@ const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 const SUPABASE_URL   = process.env.SUPABASE_URL || 'https://fqfanqtybvnurhzkoxwr.supabase.co';
 const SUPABASE_KEY   = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY    = process.env.ANTHROPIC_API_KEY;
+const GROQ_KEY         = process.env.GROQ_API_KEY;
 const OPENAI_KEY       = process.env.OPENAI_API_KEY;
 const BRAVE_KEY        = process.env.BRAVE_SEARCH_API_KEY;
 const REMOVE_BG_KEY    = process.env.REMOVE_BG_API_KEY;
@@ -162,7 +164,7 @@ console.log('[boot] Config — GUILD_ID:', GUILD_ID, '| PORT:', PORT);
 if (!TOKEN)         console.warn('[warn] DISCORD_BOT_TOKEN not set');
 if (!GUILD_ID)      console.warn('[warn] DISCORD_GUILD_ID not set');
 if (!SUPABASE_KEY)  console.warn('[warn] SUPABASE_SERVICE_KEY not set');
-if (!ANTHROPIC_KEY)    console.warn('[warn] ANTHROPIC_API_KEY not set — AI commands will fail');
+if (!ANTHROPIC_KEY && !GROQ_KEY) console.warn('[warn] Neither GROQ_API_KEY nor ANTHROPIC_API_KEY set — AI commands will fail');
 if (!OPENAI_KEY)       console.warn('[warn] OPENAI_API_KEY not set — AI photo enhancement will fail');
 if (!PHOTOROOM_KEY)    console.warn('[warn] PHOTOROOM_API_KEY not set — PhotoRoom enhancement will fail');
 if (!PAYPAL_CLIENT_ID) console.warn('[warn] PAYPAL_CLIENT_ID not set — credit purchases will fail');
@@ -172,8 +174,14 @@ if (!WHOP_WEBHOOK_SECRET) console.warn('[warn] WHOP_WEBHOOK_SECRET not set — W
 if (!WHOP_API_KEY)        console.warn('[warn] WHOP_API_KEY not set — Whop checkout falls back to unmatched plan links');
 if (!WHOP_OAUTH_CLIENT_ID) console.warn('[warn] WHOP_OAUTH_CLIENT_ID not set — "Connect Whop" disabled, marketplace buyers need claim codes');
 
-// ── Anthropic ─────────────────────────────────────────────────────────────────
-const ai = ANTHROPIC_KEY ? new Anthropic({ apiKey: ANTHROPIC_KEY }) : null;
+// ── AI client ─────────────────────────────────────────────────────────────────
+// GROQ_API_KEY wins when set: it is the stand-in while the Anthropic key is
+// down, and a dead ANTHROPIC_API_KEY left on Railway must not shadow it.
+// groq-shim mimics ai.messages.create, so no call site changes. Remove
+// GROQ_API_KEY to go back to Claude.
+const ai = GROQ_KEY ? createGroqClient(GROQ_KEY)
+         : ANTHROPIC_KEY ? new Anthropic({ apiKey: ANTHROPIC_KEY }) : null;
+console.log(`[boot] AI provider: ${GROQ_KEY ? 'groq' : ANTHROPIC_KEY ? 'anthropic' : 'none'}`);
 
 // ── Discord client ────────────────────────────────────────────────────────────
 const client = new Client({
@@ -502,7 +510,23 @@ function rateLimitEmbed(command, tier, rl) {
 }
 
 function aiUnavailableEmbed() {
+  const waitMs = (ai?.rateLimitedUntil || 0) - Date.now();
+  if (waitMs > 0) return aiBusyEmbed(waitMs);
   return baseEmbed('#f87171').setTitle('AI Unavailable').setDescription('The AI service is currently unavailable. Please try again later.');
+}
+
+// Shown when the AI provider has rate-limited the bot's key. Blue like the
+// daily-limit embed rather than error red: nothing is broken, it is queueing.
+function aiBusyEmbed(waitMs) {
+  const secs = Math.ceil(waitMs / 1000);
+  const wait = secs < 60   ? `about **${Math.max(secs, 10)} seconds**`
+             : secs < 3600 ? `about **${Math.ceil(secs / 60)} minute${secs >= 120 ? 's' : ''}**`
+             : 'a little while';
+  return baseEmbed('#60a5fa')
+    .setTitle('⏳ Vendora AI is at capacity')
+    .setDescription(`Lots of members are running AI commands right now, so yours didn't go through.
+
+Give it ${wait} and run the command again.`);
 }
 
 // ── Supabase helpers ──────────────────────────────────────────────────────────
