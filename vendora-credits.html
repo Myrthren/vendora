@@ -6,7 +6,7 @@
 <link rel="apple-touch-icon" href="favicon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Vendora — Buy Credits</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   :root {
@@ -61,7 +61,7 @@
   .back-link:hover { color: var(--text); }
   .credit-balance { display: flex; align-items: center; gap: 8px; background: rgba(232,33,122,0.07); border: 1px solid rgba(232,33,122,0.18); border-radius: 20px; padding: 7px 16px; font-size: 13px; font-weight: 500; color: var(--text); }
   .credit-balance .bolt { font-size: 14px; color: var(--pink); }
-  .credit-balance .bal-num { font-family: 'Syne', sans-serif; font-weight: 700; color: var(--pink); }
+  .credit-balance .bal-num { font-family:'DM Sans',sans-serif;font-variant-numeric:tabular-nums; font-weight:600; color: var(--pink); }
   .credit-balance .bal-label { color: var(--muted2); font-size: 12px; }
 
   /* MAIN */
@@ -94,9 +94,9 @@
   .pkg-name { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
   .popular .pkg-name { color: var(--pink); }
   .best-value .pkg-name { color: var(--gold); }
-  .pkg-credits { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800; color: var(--text); line-height: 1; }
+  .pkg-credits { font-family:'DM Sans',sans-serif;font-variant-numeric:tabular-nums; font-size: 32px; font-weight:600; color: var(--text); line-height: 1; }
   .pkg-credits span { font-size: 14px; font-weight: 600; color: var(--muted2); margin-left: 4px; font-family: 'DM Sans', sans-serif; }
-  .pkg-price { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; color: var(--text); line-height: 1; }
+  .pkg-price { font-family:'DM Sans',sans-serif;font-variant-numeric:tabular-nums; font-size: 22px; font-weight:600; color: var(--text); line-height: 1; }
   .pkg-per-credit { font-size: 11px; color: var(--muted); margin-top: -6px; }
   .pkg-divider { height: 1px; background: var(--border); }
 

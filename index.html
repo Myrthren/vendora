@@ -25,9 +25,12 @@
 <meta name="twitter:title" content="Vendora — The Reseller's Edge">
 <meta name="twitter:description" content="AI-powered listing tools, photo enhancement, and live deal scanning for Vinted resellers.">
 <meta name="twitter:image" content="https://vendora.site/favicon.png">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300&display=swap" rel="stylesheet">
 <style>
   :root {
+    /* Syne 800 is extended: it is the display face for headlines only. Every
+       figure (stats, prices, step numbers) uses --font-num instead. */
+    --font-num: 'DM Sans', sans-serif;
     --pink: #e8217a;
     --pink-light: #f72e8a;
     --pink-glow: rgba(232,33,122,0.35);
@@ -47,6 +50,7 @@
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
+  section[id] { scroll-margin-top: 64px; } /* anchor jumps land below the fixed nav */
   body {
     background: var(--bg);
     color: var(--text);
@@ -122,6 +126,20 @@
     transition: color .2s;
   }
   .nav-links a:hover { color: var(--text); }
+  .nav-toggle {
+    display: none;
+    width: 40px; height: 40px; padding: 0;
+    background: transparent; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
+    flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    cursor: pointer;
+  }
+  .nav-toggle span {
+    display: block; width: 18px; height: 1.5px; background: var(--text);
+    transition: transform .2s ease, opacity .2s ease;
+  }
+  nav.open .nav-toggle span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+  nav.open .nav-toggle span:nth-child(2) { opacity: 0; }
+  nav.open .nav-toggle span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
   .nav-cta {
     background: transparent !important;
     border: 1px solid var(--border) !important;
@@ -267,8 +285,9 @@
     border-top: 1px solid rgba(255,255,255,0.06);
   }
   .metric-val {
-    font-family: 'Syne', sans-serif;
-    font-size: 26px; font-weight: 700; color: var(--text);
+    font-family: var(--font-num);
+    font-size: 28px; font-weight: 600; color: var(--text);
+    letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
   }
   .metric-label {
     font-size: 10px; color: var(--muted);
@@ -409,7 +428,7 @@
 
   .feat-hero-title {
     font-family: 'Syne', sans-serif;
-    font-size: 26px; font-weight: 800;
+    font-size: 26px; font-weight: 700;
     letter-spacing: -0.01em; text-transform: uppercase;
     color: var(--text); margin-bottom: 16px; line-height: 1.15;
   }
@@ -501,8 +520,8 @@
     background: rgba(232,33,122,0.06);
     border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    font-family: 'Syne', sans-serif;
-    font-size: 16px; font-weight: 700;
+    font-family: var(--font-num);
+    font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums;
     color: var(--pink);
     margin-bottom: 24px;
     position: relative; z-index: 1;
@@ -599,8 +618,8 @@
   .dash-item { font-size: 13px; color: var(--text); flex: 1; }
   .dash-range { font-size: 11px; color: var(--muted); }
   .dash-profit {
-    font-family: 'Syne', sans-serif;
-    font-size: 13px; font-weight: 700; color: var(--green); flex-shrink: 0;
+    font-family: var(--font-num);
+    font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--green); flex-shrink: 0;
   }
   .dash-footer {
     padding: 12px 18px;
@@ -753,24 +772,25 @@
 
   .p-name {
     font-family: 'Syne', sans-serif;
-    font-size: 20px; font-weight: 800;
+    font-size: 20px; font-weight: 700;
     letter-spacing: 0.05em; text-transform: uppercase;
     color: var(--text); margin-bottom: 8px;
   }
   .p-price { display: flex; align-items: baseline; gap: 2px; margin-bottom: 4px; }
   .p-sym {
-    font-family: 'Syne', sans-serif;
-    font-size: 20px; font-weight: 600; color: var(--muted); margin-top: 4px;
+    font-family: var(--font-num);
+    font-size: 22px; font-weight: 500; color: var(--muted); margin-top: 4px;
   }
   .p-sym.pink { color: var(--pink); }
   .p-sym.gold { color: var(--gold); }
   .p-amount {
-    font-family: 'Syne', sans-serif;
-    font-size: 46px; font-weight: 800; color: var(--text); line-height: 1;
+    font-family: var(--font-num);
+    font-size: 48px; font-weight: 600; color: var(--text); line-height: 1;
+    letter-spacing: -0.03em; font-variant-numeric: tabular-nums;
   }
   .p-dec {
-    font-family: 'Syne', sans-serif;
-    font-size: 26px; font-weight: 700; color: var(--text);
+    font-family: var(--font-num);
+    font-size: 24px; font-weight: 600; letter-spacing: -0.02em; color: var(--text);
   }
   .p-per { font-size: 12px; color: var(--muted); font-weight: 300; }
   .p-annual { font-size: 10px; color: var(--pink); margin-bottom: 24px; letter-spacing: 0.05em; }
@@ -922,10 +942,29 @@
   /* ─── RESPONSIVE ─── */
   @media (max-width: 960px) {
     nav { padding: 14px 22px; }
+    .nav-toggle { display: flex; }
     .nav-links { display: none; }
+    nav.open .nav-links {
+      display: flex; flex-direction: column; align-items: stretch; gap: 0;
+      position: absolute; top: 100%; left: 0; right: 0;
+      padding: 6px 22px 22px;
+      background: var(--bg);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 24px 40px rgba(0,0,0,0.6);
+    }
+    nav.open .nav-links a {
+      display: block; padding: 15px 0; font-size: 13px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    nav.open .nav-links li:last-child a { border-bottom: none; }
+    nav.open .nav-links .nav-cta { margin-top: 14px; padding: 13px 18px; text-align: center; border-bottom: 1px solid var(--border); }
     section { padding: 72px 22px; }
     .hero { padding: 120px 22px 80px; align-items: center; text-align: center; }
-    .hero-headline { font-size: clamp(46px, 12vw, 80px); }
+    /* Sized to the viewport: "RESELLER'S" is ~10em wide in Syne 800, so a
+       fixed 46px minimum overflowed a 375px phone by ~80px. */
+    .hero-headline { font-size: clamp(26px, calc((100vw - 48px) / 10.2), 80px); }
+    /* Same reason: "SUBSCRIBE." and "SMARTER?" ran ~5-36px past the edge. */
+    .section-title, .cta-title { font-size: clamp(24px, calc((100vw - 44px) / 10.2), 58px); }
     .hero-metrics { gap: 20px; flex-wrap: wrap; justify-content: center; }
     .hero-scroll { left: 50%; transform: translateX(-50%); }
     .features-intro { grid-template-columns: 1fr; gap: 20px; }
@@ -957,7 +996,10 @@
     </div>
     <span class="nav-logo-text">Vendora</span>
   </a>
-  <ul class="nav-links">
+  <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">
+    <span></span><span></span><span></span>
+  </button>
+  <ul class="nav-links" id="navLinks">
     <li><a href="#features">Features</a></li>
     <li><a href="#platforms">Platforms</a></li>
     <li><a href="#discord">Discord</a></li>
@@ -1612,6 +1654,18 @@ fetch('/version.json?t=' + Date.now(), { cache: 'no-store' })
       ring.style.borderColor = 'rgba(232,33,122,0.45)';
     });
   });
+
+  // Mobile menu
+  const nav = document.querySelector('nav');
+  const navToggle = document.getElementById('navToggle');
+  const setMenu = open => {
+    nav.classList.toggle('open', open);
+    navToggle.setAttribute('aria-expanded', open);
+    navToggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+  };
+  navToggle.addEventListener('click', () => setMenu(!nav.classList.contains('open')));
+  document.querySelectorAll('#navLinks a').forEach(a => a.addEventListener('click', () => setMenu(false)));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') setMenu(false); });
 
   // Intersection observer — reveal on scroll
   const io = new IntersectionObserver(entries => {

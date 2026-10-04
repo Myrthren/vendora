@@ -10,11 +10,14 @@
 <meta name="theme-color" content="#e8217a">
 <link rel="canonical" href="https://vendora.site/vendora-dashboard">
 <meta name="robots" content="noindex">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://www.paypal.com/sdk/js?client-id=Ad69aCRO915AbyIBrcdwElMCyPEnbzRbByPb5vr2tD6RlOG8JNC8S34-8GCgNHG4PaDm2FVdWbFnx_m8&vault=true&intent=subscription" data-sdk-integration-source="button-factory"></script>
 <style>
   :root {
+    /* Syne is the display face. Every figure (stats, prices, credits, scores)
+       uses --font-num: Syne 800 is extended, and its digits read badly at a glance. */
+    --font-num: 'DM Sans', sans-serif;
     --pink: #e8217a;
     --pink-light: #f72e8a;
     --pink-glow: rgba(232,33,122,0.3);
@@ -344,8 +347,8 @@
     color: var(--muted); margin-bottom: 8px;
   }
   .ov-stat-val {
-    font-family: 'Syne', sans-serif;
-    font-size: 26px; font-weight: 800; color: var(--text);
+    font-family: var(--font-num);
+    font-size: 28px; font-weight: 600; letter-spacing: -0.02em; color: var(--text);
     line-height: 1.1; font-variant-numeric: tabular-nums;
   }
   .ov-action {
@@ -441,7 +444,7 @@
   }
   .page-title {
     font-family: 'Syne', sans-serif;
-    font-size: 26px; font-weight: 800;
+    font-size: 26px; font-weight: 700;
     letter-spacing: -0.01em; text-transform: uppercase; color: var(--text);
   }
   .page-sub { font-size: 13px; color: var(--muted); font-weight: 300; margin-top: 6px; line-height: 1.6; }
@@ -483,8 +486,9 @@
   }
   .stat-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
   .stat-val {
-    font-family: 'Syne', sans-serif;
-    font-size: 28px; font-weight: 800; color: var(--text); line-height: 1;
+    font-family: var(--font-num);
+    font-size: 28px; font-weight: 600; color: var(--text); line-height: 1;
+    letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
   }
   .stat-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
   .stat-delta { font-size: 11px; margin-top: 4px; }
@@ -519,7 +523,7 @@
   .account-meta { flex: 1; }
   .account-name {
     font-family: 'Syne', sans-serif;
-    font-size: 20px; font-weight: 800;
+    font-size: 20px; font-weight: 700;
     letter-spacing: 0.02em; color: var(--text); margin-bottom: 4px;
   }
   .account-id { font-size: 11px; color: var(--muted); font-family: monospace; margin-bottom: 8px; }
@@ -576,7 +580,7 @@
   .sub-info { flex: 1; }
   .sub-tier-name {
     font-family: 'Syne', sans-serif;
-    font-size: 18px; font-weight: 800;
+    font-size: 18px; font-weight: 700;
     letter-spacing: 0.04em; text-transform: uppercase; color: var(--text);
     margin-bottom: 4px;
   }
@@ -886,7 +890,7 @@
     border: 1px solid var(--border-dim);
     border-radius: 3px; padding: 7px 12px;
     font-size: 13px; color: var(--text);
-    font-family: 'Syne', sans-serif; font-weight: 600;
+    font-family: var(--font-num); font-weight: 500; font-variant-numeric: tabular-nums;
     width: 100px; outline: none;
     transition: border-color .2s;
   }
@@ -908,7 +912,7 @@
   .ulog-input:focus { border-color: rgba(232,33,122,0.4); background: rgba(255,255,255,0.06); }
   .ulog-input-ver {
     width: 88px; text-align: center;
-    font-family: 'Syne', sans-serif; font-weight: 700;
+    font-family: var(--font-num); font-weight: 600; font-variant-numeric: tabular-nums;
     color: var(--pink); letter-spacing: 0.02em;
   }
   .ulog-input-title { flex: 1; min-width: 180px; }
@@ -1345,7 +1349,7 @@
         <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--pink),var(--pink-light));border-radius:4px 4px 0 0;"></div>
         <div>
           <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--pink);margin-bottom:4px;">Selected Plan</div>
-          <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--text);" class="banner-plan">Pro — £24.99/mo</div>
+          <div style="font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:18px;font-weight:600;color:var(--text);" class="banner-plan">Pro — £24.99/mo</div>
           <div style="font-size:12px;color:var(--muted);font-weight:300;margin-top:3px;">Pay with PayPal or Whop — either way your Discord role is assigned instantly on confirmation.</div>
         </div>
         <div style="min-width:200px;">
@@ -1431,7 +1435,7 @@
           <div class="upgrade-card" data-tier="basic" style="flex:1;padding:20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:4px;position:relative;">
             <div class="upgrade-current-badge" style="display:none;position:absolute;top:12px;right:12px;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted2);border:1px solid rgba(255,255,255,0.1);padding:2px 8px;border-radius:3px;">Current</div>
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted2);margin-bottom:6px;">Basic</div>
-            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--muted2);" id="plan-price-basic">£9.99<span id="plan-period-basic" style="font-size:12px;font-weight:400;">/mo</span></div>
+            <div style="font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;color:var(--muted2);" id="plan-price-basic">£9.99<span id="plan-period-basic" style="font-size:12px;font-weight:400;">/mo</span></div>
             <div id="plan-saving-basic" style="font-size:11px;color:var(--green);margin-top:2px;display:none;">Save £19.89/yr</div>
             <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5;">Smart Watchlist · Listing Optimiser · Auto-Draft · Seller Intel · Resell Calendar · Profit Tracker · Photo Enhancer (credits)</div>
             <button class="btn btn-ghost btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('basic')">Get Basic</button>
@@ -1439,7 +1443,7 @@
           <div class="upgrade-card" data-tier="pro" style="flex:1;padding:20px;background:rgba(232,33,122,0.05);border:1px solid rgba(232,33,122,0.2);border-radius:4px;position:relative;">
             <div class="upgrade-current-badge" style="display:none;position:absolute;top:12px;right:12px;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--pink);border:1px solid var(--border);padding:2px 8px;border-radius:3px;">Current</div>
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--pink);margin-bottom:6px;">Pro</div>
-            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);" id="plan-price-pro">£24.99<span id="plan-period-pro" style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
+            <div style="font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;color:var(--text);" id="plan-price-pro">£24.99<span id="plan-period-pro" style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
             <div id="plan-saving-pro" style="font-size:11px;color:var(--green);margin-top:2px;display:none;">Save £49.89/yr</div>
             <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5;">Everything in Basic · <span style="color:var(--gold);font-weight:600;">500 credits/mo</span> · Inventory · Auto-Buy · Cross-Listing · Flip Score · Price Elasticity</div>
             <button class="btn btn-pink btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('pro')">Get Pro</button>
@@ -1447,7 +1451,7 @@
           <div class="upgrade-card" data-tier="elite" style="flex:1;padding:20px;background:rgba(232,161,33,0.04);border:1px solid rgba(232,161,33,0.18);border-radius:4px;position:relative;">
             <div class="upgrade-current-badge" style="display:none;position:absolute;top:12px;right:12px;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold);border:1px solid rgba(232,161,33,0.2);padding:2px 8px;border-radius:3px;">Current</div>
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--gold);margin-bottom:6px;">Elite</div>
-            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);" id="plan-price-elite">£49.99<span id="plan-period-elite" style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
+            <div style="font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;color:var(--text);" id="plan-price-elite">£49.99<span id="plan-period-elite" style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
             <div id="plan-saving-elite" style="font-size:11px;color:var(--green);margin-top:2px;display:none;">Save £99.89/yr</div>
             <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5;">Everything in Pro · <span style="color:var(--gold);font-weight:600;">1,500 credits/mo</span> · 5-min Auto-Buy + 30 alerts · Hourly sync · Bulk AI analysis · Stale-listing alerts · Sales analytics · Unlimited commands · Priority support</div>
             <button class="btn btn-gold btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('elite')">Get Elite</button>
@@ -1686,17 +1690,17 @@
         <div style="font-size:13px;color:var(--muted2);max-width:380px;margin:0 auto;line-height:1.65;">Fill in your item details once and Vendora will generate and post platform-optimised listings to Depop, Vinted, and eBay simultaneously.</div>
         <div style="display:flex;gap:20px;justify-content:center;margin-top:32px;flex-wrap:wrap;">
           <div style="text-align:center;">
-            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--pink);">3</div>
+            <div style="font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;color:var(--pink);">3</div>
             <div style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.06em;text-transform:uppercase;">Platforms</div>
           </div>
           <div style="width:1px;background:var(--border-dim);"></div>
           <div style="text-align:center;">
-            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);">1 click</div>
+            <div style="font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;color:var(--text);">1 click</div>
             <div style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.06em;text-transform:uppercase;">To list everywhere</div>
           </div>
           <div style="width:1px;background:var(--border-dim);"></div>
           <div style="text-align:center;">
-            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);">AI</div>
+            <div style="font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;color:var(--text);">AI</div>
             <div style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.06em;text-transform:uppercase;">Optimised titles</div>
           </div>
         </div>
@@ -1754,7 +1758,7 @@
       <div id="inv-ai-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.72);align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)closeInvAi()">
         <div class="card" style="max-width:560px;width:100%;max-height:85vh;overflow-y:auto;">
           <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;">
-            <div id="inv-ai-score" style="width:52px;height:52px;border-radius:50%;border:3px solid var(--pink);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:var(--pink);">—</div>
+            <div id="inv-ai-score" style="width:52px;height:52px;border-radius:50%;border:3px solid var(--pink);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:15px;font-weight:600;color:var(--pink);">—</div>
             <div style="flex:1;min-width:0;">
               <div id="inv-ai-title" style="font-size:14px;font-weight:700;color:var(--text);">Analysing…</div>
               <div id="inv-ai-meta" style="font-size:12px;color:var(--muted);margin-top:2px;"></div>
@@ -1979,10 +1983,10 @@
           <div class="card-title" style="margin:0;">Sales Analytics <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(232,161,33,0.15);color:var(--gold);font-weight:600;margin-left:4px;">Elite</span></div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:18px;">
-          <div><div style="font-size:11px;color:var(--muted);">Avg sale price</div><div id="an-avg" style="font-size:18px;font-weight:800;font-family:'Syne',sans-serif;color:var(--text);">£0</div></div>
-          <div><div style="font-size:11px;color:var(--muted);">Avg profit / sale</div><div id="an-avgprofit" style="font-size:18px;font-weight:800;font-family:'Syne',sans-serif;color:var(--green);">£0</div></div>
-          <div><div style="font-size:11px;color:var(--muted);">Sell-through rate</div><div id="an-sellthrough" style="font-size:18px;font-weight:800;font-family:'Syne',sans-serif;color:#60a5fa;">—</div></div>
-          <div><div style="font-size:11px;color:var(--muted);">Total sales</div><div id="an-count" style="font-size:18px;font-weight:800;font-family:'Syne',sans-serif;color:var(--text);">0</div></div>
+          <div><div style="font-size:11px;color:var(--muted);">Avg sale price</div><div id="an-avg" style="font-size:18px;font-weight:600;font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--text);">£0</div></div>
+          <div><div style="font-size:11px;color:var(--muted);">Avg profit / sale</div><div id="an-avgprofit" style="font-size:18px;font-weight:600;font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--green);">£0</div></div>
+          <div><div style="font-size:11px;color:var(--muted);">Sell-through rate</div><div id="an-sellthrough" style="font-size:18px;font-weight:600;font-family:var(--font-num);font-variant-numeric:tabular-nums;color:#60a5fa;">—</div></div>
+          <div><div style="font-size:11px;color:var(--muted);">Total sales</div><div id="an-count" style="font-size:18px;font-weight:600;font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--text);">0</div></div>
         </div>
         <div style="font-size:11px;color:var(--muted2);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Profit by month</div>
         <div id="an-bymonth" style="display:flex;align-items:flex-end;gap:8px;height:90px;margin-bottom:18px;"></div>
@@ -2211,7 +2215,7 @@
           <div class="card" style="margin-bottom:16px;">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
               <div id="lopt-score-ring" style="width:56px;height:56px;border-radius:50%;border:3px solid var(--pink);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                <span id="lopt-score-val" style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--pink);">—</span>
+                <span id="lopt-score-val" style="font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:16px;font-weight:600;color:var(--pink);">—</span>
               </div>
               <div>
                 <div style="font-size:14px;font-weight:700;color:var(--text);" id="lopt-listing-title">—</div>
@@ -2315,7 +2319,7 @@
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
                 <div class="card">
                   <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--pink);margin-bottom:6px;">Suggested Price</div>
-                  <div id="draft-out-price" style="font-size:22px;font-weight:800;font-family:'Syne',sans-serif;color:var(--green);"></div>
+                  <div id="draft-out-price" style="font-size:22px;font-weight:600;font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--green);"></div>
                 </div>
                 <div class="card">
                   <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--pink);margin-bottom:6px;">Keywords</div>
@@ -2397,7 +2401,7 @@
           <div style="display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:start;">
             <div class="card" style="text-align:center;padding:28px 24px;min-width:160px;">
               <div id="fscore-ring" style="width:88px;height:88px;border-radius:50%;border:4px solid var(--pink);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
-                <span id="fscore-val" style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--pink);">—</span>
+                <span id="fscore-val" style="font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:28px;font-weight:600;color:var(--pink);">—</span>
               </div>
               <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);">Flip Score</div>
               <div id="fscore-verdict" style="font-size:12px;font-weight:600;margin-top:8px;padding:4px 10px;border-radius:6px;display:inline-block;"></div>
@@ -2743,7 +2747,7 @@
         <div class="card" style="background:linear-gradient(135deg,rgba(232,161,33,0.08),rgba(232,161,33,0.03));border-color:rgba(232,161,33,0.18);">
           <div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--gold);font-weight:700;margin-bottom:8px;">Your Balance</div>
           <div style="display:flex;align-items:baseline;gap:8px;">
-            <span id="credits-balance-big" style="font-size:36px;font-weight:800;font-family:'Syne',sans-serif;color:var(--gold);">—</span>
+            <span id="credits-balance-big" style="font-size:36px;font-weight:600;font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--gold);">—</span>
             <span style="font-size:13px;color:var(--muted2);">credits</span>
           </div>
           <div style="font-size:11px;color:var(--muted);margin-top:6px;">1 PhotoRoom enhancement = 80 credits</div>
@@ -2763,27 +2767,27 @@
         <div class="card-title" style="margin-bottom:16px;">Credit Packages</div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
           <div style="background:var(--surface3);border:1px solid var(--border-dim);border-radius:4px;padding:16px;text-align:center;">
-            <div style="font-size:20px;font-weight:800;color:var(--text);font-family:'Syne',sans-serif;">500</div>
+            <div style="font-size:20px;font-weight:600;color:var(--text);font-family:var(--font-num);font-variant-numeric:tabular-nums;">500</div>
             <div style="font-size:11px;color:var(--muted);margin:2px 0 8px;">credits</div>
             <div style="font-size:16px;font-weight:700;color:var(--pink);">£3.99</div>
             <div style="font-size:10px;color:var(--muted);margin-top:4px;">6 enhancements</div>
           </div>
           <div style="background:var(--surface3);border:2px solid var(--pink);border-radius:4px;padding:16px;text-align:center;position:relative;">
             <div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:var(--pink);color:#fff;font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.05em;white-space:nowrap;">POPULAR</div>
-            <div style="font-size:20px;font-weight:800;color:var(--text);font-family:'Syne',sans-serif;">1,000</div>
+            <div style="font-size:20px;font-weight:600;color:var(--text);font-family:var(--font-num);font-variant-numeric:tabular-nums;">1,000</div>
             <div style="font-size:11px;color:var(--muted);margin:2px 0 8px;">credits</div>
             <div style="font-size:16px;font-weight:700;color:var(--pink);">£7.99</div>
             <div style="font-size:10px;color:var(--muted);margin-top:4px;">12 enhancements</div>
           </div>
           <div style="background:var(--surface3);border:2px solid var(--gold);border-radius:4px;padding:16px;text-align:center;position:relative;">
             <div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:var(--gold);color:#000;font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.05em;white-space:nowrap;">BEST VALUE</div>
-            <div style="font-size:20px;font-weight:800;color:var(--text);font-family:'Syne',sans-serif;">2,500</div>
+            <div style="font-size:20px;font-weight:600;color:var(--text);font-family:var(--font-num);font-variant-numeric:tabular-nums;">2,500</div>
             <div style="font-size:11px;color:var(--muted);margin:2px 0 8px;">credits</div>
             <div style="font-size:16px;font-weight:700;color:var(--gold);">£16.99</div>
             <div style="font-size:10px;color:var(--muted);margin-top:4px;">31 enhancements</div>
           </div>
           <div style="background:var(--surface3);border:1px solid var(--border-dim);border-radius:4px;padding:16px;text-align:center;">
-            <div style="font-size:20px;font-weight:800;color:var(--text);font-family:'Syne',sans-serif;">5,000</div>
+            <div style="font-size:20px;font-weight:600;color:var(--text);font-family:var(--font-num);font-variant-numeric:tabular-nums;">5,000</div>
             <div style="font-size:11px;color:var(--muted);margin:2px 0 8px;">credits</div>
             <div style="font-size:16px;font-weight:700;color:var(--text);">£29.99</div>
             <div style="font-size:10px;color:var(--muted);margin-top:4px;">62 enhancements</div>
@@ -5776,9 +5780,9 @@
         const worst = items.slice(0, 3);
         if (sum) sum.innerHTML = `
           <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px;">
-            <div><span style="font-size:18px;font-weight:800;font-family:'Syne',sans-serif;color:#60a5fa;">${avg}</span><span style="font-size:11px;color:var(--muted);">/100 avg score</span></div>
-            <div><span style="font-size:18px;font-weight:800;font-family:'Syne',sans-serif;color:var(--gold);">${stale}</span><span style="font-size:11px;color:var(--muted);"> stale listing${stale!==1?'s':''}</span></div>
-            <div><span style="font-size:18px;font-weight:800;font-family:'Syne',sans-serif;color:var(--text);">${items.length}</span><span style="font-size:11px;color:var(--muted);"> analysed</span></div>
+            <div><span style="font-size:18px;font-weight:600;font-family:var(--font-num);font-variant-numeric:tabular-nums;color:#60a5fa;">${avg}</span><span style="font-size:11px;color:var(--muted);">/100 avg score</span></div>
+            <div><span style="font-size:18px;font-weight:600;font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--gold);">${stale}</span><span style="font-size:11px;color:var(--muted);"> stale listing${stale!==1?'s':''}</span></div>
+            <div><span style="font-size:18px;font-weight:600;font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--text);">${items.length}</span><span style="font-size:11px;color:var(--muted);"> analysed</span></div>
           </div>
           <div style="font-size:11px;color:var(--muted2);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Needs attention first</div>
           ${worst.map(w => `<div style="font-size:12px;color:var(--text);padding:6px 0;border-top:1px solid rgba(255,255,255,0.04);"><strong>${esc((w.title||'').slice(0,48))}</strong> <span style="color:#60a5fa;">${w.score ?? '—'}/100</span>${w.suggested_price && Math.abs(w.suggested_price-w.price)>=1 ? ` · <span style="color:var(--gold);">drop to £${Number(w.suggested_price).toFixed(2)}</span>` : ''}${(w.tips||[]).length ? `<div style="color:var(--muted2);font-size:11.5px;line-height:1.5;margin-top:2px;">${w.tips.map(t=>'• '+esc(t)).join('<br>')}</div>` : ''}</div>`).join('')}`;
@@ -8649,7 +8653,7 @@
           <div style="position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,${uc}55,transparent);"></div>
           <div style="flex-shrink:0;width:52px;text-align:center;padding:8px 0;border-radius:4px;background:${ub};border:1px solid ${uc}33;">
             <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${uc};">${ev.month||''}</div>
-            <div style="font-size:20px;font-weight:800;font-family:'Syne',sans-serif;color:var(--text);line-height:1.1;">${ev.day||'?'}</div>
+            <div style="font-size:20px;font-weight:600;font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--text);line-height:1.1;">${ev.day||'?'}</div>
           </div>
           <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">

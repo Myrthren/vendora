@@ -16,7 +16,7 @@
 <meta name="twitter:description" content="Median asking prices across UK Vinted, sampled every three hours.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
     --pink:#e8217a; --pink-soft:rgba(232,33,122,.10); --border:rgba(232,33,122,.14);
@@ -52,7 +52,7 @@
 
   .readout{text-align:right;min-width:230px}
   .readout .lbl{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted2);margin-bottom:6px}
-  .readout .val{font-family:'Syne',sans-serif;font-size:clamp(48px,7vw,72px);font-weight:800;line-height:1;letter-spacing:-.03em}
+  .readout .val{font-family:'DM Sans',sans-serif;font-variant-numeric:tabular-nums;font-size:clamp(48px,7vw,72px);font-weight:600;line-height:1;letter-spacing:-.03em}
   .readout .deltas{display:flex;gap:16px;justify-content:flex-end;margin-top:10px;font-size:13px}
   .readout .deltas span{color:var(--muted2);font-size:10px;letter-spacing:.1em;text-transform:uppercase;display:block}
   .readout .basis{margin-top:10px;font-size:11px;color:var(--muted2)}
@@ -88,7 +88,7 @@
   .card::before{content:'';position:absolute;inset:0 auto 0 0;width:2px;background:var(--edge,transparent)}
   .kw{font-family:'Syne',sans-serif;font-size:14px;font-weight:600;text-transform:capitalize;color:var(--text)}
   .row1{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:8px}
-  .price{font-family:'Syne',sans-serif;font-size:30px;font-weight:800;letter-spacing:-.02em}
+  .price{font-family:'DM Sans',sans-serif;font-variant-numeric:tabular-nums;font-size:30px;font-weight:600;letter-spacing:-.02em}
   .badge{font-size:12px;font-weight:600;padding:3px 8px;border-radius:100px;white-space:nowrap}
   .badge.up{background:rgba(74,222,128,.1)} .badge.down{background:rgba(248,113,113,.1)}
   .badge.flat{background:rgba(255,255,255,.05)}
@@ -109,7 +109,7 @@
   .record h2{font-family:'Syne',sans-serif;font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
   .record .lead{margin-top:6px;color:var(--muted);font-size:13.5px;line-height:1.55;max-width:640px}
   .record .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px}
-  .record .stat .n{font-family:'Syne',sans-serif;font-size:34px;font-weight:800;letter-spacing:-.02em;color:var(--text)}
+  .record .stat .n{font-family:'DM Sans',sans-serif;font-variant-numeric:tabular-nums;font-size:34px;font-weight:600;letter-spacing:-.02em;color:var(--text)}
   .record .stat .t{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted2);margin-top:2px}
   .record .fine{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted2);line-height:1.5}
   @media(max-width:760px){ .record .stats{grid-template-columns:1fr} }
