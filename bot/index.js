@@ -6351,8 +6351,9 @@ async function syncVintedInventoryForUser(userId) {
 
   // ── Fetch active listings ─────────────────────────────────────────────────────
   // Three strategies, in order of speed / reliability:
-  //   1. REST API with stored token (fast, but token expires after ~1 day)
-  //   2. Apify actor scrape (no token needed — scrapes public profile via residential proxy)
+  //   1. REST API with stored token over the primary proxy (fast)
+  //   2. The same authenticated endpoint over Apify's residential proxy when
+  //      the primary proxy is unavailable or blocked
   //   3. Playwright browser fallback (slowest, often unavailable on Railway)
   let raw = [];
 
@@ -6399,11 +6400,53 @@ async function syncVintedInventoryForUser(userId) {
     }
   }
 
-  // NOTE: There is no token-free way to fetch a seller's listings — the Apify
-  // actor's SELLER_PROFILE mode returns stats with an empty items[] array.
-  // Inventory depends on the wardrobe REST path above (valid token + proxy).
+  // ── Strategy 2: authenticated wardrobe API through Apify ─────────────────
+  // There is no token-free way to fetch a seller's listings — the Apify actor's
+  // SELLER_PROFILE mode returns stats with an empty items[] array.  We can,
+  // however, use Apify's residential proxy to call the same wardrobe endpoint
+  // with the member's valid token. This keeps inventory working when PROXY_URL
+  // is unhealthy instead of dropping straight to a datacentre browser request.
+  if (!raw.length && sellerId && APIFY_PROXY_READY) {
+    const rawToken = conn.access_token ? decryptToken(conn.access_token) : '';
+    if (rawToken && rawToken.length >= 20) {
+      try {
+        const headers = VINTED_HEADERS(rawToken, base);
+        for (let page = 1; page <= 5; page++) {
+          const r = await apifyVFetch(
+            `${base}/api/v2/wardrobe/${sellerId}/items?per_page=96&page=${page}&order=newest_first`,
+            { headers, timeout: 20_000 }
+          );
+          if (!r) break;
+          const text = await r.text();
+          if (/datadome|captcha/i.test(text)) {
+            console.warn('[sync-inventory] Apify wardrobe request was blocked by DataDome');
+            break;
+          }
+          if (r.status === 401 || r.status === 403) {
+            console.warn(`[sync-inventory] Apify wardrobe ${r.status} — token expired`);
+            break;
+          }
+          if (!r.ok) {
+            console.warn(`[sync-inventory] Apify wardrobe HTTP ${r.status}`);
+            break;
+          }
+          let data; try { data = JSON.parse(text); } catch { data = {}; }
+          const pageItems = data.items || [];
+          if (!pageItems.length) break;
+          raw.push(...pageItems);
+          console.log(`[sync-inventory] Apify wardrobe page ${page}: ${pageItems.length} items`);
+          if (pageItems.length < 96) break;
+        }
+        if (raw.length > 0) {
+          console.log(`[sync-inventory] Apify wardrobe API: ${raw.length} items for seller ${sellerId}`);
+        }
+      } catch (e) {
+        console.warn('[sync-inventory] Apify wardrobe error:', e.message);
+      }
+    }
+  }
 
-  // ── Strategy 2: Playwright fallback (last resort) ────────────────────────────
+  // ── Strategy 3: Playwright fallback (last resort) ────────────────────────────
   if (!raw.length && sellerId && vintedBrowser?.vintedBrowserFetchPublicUserItems) {
     try {
       const br = await vintedBrowser.vintedBrowserFetchPublicUserItems(sellerId);
