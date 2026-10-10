@@ -981,6 +981,34 @@
     footer { flex-direction: column; gap: 18px; text-align: center; }
     .footer-links { flex-wrap: wrap; justify-content: center; }
   }
+  /* ─── VENDORA INTELLIGENCE ─── */
+  .vi-launcher { position:fixed; right:24px; bottom:24px; z-index:950; display:inline-flex; align-items:center; gap:9px; border:1px solid rgba(232,33,122,.5); border-radius:999px; background:linear-gradient(135deg,#f72e8a,#b81962); color:#fff; box-shadow:0 14px 45px rgba(232,33,122,.34); padding:12px 16px; font:700 13px 'DM Sans',sans-serif; cursor:pointer; transition:transform .2s,box-shadow .2s; }
+  .vi-launcher:hover { transform:translateY(-2px); box-shadow:0 18px 52px rgba(232,33,122,.48); }
+  .vi-launcher-mark { font-family:'Syne',sans-serif; font-size:17px; line-height:1; }
+  .vi-panel { position:fixed; right:24px; bottom:84px; z-index:951; width:min(390px,calc(100vw - 32px)); display:none; overflow:hidden; border:1px solid rgba(232,33,122,.27); border-radius:16px; background:rgba(13,13,13,.98); box-shadow:0 24px 80px rgba(0,0,0,.58); backdrop-filter:blur(20px); }
+  .vi-panel.open { display:block; animation:vi-in .2s ease-out; }
+  @keyframes vi-in { from { opacity:0; transform:translateY(10px) scale(.98); } to { opacity:1; transform:none; } }
+  .vi-head { display:flex; align-items:center; justify-content:space-between; padding:16px 18px; border-bottom:1px solid rgba(255,255,255,.07); }
+  .vi-title { display:flex; align-items:center; gap:10px; font-family:'Syne',sans-serif; font-size:14px; font-weight:800; }
+  .vi-orb { width:26px; height:26px; display:grid; place-items:center; border-radius:9px; background:rgba(232,33,122,.15); color:var(--pink-light); }
+  .vi-status { margin-top:3px; font-family:'DM Sans',sans-serif; font-size:10px; color:var(--muted2); font-weight:400; }
+  .vi-close { width:28px; height:28px; border:0; border-radius:8px; background:transparent; color:var(--muted2); font-size:20px; line-height:1; cursor:pointer; }
+  .vi-close:hover { background:rgba(255,255,255,.06); color:#fff; }
+  .vi-messages { height:310px; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px; }
+  .vi-message { max-width:88%; padding:10px 12px; border-radius:11px; font-size:13px; line-height:1.5; white-space:pre-wrap; }
+  .vi-message.assistant { align-self:flex-start; background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.07); color:rgba(255,255,255,.85); border-bottom-left-radius:3px; }
+  .vi-message.user { align-self:flex-end; background:rgba(232,33,122,.16); border:1px solid rgba(232,33,122,.24); color:#fff; border-bottom-right-radius:3px; }
+  .vi-message.error { color:#fca5a5; }
+  .vi-chips { display:flex; gap:7px; overflow-x:auto; padding:0 16px 12px; scrollbar-width:none; }
+  .vi-chip { flex:0 0 auto; padding:6px 9px; border:1px solid rgba(255,255,255,.10); border-radius:999px; background:rgba(255,255,255,.025); color:var(--muted2); font:500 11px 'DM Sans',sans-serif; cursor:pointer; }
+  .vi-chip:hover { color:#fff; border-color:rgba(232,33,122,.45); }
+  .vi-form { display:flex; gap:8px; padding:12px; border-top:1px solid rgba(255,255,255,.07); }
+  .vi-input { flex:1; min-width:0; border:1px solid rgba(255,255,255,.10); border-radius:9px; background:rgba(255,255,255,.035); color:#fff; padding:10px 11px; font:13px 'DM Sans',sans-serif; outline:none; }
+  .vi-input:focus { border-color:rgba(232,33,122,.58); }
+  .vi-input::placeholder { color:rgba(255,255,255,.32); }
+  .vi-send { border:0; border-radius:9px; background:var(--pink); color:#fff; padding:0 13px; font:700 12px 'DM Sans',sans-serif; cursor:pointer; }
+  .vi-send:disabled, .vi-input:disabled { opacity:.52; cursor:not-allowed; }
+  @media (max-width:520px) { .vi-launcher { right:16px; bottom:16px; padding:11px 14px; } .vi-panel { right:16px; bottom:76px; } .vi-messages { height:min(310px,47vh); } }
 </style>
 </head>
 <body>
@@ -1614,6 +1642,27 @@
   </div>
 </footer>
 
+<!-- VENDORA INTELLIGENCE -->
+<button class="vi-launcher" id="vi-toggle" type="button" aria-expanded="false" aria-controls="vi-panel">
+  <span class="vi-launcher-mark">✦</span> Vendora Intelligence
+</button>
+<aside class="vi-panel" id="vi-panel" aria-label="Vendora Intelligence assistant" aria-hidden="true">
+  <div class="vi-head">
+    <div class="vi-title"><span class="vi-orb">✦</span><div>Vendora Intelligence<div class="vi-status">Your resale co-pilot</div></div></div>
+    <button class="vi-close" id="vi-close" type="button" aria-label="Close Vendora Intelligence">×</button>
+  </div>
+  <div class="vi-messages" id="vi-messages" role="log" aria-live="polite"></div>
+  <div class="vi-chips" aria-label="Suggested questions">
+    <button class="vi-chip" type="button">What should I source this week?</button>
+    <button class="vi-chip" type="button">How should I price an item?</button>
+    <button class="vi-chip" type="button">Which Vendora tool do I need?</button>
+  </div>
+  <form class="vi-form" id="vi-form">
+    <input class="vi-input" id="vi-input" maxlength="1000" autocomplete="off" placeholder="Ask about sourcing, pricing or listings…" aria-label="Ask Vendora Intelligence">
+    <button class="vi-send" id="vi-send" type="submit">Ask</button>
+  </form>
+</aside>
+
 <script>
 // Footer version tag — fetched at runtime from /version.json
 fetch('/version.json?t=' + Date.now(), { cache: 'no-store' })
@@ -1626,6 +1675,68 @@ fetch('/version.json?t=' + Date.now(), { cache: 'no-store' })
 </script>
 
 <script>
+  // Vendora Intelligence runs through the backend, keeping the AI key out of the site.
+  const VI_API = 'https://vendora-production-8a47.up.railway.app/api/intelligence';
+  const viToggle = document.getElementById('vi-toggle');
+  const viPanel = document.getElementById('vi-panel');
+  const viClose = document.getElementById('vi-close');
+  const viForm = document.getElementById('vi-form');
+  const viInput = document.getElementById('vi-input');
+  const viSend = document.getElementById('vi-send');
+  const viMessages = document.getElementById('vi-messages');
+  const viHistory = [];
+
+  function viAddMessage(role, text, extraClass = '') {
+    const item = document.createElement('div');
+    item.className = `vi-message ${role} ${extraClass}`.trim();
+    item.textContent = text;
+    viMessages.appendChild(item);
+    viMessages.scrollTop = viMessages.scrollHeight;
+  }
+
+  function viSetOpen(open) {
+    viPanel.classList.toggle('open', open);
+    viPanel.setAttribute('aria-hidden', String(!open));
+    viToggle.setAttribute('aria-expanded', String(open));
+    if (open) viInput.focus();
+  }
+
+  async function viAsk(question) {
+    const text = question.trim();
+    if (!text) return;
+    viAddMessage('user', text);
+    viHistory.push({ role: 'user', content: text });
+    viInput.value = '';
+    viInput.disabled = true;
+    viSend.disabled = true;
+    viSend.textContent = '…';
+    try {
+      const response = await fetch(VI_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: viHistory.slice(-6) }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.response) throw new Error(data.error || 'Could not reach Vendora Intelligence.');
+      viHistory.push({ role: 'assistant', content: data.response });
+      viAddMessage('assistant', data.response);
+    } catch (error) {
+      viAddMessage('assistant', error.message || 'Vendora Intelligence is unavailable right now.', 'error');
+    } finally {
+      viInput.disabled = false;
+      viSend.disabled = false;
+      viSend.textContent = 'Ask';
+      viInput.focus();
+    }
+  }
+
+  viAddMessage('assistant', 'I’m Vendora Intelligence. Ask me what to source, how to price it, or which Vendora tool gets you moving fastest.');
+  viToggle.addEventListener('click', () => viSetOpen(!viPanel.classList.contains('open')));
+  viClose.addEventListener('click', () => viSetOpen(false));
+  viForm.addEventListener('submit', event => { event.preventDefault(); viAsk(viInput.value); });
+  document.querySelectorAll('.vi-chip').forEach(button => button.addEventListener('click', () => viAsk(button.textContent)));
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') viSetOpen(false); });
+
   // Custom cursor
   const cursor = document.getElementById('cursor');
   const ring = document.getElementById('cursorRing');
