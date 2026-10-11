@@ -1020,7 +1020,7 @@
             <div class="nav-item-desc">Your Vinted listings, auto-synced</div>
           </div>
         </div>
-        <div class="nav-item" id="listings-nav-item" onclick="showSection('listings', this)" style="opacity:0.38;">
+        <div class="nav-item" id="listings-nav-item" onclick="showSection('listings', this)" style="display:none;">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 10h16M4 14h8M4 18h8"/><path d="M16 14l2 2 4-4"/></svg>
           <div class="nav-item-text">
             <div class="nav-item-name">Auto-List</div>
@@ -1155,7 +1155,7 @@
     </div>
     <div class="user-menu-wrap">
       <button type="button" class="user-menu-btn" onclick="toggleUserMenu(this)" title="Account menu">
-        <div class="user-avatar" id="sidebar-avi">VV</div>
+        <div class="user-avatar" id="sidebar-avi">V</div>
       </button>
       <div class="user-menu">
         <div class="user-menu-head">
@@ -1232,6 +1232,21 @@
         </div>
       </div>
 
+      <div class="card" style="margin-bottom:14px;border-color:rgba(232,33,122,0.28);background:linear-gradient(135deg,rgba(232,33,122,0.09),rgba(232,33,122,0.015));">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px;">
+          <div>
+            <div class="card-title" style="margin-bottom:5px;color:var(--pink);">Start here — get value in your first session</div>
+            <div style="font-size:12px;color:var(--muted2);line-height:1.55;max-width:560px;">Vendora is currently built around a Vinted-first workflow: improve a listing, track a live item, then connect your account when you want inventory tools.</div>
+          </div>
+          <span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--pink);border:1px solid rgba(232,33,122,0.35);border-radius:999px;padding:5px 8px;white-space:nowrap;">3-step setup</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;">
+          <button class="ov-action" style="text-align:left;background:rgba(255,255,255,0.025);border:1px solid var(--border-dim);border-radius:6px;padding:12px;cursor:pointer;color:var(--text);font:inherit;" onclick="showSection('listing-optimiser', document.getElementById('optimiser-nav-item'))"><span style="color:var(--pink);font-weight:700;">1. Improve a listing</span><br><span style="font-size:11px;color:var(--muted2);">Get a sharper title, description and pricing angle.</span></button>
+          <button class="ov-action" style="text-align:left;background:rgba(255,255,255,0.025);border:1px solid var(--border-dim);border-radius:6px;padding:12px;cursor:pointer;color:var(--text);font:inherit;" onclick="showSection('watchlist', document.getElementById('watchlist-nav-item'))"><span style="color:var(--pink);font-weight:700;">2. Track an opportunity</span><br><span style="font-size:11px;color:var(--muted2);">Watch a Vinted item for price and availability changes.</span></button>
+          <button class="ov-action" style="text-align:left;background:rgba(255,255,255,0.025);border:1px solid var(--border-dim);border-radius:6px;padding:12px;cursor:pointer;color:var(--text);font:inherit;" onclick="showSection('platforms', document.querySelector('.nav-item[onclick*=platforms]'))"><span style="color:var(--pink);font-weight:700;">3. Connect Vinted</span><br><span style="font-size:11px;color:var(--muted2);">Unlock your inventory view and profit tracking when ready.</span></button>
+        </div>
+      </div>
+
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;">
         <div class="card">
           <div class="card-title" style="margin-bottom:4px;">Recent sales</div>
@@ -1272,7 +1287,7 @@
       </div>
 
       <div class="account-hero">
-        <div class="account-avatar" id="account-avi">VV</div>
+        <div class="account-avatar" id="account-avi">V</div>
         <div class="account-meta">
           <div class="account-name" id="account-name">Loading...</div>
           <div class="account-id" id="account-id">ID: —</div>
@@ -1445,7 +1460,7 @@
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--pink);margin-bottom:6px;">Pro</div>
             <div style="font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;color:var(--text);" id="plan-price-pro">£24.99<span id="plan-period-pro" style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
             <div id="plan-saving-pro" style="font-size:11px;color:var(--green);margin-top:2px;display:none;">Save £49.89/yr</div>
-            <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5;">Everything in Basic · <span style="color:var(--gold);font-weight:600;">500 credits/mo</span> · Inventory · Auto-Buy · Cross-Listing · Flip Score · Price Elasticity</div>
+            <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5;">Everything in Basic · <span style="color:var(--gold);font-weight:600;">500 credits/mo</span> · Inventory · Auto-Buy · Flip Score · Price Elasticity</div>
             <button class="btn btn-pink btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('pro')">Get Pro</button>
           </div>
           <div class="upgrade-card" data-tier="elite" style="flex:1;padding:20px;background:rgba(232,161,33,0.04);border:1px solid rgba(232,161,33,0.18);border-radius:4px;position:relative;">
@@ -1563,25 +1578,25 @@
           <div class="toggle-row">
             <div class="toggle-info">
               <div class="toggle-label">Platform Connected</div>
-              <div class="toggle-sub">DM when Depop or Vinted account links successfully</div>
+              <div class="toggle-sub">DM when your Vinted account links successfully</div>
             </div>
             <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-platform-connected" checked><span class="toggle-track"></span></label></div>
           </div>
-          <div class="toggle-row">
+          <div class="toggle-row" style="display:none;">
             <div class="toggle-info">
               <div class="toggle-label">Cross-Listing Updates</div>
               <div class="toggle-sub">Success and failure notifications for cross-listing jobs</div>
             </div>
             <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-crosslist-updates" checked><span class="toggle-track"></span></label></div>
           </div>
-          <div class="toggle-row">
+          <div class="toggle-row" style="display:none;">
             <div class="toggle-info">
               <div class="toggle-label">Connection Expired</div>
               <div class="toggle-sub">Alert when a platform connection needs re-linking</div>
             </div>
             <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-connection-expired" checked><span class="toggle-track"></span></label></div>
           </div>
-          <div class="toggle-row">
+          <div class="toggle-row" style="display:none;">
             <div class="toggle-info">
               <div class="toggle-label">Auto-Relist Completed</div>
               <div class="toggle-sub">DM when a listing is automatically relisted</div>
@@ -1605,7 +1620,7 @@
       <div class="page-header">
         <div class="page-eyebrow">Platforms</div>
         <div class="page-title">Connected Accounts</div>
-        <div class="page-sub">Link your reselling accounts so Vendora can list, cross-list, and auto-relist on your behalf.</div>
+        <div class="page-sub">Link your Vinted account for inventory, profit tracking and listing-related tools.</div>
       </div>
 
       <!-- Vinted -->
