@@ -17,8 +17,8 @@ const BRAND_PINK = 0xe8217a;
 // whose tag we could not resolve) it falls back to a neutral opener.
 function buildWinbackPayload({ username } = {}) {
   const greeting = username
-    ? `Hey **${username}** — you're in Vendor Village, but you haven't unlocked **Vendora** yet.`
-    : `You're in Vendor Village, but you haven't unlocked **Vendora** yet.`;
+    ? `Hey **${username}** — you're in the Vendora Discord server, but you haven't unlocked **Vendora** yet.`
+    : `You're in the Vendora Discord server, but you haven't unlocked **Vendora** yet.`;
 
   return {
     embeds: [{
@@ -59,7 +59,7 @@ function buildWinbackPayload({ username } = {}) {
           value: 'Annual billing is available too — roughly **two months free**.\nCancel any time; your role is removed automatically, no emails to chase.',
         },
       ],
-      footer: { text: "Vendora — The Reseller's Edge  •  You're getting this because you're a member of Vendor Village" },
+      footer: { text: "Vendora — The Reseller's Edge  •  You're getting this because you're a member of the Vendora Discord server" },
     }],
     components: [{
       type: 1,

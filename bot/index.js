@@ -1769,7 +1769,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
     const guild = interaction.guild;
     if (!guild) {
       return interaction.editReply({ embeds: [
-        baseEmbed('#f87171').setTitle('Server Only').setDescription('`/session open` can only be used inside the Vendor Village server.')
+        baseEmbed('#f87171').setTitle('Server Only').setDescription('`/session open` can only be used inside the Vendora Discord server.')
       ]});
     }
 
@@ -3396,7 +3396,7 @@ client.on('guildMemberAdd', async (member) => {
         new EmbedBuilder().setColor(TIER_COLOR[tier] || '#e8217a')
           .setTitle(`Vendora ${TIER_NAMES[tier]} Active`)
           .setDescription(
-            `Welcome to Vendor Village — your **${TIER_NAMES[tier]}** plan is active and your role has been assigned.\n\n` +
+            `Welcome to Vendora — your **${TIER_NAMES[tier]}** plan is active and your role has been assigned.\n\n` +
             `Head to the dashboard to connect your accounts and start using your tools:\n${DASHBOARD_URL}`
           )
           .addFields(
@@ -8769,7 +8769,7 @@ app.post('/api/admin/post-promo', async (req, res) => {
       .setTitle('⚡ Vendora — The Reseller\'s Edge')
       .setThumbnail('https://vendora.site/favicon.png')
       .setDescription(
-        'Vendora is the all-in-one toolkit for Vinted resellers — built right into Vendor Village.\n\n' +
+        'Vendora is the all-in-one toolkit for Vinted resellers — built for the Vendora Discord community.\n\n' +
         '**Stop guessing. Start flipping smarter.** Vendora does the grind for you: it watches Vinted for underpriced listings and DMs you the moment a deal drops, writes & optimises your listings with AI, syncs your live inventory and real profit, and tells you what to restock before the market moves.'
       )
       .addFields(
@@ -11137,7 +11137,7 @@ async function handleTrialButton(interaction) {
     || await interaction.guild?.members.fetch(discordId).catch(() => null);
   if (!member) {
     return interaction.editReply({ embeds: [baseEmbed('#f87171').setTitle('Server Only')
-      .setDescription('Start your trial from inside the Vendor Village server.')] });
+      .setDescription('Start your trial from inside the Vendora Discord server.')] });
   }
 
   try {

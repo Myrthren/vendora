@@ -2,7 +2,7 @@ VENDORA — Claude Code Context
 
 What is this project
 Vendora is a SaaS platform and Discord bot for resellers.
-It lives at https://vendora.site (confirmed in bot/index.js SITE_URL, ~line 107) and inside the Vendor Village Discord server.
+It lives at https://vendora.site (confirmed in bot/index.js SITE_URL, ~line 107) and inside the Vendora Discord server.
 Tagline: "The Reseller's Edge"
 
 Brand
@@ -167,7 +167,7 @@ Key pieces:
 - Whop must never assign a Discord role Vendora manages. assignRole() strips all other
   tier roles, so two systems owning the same role ids will flap them forever.
   APPLIED AND VERIFIED 2026-08-02. The Whop Discord APP ITSELF is KEPT deliberately — it gives
-  buyers a join button, and the Vendor Village server is open to non-subscribers anyway
+  buyers a join button, and the Vendora Discord server is open to non-subscribers anyway
   (Vendora's Discord features are gated by role, not by server membership). Keeping the
   app is fine; the conflict is only ever about overlapping ROLE IDS. Intended shape:
     • no role mappings configured on Whop's Discord app,
