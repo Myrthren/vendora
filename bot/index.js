@@ -234,9 +234,9 @@ const WHOP_ACTIVE_STATUSES = new Set(['trialing', 'active', 'completed', 'cancel
 
 // ── Rate limits ───────────────────────────────────────────────────────────────
 const RATE_LIMITS = {
-  scan:      { basic: 5,  pro: 50,  elite: Infinity },
+  scan:      { basic: 0,  pro: 50,  elite: Infinity },
   reply:     { basic: 20, pro: 100, elite: Infinity },
-  research:  { basic: 3,  pro: 20,  elite: Infinity },
+  research:  { basic: 0,  pro: 20,  elite: Infinity },
   flip:      { basic: 0,  pro: 0,   elite: 20       },
   default:   { basic: 10, pro: 50,  elite: Infinity },
 };
@@ -1235,10 +1235,10 @@ const commands = [
     .addSubcommand(s => s.setName('view').setDescription('View your inventory tracker'))
     .addSubcommand(s => s.setName('remove').setDescription('Remove an item by number (shown in /tracker view)')
       .addStringOption(o => o.setName('item').setDescription('Item number from /tracker view').setRequired(true))),
-  new SlashCommandBuilder().setName('sold').setDescription('Analyse what actually sells vs what just gets listed [Pro+]')
+  new SlashCommandBuilder().setName('sold').setDescription('Explore asking prices and resale signals — not verified sales [Pro+]')
     .addStringOption(o => o.setName('item').setDescription('Item or category to analyse').setRequired(true)),
-  new SlashCommandBuilder().setName('competitor').setDescription('Track a competitor seller [Pro+]')
-    .addStringOption(o => o.setName('seller').setDescription('Seller username to track').setRequired(true)),
+  new SlashCommandBuilder().setName('competitor').setDescription('Get a one-off seller breakdown [Pro+]')
+    .addStringOption(o => o.setName('seller').setDescription('Seller username to analyse').setRequired(true)),
 
   // ── Elite ──
   new SlashCommandBuilder().setName('flip').setDescription('Full auto-flipping suggestion — source, list, price, profit [Elite]')
@@ -2740,30 +2740,30 @@ async function executeCommand(interaction, commandName, tier, profile) {
     if (allP.length >= 3) {
       const avg  = (allP.reduce((a, b) => a + b, 0) / allP.length).toFixed(2);
       const low  = Math.min(...allP).toFixed(2), high = Math.max(...allP).toFixed(2);
-      // Vinted shows active listings with condition; items priced near avg tend to sell fastest
+      // Active asking prices describe supply, not completed sales or selling speed.
       const priceDistrib = {
         under30: allP.filter(p => p < 30).length,
         '30to60': allP.filter(p => p >= 30 && p < 60).length,
         '60to100': allP.filter(p => p >= 60 && p < 100).length,
         over100: allP.filter(p => p >= 100).length,
       };
-      liveCtx = `LIVE ACTIVE LISTINGS (proxy for demand — ${allP.length} listings):\n` +
+      liveCtx = `LIVE ACTIVE ASKING PRICES (not completed sales — ${allP.length} listings):\n` +
         `- Range: £${low}–£${high}, avg £${avg}\n` +
         `- Price distribution: Under £30: ${priceDistrib.under30}, £30-60: ${priceDistrib['30to60']}, £60-100: ${priceDistrib['60to100']}, £100+: ${priceDistrib.over100}\n` +
         `- Depop: ${depopR?.length || 0} active, Vinted: ${vintedR?.length || 0} active\n\n` +
-        `Note: We're looking at active listings as a demand proxy. Higher listing volume at a price point suggests that price range moves well.`;
+        `Note: These are unsold asking prices. Listing volume does not establish demand, sales volume or days-to-sell.`;
     }
 
-    const webCtx = webR?.length ? `\nWEB SEARCH (real buyer/seller feedback):\n${formatWebResults(webR)}\n` : '';
+    const webCtx = webR?.length ? `\nWEB SEARCH EXCERPTS (unverified context, not a sales feed):\n${formatWebResults(webR)}\n` : '';
     const text = await callAI(
-      `You are Vendora's sold listing analyst for the UK resale market.\n\n${liveCtx}${webCtx}\n\nUsing all data signals, provide:\n**Fast Sellers** — specific versions/conditions that move quickly (price them near £${allP.length >= 3 ? (allP.reduce((a,b)=>a+b,0)/allP.length).toFixed(0) : '?'})\n**Slow Movers** — what sits unsold and why\n**Key Factors** — what makes listings sell faster on each platform\n**Sweet Spot Pricing** — optimal price points based on the data\n**Condition Requirements** — what buyers expect`,
+      `You are Vendora's resale research analyst for the UK market. The supplied listings are ACTIVE asking prices, not verified completed sales. Web excerpts are unverified context. Never infer sales volume, demand, selling speed or completed-sale prices from active listings. Label suggestions as estimates; say when evidence is missing.\n\n${liveCtx}${webCtx}\n\nUsing all data signals, provide:\n**Market Snapshot** — summarise the observed asking prices, if available\n**Evidence Limits** — explain what the supplied data cannot establish\n**Listing Factors** — condition and presentation considerations, labelled as advice\n**Pricing Suggestions** — estimated asking-price options, not verified sale prices\n**Condition Requirements** — what buyers expect`,
       `Item/Category: ${item}`
     );
     if (!text) return interaction.editReply({ embeds: [aiUnavailableEmbed()] });
     const sources = [allP.length >= 3 ? `${allP.length} listings` : null, webR?.length ? 'web' : null].filter(Boolean);
-    const footer = sources.length ? `Sources: ${sources.join(' + ')}` : 'AI market knowledge — live data unavailable';
+    const footer = 'Not verified sales · ' + (sources.length ? `Sources: ${sources.join(' + ')}` : 'AI estimates — live data unavailable');
     return interaction.editReply({ embeds: [
-      baseEmbed().setTitle(`Sold Listing Analysis — ${item}`).setDescription(text.slice(0, 4000)).setFooter({ text: footer })
+      baseEmbed().setTitle(`Resale Research — ${item}`).setDescription(text.slice(0, 4000)).setFooter({ text: footer })
     ]});
   }
 
@@ -2799,7 +2799,7 @@ async function executeCommand(interaction, commandName, tier, profile) {
     const newsCtx  = newsR?.length ? `\nNEWS:\n${newsR.map(r => `• ${r.title}: ${r.description?.slice(0,80)}`).join('\n')}`          : '';
     const profileImage = imagesR?.find(img => img.imageUrl?.startsWith('https'))?.imageUrl || null;
 
-    const systemPrompt = `You are Vendora's competitor intelligence system. You have live seller data and web context. Return ONLY valid JSON:
+    const systemPrompt = `You are Vendora's competitor intelligence system. Produce a one-off report from the supplied seller data and web context only. Do not claim ongoing monitoring or notifications. If seller data is missing, state that observations are unavailable instead of inventing them. Return ONLY valid JSON:
 {
   "sellerType": "One line: what type of reseller (niche, volume, premium, budget etc.)",
   "pricingStrategy": "How they price vs market — specific observation with £ figures if possible",
@@ -3437,10 +3437,10 @@ client.on('guildMemberAdd', async (member) => {
           `Hey **${member.user.username}** — welcome to the server.\n\n` +
           `**Vendora** is our AI-powered reselling tool, built to give you a measurable edge:\n\n` +
           `→ AI buyer replies & lowball handlers\n` +
-          `→ Product research across Depop, Vinted & eBay\n` +
-          `→ Cross-listing generator\n` +
+          `→ Vinted-first product research\n` +
+          `→ AI listing copy generator\n` +
           `→ Profit margin breakdowns\n` +
-          `→ Competitor tracking\n` +
+          `→ One-off seller breakdowns\n` +
           `→ Private session channels\n\n` +
           `**Plans from £9.99/month.**\n${SITE_URL}`
         )
@@ -8770,10 +8770,10 @@ app.post('/api/admin/post-promo', async (req, res) => {
       .setThumbnail('https://vendora.site/favicon.png')
       .setDescription(
         'Vendora is the all-in-one toolkit for Vinted resellers — built for the Vendora Discord community.\n\n' +
-        '**Stop guessing. Start flipping smarter.** Vendora does the grind for you: it watches Vinted for underpriced listings and DMs you the moment a deal drops, writes & optimises your listings with AI, syncs your live inventory and real profit, and tells you what to restock before the market moves.'
+        '**Stop guessing. Start flipping smarter.** Vendora helps you research Vinted opportunities, receive scheduled deal alerts, improve listing copy with AI, and manage inventory and profit records.'
       )
       .addFields(
-        { name: '🔎 Find & win deals', value: 'Auto-Buy keyword alerts ping you on Discord the instant a matching listing appears — **Elite scans every 5 minutes.**' },
+        { name: '🔎 Find & win deals', value: 'Buy Alerts ping you on Discord when a scheduled check finds a matching listing — **Elite scans every 5 minutes.**' },
         { name: '🤖 List smarter', value: 'AI Listing Optimiser, Auto-Draft copywriting, and one-tap Photo Enhancer so every listing converts.' },
         { name: '📦 Run your shop', value: 'Live inventory sync, automatic profit tracking, price-drop watchlist, and a resell calendar of upcoming drops.' },
         { name: '💷 Plans', value: '**Basic** £9.99  ·  **Pro** £24.99  ·  **Elite** £49.99 / month — annual saves ~2 months.' },
@@ -9659,7 +9659,7 @@ Page <title>: ${page.title || '(empty)'}
 
 SCRAPED CONTENT (meta tags, JSON-LD, and stripped body text):
 ${page.text || '(page could not be fetched)'}
-${soldCtx ? `\nSOLD COMP DATA FROM WEB:\n${soldCtx}` : '\n(No sold comp data available — use reselling knowledge.)'}
+${soldCtx ? `\nWEB SEARCH EXCERPTS (not verified completed sales):\n${soldCtx}` : '\n(No web price context available — label all pricing suggestions as estimates.)'}
 
 Ground every number in the data above. If a detail genuinely isn't in the scraped content, state that in the breakdown sub-line rather than inventing it.
 
@@ -9780,7 +9780,7 @@ app.post('/api/price/elasticity', async (req, res) => {
   try {
     const [soldRes, priceRes] = await Promise.allSettled([
       webSearch(`${item} sold price UK resale${condition && condition !== 'any' ? ` ${condition}` : ''}`, 6),
-      webSearch(`${item} eBay sold listings UK 2024 2025`, 4),
+      webSearch(`${item} resale asking prices UK`, 4),
     ]);
 
     const webCtx = [soldRes, priceRes]
@@ -9788,14 +9788,14 @@ app.post('/api/price/elasticity', async (req, res) => {
       .flatMap(r => r.value.map(x => `${x.title}: ${x.description}`))
       .join('\n');
 
-    const prompt = `You are a reselling market analyst with access to sold price data.
+    const prompt = `You are a reselling market analyst working from web search excerpts, not a verified completed-sales dataset.
 
 Item: ${item}
 Condition: ${condition || 'any'}
 Market data from web:
 ${webCtx || 'Limited data — use general reselling knowledge for this item category.'}
 
-Generate a price elasticity curve for reselling this item in the UK. Model at least 6 price points.
+Generate an illustrative price scenario curve for reselling this item in the UK. Model at least 6 price points. Prices, days-to-sell, profit and ROI are estimates, not measured outcomes. State that limitation and the cost assumptions in the insight. Do not invent verified sales or imply a measured demand curve.
 
 Return ONLY a JSON object:
 {
