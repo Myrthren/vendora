@@ -1,5 +1,38 @@
 VENDORA — Claude Code Context
 
+CURRENT SOURCE REVIEW — 2026-10-16
+This section takes precedence over the dated operational history below.
+These are source-code findings, not a fresh production/deployment/payment audit.
+
+- Product: Vinted-first reseller toolkit + Discord bot. Basic £9.99, Pro £24.99,
+  Elite £49.99 monthly. Netlify hosts the static site; the Express API and Discord
+  client share the bot process. Supabase supplies the database and Discord OAuth.
+- Vendora Intelligence is implemented as the public landing-page assistant and
+  POST /api/intelligence. It uses the configured AI client and visitor conversation;
+  it cannot inspect private accounts, fetch live market data or perform actions.
+- /sold is retained as a compatible command name but presented as Resale Research.
+  Its inputs are active asking-price listings and web-search excerpts, not a verified
+  completed-sales feed. Neither listing volume nor disappearance proves a sale,
+  demand or selling speed. Pricing/elasticity advice is explicitly estimated.
+- /competitor is a one-off seller breakdown. No ongoing seller monitor or new-stock
+  notification is implemented; corresponding marketing and inactive controls were corrected.
+- Dashboard Buy Alerts (internal IDs/routes still say autobuy) create notification
+  rules: Pro checks every 30 minutes (5 alerts), Elite every 5 minutes (30 alerts).
+  Users follow the link and buy themselves. Experimental auto_buy=true backend
+  automation is separate; completed payment has NOT been verified. Do not market
+  automatic purchasing as an available, proven dashboard capability.
+- Whop integration has historical signed-event/OAuth checks. A real stranger's
+  purchase → linking → entitlement → Discord access journey remains UNVERIFIED
+  until observed end to end. Do not convert historical tests into a current claim.
+- The affiliate copy quotes 30% recurring, but the external Whop configuration
+  still needs checking before claiming payout settings are verified.
+- Live version must be read from deployed /version.json; the September version
+  below is historical. Source changes do not prove that either host deployed them.
+- Security follow-ups remain: dedicated encryption key + fail-closed migration;
+  full auth/ownership audit; external secret rotation and payment reconciliation
+  where historical notes list them. No secrets were changed in this source review.
+
+
 What is this project
 Vendora is a SaaS platform and Discord bot for resellers.
 It lives at https://vendora.site (confirmed in bot/index.js SITE_URL, ~line 107) and inside the Vendora Discord server.
@@ -14,7 +47,7 @@ Elite accent: #e8a121 (gold)
 Success: #4ade80 (green)
 
 Tech Stack
-Frontend: Next.js + Tailwind CSS (current files are plain HTML — migration pending)
+Frontend: plain HTML/CSS/JavaScript with Supabase JS from a CDN. Next.js/Tailwind migration is proposed only; neither runs in this repository.
 Backend: Node.js / Express — NOT separate from the bot, see Architecture below
 Discord Bot: Discord.js v14 (lives in /bot/)
 
@@ -29,7 +62,7 @@ Consequence: there are no independently-failing services. One process down = the
 AND the whole web backend are down together. That's why the Railway outage takes out
 "everything" at once, and why restoring Railway brings it all back in one shot.
 Database: PostgreSQL (Supabase)
-Auth: Discord OAuth2 (NextAuth.js)
+Auth: Discord OAuth2 through Supabase Auth; no NextAuth.js implementation.
 Payments: PayPal Subscriptions API + Whop (alternative checkout, runs alongside — see Whop section)
 Hosting (site): Netlify — live at https://vendora-vv.netlify.app, auto-deploys from GitHub (Myrthren/vendora, main branch)
 Hosting (bot+backend): Railway — RESTORED 2026-07-21 (was down after the subscription lapsed). Back up and serving. If it goes down again, remember one process = bot AND backend, so everything fails together.
@@ -42,11 +75,11 @@ POST-RESTORE CHECKLIST (Railway is back as of 2026-07-21 — item 3 is still OUT
 5. The avatar/initials bug is unrelated and will NOT be fixed by the restore.
 
 VERSIONING — how it actually works now
-- Current LIVE version: v6.131 (verified live 2026-09-13 at vendora-vv.netlify.app/version.json, built from 1ad0aba). Version is stamped automatically by scripts/build-version.js into version.json on every deploy — the local version.json is gitignored and stale (says v6.0), so read the live URL, not the file.
+- Current LIVE version: not verified in the 2026-10-16 source review. The last recorded observation was v6.131 on 2026-09-13, built from 1ad0aba; that is historical, not the current release. Read the deployed /version.json and compare its sha with GitHub before quoting a live version. scripts/build-version.js generates it during builds; the gitignored local file is not authoritative.
 - Real flow: commit + push to main (GitHub Myrthren/vendora) → Netlify auto-builds → version.json bumped automatically. There is no manual "stage then owner clicks Publish" gate on the live site deploy.
 - GIT AUTH: the remote used to carry a PAT inline, which expired three times. Fixed 2026-09-09 — the remote is now a plain https URL and auth goes through the `gh` credential helper (already logged in as Myrthren). Nothing to rotate.
 - The admin panel Update Log (vendora-dashboard.html, ~line 4437) reads the LAST 3 DAYS OF COMMITS FROM THE GITHUB API and groups them by calendar day. Rewritten 2026-09-09: it used to poll version.json, which only ever holds the single latest commit, and accumulate history in localStorage from whatever it happened to observe while the dashboard was open — so every deploy that shipped with the panel closed was invisible, and one July entry spent two months absorbing unrelated commits. Docs and chores are filtered out; each line is tagged Feature/Fix/Polish. Version and title are editable fields because the announcement header has always been written by hand. Copy output matches the posted format: `📦 **Vendora v6.x** — Title`, blank line, `• bullets`.
-- NOTE: the old "increment by exactly 0.1, owner must Publish" policy below no longer matches reality (kept as owner's stated intent; confirm with Kene before treating as a hard rule). Bot-side stage/publish/revert endpoints exist but the bot is down.
+- NOTE: the old "increment by exactly 0.1, owner must Publish" policy below no longer matches reality (kept as owner's stated intent; confirm with Kene before treating as a hard rule). Bot-side stage/publish/revert endpoints exist; their presence does not gate Netlify auto-deploys. Runtime availability needs a live health check.
 - When you ship: push to main and let Netlify + build-version.js handle the version. Update "Current LIVE version" in this file when you remember to.
 
 Key Rules
@@ -63,21 +96,17 @@ Basic: £9.99/mo | Pro: £24.99/mo | Elite: £49.99/mo
 Annual billing available (~2 months free)
 
 Rate Limits (RATE_LIMITS, bot/index.js ~line 198 — hot-editable from the admin panel)
-/scan: Basic 5/day | Pro 50/day | Elite unlimited
+/scan: Basic unavailable | Pro 50/day | Elite unlimited
 /reply+/lowball+/price: Basic 20/day | Pro 100/day | Elite unlimited
-/research (+/margins /sold /competitor /trends): Basic 3/day | Pro 20/day | Elite unlimited
+/research (+/margins /sold /competitor /trends): Basic unavailable | Pro 20/day | Elite unlimited
 /flip: Elite only 20/day
 everything else: Basic 10/day | Pro 50/day | Elite unlimited
 
-TWO SUBSYSTEMS DISAGREE ABOUT BASIC — unresolved, decide before selling Basic.
-RATE_LIMITS gives Basic 5 scans and 3 research a day, but CMD_TIER_REQUIRED
-(~line 213) gates scan/research/margins/pricedrop/trends/tracker/sold/competitor/
-vinted-alert at 'pro'. The tier check runs BEFORE the rate limiter, so those Basic
-allowances are dead code that has never executed. The pricing page was selling
-Basic as "Limited product research", which matches the RATE_LIMITS intent — so the
-gate is probably the later mistake. Site copy was corrected 2026-09-09 to match the
-code as it actually behaves; the alternative fix is to drop those commands from
-CMD_TIER_REQUIRED and let RATE_LIMITS do the tiering, which is what it was written for.
+BASIC ENTITLEMENTS (aligned 2026-10-16)
+Scan and research remain Pro+, matching CMD_TIER_REQUIRED and the pricing page.
+Basic defaults for those rate groups are now 0 rather than unreachable 5/3 quotas.
+Basic includes AI price/reply/lowball tools; /price shares the 20/day reply group.
+Admin rate-limit overrides do not grant access through a command's tier gate.
 
 /crosslist IS NOT A DISCORD COMMAND. Zero setName('crosslist') in the bot — it is
 dashboard-only (POST /api/crosslist plus a job scheduler). The old rate-limit row
@@ -116,9 +145,12 @@ Open items (not urgent, worth fixing):
 - MEDIUM: encryption fails OPEN. encryptToken ends `catch { return text; }` — on a throw it silently stores
   PLAINTEXT. decryptToken also passes through any dot-containing value as "legacy plaintext", so older Vinted
   JWTs may already sit unencrypted in the DB. Audit + migrate.
-- MEDIUM: no visible rate-limiting on the Express API. Bot commands are rate-limited per Discord ID, but the
-  HTTP routes aren't — a logged-in user could run up the Anthropic/Apify bill or DoS the box via the 25mb
-  image-upload body. Add per-user throttling on the expensive routes before scaling users.
+- UPDATED 2026-10-16: HTTP throttling exists. API_RATE_LIMITS + enforceApiLimit cover
+  search, arbitrage, sync, listing, monitor, offers and AI groups with per-minute and
+  per-day ceilings, including finite Elite limits. The owner bypasses these limits.
+  Counters are process-local and reset on restart; multiple replicas would need shared
+  counters. /api/intelligence has its own public request guard. This is not evidence
+  that every endpoint has been audited or that a live provider call works.
 - LOW: /api/vinted/connect-login (~line 4418) takes the user's real Vinted password for a Playwright login.
   Used transiently, not stored — keep it that way and ensure it never lands in logs.
 - CONTEXT: the backend uses the Supabase SERVICE key, which BYPASSES Row-Level Security. RLS is therefore NOT
@@ -141,7 +173,7 @@ with a placeholder value, so it sent NO secret header and 401'd on every single 
 — that was the recurring "[webhook] Rejected — bad secret" noise in the Railway logs. It had
 never once delivered successfully. Deleted. Expect exactly ONE trigger on profiles.
 
-WHOP INTEGRATION (built 2026-07-21, PROVEN END-TO-END 2026-08-02)
+WHOP INTEGRATION (built 2026-07-21, component checks 2026-08-02)
 Whop is an ALTERNATIVE checkout running ALONGSIDE PayPal, not a replacement.
 Both write the same entitlement fields on profiles (tier + subscription_status); the
 existing Supabase DB webhook -> /webhook then assigns the Discord role and DMs the user.
@@ -208,10 +240,10 @@ LIVE as of 2026-07-22: fully deployed, all 7 env vars set on Railway (WHOP_API_K
 WHOP_PLAN_BASIC/PRO/ELITE, WHOP_WEBHOOK_SECRET, WHOP_OAUTH_CLIENT_ID, WHOP_OAUTH_CLIENT_SECRET),
 webhook created in the Whop dashboard pointing at /whop-webhook. End-to-end tested with a
 signed membership.activated event: signature verified, membership recorded, claim code
-minted, owner DM'd, test row cleaned up. The payment + webhook path is working. Owner has
+minted, owner DM'd, test row cleaned up. The signed synthetic webhook path passed; this does not verify a real checkout payment. Owner has
 configured the Whop-side post-purchase redirect + "User joined" email (see #2).
 
-PROVEN END-TO-END 2026-08-02 — the whole Whop path is now verified, not just deployed:
+HISTORICAL COMPONENT CHECKS 2026-08-02 — OAuth and synthetic events verified; a real purchase journey remains unverified:
   • OAuth account linking works. Owner's Connect click logged
     "[whop-oauth] Token exchange succeeded via client_secret_basic" and
     "[whop-oauth] Linked whop user_cVy6uHkJ1CPZI -> discord 731207920007643167".
@@ -314,7 +346,7 @@ BUYER ONBOARDING — three separate problems, don't conflate them:
 
 AFFILIATE PROGRAM (configured 2026-08-02 — LIVE but NOT yet recruited)
 Whop-native, zero code. Dashboard -> Marketing -> Affiliates.
-  Rate quoted everywhere in code: 30% recurring (AFFILIATE_RATE_PCT, bot/index.js ~195)
+  Rate quoted in code: 30% recurring (AFFILIATE_RATE_PCT, bot/index.js ~195)
   (An earlier note here said 25% global / 35% member. The code says a flat 30 and
    every DM, the #affiliates embed and /postaffiliate all read AFFILIATE_RATE_PCT.
    CONFIRM WHAT WHOP IS ACTUALLY SET TO — quoting a rate Whop does not pay is the
@@ -454,7 +486,7 @@ WHY: it used to read the deal feed's feed_keyword_stats — fee-inclusive, unfil
 (nike tech fleece read £16.45 against a real £40-80 because kids' sizes matched),
 6 keywords, 14 days. HISTORY RESET on this switch: the index restarts from the
 first niche sweep (2026-09-13 evening), so change figures return after 2 and 8 days.
-NOT LINKED from the main site yet — owner's call.
+Link availability must be checked against the current landing page; this note is historical.
 DEAL FEED ON FILTERED PRICES (2026-09-13): feeds.pickUnderpriced compares on the
 ITEM price (mapVintedRawItem.itemPriceNum, excluding the buyer fee; the rare Apify
 fallback has no itemPriceNum and uses priceNum), over the 48 newest listings.
@@ -490,7 +522,7 @@ reset. Old rows (feed_keyword_stats, _v2) left untouched. The niche/Vendex serie
 moved to niche_daily_v2 for the same reason. Also fixed: stats were saved only on
 hourly-sample runs, losing finds counted on the other five runs an hour.
 
-DEAL FEED TRACK RECORD (built 2026-09-13, bot/track-record.js — LIVE from bcef12e / v6.126)
+DEAL FEED TRACK RECORD (built 2026-09-13, bot/track-record.js — historically deployed from bcef12e / v6.126)
 Every find posted to #early-deals is logged (settings key deal_feed_track_log) and
 rechecked at 2h / 24h / 72h. Published as share of finds "gone" by each check:
 GET /api/track-record (public, aggregates only — no titles, links or seller ids),
@@ -515,8 +547,10 @@ listings at or below the median where that offer is a 5-30% ask. Ranked by
 smallest ask. It never sends offers — "Copy offer" puts a message on the clipboard.
 VINTED BUYER FEE, probed live across 40 listings, exact on every one:
   service_fee = £0.70 + 5% of item price; total_item_price = price + service_fee.
-  mapVintedRawItem.priceNum is total_item_price (fee-INCLUSIVE) — so the deal
-  feed and Vendex medians include the fee. offers.js reads raw price.amount.
+  mapVintedRawItem.priceNum is total_item_price (fee-INCLUSIVE). The current deal
+  feed prefers itemPriceNum and Vendex uses fee-exclusive niche samples (see above);
+  neither intentionally uses that fee-inclusive field for its normal median.
+  offers.js reads raw price.amount.
 BROWSER ONLY, no Apify fallback: a 96-item Apify search is ~$0.21. When
 browserSearchInflight is at max it returns 503 "busy" BEFORE the rate limiter, so
 it costs no quota. Rate-limit group `offers` (Pro 3/min, 40/day).
@@ -619,7 +653,7 @@ only checkout affiliate links can attribute, so naming PayPal alone worked again
 the affiliate program.
 
 Reference Files
-- /docs/vendora-product-document.pdf — Full product spec (27 pages)
+- /docs/vendora-product-document.pdf — historical reference; absent from the current repository tree. Do not assume it is available.
 - /index.html — Landing page
 - /vendex.html — Vendex, the public price index
 - /vendora-login.html — Login/auth page
