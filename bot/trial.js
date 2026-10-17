@@ -186,7 +186,7 @@ function buildTrialEndedPayload({ username, siteUrl = 'https://vendora.site' }) 
       `**Profit Tracker** — every sale, every fee, real margin over 30 days instead of per item\n` +
       `**Inventory** — what you hold, what it cost, what is going stale\n` +
       `**Watchlist** — items tracked continuously, with an alert when the price drops\n` +
-      `**Auto-Buy** — a monitor that watches for your criteria while you are not looking\n` +
+      `**Buy Alerts** — a monitor that watches for your criteria while you are not looking\n` +
       `**Listing Optimiser & Photo Enhancer** — rewrite weak titles, clean up photos\n` +
       `**Flip Score, Seller Intel, Price Elasticity, Resell Calendar**\n\n` +
       `**Pro — £24.99/month** is the tier you were just on, plus all of the above.\n` +
