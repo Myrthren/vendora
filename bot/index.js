@@ -250,8 +250,13 @@ const CMD_RATE_GROUP = {
   'vinted-alert': 'default',
   flip: 'flip',
 };
+// scan and research are NOT gated (2026-10-19): RATE_LIMITS gives Basic 5 scans
+// and 3 research a day, and for months this gate ran first and made those
+// allowances dead code. Basic now gets a taste of what Vendora is for; the rest
+// of the research family (margins, sold, trends, competitor) stays Pro+.
+// Non-subscribers are still stopped earlier, by the subscription check.
 const CMD_TIER_REQUIRED = {
-  scan: 'pro', research: 'pro', margins: 'pro',
+  margins: 'pro',
   pricedrop: 'pro', trends: 'pro', tracker: 'pro', sold: 'pro', competitor: 'pro',
   'vinted-alert': 'pro',
   flip: 'elite', analytics: 'elite', earlydeals: 'elite',
@@ -1191,11 +1196,11 @@ const commands = [
     .addSubcommand(s => s.setName('close').setDescription('Close your session channel')),
 
   // ── Pro+ ──
-  new SlashCommandBuilder().setName('scan').setDescription('Scan a platform for underpriced listings [Pro+]')
+  new SlashCommandBuilder().setName('scan').setDescription('Scan a platform for underpriced listings [Basic 5/day, Pro 50/day]')
     .addStringOption(o => o.setName('platform').setDescription('Platform to scan').setRequired(true)
       .addChoices({ name: 'eBay', value: 'ebay' }, { name: 'Depop', value: 'depop' }, { name: 'Vinted', value: 'vinted' }))
     .addStringOption(o => o.setName('item').setDescription('Item to search for').setRequired(true)),
-  new SlashCommandBuilder().setName('research').setDescription('Full research report for an item [Pro+]')
+  new SlashCommandBuilder().setName('research').setDescription('Full research report for an item [Basic 3/day, Pro 20/day]')
     .addStringOption(o => o.setName('item').setDescription('Item to research').setRequired(true)),
   new SlashCommandBuilder().setName('margins').setDescription('Detailed profit margin breakdown [Pro+]')
     .addStringOption(o => o.setName('item').setDescription('Item to analyse').setRequired(true)),
@@ -1713,8 +1718,8 @@ async function executeCommand(interaction, commandName, tier, profile) {
 
   // /help
   if (commandName === 'help') {
-    const allCmds   = '`/reply` `//lowball` `/price` `/session open` `/session close`';
-    const proCmds   = '`/scan` `/research` `/margins` `/pricedrop` `/trends` `/tracker` `/sold` `/competitor`';
+    const allCmds   = '`/reply` `/lowball` `/price` `/scan` `/research` `/session open` `/session close`';
+    const proCmds   = '`/margins` `/pricedrop` `/trends` `/tracker` `/sold` `/competitor` · higher `/scan` and `/research` limits';
     const eliteCmds = '`/flip` `/analytics` `/earlydeals` `/negotiate` `/authenticate` `/grade`';
     const e = baseEmbed(TIER_COLOR[tier] || '#e8217a')
       .setTitle(`Vendora ${TIER_NAMES[tier]} — Available Commands`)
@@ -4072,8 +4077,8 @@ app.post('/webhook', async (req, res) => {
           .setDescription(
             `Your **${TIER_NAMES[tier]}** subscription is active.\n\n` +
             `**What's unlocked:**\n` +
-            (TIER_RANK[tier] >= 1 ? '→ `/reply` `/lowball` `/price` `/help` `/session`\n' : '') +
-            (TIER_RANK[tier] >= 2 ? '→ `/scan` `/research` `/margins` `/pricedrop` `/trends` and more\n' : '') +
+            (TIER_RANK[tier] >= 1 ? '→ `/reply` `/lowball` `/price` `/scan` `/research` `/help` `/session`\n' : '') +
+            (TIER_RANK[tier] >= 2 ? '→ `/margins` `/pricedrop` `/trends` `/sold` and more, with higher limits\n' : '') +
             (TIER_RANK[tier] >= 3 ? '→ All Elite commands including `/flip` `/grade` `/negotiate`\n' : '') +
             `\nManage your account: ${DASHBOARD_URL}`
           )

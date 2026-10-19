@@ -69,15 +69,14 @@ Rate Limits (RATE_LIMITS, bot/index.js ~line 198 — hot-editable from the admin
 /flip: Elite only 20/day
 everything else: Basic 10/day | Pro 50/day | Elite unlimited
 
-TWO SUBSYSTEMS DISAGREE ABOUT BASIC — unresolved, decide before selling Basic.
-RATE_LIMITS gives Basic 5 scans and 3 research a day, but CMD_TIER_REQUIRED
-(~line 213) gates scan/research/margins/pricedrop/trends/tracker/sold/competitor/
-vinted-alert at 'pro'. The tier check runs BEFORE the rate limiter, so those Basic
-allowances are dead code that has never executed. The pricing page was selling
-Basic as "Limited product research", which matches the RATE_LIMITS intent — so the
-gate is probably the later mistake. Site copy was corrected 2026-09-09 to match the
-code as it actually behaves; the alternative fix is to drop those commands from
-CMD_TIER_REQUIRED and let RATE_LIMITS do the tiering, which is what it was written for.
+BASIC SCANS — RESOLVED 2026-10-19 (owner's decision): Basic gets 5 /scan and 3
+/research a day. scan and research were removed from CMD_TIER_REQUIRED, so the
+RATE_LIMITS allowances finally run (the gate used to run first and made them dead
+code). The rest of the research group — margins, sold, trends, competitor — stays
+Pro+, and Basic's 3/day applies to /research alone. Pricing card, dashboard plan
+card, /help, the welcome DM, win-back embed and the Vendora Intelligence prompt all
+say so. The unmerged fix/product-consistency branch went the OTHER way (Basic to
+0) — do not merge its bot/index.js or CLAUDE.md changes over this.
 
 /crosslist IS NOT A DISCORD COMMAND. Zero setName('crosslist') in the bot — it is
 dashboard-only (POST /api/crosslist plus a job scheduler). The old rate-limit row

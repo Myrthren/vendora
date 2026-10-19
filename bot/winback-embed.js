@@ -51,9 +51,9 @@ function buildWinbackPayload({ username } = {}) {
           value: 'Live profit tracking, margin breakdowns, flip scores and price elasticity on everything you touch.',
         },
         { name: '​', value: '**Pick your plan**' },
-        { name: 'Basic — £9.99/mo',  value: 'AI replies, lowball handling,\nprice checks & private sessions', inline: true },
-        { name: 'Pro — £24.99/mo',   value: 'Everything in Basic, plus scans,\nresearch, margins & cross-listing', inline: true },
-        { name: 'Elite — £49.99/mo', value: 'Everything in Pro, plus auto-flips,\nlive analytics & unlimited usage',  inline: true },
+        { name: 'Basic — £9.99/mo',  value: 'AI replies, lowball handling,\nprice checks & 5 scans a day', inline: true },
+        { name: 'Pro — £24.99/mo',   value: 'Everything in Basic, plus more scans,\nresearch tools, alerts & deal channels', inline: true },
+        { name: 'Elite — £49.99/mo', value: 'Everything in Pro, plus instant deals,\nflip analysis & unlimited commands',  inline: true },
         {
           name: '​',
           value: 'Annual billing is available too — roughly **two months free**.\nCancel any time; your role is removed automatically, no emails to chase.',
