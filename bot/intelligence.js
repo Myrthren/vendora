@@ -156,7 +156,24 @@ RULES:
 - Reply in plain English, under 150 words. Plain text only: no markdown, no asterisks, no headings, no tables. Short hyphen lists are fine.`;
 }
 
+// The widget renders replies as plain text (textContent), and gpt-oss writes
+// **bold** and headings even when told not to, so visitors saw raw asterisks.
+// Strip the markdown the model actually emits; leave ordinary punctuation alone.
+function toPlainText(text) {
+  return String(text || '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/(^|[\s(])\*(?!\s)([^*\n]+?)\*(?=[\s).,!?:;]|$)/g, '$1$2')
+    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^\s*[*•]\s+/gm, '- ')
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '$1 ($2)')
+    .replace(/[ \t]+$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 module.exports = {
   LIMITS, WINDOW_MS, MAX_TURNS,
-  isInternalAddress, clientKey, createLimiter, sanitizeMessages, buildSystemPrompt,
+  isInternalAddress, clientKey, createLimiter, sanitizeMessages, buildSystemPrompt, toPlainText,
 };

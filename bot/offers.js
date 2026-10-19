@@ -253,9 +253,25 @@ function findOffers(rawItems, opts = {}, now = Date.now()) {
   };
 }
 
+// What one listing is worth to a reseller, from the same maths as the offers:
+// cost to buy it at its list price (fee + postage included), margin if it then
+// sells at `resale`, and the most to offer for the target margin. Used by the
+// deal feed so a find says whether it pays, not only how far under median it is.
+// `resale` is a median ASKING price — callers must say so wherever it is shown.
+function dealEconomics(itemPrice, resale, { targetMarginPct = DEFAULTS.targetMarginPct, postage = DEFAULTS.postage, sellerFeePct = DEFAULTS.sellerFeePct } = {}) {
+  if (!(itemPrice > 0) || !(resale > 0)) return null;
+  const cost      = round2(itemPrice + buyerFee(itemPrice) + postage);
+  const net       = round2(resale * (1 - sellerFeePct / 100));
+  const margin    = round2(net - cost);
+  const marginPct = Math.round((margin / cost) * 100);
+  const maxOffer  = maxOfferFor(net, { targetMarginPct, postage });
+  return { cost, net, margin, marginPct, maxOffer, targetMarginPct, postage };
+}
+
 module.exports = {
   DEFAULTS,
   buyerFee,
+  dealEconomics,
   isJunk,
   isKidSize,
   brandMismatch,

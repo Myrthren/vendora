@@ -281,7 +281,18 @@ function seedStatsFromLegacy(legacy) {
 // `tier` is 'elite' or 'pro' and changes only the framing. The Pro footer names
 // the delay explicitly: it is the most honest upgrade prompt available, because
 // the member can see for themselves that the find is still live.
-function buildDealPayload({ keyword, picks, median: med, tier = 'elite' }) {
+// The money line under each find. "% under median" alone said nothing about
+// whether a find pays: a £9 jogger 55% under a £20 median costs about £13 once
+// the buyer fee and postage are in, so it clears ~£7, not £11. The deal says so.
+function economicsLine(e) {
+  if (!e) return '';
+  const gbp = n => `£${n.toFixed(2)}`;
+  if (e.margin <= 0) return `\nCosts you ${gbp(e.cost)} with fees + postage · no margin at the going rate`;
+  const offer = e.maxOffer > 0 ? ` · offer up to £${e.maxOffer.toFixed(e.maxOffer % 1 ? 2 : 0)} for ${e.targetMarginPct}%` : '';
+  return `\nCosts you ${gbp(e.cost)} with fees + postage · ~${gbp(e.margin)} margin (${e.marginPct}%) at the going rate${e.marginPct < e.targetMarginPct ? offer : ''}`;
+}
+
+function buildDealPayload({ keyword, picks, median: med, tier = 'elite', economics = {} }) {
   const isElite = tier === 'elite';
   const isHourly = tier === 'hourly';
 
@@ -291,8 +302,11 @@ function buildDealPayload({ keyword, picks, median: med, tier = 'elite' }) {
     // Each pick is measured against its own garment group, so say which median.
     const ref = i.groupMedian || med;
     const label = i.group === 'bottoms' ? 'median for bottoms' : 'median';
-    return `**[${title}](${i.url})**\n${i.price} — **${i.discountPct}% under** the £${ref.toFixed(0)} ${label}${brand}`;
+    const money = economicsLine(offers.dealEconomics(i.priceNum, ref, economics));
+    return `**[${title}](${i.url})**\n${i.price} — **${i.discountPct}% under** the £${ref.toFixed(0)} ${label}${brand}${money}`;
   });
+  const postage = economics.postage ?? offers.DEFAULTS.postage;
+  const basis = ` · Margins assume £${postage.toFixed(2)} postage and resale at the median asking price, not a sold price.`;
 
   const embed = new EmbedBuilder()
     .setColor(isElite ? GOLD : PINK)
@@ -303,11 +317,11 @@ function buildDealPayload({ keyword, picks, median: med, tier = 'elite' }) {
       { name: 'Found',               value: `${picks.length} listing${picks.length === 1 ? '' : 's'}`, inline: true },
     )
     .setFooter({
-      text: isElite
+      text: (isElite
         ? 'Elite — you are seeing this first. Pro members get it in 10 minutes.'
         : isHourly
           ? 'One find an hour, posted at least 30 minutes after it was spotted — it may already be gone. Pro and Elite get every find as it happens in the Monitors channels.'
-          : 'Elite members saw this 10 minutes ago. Upgrade for first look.',
+          : 'Elite members saw this 10 minutes ago. Upgrade for first look.') + basis,
     })
     .setTimestamp();
 

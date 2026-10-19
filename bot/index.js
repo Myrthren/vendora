@@ -3791,7 +3791,7 @@ app.post('/api/intelligence', async (req, res) => {
       system: INTELLIGENCE_SYSTEM,
       messages,
     });
-    const text = answer.content?.[0]?.text?.trim();
+    const text = intelligence.toPlainText(answer.content?.[0]?.text);
     if (!text) throw new Error('empty response');
     res.set('X-RateLimit-Remaining', String(limit.remaining));
     return res.json({ ok: true, response: text });
@@ -3849,6 +3849,10 @@ app.get('/api/track-record', async (_req, res) => {
     if (trackRecordCache.body && Date.now() - trackRecordCache.at < VENDEX_TTL_MS) {
       res.setHeader('X-Cache', 'HIT');
       return res.json(trackRecordCache.body);
+    }
+    // Paused: vendex.html keeps the block hidden whenever enoughData is false.
+    if (!TRACK_RECORD_PUBLIC) {
+      return res.json({ name: 'Vendora deal feed track record', paused: true, enoughData: false });
     }
     const log = (await getSetting(TRACK_LOG_KEY)) || [];
     const s = trackRecord.summarise(log, { days: 30 });
@@ -10442,6 +10446,14 @@ const FEED_SEEN_KEY  = 'deal_feed_seen_ids';
 const FEED_STATS_KEY        = 'feed_keyword_stats_v3';
 const LEGACY_FEED_STATS_KEY = 'feed_keyword_stats_v2';
 const TRACK_LOG_KEY  = 'deal_feed_track_log';
+// Whether the track record is shown to anyone: the vendex.html block (via
+// /api/track-record), the monthly #whats-selling post, and the deal-speed
+// evidence the niche report hands its notes. OFF since 2026-10-19: the live
+// record read 0% gone within 2h and 1% within 24h against 62% by 72h, across
+// 3,000 finds. That jump suggests rechecks running late rather than finds that
+// never sell, but until the timing is verified it is a public claim that the
+// feed does not work. Logging and rechecks carry on, so nothing is lost.
+const TRACK_RECORD_PUBLIC = false;
 const HOURLY_POOL_KEY = 'deal_feed_hourly_pool';
 
 // Browser only — deliberately NO Apify fallback. A 48-item Apify search is
@@ -10904,6 +10916,10 @@ async function runTrackRecordChecks() {
 // Numbers only, no listing links: those are what Pro and Elite pay for.
 async function runTrackRecordPost() {
   if (!SUPABASE_KEY) return;
+  if (!TRACK_RECORD_PUBLIC) {
+    console.log('[feed:track-record] Monthly post skipped — TRACK_RECORD_PUBLIC is off.');
+    return;
+  }
   try {
     const log = (await getSetting(TRACK_LOG_KEY)) || [];
     const summary = trackRecord.summarise(log, { days: 30 });
@@ -11003,7 +11019,9 @@ async function nicheNotesFromClaude(report) {
 async function generateNicheReport() {
   const daily = (await getSetting(NICHE_DAILY_KEY)) || {};
   const trackLog = (await getSetting(TRACK_LOG_KEY)) || [];
-  const feedKeywords = trackRecord.summarise(trackLog, { days: 30 }).keywords;
+  // With the record paused the report gets no deal-speed evidence, so its
+  // notes cannot lean on figures that are not being shown anywhere else.
+  const feedKeywords = TRACK_RECORD_PUBLIC ? trackRecord.summarise(trackLog, { days: 30 }).keywords : [];
 
   let report = niche.buildReport(daily, feedKeywords);
   if (!report.enoughData) return { report, status: niche.dataStatus(daily) };

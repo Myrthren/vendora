@@ -982,8 +982,8 @@
         <div class="nav-item" id="autobuy-nav-item" onclick="showSection('autobuy', this)">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           <div class="nav-item-text">
-            <div class="nav-item-name">Auto-Buy</div>
-            <div class="nav-item-desc">Keyword alerts the moment items list</div>
+            <div class="nav-item-name">Buy Alerts</div>
+            <div class="nav-item-desc">Scheduled Vinted keyword alerts</div>
           </div>
         </div>
         <div class="nav-item" id="flip-score-nav-item" onclick="showSection('flip-score', this)">
@@ -1460,7 +1460,7 @@
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--pink);margin-bottom:6px;">Pro</div>
             <div style="font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;color:var(--text);" id="plan-price-pro">£24.99<span id="plan-period-pro" style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
             <div id="plan-saving-pro" style="font-size:11px;color:var(--green);margin-top:2px;display:none;">Save £49.89/yr</div>
-            <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5;">Everything in Basic · <span style="color:var(--gold);font-weight:600;">500 credits/mo</span> · Inventory · Auto-Buy · Flip Score · Price Elasticity</div>
+            <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5;">Everything in Basic · <span style="color:var(--gold);font-weight:600;">500 credits/mo</span> · Inventory · Buy Alerts · Flip Score · Price Elasticity</div>
             <button class="btn btn-pink btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('pro')">Get Pro</button>
           </div>
           <div class="upgrade-card" data-tier="elite" style="flex:1;padding:20px;background:rgba(232,161,33,0.04);border:1px solid rgba(232,161,33,0.18);border-radius:4px;position:relative;">
@@ -1468,7 +1468,7 @@
             <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--gold);margin-bottom:6px;">Elite</div>
             <div style="font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;color:var(--text);" id="plan-price-elite">£49.99<span id="plan-period-elite" style="font-size:12px;font-weight:400;color:var(--muted);">/mo</span></div>
             <div id="plan-saving-elite" style="font-size:11px;color:var(--green);margin-top:2px;display:none;">Save £99.89/yr</div>
-            <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5;">Everything in Pro · <span style="color:var(--gold);font-weight:600;">1,500 credits/mo</span> · 5-min Auto-Buy + 30 alerts · Hourly sync · Bulk AI analysis · Stale-listing alerts · Sales analytics · Unlimited commands · Priority support</div>
+            <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5;">Everything in Pro · <span style="color:var(--gold);font-weight:600;">1,500 credits/mo</span> · 5-min Buy Alerts + 30 alerts · Hourly sync · Bulk AI analysis · Stale-listing alerts · Sales analytics · Unlimited commands · Priority support</div>
             <button class="btn btn-gold btn-sm upgrade-btn" style="margin-top:14px;width:100%;justify-content:center;" onclick="selectPlan('elite')">Get Elite</button>
           </div>
         </div>
@@ -1541,14 +1541,14 @@
             </div>
             <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-price-drop" checked><span class="toggle-track"></span></label></div>
           </div>
-          <div class="toggle-row">
+          <div class="toggle-row" style="display:none;">
             <div class="toggle-info">
               <div class="toggle-label">Item Selling Fast</div>
               <div class="toggle-sub">When a watchlisted item starts moving quickly</div>
             </div>
             <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="notif-selling-fast" checked><span class="toggle-track"></span></label></div>
           </div>
-          <div class="toggle-row">
+          <div class="toggle-row" style="display:none;">
             <div class="toggle-info">
               <div class="toggle-label">Competitor New Listings</div>
               <div class="toggle-sub">When a tracked seller lists new stock</div>
@@ -1640,7 +1640,7 @@
         <!-- Token connection — the only way to connect Vinted -->
         <div id="plat-form-vinted">
           <div style="font-size:12px;color:var(--muted2);line-height:1.6;margin-bottom:12px;">
-            Connect by pasting your Vinted <code style="background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px;font-size:11px;">access_token_web</code> cookie. This powers <strong style="color:var(--text);">Inventory sync, Profit tracking, Auto-Buy and listing</strong>.<br>
+            Connect by pasting your Vinted <code style="background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px;font-size:11px;">access_token_web</code> cookie. This powers <strong style="color:var(--text);">Inventory sync and Profit tracking</strong>.<br>
             <strong style="color:var(--text);">How to get it:</strong> log in to Vinted in your browser → press <strong>F12</strong> → <strong>Application → Cookies → www.vinted.co.uk</strong> → copy the <code style="background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px;font-size:11px;">access_token_web</code> value. Tokens are short-lived — if a sync says "expired", just paste a fresh one.
           </div>
           <div id="vinted-token-status" style="font-size:13px;color:var(--muted);margin-bottom:10px;">○ Not connected</div>
@@ -2487,7 +2487,7 @@
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
         <div class="page-title">Price Elasticity <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(232,33,122,0.14);color:var(--pink);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Pro+</span></div>
-        <div class="page-sub">Enter an item name and get an AI-modelled price curve — showing you the tradeoff between listing price and estimated days-to-sell, so you can choose your own speed vs margin.</div>
+        <div class="page-sub">Explore AI-modelled price scenarios. Prices, days-to-sell, profit and ROI are estimates based on web context and assumed costs, not verified completed sales or measured demand.</div>
       </div>
       <div id="pelast-gate" style="display:none;"><div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px;text-align:center;"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">Pro Required</div><div style="font-size:13px;color:var(--muted2);max-width:300px;">Price Elasticity is available on Vendora Pro and Elite.</div><button class="btn btn-primary btn-sm" onclick="showSection('subscription',document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Pro</button></div></div>
       <div id="pelast-tool">
@@ -2571,8 +2571,8 @@
     <div class="section" id="section-autobuy">
       <div class="page-header">
         <div class="page-eyebrow">Tools</div>
-        <div class="page-title">Auto-Buy <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(232,33,122,0.14);color:var(--pink);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Pro+</span></div>
-        <div class="page-sub">Set keyword rules and a max price — Vendora monitors Vinted and DMs you on Discord the instant a matching listing appears. <strong style="color:var(--gold);">Elite: checked every 5 min + up to 30 alerts</strong> · Pro: every 30 min, up to 5 alerts.</div>
+        <div class="page-title">Buy Alerts <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(232,33,122,0.14);color:var(--pink);vertical-align:middle;margin-left:6px;font-family:'DM Sans',sans-serif;font-weight:500;">Pro+</span></div>
+        <div class="page-sub">Set keyword rules and a max price — Vendora checks Vinted and DMs you when a scheduled check finds a new match. You complete the purchase on Vinted. <strong style="color:var(--gold);">Elite: checked every 5 min + up to 30 alerts</strong> · Pro: every 30 min, up to 5 alerts.</div>
       </div>
 
       <div id="autobuy-gate" style="display:none;"></div>
@@ -2581,7 +2581,7 @@
         <div class="card" style="margin-bottom:20px;">
           <div class="card-title">Add Buy Alert</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:16px;font-weight:300;line-height:1.6;">
-            Vendora checks Vinted every 30 minutes. When a new listing matches your keyword and is under your price ceiling, you'll get a Discord DM with a direct link to buy.
+            Checks run every 30 minutes for Pro and every 5 minutes for Elite. When a new match is under your price ceiling, you get a Discord DM with a link to buy on Vinted. These alerts do not complete purchases.
           </div>
           <div style="display:grid;grid-template-columns:1fr 140px auto;gap:12px;align-items:end;">
             <div>
@@ -2618,19 +2618,19 @@
 
         <!-- How it works -->
         <div class="card" style="margin-top:16px;background:rgba(232,33,122,0.04);border-color:rgba(232,33,122,0.12);">
-          <div class="card-title" style="color:var(--pink);">How Auto-Buy Works</div>
+          <div class="card-title" style="color:var(--pink);">How Buy Alerts Works</div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:4px;">
             <div style="font-size:12px;color:var(--muted2);line-height:1.6;">
               <div style="font-weight:600;color:var(--text);margin-bottom:4px;">1. Set your rule</div>
               Enter a keyword and max price. Vendora catalogues all existing matching Vinted listings so you only get alerted about genuinely new ones.
             </div>
             <div style="font-size:12px;color:var(--muted2);line-height:1.6;">
-              <div style="font-weight:600;color:var(--text);margin-bottom:4px;">2. Apify monitors Vinted</div>
-              Every 30 minutes, our Apify scraper checks Vinted using residential proxies — bypassing bot protection to see listings the same moment they go live.
+              <div style="font-weight:600;color:var(--text);margin-bottom:4px;">2. Vendora checks for matches</div>
+              Vendora checks on your plan’s schedule: every 30 minutes for Pro, every 5 minutes for Elite. Marketplace availability can affect checks.
             </div>
             <div style="font-size:12px;color:var(--muted2);line-height:1.6;">
               <div style="font-weight:600;color:var(--text);margin-bottom:4px;">3. You get a Discord DM</div>
-              The moment a new listing matches, you're DM'd on Discord with the title, price, and a direct Vinted link — so you can buy before anyone else.
+              When a scheduled check finds a match, you receive its title, price and Vinted link. Check availability and complete any purchase yourself.
             </div>
           </div>
         </div>
@@ -4207,7 +4207,7 @@
   // Tier ranking table. MUST stay above the init() call below: init() -> the
   // section loaders and initAutobuyAccess() read it, and a `const` is in the
   // temporal dead zone until its declaration runs. It previously sat ~4000 lines
-  // further down, so every dashboard load threw and Auto-Buy gating never ran.
+  // further down, so every dashboard load threw and Buy Alerts gating never ran.
   const TIER_RANK_CLIENT = { none:0, basic:1, pro:2, elite:3 };
 
   init();
@@ -4219,7 +4219,7 @@
     }
   });
 
-  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', inventory:'Inventory', watchlist:'Watchlist', profit:'Profit Tracker', crosslist:'Listings', listings:'Auto-List', enhancer:'Photo Enhancer', support:'Support', admin:'Admin Panel', 'listing-optimiser':'Listing Optimiser', 'flip-score':'Flip Score', 'price-elasticity':'Price Elasticity', 'auto-draft':'Auto-Draft', 'seller-intelligence':'Seller Intelligence', 'resell-calendar':'Resell Calendar', autobuy:'Auto-Buy' };
+  const sectionTitles = { account:'Account', subscription:'Subscription', notifications:'Notifications', platforms:'Platforms', inventory:'Inventory', watchlist:'Watchlist', profit:'Profit Tracker', crosslist:'Listings', listings:'Auto-List', enhancer:'Photo Enhancer', support:'Support', admin:'Admin Panel', 'listing-optimiser':'Listing Optimiser', 'flip-score':'Flip Score', 'price-elasticity':'Price Elasticity', 'auto-draft':'Auto-Draft', 'seller-intelligence':'Seller Intelligence', 'resell-calendar':'Resell Calendar', autobuy:'Buy Alerts' };
 
   // ── Cross-list tool ──────────────────────────────────────────────────────────
   const BOT_API = 'https://vendora-production-8a47.up.railway.app';
@@ -6266,7 +6266,7 @@
     const ok   = (TIER_RANK_CLIENT[tier] || 0) >= TIER_RANK_CLIENT.pro;
     if (gate) {
       gate.style.display = ok ? 'none' : '';
-      if (!ok) gate.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px;text-align:center;"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">Pro Feature</div><div style="font-size:13px;color:var(--muted2);max-width:320px;">Auto-Buy keyword alerts are available on the Pro and Elite plans.</div><button class="btn btn-primary btn-sm" onclick="showSection('subscription',document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Pro</button></div>`;
+      if (!ok) gate.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 20px;text-align:center;"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">Pro Feature</div><div style="font-size:13px;color:var(--muted2);max-width:320px;">Buy Alerts are available on the Pro and Elite plans.</div><button class="btn btn-primary btn-sm" onclick="showSection('subscription',document.querySelector('.nav-item[onclick*=subscription]'))">Upgrade to Pro</button></div>`;
     }
     if (tool) tool.style.display = ok ? '' : 'none';
     if (nav)  { nav.style.opacity = ok ? '' : '0.5'; }
