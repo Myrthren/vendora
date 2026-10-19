@@ -242,6 +242,8 @@ const RATE_LIMITS = {
   flip:      { basic: 0,  pro: 0,   elite: 20       },
   default:   { basic: 10, pro: 50,  elite: Infinity },
 };
+// /scan platforms listed but not live (value -> label). See the gate below.
+const COMING_SOON_PLATFORMS = { ebay: 'eBay', depop: 'Depop' };
 const CMD_RATE_GROUP = {
   scan: 'scan', research: 'research', margins: 'research',
   sold: 'research', competitor: 'research', trends: 'research',
@@ -1198,7 +1200,7 @@ const commands = [
   // ── Pro+ ──
   new SlashCommandBuilder().setName('scan').setDescription('Scan a platform for underpriced listings [Basic 5/day, Pro 50/day]')
     .addStringOption(o => o.setName('platform').setDescription('Platform to scan').setRequired(true)
-      .addChoices({ name: 'eBay', value: 'ebay' }, { name: 'Depop', value: 'depop' }, { name: 'Vinted', value: 'vinted' }))
+      .addChoices({ name: 'Vinted', value: 'vinted' }, { name: 'eBay (coming soon)', value: 'ebay' }, { name: 'Depop (coming soon)', value: 'depop' }))
     .addStringOption(o => o.setName('item').setDescription('Item to search for').setRequired(true)),
   new SlashCommandBuilder().setName('research').setDescription('Full research report for an item [Basic 3/day, Pro 20/day]')
     .addStringOption(o => o.setName('item').setDescription('Item to research').setRequired(true)),
@@ -3677,6 +3679,17 @@ client.on('interactionCreate', async (interaction) => {
   const requiredTier = CMD_TIER_REQUIRED[commandName];
   if (requiredTier && TIER_RANK[tier] < TIER_RANK[requiredTier]) {
     return interaction.editReply({ embeds: [tierGateEmbed(commandName, requiredTier)] });
+  }
+
+  // eBay's Finding API is retired and Depop blocks us, so a scan there finds
+  // nothing and used to fall through to an AI guess. Answer before the rate
+  // limiter, so picking a coming-soon platform never costs a scan.
+  const scanPlatform = commandName === 'scan' ? interaction.options.getString('platform') : null;
+  if (COMING_SOON_PLATFORMS[scanPlatform]) {
+    return interaction.editReply({ embeds: [
+      baseEmbed('#60a5fa').setTitle(`${COMING_SOON_PLATFORMS[scanPlatform]} — coming soon`)
+        .setDescription(`${COMING_SOON_PLATFORMS[scanPlatform]} scanning is not live yet, so this did not use one of your scans.\n\nRun \`/scan\` with **Vinted** to search live listings now.`)
+    ]});
   }
 
   // Rate limit check (owner bypasses)
