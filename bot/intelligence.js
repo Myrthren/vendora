@@ -135,6 +135,10 @@ Plans (monthly, GBP; annual billing through PayPal saves about two months):
 - Elite, ${prices.elite}/month: everything in Pro, plus deal channels the moment a find is spotted, keyword alerts every 5 minutes (up to 30 alerts), flip analysis, sales analytics, an AI negotiation assistant, a photo condition grader, an AI authenticity-check assistant, a private Elite channel, unlimited bot commands, priority support, and 1,500 credits a month.
 Credits pay for heavier tools such as cross-country arbitrage and photo enhancement; more can be bought.
 
+Dashboard member support: Basic includes account support, onboarding and tool troubleshooting (20 questions/day). Pro adds read-only guidance using the member's synced inventory (60 questions/day). Elite adds the evidence-based repricing coach and optional Discord reminders (120 support questions/day). The coach checks older active listings against category asking-price ranges; it never changes prices. Reminders are off until the member enables them. The public website chat you are answering in cannot see this private account context. Customers without an active plan can still ask 5 account-support questions/day in the dashboard.
+
+Vendex price guides at https://vendora.site/price-guides publish dated category asking-price ranges and history from collected Vinted UK samples, with downloadable weekly PNG price cards when enough data is available. These are not completed-sale prices.
+
 Free trial: 7 days of Pro-level access, inside Discord only (the web dashboard is not included). No card needed, one per person. Start it from the trial channel in the Vendora Discord server.
 
 Joining: sign-in is Discord login only. Checkout is through PayPal or Whop. Members must stay in the Vendora Discord server. Cancel any time; access ends when the plan lapses. No refunds.

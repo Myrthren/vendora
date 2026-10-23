@@ -1010,6 +1010,7 @@
   .vi-send:disabled, .vi-input:disabled { opacity:.52; cursor:not-allowed; }
   @media (max-width:520px) { .vi-launcher { right:16px; bottom:16px; padding:11px 14px; } .vi-panel { right:16px; bottom:76px; } .vi-messages { height:min(310px,47vh); } }
 </style>
+<link rel="stylesheet" href="/assets/intelligence.css">
 </head>
 <body>
 
@@ -1502,6 +1503,7 @@
           <li><span class="p-check">✦</span>20 AI replies a day</li>
           <li><span class="p-check">✦</span>5 Vinted scans + 3 research reports a day</li>
           <li><span class="p-check">✦</span>Private 1-to-1 sessions</li>
+          <li><span class="p-check">✦</span>Intel account + tool support · 20 questions/day</li>
         </ul>
         <a href="vendora-login.html?plan=basic" class="p-btn p-btn-ghost">Get Starter</a>
       </div>
@@ -1526,6 +1528,7 @@
           <li><span class="p-check">✦</span>Rival seller breakdowns</li>
           <li><span class="p-check">✦</span>Inventory manager</li>
           <li><span class="p-check">✦</span>Weekly trend reports</li>
+          <li><span class="p-check">✦</span>Intel inventory guidance · 60 questions/day</li>
         </ul>
         <a href="vendora-login.html?plan=pro" class="p-btn p-btn-primary">Get Pro</a>
       </div>
@@ -1550,6 +1553,8 @@
           <li><span class="p-check gold">✦</span>AI negotiation assistant</li>
           <li><span class="p-check gold">✦</span>Photo condition grader</li>
           <li><span class="p-check gold">✦</span>AI authenticity hints</li>
+          <li><span class="p-check gold">✦</span>Intel support · 120 questions/day</li>
+          <li><span class="p-check gold">✦</span>Reprice coach + optional Discord reminders</li>
         </ul>
         <a href="vendora-login.html?plan=elite" class="p-btn p-btn-ghost" style="border-color:rgba(232,161,33,0.2);color:var(--gold);">Get Elite</a>
       </div>
@@ -1637,6 +1642,8 @@
   </div>
   <div class="footer-copy">© 2026 Vendora <span id="app-version-tag" style="margin-left:10px;color:rgba(255,255,255,0.18);font-variant-numeric:tabular-nums;"></span></div>
   <div class="footer-links">
+    <a href="/price-guides">Price guides</a>
+    <a href="/vendex">Vendex</a>
     <a href="vendora-tos.html">Terms</a>
     <a href="vendora-privacy.html">Privacy</a>
     <a href="https://discord.gg/ZVrDuxjQFM" target="_blank">Discord</a>
@@ -1644,8 +1651,8 @@
 </footer>
 
 <!-- VENDORA INTELLIGENCE -->
-<button class="vi-launcher" id="vi-toggle" type="button" aria-expanded="false" aria-controls="vi-panel">
-  <span class="vi-launcher-mark">✦</span> Vendora Intelligence
+<button class="intel-launcher" id="vi-toggle" type="button" aria-expanded="false" aria-controls="vi-panel">
+  <span aria-hidden="true">✦</span> Vendora Intel
 </button>
 <aside class="vi-panel" id="vi-panel" aria-label="Vendora Intelligence assistant" aria-hidden="true">
   <div class="vi-head">
@@ -1700,6 +1707,7 @@ fetch('/version.json?t=' + Date.now(), { cache: 'no-store' })
     viPanel.setAttribute('aria-hidden', String(!open));
     viToggle.setAttribute('aria-expanded', String(open));
     if (open) viInput.focus();
+    else viToggle.focus();
   }
 
   async function viAsk(question) {

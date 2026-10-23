@@ -935,6 +935,7 @@
   }
   .access-denied-sub { font-size: 13px; color: var(--muted); font-weight: 300; max-width: 320px; line-height: 1.6; }
 </style>
+<link rel="stylesheet" href="/assets/intelligence.css">
 </head>
 <body>
 
@@ -2676,6 +2677,11 @@
         <div class="page-eyebrow">Help</div>
         <div class="page-title">Support</div>
         <div class="page-sub">Get help with your subscription, access, or anything else.</div>
+      </div>
+
+      <div class="card mi-support-entry" style="margin-bottom:16px;">
+        <div><div class="card-title">Your member support assistant</div><p>Get a practical next step from Vendora Intel, with help tailored to your plan.</p></div>
+        <button type="button" class="intel-launcher mi-inline-open" data-open-intelligence><span aria-hidden="true">✦</span> Ask Vendora Intel</button>
       </div>
 
       <div class="card" style="margin-bottom:16px;">
@@ -8828,5 +8834,30 @@
 })();
 </script>
 
+<button id="mi-toggle" class="intel-launcher" type="button" aria-expanded="false" aria-controls="mi-panel"><span aria-hidden="true">✦</span> Vendora Intel</button>
+<aside id="mi-panel" class="mi-panel" role="dialog" aria-labelledby="mi-title" hidden>
+  <header class="mi-header"><div class="mi-heading"><span class="mi-mark" aria-hidden="true">✦</span><div><strong id="mi-title">Vendora Intelligence</strong><div class="mi-subtitle">Here for your next step.</div></div></div><button id="mi-close" class="mi-close" type="button" aria-label="Close member support">×</button></header>
+  <div class="mi-tabs" role="tablist" aria-label="Member support tools">
+    <button id="mi-chat-tab" class="mi-tab" type="button" role="tab" data-mi-tab="chat" aria-selected="true" aria-controls="mi-chat">Member support</button>
+    <button id="mi-coach-tab" class="mi-tab" type="button" role="tab" data-mi-tab="coach" aria-selected="false" aria-controls="mi-coach" tabindex="-1">Reprice coach <span aria-hidden="true">↗</span></button>
+  </div>
+  <div class="mi-content">
+    <div id="mi-chat" role="tabpanel" aria-labelledby="mi-chat-tab">
+      <div class="mi-plan"><b id="mi-plan">Checking your plan…</b><div id="mi-scope">Help tailored to your membership.</div></div>
+      <div id="mi-messages" class="mi-messages" role="log" aria-live="polite" aria-label="Member support conversation"></div>
+      <div id="mi-chips" class="mi-chips" aria-label="Suggested questions"></div>
+      <form id="mi-form" class="mi-form"><input id="mi-input" class="mi-input" maxlength="1000" autocomplete="off" placeholder="What can we help you with?" aria-label="Your support question" required><button id="mi-send" class="mi-send" type="submit">Ask</button></form>
+    </div>
+    <div id="mi-coach" class="mi-coach" role="tabpanel" aria-labelledby="mi-coach-tab" hidden>
+      <div id="mi-coach-locked"><h3>Give older stock a fresh look.</h3><p>The Elite repricing coach compares your own synced listings with Vendex category asking-price ranges and suggests prices to review.</p><p class="mi-note">Basic includes account and tool support. Pro adds guidance using synced inventory. Elite adds this coach and optional Discord reminders.</p><button id="mi-view-plans" class="mi-link" type="button">View your plan options ↗</button></div>
+      <div id="mi-coach-tools" hidden><h3>Your listings, with a second opinion.</h3><p class="mi-note">We review active listings observed for 14+ days. References are category asking prices, not completed sales. Check the exact model, size, condition and your costs. You make every price change.</p>
+        <label class="mi-option"><input id="mi-reminders" type="checkbox" disabled><span>Send useful repricing suggestions to my Discord DMs.<br><span class="mi-note">At most once per listing each week. Off by default.</span></span></label>
+        <p id="mi-reminder-status" role="status" class="mi-note"></p><button id="mi-coach-refresh" class="mi-link" type="button">Review my synced listings ↻</button><p id="mi-coach-state" class="mi-state" role="status"></p><div id="mi-coach-results"></div>
+      </div>
+    </div>
+  </div>
+  <div class="mi-footer"><small>AI can make mistakes. Keep passwords and tokens out of chat.</small><button id="mi-contact" class="mi-link" type="button">Contact support</button></div>
+</aside>
+<script src="/assets/member-intelligence.js" defer></script>
 </body>
 </html>

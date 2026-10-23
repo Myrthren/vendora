@@ -1,0 +1,39 @@
+Vendora — Intel support, repricing coach and public price guides
+20 October 2026
+
+Changes
+- Landing-page Intel launcher: charcoal pill, silver rim and soft white hover/focus glow. Keyboard focus and reduced-motion support.
+- Dashboard Intel: account and tool support on Basic (20 questions/day), read-only synced inventory guidance on Pro (60/day), repricing context and coach on Elite (120/day). Inactive accounts retain account/billing support (5/day).
+- Server derives identity and active plan from verified Supabase authentication. Basic never loads inventory; Pro cannot access repricing. Banned accounts are blocked. No private data is added to public guides.
+- Contact support opens the existing support form with a reviewable conversation excerpt. It does not automatically send a ticket.
+- Elite repricing coach uses deterministic category asking-price evidence and active own-inventory listings observed for 14+ days. Old/failed inventory snapshots, stale/weak/mixed market data and unsuitable listings are skipped. No automatic price changes. Review model, condition, size and costs before changing a price.
+- Optional Elite Discord reminders are off by default. Daily 12:10 Europe/London sweep; at most three suggestions per member per run, with a persisted seven-day per-listing cooldown and access/consent rechecks.
+- /price-guides and /price-guides/<category> are server-rendered on the bot backend and proxied under vendora.site through Netlify. The hub lists categories with 7+ sampled days in the recent month, fresh data and a reasonably consistent price range. Thin/stale/widely mixed guides have noindex.
+- Public guides include dated medians, middle ranges, daily history, sampling limits, related links, Dataset/BreadcrumbList metadata and a Discord trial CTA. Sitemap index combines existing pages with the dynamic guide sitemap.
+- Previous complete week's price card is persisted in vendex_weekly_cards (four sampled days required). Guides export 1080x1350 PNGs for X/TikTok photo posts. Monday 09:15 Europe/London refresh plus first-request fallback.
+
+Storage (existing settings table; no schema migration)
+- reprice_preferences_<verified user UUID>: opt-in and change date
+- reprice_sent_<verified user UUID>: last reminder timestamp by listing
+- vendex_weekly_cards: public-only fixed weekly card values
+- Uses existing niche_daily_v2 and vinted_inventory_<verified user UUID>
+
+Deployment
+- Frontend and Netlify redirects deploy from the existing main branch flow.
+- Bot/backend must deploy the same change for new authenticated endpoints and server-rendered guides.
+- No new runtime dependencies, environment variables or paid services.
+- A category without sufficient real data will remain absent from the indexed library. No demo data is used in production.
+- Existing niche observations do not identify exact sold comparables; guide and coach copy explicitly describe category asking prices.
+
+Validation
+- node --test tests/intelligence-and-guides.test.js
+- node --check bot/index.js and browser assets; inline HTML scripts compile; git diff --check
+- Browser preview uses local sample accounts and prices to check UI without sending live DMs or touching customer accounts.
+
+Release — 23 October 2026
+- Owner explicitly authorized publishing this update on 23 October.
+- Starting live version: v6.152, commit 26d2fe2dfc6cf8a0fe543707c33eac680a8007c9.
+- Previous Railway deployment: b4eb7400-6a52-44d7-ac55-97779080da91 (successful, rollback available).
+- Release preflight: all 17 automated tests passed; JavaScript syntax checks and diff validation passed.
+- Prior desktop/mobile preview checks passed using sample accounts and prices.
+- Publish the matching frontend/backend commit; verify live version, backend health, authenticated-route guards, guide routes and sitemap after deployment.

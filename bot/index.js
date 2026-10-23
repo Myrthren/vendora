@@ -63,6 +63,10 @@ const outreach = require('./outreach');
 const trial = require('./trial');
 // Vendora Intelligence — public limiter, message cleaning and the facts prompt.
 const intelligence = require('./intelligence');
+const memberIntelligence = require('./member-intelligence');
+const repriceCoach = require('./reprice-coach');
+const { registerPriceGuides } = require('./price-guides');
+const { createFeatureSettings } = require('./feature-settings');
 
 console.log('[boot] Modules loaded');
 
@@ -327,6 +331,7 @@ function checkRateLimit(discordId, commandName, tier) {
 //           spending the entire allowance in one second.
 //   day   — per 24h. Caps the cost.
 const API_RATE_LIMITS = {
+  intelligence: memberIntelligence.RATE_LIMITS,
   //              burst / 60s                            quota / 24h
   search:    { burst: { basic: 3, pro: 6, elite: 12 }, day: { basic: 15, pro: 100, elite: 500 } },
   arbitrage: { burst: { basic: 1, pro: 2, elite: 4  }, day: { basic: 3,  pro: 15,  elite: 60  } },
@@ -345,6 +350,7 @@ const API_RATE_LIMITS = {
 };
 
 const API_GROUP_LABEL = {
+  intelligence: 'member support questions',
   search:    'market searches',
   arbitrage: 'arbitrage scans',
   sync:      'inventory syncs',
@@ -3773,6 +3779,13 @@ app.get('/', (_req, res) => res.json({
 }));
 
 // ── Vendora Intelligence — public site assistant ────────────────────────────
+const featureSettings = createFeatureSettings({ url: SUPABASE_URL, key: SUPABASE_KEY });
+memberIntelligence.registerMemberIntelligence(app, {
+  requireAuth, getProfileByUserId, ...featureSettings, enforceApiLimit,
+  getAI: () => ai, prices: TIER_PRICES,
+});
+const priceGuides = registerPriceGuides(app, featureSettings);
+
 // This route deliberately knows only the conversation supplied by the visitor;
 // it never receives account data, Vinted credentials, or private inventory.
 // Plan facts come from bot/intelligence.js, with prices from TIER_PRICES.
@@ -6280,6 +6293,9 @@ function normaliseVintedItem(it, base = 'https://www.vinted.co.uk') {
   return {
     id,
     title:    it.title || it.name || '(untitled)',
+    brand:    it.brand_title || it.brand?.title || '',
+    size:     it.size_title || '',
+    condition: typeof it.status === 'string' ? it.status : '',
     price,
     currency: it.currency || it.price?.currency_code || it.currencyCode || 'GBP',
     photo,
@@ -11127,6 +11143,49 @@ async function runMonthlyNicheDraft() {
 // track-record sweep at :05.
 cron.schedule('20 */3 * * *', () => runNicheSweep().catch(e => console.error('[niche] Unhandled sweep:', e.message)));
 cron.schedule('0 9 1 * *', () => runMonthlyNicheDraft().catch(e => console.error('[niche] Unhandled monthly draft:', e.message)), { timezone: 'Europe/London' });
+
+// A fixed public-only snapshot for last week's downloadable price cards.
+cron.schedule('15 9 * * 1', () => priceGuides.updateWeeklyCards().catch(e => console.error('[price-guides] Weekly cards:', e.message)), { timezone: 'Europe/London' });
+
+// Opt-in, active-Elite reminders. Stored cooldowns survive deployments.
+let repriceSweepRunning = false;
+async function runRepriceCoachReminders() {
+  if (repriceSweepRunning || !SUPABASE_KEY || !client.isReady()) return;
+  repriceSweepRunning = true;
+  try {
+    const daily = (await featureSettings.getSetting(NICHE_DAILY_KEY)) || {};
+    for (let offset = 0; ; offset += 100) {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/profiles?tier=eq.elite&subscription_status=eq.active&select=id,discord_id,is_banned&limit=100&offset=${offset}&order=id`, { headers: SB_HDR() });
+      if (!response.ok) throw new Error('Could not read Elite membership');
+      const profiles = await response.json();
+      if (!Array.isArray(profiles)) throw new Error('Invalid membership response');
+      for (const profile of profiles) {
+        if (!profile.discord_id || profile.is_banned) continue;
+        try {
+          const preferences = await featureSettings.getSetting(`reprice_preferences_${profile.id}`);
+          if (!preferences?.enabled) continue;
+          const snapshot = await featureSettings.getSetting(`vinted_inventory_${profile.id}`);
+          const suggestions = repriceCoach.recommendations(snapshot, daily);
+          const sent = (await featureSettings.getSetting(`reprice_sent_${profile.id}`)) || {};
+          const now = Date.now();
+          const due = repriceCoach.dueItems(suggestions.items, sent, now);
+          if (!due.length) continue;
+          const current = await getProfileByUserId(profile.id);
+          if (!memberIntelligence.capabilities(current).repriceCoach || current.is_banned || !(await featureSettings.getSetting(`reprice_preferences_${profile.id}`))?.enabled) continue;
+          const recipient = await client.users.fetch(profile.discord_id);
+          const marked = { ...sent };
+          for (const item of due) marked[item.id] = now;
+          await featureSettings.saveSetting(`reprice_sent_${profile.id}`, marked);
+          try { await recipient.send(repriceCoach.dmPayload(due)); }
+          catch (e) { await featureSettings.saveSetting(`reprice_sent_${profile.id}`, sent); throw e; }
+        } catch (e) { console.warn('[reprice-coach] Reminder skipped:', e.message); }
+      }
+      if (profiles.length < 100) break;
+    }
+  } catch (e) { console.error('[reprice-coach] Sweep failed:', e.message); }
+  finally { repriceSweepRunning = false; }
+}
+cron.schedule('10 12 * * *', () => runRepriceCoachReminders(), { timezone: 'Europe/London' });
 
 // ── Free trial ────────────────────────────────────────────────────────────────
 // Grants TRIAL_ROLE_ID for trial.TRIAL_DAYS, once per account, ever.

@@ -2,6 +2,22 @@
   publish = "."
   command = "node scripts/build-version.js"
 
+# Server-rendered public guides use the existing backend's collected data.
+[[redirects]]
+  from = "/price-guides"
+  to = "https://vendora-production-8a47.up.railway.app/public/price-guides"
+  status = 200
+
+[[redirects]]
+  from = "/price-guides/"
+  to = "/price-guides"
+  status = 301
+
+[[redirects]]
+  from = "/price-guides/*"
+  to = "https://vendora-production-8a47.up.railway.app/public/price-guides/:splat"
+  status = 200
+
 # ── Cache control ────────────────────────────────────────────────────────────
 # HTML and version.json must always be revalidated so users get new versions
 # without a hard refresh. Static assets can cache freely.

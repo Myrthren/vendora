@@ -617,6 +617,15 @@ that implies monitoring. Checkout step now names Whop as well as PayPal — Whop
 only checkout affiliate links can attribute, so naming PayPal alone worked against
 the affiliate program.
 
+NEW 2026-10-20 — Intel member support and Vendex guides (see HANDOFF.txt):
+- Shared charcoal/silver Intel launcher CSS in assets/intelligence.css; dashboard widget in assets/member-intelligence.js.
+- bot/member-intelligence.js registers authenticated member support, Elite coach and reminder-consent APIs. Plan access is checked SERVER-SIDE using subscription_status=active, not a request-supplied tier. Basic 20 support questions/day, Pro 60, Elite 120; inactive accounts 5/day for account/billing help. Limits use the intelligence API group, independently of existing AI tool quotas.
+- Basic never loads inventory; Pro gets allowlisted own synced inventory context; Elite adds deterministic repricing suggestions. Chat cannot execute billing, refunds, listing changes or support-ticket sends. Human handoff opens the existing reviewable form.
+- bot/reprice-coach.js compares older active own listings against fresh, consistent category evidence from niche_daily_v2. Time is observed since first sync, not original listing age. Suggestions are NOT exact sold comps and never auto-change prices. Optional Elite reminders require reprice_preferences_<UUID>.enabled; daily London 12:10 sweep, persisted seven-day listing cooldown in reprice_sent_<UUID>.
+- bot/price-data.js reads validated daily roll-ups; bot/price-guides.js renders public HTML and dynamic sitemap. Netlify proxies /price-guides paths to /public/price-guides on the EXISTING backend. Seven recent sampled days + fresh/consistent data to index; weak guides noindex. Root sitemap is now an index referencing pages-sitemap.xml and the dynamic guide sitemap.
+- Public weekly PNGs are rendered locally in the browser from a persisted public-only weekly snapshot (vendex_weekly_cards), four sampled days of the previous complete week required. Scheduled Monday 09:15 London, with on-request fallback. Never infer completed sales from asking prices or label repeated observations as unique listings.
+- No new dependencies/env vars/schema changes. Test: node --test tests/intelligence-and-guides.test.js.
+
 Reference Files
 - /docs/vendora-product-document.pdf — Full product spec (27 pages)
 - /index.html — Landing page
