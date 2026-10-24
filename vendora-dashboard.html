@@ -5550,7 +5550,7 @@
       const { data: { session } } = await sb.auth.getSession();
       if (!session) { window.location.href = 'vendora-login.html'; return; }
 
-      const res = await fetch(`${BOT_API}/api/support/ticket`, {
+      const res = await fetch('/api/support/ticket', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
         body: JSON.stringify({ subject, message }),

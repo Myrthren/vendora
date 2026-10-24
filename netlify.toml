@@ -1,22 +1,12 @@
 [build]
-  publish = "."
-  command = "node scripts/build-version.js"
+  publish = "dist"
+  command = "node scripts/build-netlify.js"
 
-# Server-rendered public guides use the existing backend's collected data.
-[[redirects]]
-  from = "/price-guides"
-  to = "https://vendora-production-8a47.up.railway.app/public/price-guides"
-  status = 200
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
 
-[[redirects]]
-  from = "/price-guides/"
-  to = "/price-guides"
-  status = 301
-
-[[redirects]]
-  from = "/price-guides/*"
-  to = "https://vendora-production-8a47.up.railway.app/public/price-guides/:splat"
-  status = 200
+# Functions declare their own /api/* and /price-guides paths in code.
 
 # ── Cache control ────────────────────────────────────────────────────────────
 # HTML and version.json must always be revalidated so users get new versions

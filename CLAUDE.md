@@ -1,5 +1,17 @@
 VENDORA — Claude Code Context
 
+WEB FEATURE HOSTING — migrated 2026-10-24
+The new Intel web endpoints and Vendex price guides run on NETLIFY FUNCTIONS, independently of Railway billing. The older bot process remains responsible for existing Vinted collection/sync, Discord event handlers and older APIs. Do not describe the entire backend as one inseparable process after this migration.
+- netlify/functions/vendora-web.mjs handles /api/intelligence, /api/member-intelligence, /api/reprice-coach[/preferences], /api/support/ticket and /price-guides[/...]. Server logic is in server/*.cjs; tested feature modules in bot/ are reused without starting bot/index.js.
+- Frontend calls these routes on the same origin. Netlify no longer proxies guides to Railway.
+- SUPABASE_SERVICE_KEY plus the existing AI key and Discord token belong in the Netlify site's runtime environment, never in frontend files or netlify.toml. Existing login, tiers and Supabase records are preserved.
+- server/atomic-settings.cjs uses PostgREST compare-and-set updates on the existing settings table (JSON _revision predicate). Rate limits are durable and shared across function instances; per-user tiers remain 20/60/120 support questions per London calendar day. No schema migration.
+- netlify/functions/reprice-reminders.mjs is scheduled every ten minutes, does useful work only 12:10–12:59 Europe/London, and requires VENDORA_REPRICE_ENABLED=true plus each member's explicit opt-in. Bounded work, a persisted cursor/lease and per-listing cooldowns avoid duplicate deliveries. The legacy Railway reminder runner is off unless REPRICE_RUNNER=railway is explicitly set. Never run both intentionally.
+- Support handoff opens the existing form. An explicit form submission sends a direct Discord API message to the existing owner; no bot Gateway connection is needed for outgoing messages.
+- scripts/build-netlify.js prepares only public assets in dist/. The CDN publish folder excludes bot/, server/, tests/ and private configuration.
+- Tests: node --test tests/intelligence-and-guides.test.js tests/netlify-migration.test.js.
+- Migrating these features does not replace the Vinted data collector. Stale or weak data still produces honest empty/noindex states.
+
 What is this project
 Vendora is a SaaS platform and Discord bot for resellers.
 It lives at https://vendora.site (confirmed in bot/index.js SITE_URL, ~line 107) and inside the Vendora Discord server.

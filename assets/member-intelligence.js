@@ -9,7 +9,7 @@
   async function request(path, options = {}) {
     const { data: { session } } = await window._sb.auth.getSession();
     if (!session) throw new Error('Your session expired. Sign in again to use member support.');
-    const response = await fetch(window._BOT_API + path, { ...options, signal: AbortSignal.timeout(45000),
+    const response = await fetch(path, { ...options, signal: AbortSignal.timeout(45000),
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` } });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'Could not reach member support. Please try again.');

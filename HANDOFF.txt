@@ -1,5 +1,16 @@
 Vendora — Intel support, repricing coach and public price guides
-20 October 2026
+Updated 24 October 2026 — Netlify migration
+
+Current hosting for the new web features
+- Intel public/member chat, Elite repricing, support submission and Vendex guides now use Netlify Functions with same-origin URLs. Existing Supabase login, membership and data are preserved.
+- The Netlify deployment needs runtime SUPABASE_URL, SUPABASE_SERVICE_KEY, the existing GROQ_API_KEY (or ANTHROPIC_API_KEY), DISCORD_BOT_TOKEN and OWNER_DISCORD_ID. VENDORA_REPRICE_ENABLED=true activates the scheduler; each Elite member must separately opt in.
+- Existing settings rows support atomic usage counters, job leases/cursors and reminder cooldowns. No SQL migration is needed. Functions fail closed when quota persistence fails.
+- Reminder schedule: every ten minutes, processing only in the 12:10–12:59 London window with bounded batches. The Railway legacy runner is disabled by default to avoid competing delivery loops.
+- Static deployment publishes dist/ with public assets only. Server code, tests and environment configuration are excluded from the public CDN.
+- The original Vinted collector and older bot/API routes remain on the existing backend. The migration does not promise fresh data if that collector stops.
+- Validation: 31 automated checks cover original features plus serverless routing, concurrent rate limits, access restrictions, input limits, consent and cooldowns. Build output is checked to exclude private sources.
+
+Original feature notes
 
 Changes
 - Landing-page Intel launcher: charcoal pill, silver rim and soft white hover/focus glow. Keyboard focus and reduced-motion support.

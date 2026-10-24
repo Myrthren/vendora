@@ -11150,6 +11150,9 @@ cron.schedule('15 9 * * 1', () => priceGuides.updateWeeklyCards().catch(e => con
 // Opt-in, active-Elite reminders. Stored cooldowns survive deployments.
 let repriceSweepRunning = false;
 async function runRepriceCoachReminders() {
+  // Netlify owns reminders after the web migration. Opt into the legacy
+  // Railway runner explicitly only when intentionally moving ownership back.
+  if (process.env.REPRICE_RUNNER !== 'railway') return;
   if (repriceSweepRunning || !SUPABASE_KEY || !client.isReady()) return;
   repriceSweepRunning = true;
   try {

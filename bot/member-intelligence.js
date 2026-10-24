@@ -59,7 +59,7 @@ function registerMemberIntelligence(app, deps) {
     if (!messages.length) return res.status(400).json({ error: 'Please enter a support question.' });
     const ai = getAI();
     if (!ai || ai.rateLimitedUntil > Date.now()) return res.status(503).json({ error: 'AI support is busy. Please try again shortly or contact support.' });
-    if (!enforceApiLimit(res, user.id, 'intelligence', caps.tier)) return;
+    if (!await enforceApiLimit(res, user.id, 'intelligence', caps.tier)) return;
     const context = { plan: caps.tier, subscriptionStatus: profile?.subscription_status || 'inactive' };
     if (caps.inventoryGuidance) context.inventory = safeInventory(await getSetting(`vinted_inventory_${user.id}`));
     if (caps.repriceCoach) context.repricing = coach.recommendations(await getSetting(`vinted_inventory_${user.id}`), await readDaily());
