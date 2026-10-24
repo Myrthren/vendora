@@ -74,27 +74,36 @@ function releaseNotes(commits) {
   return [...groups].map(([label, items]) => ({ label, items }));
 }
 
-function embedForRelease(release, repository) {
-  const notes = releaseNotes(release.commits);
-  const lines = [];
-  for (const group of notes) {
-    lines.push(`**${group.label}**`);
-    for (const item of group.items) {
-      if (lines.join('\n').length > 3400) { lines.push('• Additional changes are in the compare view.'); break; }
-      lines.push(`• ${item}`);
-    }
+function releaseTitle(commits) {
+  const parsed = [...(commits || [])].reverse().map(commit => parseCommit(commit.message));
+  return (parsed.find(item => item.type === 'feat') || parsed.find(item => item.type !== 'docs' && item.type !== 'chore') || parsed[0])?.text || 'Release update';
+}
+
+function displayVersion(version) {
+  const parsed = parseVersion(version);
+  return parsed.patch === 0 ? `${parsed.major}.${parsed.minor}` : version;
+}
+
+// Discord has no idempotency key for a channel message. This invisible marker
+// lets recovery find a message accepted immediately before a process crash,
+// without changing the human-facing release-note format.
+function hiddenMarker(correlation) {
+  const bits = Buffer.from(String(correlation)).toString('hex').split('').map(hex =>
+    Number.parseInt(hex, 16).toString(2).padStart(4, '0').replace(/0/g, '\u200b').replace(/1/g, '\u200c')
+  ).join('');
+  return `\u2063${bits}\u2063`;
+}
+
+function messageForRelease(release, roleId) {
+  const lines = [`📦 **Vendora v${displayVersion(release.version)}** — ${releaseTitle(release.commits)}`, ''];
+  for (const commit of release.commits || []) {
+    const line = `• ${parseCommit(commit.message).text}`;
+    // Leave enough room for the role mention and invisible recovery marker.
+    if ((lines.join('\n').length + line.length) > 1800) { lines.push('• Additional changes are included in GitHub.'); break; }
+    lines.push(line);
   }
-  const compare = release.baseSha && release.headSha
-    ? `https://github.com/${repository}/compare/${release.baseSha}...${release.headSha}` : null;
-  const colour = release.bump === 'major' ? 0xed4245 : release.bump === 'minor' ? 0x57f287 : 0x5865f2;
-  return {
-    title: `Vendora v${release.version}`,
-    description: lines.join('\n').slice(0, 4096) || '• Maintenance release.',
-    color: colour,
-    url: compare || undefined,
-    footer: { text: `Vendora release · ${release.correlation}` },
-    timestamp: new Date().toISOString(),
-  };
+  if (roleId) lines.push('', `<@&${roleId}>`);
+  return lines.join('\n') + hiddenMarker(release.correlation);
 }
 
 function revertTarget(message) {
@@ -196,7 +205,7 @@ function createReleaseLog({ store, client, config, request = fetch, now = () => 
       return;
     }
     const release = { version: batch.version, bump: requiredBump(commits), commits, baseSha: batch.base_sha, headSha: batch.head_sha, correlation: batch.correlation };
-    if (message) await message.edit({ content: config.roleId ? `<@&${config.roleId}>` : '', embeds: [embedForRelease(release, config.repository)], allowedMentions: { parse: [] } });
+    if (message) await message.edit({ content: messageForRelease(release, config.roleId), embeds: [], allowedMentions: { parse: [] } });
   }
 
   async function publish(batch) {
@@ -208,12 +217,12 @@ function createReleaseLog({ store, client, config, request = fetch, now = () => 
     // Recover a send that succeeded just before a process crash. The stable
     // footer marker means a retry can adopt that message instead of duplicating it.
     const recent = await ch.messages.fetch({ limit: 100 });
-    let message = recent.find(m => m.embeds.some(e => e.footer?.text === `Vendora release · ${batch.correlation}`));
+    let message = recent.find(m => m.content?.includes(hiddenMarker(batch.correlation)));
     if (!message) {
       await store.updateOutbox(outbox.id, { state: 'sending', attempted_at: now().toISOString() });
       const previous = await store.lastPublishedVersion() || config.initialVersion;
       const release = { version: bumpVersion(previous, requiredBump(commits)), bump: requiredBump(commits), commits, baseSha: batch.base_sha, headSha: batch.head_sha, correlation: batch.correlation };
-      message = await ch.send({ content: config.roleId ? `<@&${config.roleId}>` : '', embeds: [embedForRelease(release, config.repository)], allowedMentions: config.roleId ? { roles: [config.roleId] } : { parse: [] } });
+      message = await ch.send({ content: messageForRelease(release, config.roleId), allowedMentions: config.roleId ? { roles: [config.roleId] } : { parse: [] } });
       await store.updateBatch(batch.id, { version: release.version });
     }
     const version = batch.version || (await store.batch(batch.id))?.version;
@@ -283,5 +292,5 @@ function createReleaseLog({ store, client, config, request = fetch, now = () => 
   return { receive, flush, enabled: ready };
 }
 
-module.exports = { validSignature, parseCommit, requiredBump, parseVersion, bumpVersion, releaseNotes, embedForRelease, revertTarget, reachableCompareStatus, createStore, createReleaseLog };
+module.exports = { validSignature, parseCommit, requiredBump, parseVersion, bumpVersion, releaseNotes, releaseTitle, displayVersion, hiddenMarker, messageForRelease, revertTarget, reachableCompareStatus, createStore, createReleaseLog };
 
