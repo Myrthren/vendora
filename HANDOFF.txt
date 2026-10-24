@@ -1,3 +1,6 @@
+Styling update — 24 October 2026
+- Intel launcher text, sparkle, rim, keyboard focus and hover lighting now use Vendora pink across the landing page and dashboard. Existing charcoal background, shadows, hover lift and reduced-motion behavior are preserved.
+
 Vendora — Intel support, repricing coach and public price guides
 Updated 24 October 2026 — Netlify migration
 
@@ -20,7 +23,7 @@ Current hosting for the new web features
 Original feature notes
 
 Changes
-- Landing-page Intel launcher: charcoal pill, silver rim and soft white hover/focus glow. Keyboard focus and reduced-motion support.
+- Landing-page Intel launcher: charcoal pill, pink text/rim and soft pink hover/focus glow. Keyboard focus and reduced-motion support.
 - Dashboard Intel: account and tool support on Basic (20 questions/day), read-only synced inventory guidance on Pro (60/day), repricing context and coach on Elite (120/day). Inactive accounts retain account/billing support (5/day).
 - Server derives identity and active plan from verified Supabase authentication. Basic never loads inventory; Pro cannot access repricing. Banned accounts are blocked. No private data is added to public guides.
 - Contact support opens the existing support form with a reviewable conversation excerpt. It does not automatically send a ticket.
@@ -55,4 +58,3 @@ Release — 23 October 2026
 - Release preflight: all 17 automated tests passed; JavaScript syntax checks and diff validation passed.
 - Prior desktop/mobile preview checks passed using sample accounts and prices.
 - Publish the matching frontend/backend commit; verify live version, backend health, authenticated-route guards, guide routes and sitemap after deployment.
-
