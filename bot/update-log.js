@@ -122,6 +122,9 @@ function createStore({ url, key, request = fetch }) {
       const rows = await call(table('release_log_deliveries'), { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=representation' }, body: JSON.stringify({ delivery_id: id, expires_at: new Date(Date.now() + 90 * DAY).toISOString() }) });
       return Array.isArray(rows) && rows.length === 1;
     },
+    async purgeExpiredDeliveries() {
+      await call(table('release_log_deliveries', `?expires_at=lt.${encodeURIComponent(new Date().toISOString())}`), { method: 'DELETE' });
+    },
     async openBatch(branch) {
       const rows = await call(table('release_log_batches', `?branch=eq.${encodeURIComponent(branch)}&status=eq.open&select=*&limit=1`));
       return rows[0] || null;
@@ -222,7 +225,14 @@ function createReleaseLog({ store, client, config, request = fetch, now = () => 
     for (const batch of await store.trackedBatches(branch)) {
       for (const commit of await active(batch)) {
         const response = await request(`https://api.github.com/repos/${config.repository}/compare/${commit.sha}...${after}`, { headers: config.githubToken ? { Authorization: `Bearer ${config.githubToken}`, Accept: 'application/vnd.github+json' } : { Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(15000) });
-        if (!response.ok || !reachableCompareStatus((await response.json()).status)) await store.removeCommit(batch.id, commit.sha);
+        // A transient GitHub failure must never be interpreted as proof that a
+        // commit disappeared from the branch. The next forced-push delivery can
+        // safely retry this check.
+        if (!response.ok) {
+          logger.warn('[update-log] Could not reconcile forced push:', response.status);
+          continue;
+        }
+        if (!reachableCompareStatus((await response.json()).status)) await store.removeCommit(batch.id, commit.sha);
       }
       const fresh = await store.batch(batch.id);
       if (fresh?.status === 'published') await updatePublished(fresh);
@@ -265,6 +275,7 @@ function createReleaseLog({ store, client, config, request = fetch, now = () => 
 
   async function flush() {
     if (!ready()) return;
+    await store.purgeExpiredDeliveries();
     for (const batch of await store.dueBatches(now())) {
       try { await publish(batch); } catch (error) { logger.error('[update-log] Publish failed:', error.message); }
     }
