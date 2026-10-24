@@ -67,6 +67,7 @@ const memberIntelligence = require('./member-intelligence');
 const repriceCoach = require('./reprice-coach');
 const { registerPriceGuides } = require('./price-guides');
 const { createFeatureSettings } = require('./feature-settings');
+const updateLog = require('./update-log');
 
 console.log('[boot] Modules loaded');
 
@@ -97,6 +98,16 @@ const WHOP_OAUTH_REDIRECT_URI  = process.env.WHOP_OAUTH_REDIRECT_URI
   || 'https://vendora-production-8a47.up.railway.app/api/whop/oauth/callback';
 const PROXY_URL        = process.env.PROXY_URL; // optional residential proxy e.g. http://user:pass@host:port
 const APIFY_TOKEN      = process.env.APIFY_API_TOKEN; // Apify API key for Vinted Scraper & Monitor
+// GitHub → Discord release digest. This is separate from the dashboard's
+// copy-pastable Update Log and has its own durable relational storage.
+const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET;
+const GITHUB_DEFAULT_BRANCH = process.env.GITHUB_DEFAULT_BRANCH || 'main';
+const UPDATE_LOG_CHANNEL_ID = process.env.DISCORD_UPDATE_LOG_CHANNEL_ID;
+const UPDATE_LOG_ROLE_ID = process.env.DISCORD_UPDATE_LOG_ROLE_ID;
+const UPDATE_LOG_WINDOW_HOURS = Math.max(1, Math.min(24, Number(process.env.UPDATE_LOG_WINDOW_HOURS || 4)));
+const UPDATE_LOG_INITIAL_VERSION = process.env.UPDATE_LOG_INITIAL_VERSION;
+const GITHUB_API_TOKEN = process.env.GITHUB_API_TOKEN;
+const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY || 'Myrthren/vendora';
 
 // Create ONE shared proxy agent — reusing it keeps the same exit IP across a full Vinted session.
 // Chrome-like TLS cipher configuration to avoid JA3 fingerprint detection by DataDome.
@@ -179,6 +190,9 @@ if (!APIFY_TOKEN)      console.warn('[warn] APIFY_API_TOKEN not set — Vinted A
 if (!WHOP_WEBHOOK_SECRET) console.warn('[warn] WHOP_WEBHOOK_SECRET not set — Whop webhooks will be REJECTED');
 if (!WHOP_API_KEY)        console.warn('[warn] WHOP_API_KEY not set — Whop checkout falls back to unmatched plan links');
 if (!WHOP_OAUTH_CLIENT_ID) console.warn('[warn] WHOP_OAUTH_CLIENT_ID not set — "Connect Whop" disabled, marketplace buyers need claim codes');
+if (!GITHUB_WEBHOOK_SECRET || !UPDATE_LOG_CHANNEL_ID || !UPDATE_LOG_INITIAL_VERSION) {
+  console.warn('[update-log] Disabled — set GITHUB_WEBHOOK_SECRET, DISCORD_UPDATE_LOG_CHANNEL_ID and UPDATE_LOG_INITIAL_VERSION after applying sql/release-log.sql');
+}
 
 // ── AI client ─────────────────────────────────────────────────────────────────
 // GROQ_API_KEY wins when set: it is the stand-in while the Anthropic key is
@@ -3364,6 +3378,13 @@ client.once('ready', async () => {
   setTimeout(() => { runWinbackSweep().catch(e => console.error('[winback] Sweep failed:', e.message)); }, 60 * 1000);
   setInterval(() => { runWinbackSweep().catch(e => console.error('[winback] Sweep failed:', e.message)); }, WINBACK_SWEEP_MS);
   console.log('[scheduler] Win-back sweep started (6h interval)');
+
+  if (releaseLog.enabled()) {
+    // The durable deadline, not this interval, defines the fixed release window.
+    releaseLog.flush().catch(e => console.error('[update-log] Initial flush failed:', e.message));
+    setInterval(() => releaseLog.flush().catch(e => console.error('[update-log] Flush failed:', e.message)), 60 * 1000);
+    console.log(`[update-log] Ready for ${GITHUB_REPOSITORY}:${GITHUB_DEFAULT_BRANCH} (${UPDATE_LOG_WINDOW_HOURS}h fixed windows)`);
+  }
 });
 
 client.on('guildMemberAdd', async (member) => {
@@ -3764,8 +3785,44 @@ app.use((req, res, next) => {
 // consumes the stream first and the signature can never be reproduced.
 app.use('/whop-webhook', express.raw({ type: '*/*', limit: '1mb' }));
 
+// GitHub signs the exact JSON bytes too. This must be mounted before the
+// general JSON parser or signature verification cannot be trusted.
+app.use('/github', express.raw({ type: 'application/json', limit: '2mb' }));
+
 // Increase body size limit to 25 MB to handle base64-encoded image uploads
 app.use(express.json({ limit: '25mb' }));
+
+const releaseLogStore = updateLog.createStore({ url: SUPABASE_URL, key: SUPABASE_KEY });
+const releaseLog = updateLog.createReleaseLog({
+  store: releaseLogStore,
+  client,
+  config: {
+    secret: GITHUB_WEBHOOK_SECRET,
+    branch: GITHUB_DEFAULT_BRANCH,
+    channelId: UPDATE_LOG_CHANNEL_ID,
+    roleId: UPDATE_LOG_ROLE_ID,
+    windowHours: UPDATE_LOG_WINDOW_HOURS,
+    initialVersion: UPDATE_LOG_INITIAL_VERSION,
+    githubToken: GITHUB_API_TOKEN,
+    repository: GITHUB_REPOSITORY,
+  },
+});
+
+// GitHub Push webhook. Delivery IDs are retained for 90 days by the store, so
+// retried requests cannot create a duplicate batch or Discord announcement.
+app.post('/github', async (req, res) => {
+  try {
+    const result = await releaseLog.receive(req.body, {
+      'x-github-event': String(req.headers['x-github-event'] || ''),
+      'x-github-delivery': String(req.headers['x-github-delivery'] || ''),
+      'x-hub-signature-256': String(req.headers['x-hub-signature-256'] || ''),
+    });
+    return res.status(result.status).json(result.body);
+  } catch (error) {
+    console.error('[update-log] Webhook failed:', error.message);
+    return res.status(503).json({ error: 'Release log is temporarily unavailable.' });
+  }
+});
 
 // whop_oauth lets the dashboard hide the "Connect Whop account" button until the
 // OAuth app is actually configured, rather than showing a button that 503s.
@@ -3776,6 +3833,12 @@ app.get('/', (_req, res) => res.json({
   // Vinted reachability, because when the proxy dies EVERY Vinted feature dies
   // with it and the only previous symptom was empty results.
   vinted: vintedBrowser?.vintedBrowserStatus ? vintedBrowser.vintedBrowserStatus() : null,
+}));
+
+app.get('/health', (_req, res) => res.json({
+  status: 'ok',
+  bot: client.user?.tag || 'connecting...',
+  update_log: releaseLog.enabled(),
 }));
 
 // ── Vendora Intelligence — public site assistant ────────────────────────────
@@ -11728,3 +11791,4 @@ if (TOKEN) {
 } else {
   console.error('[discord] Cannot login — DISCORD_BOT_TOKEN missing');
 }
+
