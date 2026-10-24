@@ -1,6 +1,3 @@
-Styling update — 24 October 2026
-- Intel launcher text, sparkle, rim, keyboard focus and hover lighting now use Vendora pink across the landing page and dashboard. Existing charcoal background, shadows, hover lift and reduced-motion behavior are preserved.
-
 Vendora — Intel support, repricing coach and public price guides
 Updated 24 October 2026 — Netlify migration
 
@@ -8,7 +5,7 @@ Automated Discord release digest — 24 October 2026
 - `bot/update-log.js` is a bot-integrated GitHub Push webhook receiver and four-hour fixed-window release-note publisher. It is separate from the existing admin-panel Update Log, which remains available for manually copy-pasting Git-history summaries.
 - Apply `sql/release-log.sql` once in Supabase, then set `DISCORD_UPDATE_LOG_CHANNEL_ID`, `GITHUB_WEBHOOK_SECRET` and an explicit `UPDATE_LOG_INITIAL_VERSION`; `DISCORD_UPDATE_LOG_ROLE_ID`, `GITHUB_DEFAULT_BRANCH`, `UPDATE_LOG_WINDOW_HOURS`, `GITHUB_API_TOKEN` and `GITHUB_REPOSITORY` are optional overrides.
 - Configure GitHub with a Push-event webhook to `POST /github`, JSON payloads and the matching secret. The endpoint verifies HMAC before parsing and remembers delivery IDs for 90 days.
-- Batches, commits, deliveries and a publish outbox use dedicated relational tables. A stable marker in each embed lets a restarted process find a message accepted just before a crash rather than posting a duplicate.
+- Batches, commits, deliveries and a publish outbox use dedicated relational tables. A stable invisible marker in each post lets a restarted process find a message accepted just before a crash rather than posting a duplicate.
 - Standard reverts remove matching commits from an open batch or edit/delete an already published Discord post. Forced pushes use GitHub compare results to remove commits no longer reachable from the configured branch head.
 
 Current hosting for the new web features
@@ -23,7 +20,7 @@ Current hosting for the new web features
 Original feature notes
 
 Changes
-- Landing-page Intel launcher: charcoal pill, pink text/rim and soft pink hover/focus glow. Keyboard focus and reduced-motion support.
+- Landing-page Intel launcher: charcoal pill, silver rim and soft white hover/focus glow. Keyboard focus and reduced-motion support.
 - Dashboard Intel: account and tool support on Basic (20 questions/day), read-only synced inventory guidance on Pro (60/day), repricing context and coach on Elite (120/day). Inactive accounts retain account/billing support (5/day).
 - Server derives identity and active plan from verified Supabase authentication. Basic never loads inventory; Pro cannot access repricing. Banned accounts are blocked. No private data is added to public guides.
 - Contact support opens the existing support form with a reviewable conversation excerpt. It does not automatically send a ticket.
@@ -58,3 +55,4 @@ Release — 23 October 2026
 - Release preflight: all 17 automated tests passed; JavaScript syntax checks and diff validation passed.
 - Prior desktop/mobile preview checks passed using sample accounts and prices.
 - Publish the matching frontend/backend commit; verify live version, backend health, authenticated-route guards, guide routes and sitemap after deployment.
+
