@@ -35,6 +35,15 @@ test('breaking changes take precedence and versions roll correctly', () => {
   assert.equal(log.bumpVersion('6.153.0', 'major'), '7.0.0');
 });
 
+test('uses the established Vendora message layout with the role mention last', () => {
+  const message = log.messageForRelease({ version: '6.155.0', correlation: 'release-1', commits: [
+    { message: 'feat: run Intel and Vendex web features on Netlify Functions' },
+    { message: 'style: tint Intel launcher effects pink' },
+  ] }, '1505563141088743464');
+  assert.match(message, /^📦 \*\*Vendora v6\.155\*\* — Run Intel and Vendex web features on Netlify Functions\n\n• Run Intel and Vendex web features on Netlify Functions\n• Tint Intel launcher effects pink\n\n<@&1505563141088743464>/);
+  assert.equal(message.includes(log.hiddenMarker('release-1')), true);
+});
+
 test('only compare statuses with the tracked commit behind the head are reachable', () => {
   assert.equal(log.reachableCompareStatus('ahead'), true);
   assert.equal(log.reachableCompareStatus('identical'), true);
